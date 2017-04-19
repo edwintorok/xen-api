@@ -2001,9 +2001,10 @@ let rec events_watch ~__context cancel queue_name from =
   (* Loop *)
   events_watch ~__context cancel queue_name (Some next)
 
+(* Set thread pool minimum size always *)
+let () = Lib_worker.WorkerPool.start 25
+
 let events_from_xenopsd queue_name =
-  (* Start the thread pool *)
-  Lib_worker.WorkerPool.start 25;
   (* Start the thread that puts events into the thread pool *)
   Server_helpers.exec_with_new_task (Printf.sprintf "%s events" queue_name)
     (fun __context ->
