@@ -564,18 +564,18 @@ let force_state_reset_keep_current_operations ~__context ~self ~value:state =
          Db.PCI.remove_attached_VMs ~__context ~self:pci ~value:self)
       (Db.VM.get_attached_PCIs ~__context ~self);
     List.iter
-      (fun pci ->
+      (fun (pci_ref, pci) ->
          (* The following should not be necessary if many-to-many relations in the DB
           * work properly. People have reported issues that may indicate that this is
           * not the case, but we have not yet found the root cause. Therefore, the
           * following code is there "just to be sure".*)
-         if List.mem self (Db.PCI.get_attached_VMs ~__context ~self:pci) then
-           Db.PCI.remove_attached_VMs ~__context ~self:pci ~value:self;
+         if List.mem self (pci.Db_actions.pCI_attached_VMs) then
+           Db.PCI.remove_attached_VMs ~__context ~self:pci_ref ~value:self;
          (* Clear any PCI device reservations for this VM. *)
-         if Db.PCI.get_scheduled_to_be_attached_to ~__context ~self:pci = self then
-           Db.PCI.set_scheduled_to_be_attached_to ~__context ~self:pci ~value:Ref.null
+         if Db.PCI.get_scheduled_to_be_attached_to ~__context ~self:pci_ref = self then
+           Db.PCI.set_scheduled_to_be_attached_to ~__context ~self:pci_ref ~value:Ref.null
       )
-      (Db.PCI.get_all ~__context);
+      (Db.PCI.get_internal_records_where ~__context ~expr:Db_filter_types.True);
     (* Blank the requires_reboot flag *)
     Db.VM.set_requires_reboot ~__context ~self ~value:false
   end;
