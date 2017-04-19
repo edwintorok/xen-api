@@ -46,6 +46,7 @@ depends: [
   "xenctrl"
   "xenstore"
   "xapi-inventory"
+  "xapi-xenopsd"
   "tar-format"
   "opasswd"
   "xapi-rrdd-plugin"
