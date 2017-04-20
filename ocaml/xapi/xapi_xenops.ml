@@ -1928,6 +1928,20 @@ let update_task ~__context queue_name id =
      | e ->
        error "xenopsd event: Caught %s while updating task" (string_of_exn e)
 
+module Lib_worker = Xapi_work_queues.Make(struct
+    type t = string * (unit -> unit)
+    let describe_item (op, _) = op
+    let dump_task _ = Rpc.rpc_of_unit ()
+
+    let execute (label, item) =
+      debug "executing item with label '%s'" label;
+      item ()
+
+    let finally _ = ()
+
+    let should_keep _ _ = true
+end)
+
 let rec events_watch ~__context cancel queue_name from =
   let dbg = Context.string_of_task __context in
   if Xapi_fist.delay_xenopsd_event_threads () then Thread.delay 30.0;
