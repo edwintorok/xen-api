@@ -15,6 +15,10 @@ let disable_warn_error =
   let doc = "Disable -warn-error (default is enabled for development)" in
   Arg.(value & flag & info [ "disable-warn-error" ] ~doc)
 
+let coverage =
+  let doc = "Enable coverage profiling" in
+  Arg.(value & flag & info ["enable-coverage"] ~doc)
+
 let varpatchdir = dir "varpatchdir" "/var/patch" "VARPATCHDIR" "hotfixes"
 let etcdir = dir "etcdir" "/etc/xensource" "ETCDIR" "configuration files"
 let optdir = dir "optdir" "/opt/xensource" "OPTDIR" "system files"
@@ -43,7 +47,12 @@ let output_file filename lines =
   List.iter (output_string oc) lines;
   close_out oc
 
+let yesno_of_bool = function
+ | true -> "YES"
+ | false -> "NO"
+
 let configure
+    coverage
     disable_warn_error
     varpatchdir
     etcdir
@@ -83,6 +92,7 @@ let configure
     "SBINDIR", sbindir;
     "UDEVDIR", udevdir;
     "DOCDIR", docdir;
+    "BISECT_COVERAGE", yesno_of_bool coverage
   ] in
   let lines = List.map (fun (k,v) -> Printf.sprintf "%s=%s" k v) vars in
   let export = Printf.sprintf "export %s"
@@ -95,10 +105,14 @@ let configure
   Printf.printf "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n";
   List.iter (fun (k,v) ->
       Printf.printf "%20s = %s\n" (String.lowercase k) v) vars;
-  output_file config_mk (header @ lines @ [export])
+  output_file config_mk (header @ lines @ [export]);
+  let coverage_ml = "ocaml/xapi/coverage.ml" in
+  begin try Sys.remove coverage_ml with _ -> () end;
+  Unix.symlink (Filename.concat (if coverage then "profiling-enabled" else "profiling-disabled") "coverage.ml")
+	coverage_ml
 
 let configure_t =
-  Term.(pure configure $ disable_warn_error $ varpatchdir $ etcdir $
+  Term.(pure configure $ coverage $ disable_warn_error $ varpatchdir $ etcdir $
         optdir $ plugindir $ extensiondir $ hooksdir $ inventory $
         xapiconf $ libexecdir $ scriptsdir $ sharedir $ webdir $
         cluster_stack_root $ bindir $ sbindir $ udevdir $ docdir )

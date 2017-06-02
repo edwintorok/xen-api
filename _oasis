@@ -7,9 +7,10 @@ License:      LGPL-2.1 with OCaml linking exception
 Plugins:      META (0.4)
 BuildTools:   ocamlbuild
 OCamlVersion: >= 4.01
+AlphaFeatures: ocamlbuild_more_args
+XOCamlbuildPluginTags: package(bisect_ppx.ocamlbuild)
 
 #BuildType:    OMake(0.4)
-
 
 Library xapi-database
   CompiledObject:   best

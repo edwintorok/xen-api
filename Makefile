@@ -1,7 +1,7 @@
 include config.mk
 INSTALL_PATH = $(DESTDIR)/$(shell ocamlfind printconf destdir)
 OCAMLFIND_DESTDIR = $(INSTALL_PATH)
-CONFIGUREFLAGS=--enable-tests
+CONFIGUREFLAGS=--enable-tests --override ocamlbuildflags '-j 8'
 
 export OCAMLFIND_DESTDIR
 
