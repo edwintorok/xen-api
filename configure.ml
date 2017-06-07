@@ -105,11 +105,7 @@ let configure
   Printf.printf "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n";
   List.iter (fun (k,v) ->
       Printf.printf "%20s = %s\n" (String.lowercase k) v) vars;
-  output_file config_mk (header @ lines @ [export]);
-  let coverage_ml = "ocaml/xapi/coverage.ml" in
-  begin try Sys.remove coverage_ml with _ -> () end;
-  Unix.symlink (Filename.concat (if coverage then "profiling-enabled" else "profiling-disabled") "coverage.ml")
-	coverage_ml
+  output_file config_mk (header @ lines @ [export])
 
 let configure_t =
   Term.(pure configure $ coverage $ disable_warn_error $ varpatchdir $ etcdir $

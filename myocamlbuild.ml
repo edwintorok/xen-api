@@ -52,4 +52,4 @@ let custom_dispatch = function
     ~gendebug:true;
 | _ -> ();;
 
-Ocamlbuild_plugin.dispatch (fun h -> custom_dispatch h; Bisect_ppx_plugin.dispatch h; dispatch_default h);;
+Ocamlbuild_plugin.dispatch (fun h -> custom_dispatch h; dispatch_default h);;
