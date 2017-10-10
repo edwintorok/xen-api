@@ -238,16 +238,19 @@ let db_action api : O.Module.t =
 
     let of_field = function
       | { DT.ty = DT.Set(DT.Ref other); full_name = full_name; DT.field_ignore_foreign_key = false } ->
-        Printf.sprintf "List.map %s.%s (List.assoc \"%s\" __set_refs)"
+        Printf.sprintf "List.map %s.%s (Hashtbl.find __set_refs \"%s\")"
           _string_to_dm
           (OU.alias_of_ty (DT.Ref other))
           (Escaping.escape_id full_name)
       | f ->
         _string_to_dm ^ "." ^ (OU.alias_of_ty f.DT.ty) ^
-        "(List.assoc \"" ^ (Escaping.escape_id f.full_name) ^ "\" __regular_fields)" in
+        "(Hashtbl.find __regular_fields \"" ^ (Escaping.escape_id f.full_name) ^ "\")" in
     let make_field f = Printf.sprintf "        %s%s = %s;" m (OU.ocaml_of_record_field (obj.DT.name :: f.DT.full_name)) (of_field f) in
     let fields = List.map make_field all_fields in
-    let mk_rec = [ "{" ] @ fields @ [ "    }"] in
+    let mk_rec =
+      [ {|
+         let __regular_fields = Stdext.Hashtblext.of_list __regular_fields in let __set_refs = Stdext.Hashtblext.of_list __set_refs in {
+         |} ] @ fields @ [ "    }"] in
     String.concat "\n" mk_rec in
 
   let get_record_aux_fn (obj : obj) =
