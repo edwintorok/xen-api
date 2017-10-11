@@ -375,6 +375,11 @@ let check_operation_error ~__context ~ref =
   let is_template = vmr.Db_actions.vM_is_a_template in
   let is_snapshot = vmr.Db_actions.vM_is_a_snapshot in
   let vdis = List.filter_map (fun vbd -> try Some (Db.VBD.get_VDI ~__context ~self:vbd) with _ -> None) vmr.Db_actions.vM_VBDs |> List.filter (Db.is_valid_ref __context) in
+  let vdis_reset_and_caching = List.filter_map (fun vdi ->
+             try
+               let sm_config = Db.VDI.get_sm_config ~__context ~self:vdi in
+               Some ((assoc_opt "on_boot" sm_config = Some "reset"), (bool_of_assoc "caching" sm_config))
+             with _ -> None) vdis in
 
   (fun ~op ~strict ->
 
@@ -436,11 +441,11 @@ let check_operation_error ~__context ~ref =
        ) in
 
      let current_error =
-       let metrics = Db.VM.get_metrics ~__context ~self:ref in
+       let metrics () = Db.VM.get_metrics ~__context ~self:ref in
        check current_error (fun () ->
            match op with
            | `changing_dynamic_range
-             when nested_virt ~__context ref metrics && strict ->
+             when nested_virt ~__context ref (metrics ()) && strict ->
              Some (Api_errors.vm_is_using_nested_virt, [ref_str])
            | _ -> None
          ) in
@@ -485,11 +490,6 @@ let check_operation_error ~__context ~ref =
 
      (* Check for an error due to VDI caching/reset behaviour *)
      let current_error = check current_error (fun () ->
-         let vdis_reset_and_caching = List.filter_map (fun vdi ->
-             try
-               let sm_config = Db.VDI.get_sm_config ~__context ~self:vdi in
-               Some ((assoc_opt "on_boot" sm_config = Some "reset"), (bool_of_assoc "caching" sm_config))
-             with _ -> None) vdis in
          if op = `checkpoint || op = `snapshot || op = `suspend || op = `snapshot_with_quiesce
          then (* If any vdi exists with on_boot=reset, then disallow checkpoint, snapshot, suspend *)
            if List.exists fst vdis_reset_and_caching

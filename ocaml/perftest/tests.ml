@@ -189,8 +189,8 @@ let parallel async_op opname n rpc session_id test =
       parallel_with_vms async_op opname n vms rpc session_id test (subtest_string test.key tag)
     ) tags
 
-let parallel_startall = parallel (Client.Async.VM.start ~start_paused:false ~force:false) "start"
-let parallel_stopall = parallel Client.Async.VM.hard_shutdown "stop"
+(*let parallel_startall = parallel (Client.Async.VM.start ~start_paused:false ~force:false) "start"
+let parallel_stopall = parallel Client.Async.VM.hard_shutdown "stop"*)
 
 let stopall rpc session_id test =
   let vms = Client.VM.get_all_records rpc session_id in
@@ -305,7 +305,7 @@ let tests key = [
    key=key;
    testname="clone";
    func=clone 200};
-  {run=true;
+(*  {run=true;
    key=key;
    testname="startall";
    func=startall};
@@ -324,7 +324,7 @@ let tests key = [
   {run=false;
    key=key;
    testname="parallel_stopall";
-   func=parallel_stopall 10;};
+   func=parallel_stopall 10;};*)
 ]
 
 let testnames =
