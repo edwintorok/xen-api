@@ -30,6 +30,7 @@ let driver_info_cache : (string, sr_driver_info) Hashtbl.t = Hashtbl.create 10
 
 exception Unknown_driver of string
 exception MasterOnly
+exception ActivatedOnly of ([`host] API.Ref.t * string)
 
 let supported_drivers () =
   Hashtbl.fold (fun name _ acc -> name :: acc) driver_info_cache []
@@ -161,13 +162,43 @@ let vdi_deactivate dconf driver sr vdi =
   let call = Sm_exec.make_call ~sr_ref:sr ~vdi_ref:vdi dconf "vdi_deactivate" [] in
   Sm_exec.parse_unit (Sm_exec.exec_xmlrpc (driver_filename driver) call)
 
-let vdi_snapshot dconf driver driver_params sr vdi =
+let sr_has_feature sr op = true (* TODO check sr feature *)
+
+let vdi_activated = "VDIactivated"
+
+let sractivated_only driver activation_info (_,dconf) =
+  (* If the VDI is not activated anywhere then we can run the snapshot anywhere,
+   * otherwise we must run it on the host that has the VDI activated,
+   * because it needs to tell the VM's datapath when the snapshot completes.
+   *
+   * SMAPIv1 does this inside SM by pausing the datapath on all hosts,
+   * whereas SMAPIv2 can interact with the VM's datapath directly and doesn't do
+   * the poolwide datapath pause *)
+  match activation_info with
+  | None -> assert false
+  | Some (activated_on, activated_ip) ->
+      debug "vdi_snapshot" driver (Printf.sprintf "VDI activated on %s, we are %s" (Ref.string_of activated_on)
+      (Ref.string_of !Xapi_globs.localhost_ref));
+  if activated_on <> Ref.null && activated_on <> !Xapi_globs.localhost_ref
+  then
+    raise (ActivatedOnly (activated_on, activated_ip ()))
+
+let vdi_snapshot activation_info dconf driver driver_params sr vdi =
   debug "vdi_snapshot" driver (sprintf "sr=%s vdi=%s driver_params=[%s]" (Ref.string_of sr) (Ref.string_of vdi) (String.concat "; " (List.map (fun (k, v) -> k ^ "=" ^ v) driver_params)));
-  srmaster_only dconf;
+  begin match List.assoc Vdi_snapshot (features_of_driver driver) with
+  | 1L ->
+      debug "vdi_snapshot" driver "checking whether we are running on master";
+      srmaster_only dconf
+  | 2L ->
+      debug "vdi_snapshot" driver "checking whether we are running where the VDI is activated";
+      sractivated_only driver activation_info dconf;
+  | n->
+      raise (Api_errors.Server_error (Api_errors.sr_backend_failure, [("Operation 'vdi_snapshot' has unknown version"); Int64.to_string n; ""]));
+  end;
   let call = Sm_exec.make_call ~sr_ref:sr ~vdi_ref:vdi ~driver_params dconf "vdi_snapshot" [] in
   Sm_exec.parse_vdi_info (Sm_exec.exec_xmlrpc (driver_filename driver) call)
 
-let vdi_clone dconf driver driver_params sr vdi =
+let vdi_clone activation_info dconf driver driver_params sr vdi =
   debug "vdi_clone" driver (sprintf "sr=%s vdi=%s driver_params=[%s]" (Ref.string_of sr) (Ref.string_of vdi) (String.concat "; " (List.map (fun (k, v) -> k ^ "=" ^ v) driver_params)));
   srmaster_only dconf;
   let call = Sm_exec.make_call ~sr_ref:sr ~vdi_ref:vdi ~driver_params dconf "vdi_clone" [] in
@@ -257,6 +288,7 @@ let assert_pbd_is_plugged ~__context ~sr =
   then raise (Api_errors.Server_error(Api_errors.sr_no_pbds, [ Ref.string_of sr ]))
 
 let sm_master x = ("SRmaster", string_of_bool x)
+let activated_on x = (vdi_activated, x)
 
 (* Internal only function - use 'call_sm_functions' and 'call_sm_vdi_functions' *)
 let __get_my_devconf_for_sr __context sr_id =
