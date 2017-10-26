@@ -462,10 +462,7 @@ module SMAPIv1 = struct
              Server_helpers.exec_with_new_task "VDI.activate" ~subtask_of:(Ref.of_string dbg)
                (fun __context ->
                   (if read_write
-                  then Db.VDI.remove_from_other_config ~__context ~self ~key:"content_id");
-                  let localhost = Helpers.get_localhost ~__context in
-                  Db.VDI.set_activated_on ~__context ~self ~value:localhost
-                );
+                   then Db.VDI.remove_from_other_config ~__context ~self ~key:"content_id"));
              (* If the backend doesn't advertise the capability then do nothing *)
              if List.mem_assoc Smint.Vdi_activate (Sm.features_of_driver _type)
              then Sm.vdi_activate device_config _type sr self read_write
@@ -481,11 +478,6 @@ module SMAPIv1 = struct
              Server_helpers.exec_with_new_task "VDI.deactivate" ~subtask_of:(Ref.of_string dbg)
                (fun __context ->
                   let other_config = Db.VDI.get_other_config ~__context ~self in
-                  (* TODO: this assumes we are holding a lock here that would prevent other activates, globally.
-                     also it assumes that we got it activated exclusively RW, if this is just a RO activation (do they exist?) we shouldn't do this
-                     maybe would be better to just stat all hosts and ask  for status?
-                   *)
-                  Db.VDI.set_activated_on ~__context ~self ~value:Ref.null;
                   if not (List.mem_assoc "content_id" other_config)
                   then Db.VDI.add_to_other_config ~__context ~self ~key:"content_id" ~value:(Uuid.string_of_uuid (Uuid.make_uuid ())));
              (* If the backend doesn't advertise the capability then do nothing *)
@@ -506,12 +498,7 @@ module SMAPIv1 = struct
                  let reason_key = read_caching_reason_key ~__context in
                  Mutex.execute vdi_read_caching_m (fun () ->
                      Db.VDI.remove_from_sm_config ~__context ~self ~key:on_key;
-                     Db.VDI.remove_from_sm_config ~__context ~self ~key:reason_key;
-                     (* detach can get called without calling deactivate, so we must do what deactivate would do here *)
-                     (* TODO: this assumes we are holding a lock here that would prevent other activates, globally
-also see note in deactivate
-                      *)
-                     Db.VDI.set_activated_on ~__context ~self ~value:Ref.null;
+                     Db.VDI.remove_from_sm_config ~__context ~self ~key:reason_key
                    )
                )
           );
@@ -569,9 +556,7 @@ also see note in deactivate
           (fun __context ->
              let vi = for_vdi ~dbg ~sr ~vdi:vdi_info.vdi call_name
                  (fun device_config _type sr self ->
-                    let activated_on_ref = Db.VDI.get_activated_on ~__context ~self in
-                    let activated_on () = Db.Host.get_address ~__context ~self:activated_on_ref in
-                    call_f (Some (activated_on_ref, activated_on)) device_config _type vdi_info.sm_config sr self
+                    call_f device_config _type vdi_info.sm_config sr self
                  ) in
              (* PR-1255: modify clone, snapshot to take the same parameters as create? *)
              let self, _ = find_vdi ~__context sr vi.Smint.vdi_info_location in
@@ -611,7 +596,7 @@ also see note in deactivate
       | Smint.Not_implemented_in_backend ->
         raise (Unimplemented call_name)
       | Sm.MasterOnly -> redirect sr
-      | Sm.ActivatedOnly (_, address) -> raise (Redirect (Some address))
+
 
     let snapshot = snapshot_and_clone "VDI.snapshot" Sm.vdi_snapshot true
     let clone = snapshot_and_clone "VDI.clone" Sm.vdi_clone false
@@ -700,7 +685,7 @@ also see note in deactivate
                info "VDI.set_persistent: calling VDI.clone and VDI.destroy to make an empty vhd-leaf";
                let location = for_vdi ~dbg ~sr ~vdi "VDI.clone"
                    (fun device_config _type sr self ->
-                      let vi = Sm.vdi_clone None device_config _type [] sr self in
+                      let vi = Sm.vdi_clone device_config _type [] sr self in
                       vi.Smint.vdi_info_location
                    ) in
                for_vdi ~dbg ~sr ~vdi:location "VDI.destroy"
@@ -955,25 +940,13 @@ let external_rpc queue_name uri =
   let open Xcp_client in
   if !use_switch then check_queue_exists queue_name;
   fun call ->
-    let result = if !use_switch
+    if !use_switch
     then json_switch_rpc queue_name call
     else xml_http_rpc
         ~srcstr:(get_user_agent ())
         ~dststr:queue_name
         uri
         call
-    in
-    (* TODO: reuse code with Storage_migrate.rpc *)
-    if not result.Rpc.success then
-    match Storage_interface.Exception.exnty_of_rpc result.Rpc.contents with
-    | Storage_interface.Exception.Redirect (Some ip) ->
-       let newurl = Storage_migrate.remote_url ip in
-       debug "Redirecting to ip: %s" ip;
-       Storage_migrate.rpc ~srcstr:(get_user_agent()) ~dststr:queue_name newurl call
-    | _ ->
-       debug "Not a redirect";
-       result
-    else result
 
 (* Internal exception, never escapes the module *)
 exception Message_switch_failure
@@ -1107,7 +1080,7 @@ let maybe_redirect call result =
        | Storage_interface.Exception.Redirect (Some ip) ->
           let newurl = Storage_migrate.remote_url ip in
           debug "Redirecting to ip: %s" ip;
-          Storage_migrate.rpc ~srcstr:"smapiv2" ~dststr:"smapiv2" newurl call
+          Storage_migrate.rpc ~srcstr:(get_user_agent()) ~dststr:"smapiv2" newurl call
        | _ ->
           debug "Not a redirect";
           result

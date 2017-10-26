@@ -52,8 +52,7 @@ let sm_cap_table : (API.storage_operations * _) list =
     `vdi_set_on_boot, Smint.Vdi_reset_on_boot;
     `update, Smint.Sr_update;
     (* We fake clone ourselves *)
-    `vdi_snapshot, Smint.Vdi_snapshot;
-  ]
+    `vdi_snapshot, Smint.Vdi_snapshot ]
 
 type table = (API.storage_operations, ((string * (string list)) option)) Hashtbl.t
 
