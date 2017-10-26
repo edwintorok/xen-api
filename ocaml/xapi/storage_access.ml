@@ -1101,7 +1101,19 @@ let unbind ~__context ~pbd =
   let service = make_service uuid ty in
   System_domains.unregister_service service
 
-let rpc call = Storage_mux.Server.process None call
+let maybe_redirect call result =
+  if result.Rpc.success then result
+  else match Storage_interface.Exception.exnty_of_rpc result.Rpc.contents with
+       | Storage_interface.Exception.Redirect (Some ip) ->
+          let newurl = Storage_migrate.remote_url ip in
+          debug "Redirecting to ip: %s" ip;
+          Storage_migrate.rpc ~srcstr:"smapiv2" ~dststr:"smapiv2" newurl call
+       | _ ->
+          debug "Not a redirect";
+          result
+
+let rpc call =
+  Storage_mux.Server.process None call |> maybe_redirect call
 
 module Client = Client(struct let rpc = rpc end)
 

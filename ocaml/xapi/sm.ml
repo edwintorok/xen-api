@@ -166,7 +166,7 @@ let sr_has_feature sr op = true (* TODO check sr feature *)
 
 let vdi_activated = "VDIactivated"
 
-let sractivated_only driver activation_info (_,dconf) =
+let sractivated_only driver activation_info =
   (* If the VDI is not activated anywhere then we can run the snapshot anywhere,
    * otherwise we must run it on the host that has the VDI activated,
    * because it needs to tell the VM's datapath when the snapshot completes.
@@ -181,7 +181,8 @@ let sractivated_only driver activation_info (_,dconf) =
       (Ref.string_of !Xapi_globs.localhost_ref));
   if activated_on <> Ref.null && activated_on <> !Xapi_globs.localhost_ref
   then
-    raise (ActivatedOnly (activated_on, activated_ip ()))
+    raise (Storage_interface.Redirect (Some (activated_ip ())))
+(*    raise (ActivatedOnly (activated_on, activated_ip ()))*)
 
 let vdi_snapshot activation_info dconf driver driver_params sr vdi =
   debug "vdi_snapshot" driver (sprintf "sr=%s vdi=%s driver_params=[%s]" (Ref.string_of sr) (Ref.string_of vdi) (String.concat "; " (List.map (fun (k, v) -> k ^ "=" ^ v) driver_params)));
@@ -191,7 +192,7 @@ let vdi_snapshot activation_info dconf driver driver_params sr vdi =
       srmaster_only dconf
   | 2L ->
       debug "vdi_snapshot" driver "checking whether we are running where the VDI is activated";
-      sractivated_only driver activation_info dconf;
+      sractivated_only driver activation_info;
   | n->
       raise (Api_errors.Server_error (Api_errors.sr_backend_failure, [("Operation 'vdi_snapshot' has unknown version"); Int64.to_string n; ""]));
   end;

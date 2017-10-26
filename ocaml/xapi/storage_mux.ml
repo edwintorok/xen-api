@@ -30,10 +30,19 @@ let plugins : (sr, plugin) Hashtbl.t = Hashtbl.create 10
 let m = Mutex.create ()
 
 let debug_printer rpc call =
-  (* debug "Rpc.call = %s" (Xmlrpc.string_of_call call); *)
+  debug "Rpc.call = %s" (Xmlrpc.string_of_call call);
   let result = rpc call in
-  (* debug "Rpc.response = %s" (Xmlrpc.string_of_response result); *)
-  result
+  debug "Rpc.response = %s" (Xmlrpc.string_of_response result);
+  if not result.Rpc.success then
+    match Storage_interface.Exception.exnty_of_rpc result.Rpc.contents with
+    | Storage_interface.Exception.Redirect (Some ip) ->
+       let newurl = Storage_migrate.remote_url ip in
+       debug "Redirecting to ip: %s" ip;
+       Storage_migrate.rpc ~srcstr:"smapiv2" ~dststr:!queue_name newurl call
+    | _ ->
+       debug "Not a redirect";
+       result
+  else result
 
 let register sr rpc d info =
   Mutex.execute m
@@ -65,6 +74,7 @@ let of_sr sr =
     (fun () ->
        if not (Hashtbl.mem plugins sr) then begin
          error "No storage plugin for SR: %s (currently-registered = [ %s ])" sr (String.concat ", " (Hashtbl.fold (fun sr _ acc -> sr :: acc) plugins []));
+
          raise (No_storage_plugin_for_sr sr)
        end else (Hashtbl.find plugins sr).processor
     )
@@ -195,9 +205,22 @@ module Mux = struct
     let set_name_description context ~dbg ~sr ~vdi ~new_name_description =
       let module C = Client(struct let rpc = of_sr sr end) in
       C.VDI.set_name_description ~dbg ~sr ~vdi ~new_name_description
+let find_vdi ~__context sr vdi =
+  let open Db_filter_types in
+  let sr = Db.SR.get_by_uuid ~__context ~uuid:sr in
+  match Db.VDI.get_records_where ~__context ~expr:(And((Eq (Field "location", Literal vdi)),Eq (Field "SR", Literal (Ref.string_of sr)))) with
+  | x :: _ -> x
+  | _ -> failwith "No_VDI"
     let snapshot context ~dbg ~sr ~vdi_info =
-      let module C = Client(struct let rpc = of_sr sr end) in
+      let module C = Client(struct let rpc = debug_printer (of_sr sr) end) in
+      Server_helpers.exec_with_new_task "SMAPIv3TODO" ~subtask_of:(Ref.of_string dbg) (fun __context ->
+          let self = find_vdi ~__context sr vdi_info.vdi |> fst in
+          let activated_on_ref = Db.VDI.get_activated_on ~__context ~self in
+          let activated_on () = Db.Host.get_address ~__context ~self:activated_on_ref in
+          Sm.sractivated_only "SMAPIv3" (Some (activated_on_ref, activated_on))
+        );
       C.VDI.snapshot ~dbg ~sr ~vdi_info
+                     
     let clone context ~dbg ~sr ~vdi_info =
       let module C = Client(struct let rpc = of_sr sr end) in
       C.VDI.clone ~dbg ~sr ~vdi_info
@@ -224,12 +247,23 @@ module Mux = struct
       C.VDI.attach ~dbg ~dp ~sr ~vdi ~read_write
     let activate context ~dbg ~dp ~sr ~vdi =
       let module C = Client(struct let rpc = of_sr sr end) in
+      Server_helpers.exec_with_new_task "SMAPIv3TODO" ~subtask_of:(Ref.of_string dbg) (fun __context ->
+          let localhost = Helpers.get_localhost ~__context in
+          let self = find_vdi ~__context sr vdi |> fst in
+          Db.VDI.set_activated_on ~__context ~self ~value:localhost);
       C.VDI.activate ~dbg ~dp ~sr ~vdi
+
     let deactivate context ~dbg ~dp ~sr ~vdi =
       let module C = Client(struct let rpc = of_sr sr end) in
+      Server_helpers.exec_with_new_task "SMAPIv3TODO" ~subtask_of:(Ref.of_string dbg) (fun __context ->
+          let self = find_vdi ~__context sr vdi |> fst in
+          Db.VDI.set_activated_on ~__context ~self ~value:Ref.null);
       C.VDI.deactivate ~dbg ~dp ~sr ~vdi
     let detach context ~dbg ~dp ~sr ~vdi =
       let module C = Client(struct let rpc = of_sr sr end) in
+      Server_helpers.exec_with_new_task "SMAPIv3TODO" ~subtask_of:(Ref.of_string dbg) (fun __context ->
+          let self = find_vdi ~__context sr vdi |> fst in
+          Db.VDI.set_activated_on ~__context ~self ~value:Ref.null);
       C.VDI.detach ~dbg ~dp ~sr ~vdi
     let epoch_end context ~dbg ~sr ~vdi =
       let module C = Client(struct let rpc = of_sr sr end) in
