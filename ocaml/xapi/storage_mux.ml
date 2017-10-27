@@ -199,10 +199,10 @@ module Mux = struct
       let module C = Client(struct let rpc = debug_printer (of_sr sr) end) in
       Server_helpers.exec_with_new_task "smapiv2.snapshot.activated" ~subtask_of:(Ref.of_string dbg) (fun __context ->
           let vdi = Xapi_vdi_helpers.find_vdi ~__context sr vdi_info.vdi |> fst in
-          match Xapi_vdi_helpers.get_activated_elsewhere ~__context sr with
+          match Xapi_vdi_helpers.get_activated_elsewhere ~__context ~vdi with
           | None -> ()
           | Some address ->
-             raise (Storage_interface.Redirect address)
+             raise (Storage_interface.Redirect (Some address))
         );
       C.VDI.snapshot ~dbg ~sr ~vdi_info
 
