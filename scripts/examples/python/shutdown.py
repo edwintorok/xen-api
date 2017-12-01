@@ -199,6 +199,22 @@ def serial_hard_shutdown(session, vms):
     finally:
         return rc
 
+def unplug_pbds(session, host):
+    pbds = session.xenapi.PBD.get_all_records()
+    need_to_unplug = { pbdref: pbd['uuid'] for pbdref, pbd in pbds.iteritems()
+                       if pbd['currently_attached'] and pbd['host'] == host }
+    print "\n  Requesting to unplug PBDs: %r" % need_to_unplug
+    sys.stdout.flush()
+    rc = 0
+    for pbdref, pbd in need_to_unplug.iteritems():
+	try:
+		session.xenapi.PBD.unplug(pbdref)
+	except Exception:
+		print "\n Failed to unplug PBD %s" % pbd
+		rc += 1
+    print "\n"
+    sys.stdout.flush()
+    return rc
 
 def main(session, host_uuid, force):
     rc = 0
@@ -240,6 +256,8 @@ def main(session, host_uuid, force):
         rc += parallel_clean_shutdown(session, get_running_domains(session, host))
     else:
         rc += serial_hard_shutdown(session, get_running_domains(session, host))
+
+    rc += unplug_pbds(session, host)
 
     return rc
 
