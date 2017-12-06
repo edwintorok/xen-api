@@ -56,6 +56,20 @@ let i_have_statefile_access () =
     info "Caught exception querying liveset; assuming we have no statefile access: %s" (ExnHelper.string_of_exn e);
     false
 
+let can_unplug_statefile_pbd () =
+  (* During shutdown we execute a soft emergency HA disable, which means that HA will still look to be armed in the localdb,
+     so we cannot use that to determine if it is safe to unplug.
+     However during shutdown we stop the daemon, so querying the liveset should fail with daemon not running *)
+  let host_disabled_until_reboot = try bool_of_string (Localdb.get Constants.host_disabled_until_reboot) with _ -> false in
+  if not host_disabled_until_reboot then begin
+    info "can_unplug_statefile_pbd: not during shutdown/reboot, assuming it is not safe to unplug";
+    false
+  end else match query_liveset () with
+  | exception Xha_errno.Mtc_exit_daemon_is_not_present -> true
+  | exception _ | () ->
+     info "HA daemon still running or in unknown state: assuming it is not safe to unplug";
+     false
+
 (** Returns true if this node is allowed to be the master *)
 let propose_master () =
   try
