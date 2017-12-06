@@ -80,11 +80,6 @@ val ha_wait_for_shutdown_via_statefile : 'a -> 'b -> unit
     the no-statefile shutdown can be attempted.
 *)
 
-val can_unplug_statefile_pbd : unit -> bool
-(** Internal API call that determines whether it is safe to unplug the PBD
-    holding the statefile during shutdown.
-*)
-
 val preconfigure_host :
   Context.t ->
   [ `host ] API.Ref.t ->
