@@ -10,7 +10,7 @@ EnvironmentFile=@INVENTORY@
 ExecStart=@BINDIR@/xapi-autostart-vms
 ExecStop=/bin/sh -c "/opt/xensource/libexec/shutdown $INSTALLATION_UUID || /opt/xensource/libexec/shutdown --force $INSTALLATION_UUID"
 ExecStop=/opt/xensource/bin/xe host-emergency-ha-disable force=true soft=true
-ExecStop=sh -c "/opt/xensource/bin/xe pbd-list currently-attached=true host-uuid=$INSTALLATION_UUID params=uuid --minimal | tr , \n | xargs -I '{}' xe pbd-unplug uuid='{}'"
+ExecStop=/bin/sh -c "/opt/xensource/bin/xe pbd-list currently-attached=true host-uuid=$INSTALLATION_UUID params=uuid --minimal | tr , \n | xargs -I '{}' xe pbd-unplug uuid='{}'"
 ExecStop=/usr/bin/xcli disable
 
 # Generous 24hr timeout that corresponding to the max evacuation time of a host
