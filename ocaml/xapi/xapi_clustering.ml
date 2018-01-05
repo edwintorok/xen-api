@@ -163,12 +163,42 @@ let assert_cluster_has_one_node ~__context ~self =
   | 1 -> ()
   | n -> raise Api_errors.(Server_error(cluster_does_not_have_one_node, [string_of_int n]))
 
+module Daemon = struct
+  let started = ref false
+  let m = Mutex.create ()
+
+  let require () =
+    Stdext.Threadext.Mutex.execute m (fun () ->
+        (* this function gets called on each RPC, it should only call out to `/sbin/service` when needed *)
+        if not !started then begin
+            debug "Cluster daemon: not started, starting it now";
+            if not (Pool_role.is_unit_test ()) then
+              ignore (Helpers.call_script "/sbin/service" [ "xapi-clusterd"; "start" ]);
+            started := true;
+            debug "Cluster daemon: started"
+          end)
+
+  let stop () =
+    Stdext.Threadext.Mutex.execute m (fun () ->
+        debug "Cluster daemon: stopping";
+        started := false;
+        if not (Pool_role.is_unit_test ()) then
+          ignore (Helpers.call_script "/sbin/service" [ "xapi-clusterd"; "stop" ]);
+        debug "Cluster daemon: stopped"
+      );
+end
+
 (* xapi-clusterd only listens on message-switch,
  * the URL here would be for calling xapi-clusterd through an HTTP interface,
  * but that is not supported (yet).
  * Instead of returning an empty URL which wouldn't work just raise an
  * exception. *)
-let rpc = Cluster_client.rpc (fun () -> failwith "Can only communicate with xapi-clusterd through message-switch")
+let rpc ~__context =
+  Daemon.require ();
+  match Context.get_test_rpc __context with
+  | Some rpc -> rpc
+  | None ->
+     Cluster_client.rpc (fun () -> failwith "Can only communicate with xapi-clusterd through message-switch")
 
 let is_clustering_disabled_on_host ~__context host =
   match find_cluster_host ~__context ~host with
