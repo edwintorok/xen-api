@@ -168,7 +168,7 @@ module Daemon = struct
   let m = Mutex.create ()
 
   let maybe_call_script ~__context script params =
-    match Context.get_test_rpc __context with
+    match Context.get_test_clusterd_rpc __context with
     | Some _ -> debug "in unit test, not calling %s %s" script (String.concat " " params)
     | None -> ignore (Helpers.call_script script params)
 
@@ -198,7 +198,7 @@ end
  * exception. *)
 let rpc ~__context =
   Daemon.require ~__context;
-  match Context.get_test_rpc __context with
+  match Context.get_test_clusterd_rpc __context with
   | Some rpc -> rpc
   | None ->
      Cluster_client.rpc (fun () -> failwith "Can only communicate with xapi-clusterd through message-switch")

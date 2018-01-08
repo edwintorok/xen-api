@@ -22,19 +22,11 @@ let test_rpc ~__context call =
      Rpc.{success = true; contents = Rpc.String token }
   | ("enable" | "disable" | "destroy"), _ ->
      Rpc.{success = true; contents = Rpc.Null }
-  | "Cluster_host.destroy", [self] ->
-     let open API in
-     Xapi_cluster_host.destroy ~__context ~self:(ref_Cluster_host_of_rpc self);
-     Rpc.{success = true; contents = Rpc.String token }
-  | "Cluster.destroy", [_session; self] ->
-     let open API in
-     Xapi_cluster.destroy ~__context ~self:(ref_Cluster_of_rpc self);
-     Rpc.{success = true; contents = Rpc.String "" }
   | name, params ->
      failwith (Printf.sprintf "Unexpected RPC: %s(%s)" name (String.concat " " (List.map Rpc.to_string params)))
 
 let create_cluster ~__context =
-  Context.set_test_rpc __context (test_rpc ~__context);
+  Context.set_test_clusterd_rpc __context (test_rpc ~__context);
   let network = Test_common.make_network ~__context () in
   let localhost = Helpers.get_localhost ~__context in
   let pifref = Test_common.make_pif ~__context ~network ~host:localhost () in
