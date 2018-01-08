@@ -100,7 +100,7 @@ let destroy ~__context ~self =
   match result with
   | Result.Ok () ->
     Db.Cluster_host.destroy ~__context ~self;
-    Xapi_clustering.Daemon.stop()
+    Xapi_clustering.Daemon.stop ~__context
   | Result.Error error -> handle_error error
 
 let enable ~__context ~self =
@@ -135,7 +135,7 @@ let disable ~__context ~self =
       assert_operation_host_target_is_localhost ~__context ~host;
       assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack ~__context ~self;
       let result = Cluster_client.LocalClient.disable (rpc ~__context) dbg in
-      Xapi_clustering.Daemon.stop();
+      Xapi_clustering.Daemon.stop ~__context;
       match result with
       | Result.Ok () ->
           Db.Cluster_host.set_enabled ~__context ~self ~value:false

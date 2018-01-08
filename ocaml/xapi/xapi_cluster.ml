@@ -77,7 +77,7 @@ let destroy ~__context ~self =
   | Result.Ok () ->
     Db.Cluster_host.destroy ~__context ~self:cluster_host;
     Db.Cluster.destroy ~__context ~self;
-    Xapi_clustering.Daemon.stop ()
+    Xapi_clustering.Daemon.stop ~__context
   | Result.Error error -> handle_error error
 
 (* helper function; concurrency checks are done in implementation of Cluster.create and Cluster_host.create *)

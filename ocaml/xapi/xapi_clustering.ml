@@ -167,23 +167,26 @@ module Daemon = struct
   let started = ref false
   let m = Mutex.create ()
 
-  let require () =
+  let maybe_call_script ~__context script params =
+    match Context.get_test_rpc __context with
+    | Some _ -> debug "in unit test, not calling %s %s" script (String.concat " " params)
+    | None -> ignore (Helpers.call_script script params)
+
+  let require ~__context =
     Stdext.Threadext.Mutex.execute m (fun () ->
         (* this function gets called on each RPC, it should only call out to `/sbin/service` when needed *)
         if not !started then begin
             debug "Cluster daemon: not started, starting it now";
-            if not (Pool_role.is_unit_test ()) then
-              ignore (Helpers.call_script "/sbin/service" [ "xapi-clusterd"; "start" ]);
+            maybe_call_script ~__context "/sbin/service" [ "xapi-clusterd"; "start" ];
             started := true;
             debug "Cluster daemon: started"
           end)
 
-  let stop () =
+  let stop ~__context =
     Stdext.Threadext.Mutex.execute m (fun () ->
         debug "Cluster daemon: stopping";
         started := false;
-        if not (Pool_role.is_unit_test ()) then
-          ignore (Helpers.call_script "/sbin/service" [ "xapi-clusterd"; "stop" ]);
+        maybe_call_script ~__context "/sbin/service" [ "xapi-clusterd"; "stop" ];
         debug "Cluster daemon: stopped"
       );
 end
@@ -194,7 +197,7 @@ end
  * Instead of returning an empty URL which wouldn't work just raise an
  * exception. *)
 let rpc ~__context =
-  Daemon.require ();
+  Daemon.require ~__context;
   match Context.get_test_rpc __context with
   | Some rpc -> rpc
   | None ->
