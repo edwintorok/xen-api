@@ -121,3 +121,5 @@ val flush_db_to_all_active_redo_logs: Db_cache_types.Database.t -> unit
 val database_callback: Db_cache_types.update -> Db_cache_types.Database.t -> unit
 (** Given a database update, add it to all active redo logs *)
 
+val fist_delay_redolog_actions : float option ref
+(** internal test point to inject deterministic delays in redolog DB activity  *)

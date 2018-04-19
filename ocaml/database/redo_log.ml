@@ -611,6 +611,8 @@ let switch log vdi_reason =
   log.device := get_static_device vdi_reason;
   startup log
 
+let fist_delay_redolog_actions = ref None
+
 (* Given a socket, execute a function and catch exceptions. *)
 let perform_action f desc sock log =
   try
@@ -620,6 +622,12 @@ let perform_action f desc sock log =
       R.debug "About to perform action %s" desc;
       Stats.time_this ("redo_log: " ^ desc) (fun () ->
         f sock datasockpath);
+      begin match !fist_delay_redolog_actions with
+      | None -> ()
+      | Some delay ->
+          R.warn "FIST point active: delaying DB activity by %.3fs" delay;
+          Thread.delay delay;
+      end;
       R.debug "Action '%s' completed successfully" desc;
       healthy log (* no exceptions: we can be confident that the redo log is working healthily *)
   with

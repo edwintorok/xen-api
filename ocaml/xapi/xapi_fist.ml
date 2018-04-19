@@ -89,3 +89,5 @@ let pause_storage_migrate2 () = fistpoint "pause_storage_migrate2"
 let storage_motion_keep_vdi () = fistpoint "storage_motion_keep_vdi"
 
 let delay_xenopsd_event_threads () = fistpoint "delay_xenopsd_event_threads"
+
+let delay_redolog_actions () = fistpoint_read "delay_redolog_actions" |> Opt.map float_of_string
