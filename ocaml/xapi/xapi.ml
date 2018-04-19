@@ -970,6 +970,11 @@ let server_init() =
           (fun () -> Helpers.call_api_functions ~__context (fun rpc session_id -> Xapi_pool_update.resync_host __context (Helpers.get_localhost ~__context)));
         ];
 
+        Redo_log.fist_delay_redolog_actions := Xapi_fist.delay_redolog_actions ();
+        if !Redo_log.fist_delay_redolog_actions <> None then
+          warn "FIST point active: delaying redo log actions"
+        else
+          debug "FIST point to delay redo log actions is not active";
         debug "startup: startup sequence finished");
     wait_to_die()
   with
