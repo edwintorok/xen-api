@@ -194,3 +194,4 @@ let database_callback event db =
         | tbl, ref, Some s ->
           events_notify ~snapshot:s tbl "mod" ref
       ) other_tbl_events
+  | AfterLockRelease -> ()
