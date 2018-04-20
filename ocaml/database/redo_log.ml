@@ -704,6 +704,10 @@ let with_active_redo_logs f =
        in
        RedoLogSet.iter f active_redo_logs)
 
+let has_enabled_redo_logs () =
+  Mutex.execute redo_log_creation_mutex
+    (fun () -> RedoLogSet.exists is_enabled !all_redo_logs)
+
 (* --------------------------------------------------------------- *)
 (* Functions which interact with the redo log on the block device. *)
 
@@ -764,8 +768,50 @@ let flush_db_to_all_active_redo_logs db =
   with_active_redo_logs (fun log ->
       ignore(flush_db_to_redo_log db log))
 
+module DelayedCommit = struct
+  type nonrec t = {
+    m : Mutex.t;
+    pending: (Db_cache_types.Database.t * t) Queue.t;
+  }
+
+  let create () = {
+    m = Mutex.create ();
+    pending = Queue.create ();
+  }
+
+  let enqueue t item =
+    Mutex.execute t.m (fun () -> Queue.push item t.pending)
+
+  let next t =
+    Mutex.execute t.m (fun () ->
+      if Queue.is_empty t.pending then None
+      else Some (Queue.pop t.pending))
+
+  let rec foreach t f =
+    match next t with
+    | None -> ()
+    | Some item ->
+        let () = f item in
+        foreach t f
+
+  let has_work t =
+    Mutex.execute t.m (fun () -> not (Queue.is_empty t.pending))
+
+  let flush t =
+    if has_work t then
+      with_active_redo_logs @@ fun log ->
+        foreach t (fun (db, entry) ->
+          write_delta (Db_cache_types.Manifest.generation (Db_cache_types.Database.manifest db)) entry
+          (fun () ->
+            (* the function which will be invoked if a database write is required instead of a delta *)
+            ignore(flush_db_to_redo_log db log)) log)
+end
+
+let redo_log_actions = DelayedCommit.create ()
+
 (* Write a delta to all active redo_logs *)
 let database_callback event db =
+  if has_enabled_redo_logs () then
   let to_write =
     match event with
     | Db_cache_types.RefreshRow (tblname, objref) ->
@@ -786,15 +832,9 @@ let database_callback event db =
       if Schema.is_table_persistent (Db_cache_types.Database.schema db) tblname
       then Some (CreateRow(tblname, objref, (List.map (fun (k, v) -> k, Schema.Value.marshal v) kvs)))
       else None
-    | Db_cache_types.AfterLockRelease -> None
+    | Db_cache_types.AfterLockRelease ->
+      DelayedCommit.flush redo_log_actions;
+      None
   in
 
-  Opt.iter (fun entry ->
-      with_active_redo_logs (fun log ->
-          write_delta (Db_cache_types.Manifest.generation (Db_cache_types.Database.manifest db)) entry
-            (fun () ->
-               (* the function which will be invoked if a database write is required instead of a delta *)
-               ignore(flush_db_to_redo_log db log))
-            log
-        )
-    ) to_write
+  Opt.iter (fun entry -> DelayedCommit.enqueue redo_log_actions (db, entry)) to_write
