@@ -120,6 +120,7 @@ type update =
   | PreDelete of string (* tblname *) * string (* objref *)
   | Delete of string (* tblname *) * string (* objref *) * (string * Schema.Value.t) list (* values *)
   | Create of string (* tblname *) * string (* objref *) * (string * Schema.Value.t) list (* values *)
+  | AfterLockRelease (* called after each update that was holding a lock, after releasing it *)
 
 module Database :
 sig

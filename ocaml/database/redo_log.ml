@@ -784,6 +784,7 @@ let database_callback event db =
       if Schema.is_table_persistent (Db_cache_types.Database.schema db) tblname
       then Some (CreateRow(tblname, objref, (List.map (fun (k, v) -> k, Schema.Value.marshal v) kvs)))
       else None
+    | Db_cache_types.AfterLockRelease -> None
   in
 
   Opt.iter (fun entry ->
