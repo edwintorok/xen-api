@@ -17,7 +17,8 @@ open Xapi_stdext_std.Xstringext
 open Xapi_stdext_monadic
 open Xapi_stdext_unix
 
-module R = Debug.Make(struct let name = "redo_log" end)
+let brand = "redo_log"
+module R = Debug.Make(struct let name = brand end)
 
 (* --------------------------------------- *)
 (* Functions relating to the redo log VDI. *)
@@ -770,7 +771,8 @@ let database_callback event db =
     | Db_cache_types.RefreshRow (tblname, objref) ->
       None
     | Db_cache_types.WriteField (tblname, objref, fldname, oldval, newval) ->
-      R.debug "WriteField(%s, %s, %s, %s, %s)" tblname objref fldname (Schema.Value.marshal oldval) (Schema.Value.marshal newval);
+      if not (Debug.is_disabled brand Syslog.Debug) then
+          R.debug "WriteField(%s, %s, %s, %s, %s)" tblname objref fldname (Schema.Value.marshal oldval) (Schema.Value.marshal newval);
       if Schema.is_field_persistent (Db_cache_types.Database.schema db) tblname fldname
       then Some (WriteField(tblname, objref, fldname, Schema.Value.marshal newval))
       else None
