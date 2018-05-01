@@ -108,7 +108,6 @@ let force_destroy ~__context ~self =
   let dbg = Context.string_of_task __context in
   let host = Db.Cluster_host.get_host ~__context ~self in
   assert_operation_host_target_is_localhost ~__context ~host;
-  assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack ~__context ~self;
   let result = Cluster_client.LocalClient.destroy (rpc ~__context) dbg in
   match result with
   | Result.Ok () ->
@@ -123,7 +122,6 @@ let destroy ~__context ~self =
   let dbg = Context.string_of_task __context in
   let host = Db.Cluster_host.get_host ~__context ~self in
   assert_operation_host_target_is_localhost ~__context ~host;
-  assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack ~__context ~self;
   assert_cluster_host_enabled ~__context ~self ~expected:true;
   let result = Cluster_client.LocalClient.leave (rpc ~__context) dbg in
   match result with
@@ -168,7 +166,6 @@ let disable ~__context ~self =
       let dbg = Context.string_of_task __context in
       let host = Db.Cluster_host.get_host ~__context ~self in
       assert_operation_host_target_is_localhost ~__context ~host;
-      assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack ~__context ~self;
 
       let result = Cluster_client.LocalClient.disable (rpc ~__context) dbg in
       match result with

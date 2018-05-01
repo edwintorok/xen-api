@@ -54,6 +54,19 @@ let get_operation_error ~__context ~self ~op =
       if (current_ops <> []) && not (is_allowed_concurrently ~op ~current_ops)
       then report_concurrent_operations_error ~current_ops ~ref_str
       else None) in
+
+  let current_error = check current_error (fun () ->
+      if op = `destroy then
+        let cluster_hosts = Db.Cluster.get_cluster_hosts ~__context ~self in
+        match cluster_hosts with
+        | [] -> None
+        | [ cluster_host ] ->
+            Xapi_clustering.check_not_inuse_by_srs ~__context ~self:cluster_host
+        | _ ->
+          let n = List.length cluster_hosts in
+          Some (Api_errors.cluster_does_not_have_one_node, [string_of_int n])
+      else None) in
+
   current_error
 
 let assert_operation_valid ~__context ~self ~op =

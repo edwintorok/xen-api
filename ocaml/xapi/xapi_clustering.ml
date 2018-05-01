@@ -158,7 +158,7 @@ let assert_operation_host_target_is_localhost ~__context ~host =
   if host <> Helpers.get_localhost ~__context then
     raise Api_errors.(Server_error (internal_error, [ "A clustering operation was attempted from the wrong host" ]))
 
-let assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack ~__context ~self =
+let check_not_inuse_by_srs ~__context ~self =
   let cluster = Db.Cluster_host.get_cluster ~__context ~self in
   let cluster_stack = Db.Cluster.get_cluster_stack ~__context ~self:cluster in
   let host = Db.Cluster_host.get_host ~__context ~self in
@@ -173,7 +173,8 @@ let assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack ~__conte
        let sr_sm_type = Db.SR.get_type ~__context ~self:sr in
        List.mem cluster_stack (get_required_cluster_stacks ~__context ~sr_sm_type)
     ) srs
-  then raise Api_errors.(Server_error (cluster_stack_in_use, [ cluster_stack ]))
+  then Some (Api_errors.cluster_stack_in_use, [ cluster_stack ])
+  else None
 
 module Daemon = struct
   let maybe_call_script ~__context script params =

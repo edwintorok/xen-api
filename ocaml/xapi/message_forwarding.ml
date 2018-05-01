@@ -4342,15 +4342,19 @@ module Forward = functor(Local: Custom_actions.CUSTOM_ACTIONS) -> struct
       info "Cluster_host.destroy cluster_host: %s" (Ref.string_of self);
       let local_fn = Local.Cluster_host.destroy ~self in
       let host = Db.Cluster_host.get_host ~__context ~self in
-      do_op_on ~__context ~local_fn ~host
-        (fun session_id rpc -> Client.Cluster_host.destroy rpc session_id self)
+      Xapi_cluster_host_helpers.with_cluster_host_operation ~__context ~self ~doc:"Cluster_host.destroy" ~op:`destroy
+        (fun () ->
+          do_op_on ~__context ~local_fn ~host
+          (fun session_id rpc -> Client.Cluster_host.destroy rpc session_id self))
 
     let force_destroy ~__context ~self =
       info "Cluster_host.force_destroy cluster_host: %s" (Ref.string_of self);
       let local_fn = Local.Cluster_host.force_destroy ~self in
       let host = Db.Cluster_host.get_host ~__context ~self in
-      do_op_on ~__context ~local_fn ~host
-        (fun session_id rpc -> Client.Cluster_host.force_destroy rpc session_id self)
+      Xapi_cluster_host_helpers.with_cluster_host_operation ~__context ~self ~doc:"Cluster_host.destroy" ~op:`destroy
+        (fun () ->
+          do_op_on ~__context ~local_fn ~host
+          (fun session_id rpc -> Client.Cluster_host.force_destroy rpc session_id self))
 
     let enable ~__context ~self =
       info "Cluster_host.enable cluster_host %s" (Ref.string_of self);

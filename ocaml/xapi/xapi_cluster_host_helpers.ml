@@ -53,6 +53,10 @@ let get_operation_error ~__context ~self ~op =
       then report_concurrent_operations_error ~current_ops ~ref_str
       else None) in
 
+  let current_error = check current_error (fun () ->
+      if op = `disable then Xapi_clustering.check_not_inuse_by_srs ~__context ~self
+      else None) in
+
   current_error
 
 let assert_operation_valid ~__context ~self ~op =

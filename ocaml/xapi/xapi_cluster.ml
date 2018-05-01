@@ -79,15 +79,9 @@ let destroy ~__context ~self =
   let dbg = Context.string_of_task __context in
   let cluster_hosts = Db.Cluster.get_cluster_hosts ~__context ~self in
   let cluster_host = match cluster_hosts with
-    | [] -> None
     | [ cluster_host ] -> Some (cluster_host)
-    | _ ->
-      let n = List.length cluster_hosts in
-      raise Api_errors.(Server_error(cluster_does_not_have_one_node, [string_of_int n]))
+    | [] | _ -> assert false (* allowed operations should've caught this *)
   in
-  Xapi_stdext_monadic.Opt.iter (fun ch ->
-    assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack ~__context ~self:ch
-  ) cluster_host;
   let result = Cluster_client.LocalClient.destroy (rpc ~__context) dbg in
   match result with
   | Result.Ok () ->
