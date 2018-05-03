@@ -713,7 +713,7 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
     end;
 
     Debug.log_to_stdout ();
-    Db_globs.redo_log_block_device_io := "../../../_build/default/xen-api/ocaml/database/block_device_io.exe";
+    Db_globs.redo_log_block_device_io := "../../_build/default/ocaml/database/block_device_io.exe";
     (* Test redo log *)
     let redo_log_name = "test-redo-log" in
     Unix.close (Unix.openfile redo_log_name [O_CREAT; O_RDWR] 0o600);

@@ -217,7 +217,7 @@ let get_latest_response_time block_time =
 let start_io_process block_dev ctrlsockpath datasockpath =
   (* Execute the process *)
   let args = ["-device"; block_dev; "-ctrlsock"; ctrlsockpath; "-datasock"; datasockpath] in
-  Unix.create_process "../../../_build/default/xen-api/ocaml/database/block_device_io.exe"
+  Unix.create_process !Db_globs.redo_log_block_device_io
   ("block_device_io" :: args |> Array.of_list)
   Unix.stdin Unix.stdout Unix.stderr
   (* Forkhelpers.safe_close_and_exec None None None [] !Db_globs.redo_log_block_device_io args *)
