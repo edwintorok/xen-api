@@ -719,8 +719,37 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
     Unix.close (Unix.openfile redo_log_name [O_CREAT; O_RDWR] 0o600);
 
       Redo_log.enable_block test_redo_log redo_log_name;
+
+    let vm = "myvm" in
+    Client.create_row t "VM" (make_vm vm "uuid100") "myvm";
+      let t1 = Thread.create (fun () ->
+          for i = 1 to 100 do
+            let (_: unit) = Client.write_field t "VM" vm name_label (string_of_int i) in
+            ()
+          done
+      ) () in
+
+      let t2 = Thread.create (fun () ->
+          for i = 1 to 100 do
+            let (_: unit) = Client.write_field t "VM" vm name_label (string_of_int (i*2)) in
+            ()
+          done
+      ) () in
+
       Client.delete_row t "VBD" vbd_ref;
       Client.create_row t "VBD" (make_vbd valid_ref vbd_ref "vbduuid2") vbd_ref;
+
+      let t3 = Thread.create (fun () ->
+          for i = 1 to 100 do
+            let existing_refs = Client.read_refs t "VBD" in
+            List.iter (Client.delete_row t "VBD")
+          done
+      ) () in
+
+      Thread.join t1;
+      Thread.join t2;
+      Thread.join t3;
+
       let expected = Db_ref.get_database t in
       Redo_log.shutdown test_redo_log;
 
