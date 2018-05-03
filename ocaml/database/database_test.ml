@@ -22,6 +22,14 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
   let name = "thevmname"
   let invalid_name = "notavmname"
 
+  let assert_healthy healthy =
+    (* not supposed to become unhealthy during unit test *)
+    if not healthy then
+      failwith "state_change_callback: redo log is unhealthy"
+
+  (* create a redo log, not enabled yet *)
+  let test_redo_log = Redo_log.create ~name:"test" ~state_change_callback:(Some assert_healthy) ~read_only:false
+
   let make_vm r uuid =
     [
       "uuid", uuid;
@@ -356,6 +364,9 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
       end
     in
 
+    (* xapi always has this callback registered *)
+    Db_ref.update_database t (Database.register_callback "redo_log" Redo_log.database_callback);
+
     let vbd_ref = "waz" in
     let vbd_uuid = "whatever" in
 
@@ -617,7 +628,7 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
     check_events t;
 
     (* Performance test *)
-    if in_process then begin
+    if in_process && false (* FIXME *) then begin
       let time n f =
         let start = Unix.gettimeofday () in
         for i = 0 to n do
@@ -681,6 +692,15 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
              | _ -> ()
           ) in
       Printf.printf "bad sequence: %.2f calls/sec\n%!" malign_time;
-    end
+    end;
+
+    Debug.log_to_stdout ();
+    Db_globs.redo_log_block_device_io := "../../../_build/default/xen-api/ocaml/database/block_device_io.exe";
+    (* Test redo log *)
+    let redo_log_name = Filename.temp_file "redo-log-test" "" in
+    Xapi_stdext_pervasives.Pervasiveext.finally (fun () ->
+      Redo_log.enable_block test_redo_log redo_log_name;
+      Client.delete_row t "VBD" vbd_ref)
+    (fun () -> Sys.remove redo_log_name)
 end
 

@@ -34,7 +34,7 @@ type redo_log = {
   time_of_last_failure: float ref;
   backoff_delay: int ref;
   sock: Unix.file_descr option ref;
-  pid: (Forkhelpers.pidty * string * string) option ref;
+  pid: (int * string * string) option ref;
   dying_processes_mutex: Mutex.t;
   num_dying_processes: int ref;
 }
@@ -65,7 +65,9 @@ val switch : redo_log -> string -> unit
 
 (** {Keeping track of existing redo_log instances} *)
 val create: name:string -> state_change_callback:(bool -> unit) option -> read_only:bool -> redo_log
-(* Create a redo log instance and add it to the set. *)
+(* Create a redo log instance and add it to the set.
+ * [state_change_callback] is called with [false] when connection is lost, and with [true] when
+ * connection is healthy again *)
 
 val delete: redo_log -> unit
 (* Shutdown a redo_log instance and remove it from the set. *)

@@ -58,7 +58,7 @@ type redo_log = {
   time_of_last_failure: float ref;
   backoff_delay: int ref;
   sock: Unix.file_descr option ref;
-  pid: (Forkhelpers.pidty * string * string) option ref;
+  pid: (int * string * string) option ref;
   dying_processes_mutex: Mutex.t;
   num_dying_processes: int ref;
 }
@@ -213,10 +213,14 @@ let get_latest_response_time block_time =
   now +. block_time
 
 (* Returns the PID of the process *)
+(* TODO: forkhelpers will need a unit-test mode *)
 let start_io_process block_dev ctrlsockpath datasockpath =
   (* Execute the process *)
   let args = ["-device"; block_dev; "-ctrlsock"; ctrlsockpath; "-datasock"; datasockpath] in
-  Forkhelpers.safe_close_and_exec None None None [] !Db_globs.redo_log_block_device_io args
+  Unix.create_process "../../../_build/default/xen-api/ocaml/database/block_device_io.exe"
+  ("block_device_io" :: args |> Array.of_list)
+  Unix.stdin Unix.stdout Unix.stderr
+  (* Forkhelpers.safe_close_and_exec None None None [] !Db_globs.redo_log_block_device_io args *)
 
 let connect sockpath latest_response_time =
   let rec attempt () =
@@ -491,7 +495,8 @@ let shutdown log =
           end;
 
           (* Terminate the child process *)
-          let ipid = Forkhelpers.getpid p in
+          (* let ipid = Forkhelpers.getpid p in *)
+          let ipid = p in
           R.info "Killing I/O process with pid %d" ipid;
           Unix.kill ipid Sys.sigkill;
           (* Wait for the process to die. This is done in a separate thread in case it does not respond to the signal immediately. *)
@@ -499,7 +504,8 @@ let shutdown log =
               R.debug "Waiting for I/O process with pid %d to die..." ipid;
               Mutex.execute log.dying_processes_mutex
                 (fun () -> log.num_dying_processes := !(log.num_dying_processes) + 1);
-              ignore(Forkhelpers.waitpid p);
+              (* ignore(Forkhelpers.waitpid p); *)
+              ignore(Unix.waitpid [] p);
               R.debug "Finished waiting for process with pid %d" ipid;
               Mutex.execute log.dying_processes_mutex
                 (fun () -> log.num_dying_processes := !(log.num_dying_processes) - 1)
@@ -558,7 +564,7 @@ let startup log =
                 let p = start_io_process device ctrlsockpath datasockpath in
 
                 log.pid := Some (p, ctrlsockpath, datasockpath);
-                R.info "Block device I/O process has PID [%d]" (Forkhelpers.getpid p)
+                R.info "Block device I/O process has PID [%d]" p (* (Forkhelpers.getpid p) *)
               end
           end
       end;
@@ -798,13 +804,14 @@ module DelayedCommit = struct
     Mutex.execute t.m (fun () -> not (Queue.is_empty t.pending))
 
   let flush t =
-    if has_work t then
+    if has_work t then begin
       with_active_redo_logs @@ fun log ->
         foreach t (fun (db, entry) ->
           write_delta (Db_cache_types.Manifest.generation (Db_cache_types.Database.manifest db)) entry
           (fun () ->
             (* the function which will be invoked if a database write is required instead of a delta *)
             ignore(flush_db_to_redo_log db log)) log)
+    end
 end
 
 let redo_log_actions = DelayedCommit.create ()
