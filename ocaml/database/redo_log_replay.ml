@@ -17,7 +17,7 @@ exception NoGeneration
 exception DeltaTooOld
 exception DatabaseWrongSize of int * int
 
-let read_from_redo_log log staging_path db_ref =
+let read_from_redo_log log staging_path db_ref schema =
   try
     (* 1. Start the process with which we communicate to access the redo log *)
     R.debug "Starting redo log";
@@ -29,11 +29,11 @@ let read_from_redo_log log staging_path db_ref =
     let read_db gen_count fd expected_length latest_response_time =
       (* Read the database from the fd into a file *)
       let temp_file = Filename.temp_file "from-vdi" ".db" in
-      Stdext.Pervasiveext.finally
+      Xapi_stdext_pervasives.Pervasiveext.finally
         (fun () ->
            let outfd = Unix.openfile temp_file [Unix.O_CREAT; Unix.O_WRONLY; Unix.O_TRUNC] 0o755 in
            (* ideally, the reading would also respect the latest_response_time *)
-           let total_read = Stdext.Unixext.read_data_in_chunks (fun str length -> Stdext.Unixext.time_limited_write outfd length str latest_response_time) fd in
+           let total_read = Xapi_stdext_unix.Unixext.read_data_in_chunks (fun str length -> Xapi_stdext_unix.Unixext.time_limited_write outfd length str latest_response_time) fd in
            R.debug "Reading database from fd into file %s" temp_file;
 
            (* Check that we read the expected amount of data *)
@@ -43,7 +43,7 @@ let read_from_redo_log log staging_path db_ref =
            (* Read from the file into the cache *)
            let conn = Parse_db_conf.make temp_file in
            (* ideally, the reading from the file would also respect the latest_response_time *)
-           let db = Backend_xml.populate (Datamodel_schema.of_datamodel ()) conn in
+           let db = Backend_xml.populate schema conn in
            Db_ref.update_database db_ref (fun _ -> db);
 
            R.debug "Finished reading database from %s into cache (generation = %Ld)" temp_file gen_count;
@@ -53,7 +53,7 @@ let read_from_redo_log log staging_path db_ref =
         )
         (fun () ->
            (* Remove the temporary file *)
-           Stdext.Unixext.unlink_safe temp_file
+           Xapi_stdext_unix.Unixext.unlink_safe temp_file
         )
     in
 
@@ -81,7 +81,7 @@ let read_from_redo_log log staging_path db_ref =
      *   danger of conflicting writes. *)
     R.debug "Staging redo log to file %s" staging_path;
     (* Remove any existing file *)
-    Stdext.Unixext.unlink_safe staging_path;
+    Xapi_stdext_unix.Unixext.unlink_safe staging_path;
     begin
       match !latest_generation with
       | None ->
@@ -94,13 +94,6 @@ let read_from_redo_log log staging_path db_ref =
         Db_ref.update_database db_ref (Db_cache_types.Database.set_generation generation);
         let db = Db_ref.get_database db_ref in
         Db_xml.To.file staging_path db;
-        Stdext.Unixext.write_string_to_file (staging_path ^ ".generation") (Generation.to_string generation)
+        Xapi_stdext_unix.Unixext.write_string_to_file (staging_path ^ ".generation") (Generation.to_string generation)
     end
   with _ -> () (* it's just a best effort. if we can't read from the log, then don't worry. *)
-
-let stop_using_redo_log log =
-  R.debug "Stopping using redo log";
-  try
-    Redo_log.shutdown log
-  with _ -> () (* best effort only *)
-

@@ -128,6 +128,24 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
     in
     db
 
+  let compare_databases expected actual =
+    let prep db file =
+      db
+      |> Db_backend.blow_away_non_persistent_fields (Database.schema db)
+      |> Db_xml.To.file file
+    in
+    let db_expected = "db-expected.xml"
+    and db_actual = "db-actual.xml" in
+    prep expected db_expected;
+    prep actual db_actual;
+    Printf.printf "Comparing %s and %s\n" db_expected db_actual;
+    if not (Digest.equal (Digest.file db_expected) (Digest.file db_actual)) then
+      failwith (Printf.sprintf "Database after replay does not match original: %s <> %s" db_expected db_actual);
+    Printf.printf "Compared OK\n";
+    (* only remove output on success, keep for inspection on failure *)
+    Sys.remove db_expected;
+    Sys.remove db_actual
+
   let check_many_to_many () =
     let db = create_test_db () in
     (* make a foo with bars = [] *)
@@ -697,10 +715,24 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
     Debug.log_to_stdout ();
     Db_globs.redo_log_block_device_io := "../../../_build/default/xen-api/ocaml/database/block_device_io.exe";
     (* Test redo log *)
-    let redo_log_name = Filename.temp_file "redo-log-test" "" in
-    Xapi_stdext_pervasives.Pervasiveext.finally (fun () ->
+    let redo_log_name = "test-redo-log" in
+    Unix.close (Unix.openfile redo_log_name [O_CREAT; O_RDWR] 0o600);
+
       Redo_log.enable_block test_redo_log redo_log_name;
-      Client.delete_row t "VBD" vbd_ref)
-    (fun () -> Sys.remove redo_log_name)
+      Client.delete_row t "VBD" vbd_ref;
+      Client.create_row t "VBD" (make_vbd valid_ref vbd_ref "vbduuid2") vbd_ref;
+      let expected = Db_ref.get_database t in
+      Redo_log.shutdown test_redo_log;
+
+      let recovered = Db_backend.make () in
+      Redo_log_replay.read_from_redo_log test_redo_log "recovered.db" recovered Test_schemas.schema;
+      Redo_log.shutdown test_redo_log;
+      let actual = Db_ref.get_database recovered in
+      compare_databases expected actual;
+
+
+
+      (* only do this on success, keep it for inspection on failure *)
+      Sys.remove redo_log_name
 end
 
