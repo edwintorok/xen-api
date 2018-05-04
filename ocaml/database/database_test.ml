@@ -719,6 +719,8 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
     Unix.close (Unix.openfile redo_log_name [O_CREAT; O_RDWR] 0o600);
 
       Redo_log.enable_block test_redo_log redo_log_name;
+    (* TODO: register my own callback and check that the events received while creating the DB are
+     * the same as the ones when replaying it *)
 
     let vm = "myvm" in
     for i = 1 to 100 do

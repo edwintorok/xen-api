@@ -34,6 +34,7 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
   (flags (:standard -w -39 -bin-annot %s))
   (modules (:standard \
    database_server_main
+   database_redo_test
    db_cache_test
    block_device_io
    unit_test_marshall
@@ -73,7 +74,7 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
  )
 )
 
-(executable 
+(executable
  ((name db_cache_test)
   (modules (db_cache_test))
   (libraries (
@@ -114,6 +115,15 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
  )
 )
 
+(executable
+ ((name database_redo_test)
+  (modules (database_redo_test))
+  (libraries (
+    alcotest
+    threads
+    xapi-database
+    xapi-stdext-threads))))
+
 (alias
  ((name runtest)
   (deps (unit_test_marshall.exe))
@@ -137,6 +147,12 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
   (action (run ${<} --master db.xml --test))
  )
 )
+
+(alias
+ ((name runtest2)
+  (deps (database_redo_test.exe block_device_io.exe))
+  (package xapi-database)
+  (action (run ${<} ${bin:block_device_io}))))
 
 (alias
  ((name runtest)
