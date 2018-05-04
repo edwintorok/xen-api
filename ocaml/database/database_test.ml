@@ -713,7 +713,7 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
     end;
 
     Debug.log_to_stdout ();
-    Db_globs.redo_log_block_device_io := "../../_build/default/ocaml/database/block_device_io.exe";
+    Db_globs.redo_log_block_device_io := "../../../_build/default/xen-api/ocaml/database/block_device_io.exe";
     (* Test redo log *)
     let redo_log_name = "test-redo-log" in
     Unix.close (Unix.openfile redo_log_name [O_CREAT; O_RDWR] 0o600);
@@ -721,18 +721,26 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
       Redo_log.enable_block test_redo_log redo_log_name;
 
     let vm = "myvm" in
-    Client.create_row t "VM" (make_vm vm "uuid100") "myvm";
+    for i = 1 to 100 do
+      Client.create_row t "VM" (make_vm vm ("vmuuid" ^ (string_of_int i))) (string_of_int i);
+    done;
+
       let t1 = Thread.create (fun () ->
           for i = 1 to 100 do
-            let (_: unit) = Client.write_field t "VM" vm name_label (string_of_int i) in
-            ()
+            let existing_refs = Client.read_refs t "VM" in
+            List.iter (fun ref ->
+                let old = Client.read_field t "VM" name_label ref in
+                Client.write_field t "VM" name_label ref (old ^ "X")
+              ) existing_refs
           done
       ) () in
 
       let t2 = Thread.create (fun () ->
           for i = 1 to 100 do
-            let (_: unit) = Client.write_field t "VM" vm name_label (string_of_int (i*2)) in
-            ()
+            let existing_refs = Client.read_refs t "VM" in
+            List.iter (fun ref ->
+            let (_: unit) = Client.write_field t "VM" ref name_label (string_of_int (i*2)) in
+            ()) existing_refs
           done
       ) () in
 
@@ -742,7 +750,7 @@ module Tests = functor(Client: Db_interface.DB_ACCESS) -> struct
       let t3 = Thread.create (fun () ->
           for i = 1 to 100 do
             let existing_refs = Client.read_refs t "VBD" in
-            List.iter (Client.delete_row t "VBD")
+            List.iter (Client.delete_row t "VBD") existing_refs
           done
       ) () in
 
