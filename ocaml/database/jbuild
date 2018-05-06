@@ -120,6 +120,7 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
   (modules (database_redo_test))
   (libraries (
     alcotest
+    sexplib
     threads
     xapi-database
     xapi-stdext-threads))))
@@ -152,7 +153,7 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
  ((name runtest2)
   (deps (database_redo_test.exe block_device_io.exe))
   (package xapi-database)
-  (action (run ${<} ${bin:block_device_io}))))
+  (action (run ${<} --block-device-io=${bin:block_device_io}))))
 
 (alias
  ((name runtest)

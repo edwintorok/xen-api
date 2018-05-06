@@ -121,6 +121,7 @@ type update =
   | Delete of string (* tblname *) * string (* objref *) * (string * Schema.Value.t) list (* values *)
   | Create of string (* tblname *) * string (* objref *) * (string * Schema.Value.t) list (* values *)
   | AfterLockRelease (* called after each update that was holding a lock, after releasing it *)
+  [@@deriving sexp]
 
 module Database :
 sig
