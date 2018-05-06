@@ -73,6 +73,8 @@ let test_redo_log =
  * Note: this will fail if flush is called because the individual events are not preserved in that case
  * *)
 let check_database_replay msg ~redo_log_name db f =
+  Xapi_stdext_unix.Unixext.touch_file redo_log_name;
+  Unix.LargeFile.truncate redo_log_name Redo_log.minimum_vdi_size;
   Redo_log.enable_block test_redo_log redo_log_name ;
   let db = Database.register_callback "redo log" Redo_log.database_callback db in
   Redo_log.flush_db_to_redo_log db test_redo_log |> ignore;
@@ -80,6 +82,7 @@ let check_database_replay msg ~redo_log_name db f =
   Redo_log.shutdown test_redo_log ;
   let recovered = recover_events test_redo_log (Database.schema db) in
   check_database_events msg original recovered ;
+
   (* only do this on success, keep it for inspection on failure *)
   Sys.remove redo_log_name
 
