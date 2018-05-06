@@ -17,7 +17,7 @@ exception NoGeneration
 exception DeltaTooOld
 exception DatabaseWrongSize of int * int
 
-let read_from_redo_log log staging_path db_ref schema =
+let read_from_redo_log ?callback log staging_path db_ref schema =
   try
     (* 1. Start the process with which we communicate to access the redo log *)
     R.debug "Starting redo log";
@@ -45,6 +45,10 @@ let read_from_redo_log log staging_path db_ref schema =
            (* ideally, the reading from the file would also respect the latest_response_time *)
            let db = Backend_xml.populate schema conn in
            Db_ref.update_database db_ref (fun _ -> db);
+
+           Xapi_stdext_monadic.Opt.iter (fun (name, cb) ->
+               Db_cache_types.Database.register_callback name cb
+               |> Db_ref.update_database db_ref) callback;
 
            R.debug "Finished reading database from %s into cache (generation = %Ld)" temp_file gen_count;
 

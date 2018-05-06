@@ -34,6 +34,7 @@ let is_persistent_event update db =
 let persistent_events_of db f =
   let events = ref [] in
   let event update db =
+    prerr_endline "event";
     if is_persistent_event update db then events := update :: !events
   in
   let callback = "events test trace" in
@@ -49,7 +50,10 @@ let assert_healthy healthy =
 let recover redo_log schema db =
   let tmp = ref db in
   let recovered = Db_ref.in_memory (ref tmp) in
-  Redo_log_replay.read_from_redo_log redo_log "recovered.db" recovered
+  (* fixme: redo log replay looses callbacks *)
+  let orig_db = db in
+  let callback = "test replay", (fun update db -> Database.notify update orig_db) in
+  Redo_log_replay.read_from_redo_log ~callback redo_log "recovered.db" recovered
     Test_schemas.schema ;
   Redo_log.shutdown redo_log ;
   Db_ref.get_database recovered
@@ -70,6 +74,8 @@ let test_redo_log =
  * *)
 let check_database_replay msg ~redo_log_name db f =
   Redo_log.enable_block test_redo_log redo_log_name ;
+  let db = Database.register_callback "redo log" Redo_log.database_callback db in
+  Redo_log.flush_db_to_redo_log db test_redo_log |> ignore;
   let original = persistent_events_of db f in
   Redo_log.shutdown test_redo_log ;
   let recovered = recover_events test_redo_log (Database.schema db) in
@@ -88,6 +94,7 @@ let () =
   let prog =
     Cmdliner.Arg.(value & opt (some string) None & info ["block-device-io"])
   in
+  Debug.log_to_stdout ();
   Alcotest.run_with_args "redo log" prog [
     "dummy", [
       "dummy", `Quick, (fun prog ->
@@ -103,6 +110,7 @@ let () =
           check_database_replay "dummy" ~redo_log_name:"test-db-replay" db (fun db ->
               Db_ref.update_database t (fun _ -> db);
               Db_cache_impl.create_row t "VBD" (make_vbd "vmref" "rrr" "uuid") "vm";
+              Db_cache_impl.create_row t "VBD" (make_vbd "vmref2" "rrr" "uuid2") "vm2";
               Db_ref.get_database t
             ))
     ]
