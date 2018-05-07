@@ -1,5 +1,5 @@
 (*
- * Copyright (C) 2006-2009 Citrix Systems Inc.
+ * Copyright (C) 2006-2018 Citrix Systems Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published
@@ -17,7 +17,7 @@ exception NoGeneration
 exception DeltaTooOld
 exception DatabaseWrongSize of int * int
 
-let read_from_redo_log log staging_path db_ref =
+let replay_from_redo_log log staging_path schema db_ref =
   try
     (* 1. Start the process with which we communicate to access the redo log *)
     R.debug "Starting redo log";
@@ -43,7 +43,7 @@ let read_from_redo_log log staging_path db_ref =
            (* Read from the file into the cache *)
            let conn = Parse_db_conf.make temp_file in
            (* ideally, the reading from the file would also respect the latest_response_time *)
-           let db = Backend_xml.populate (Datamodel_schema.of_datamodel ()) conn in
+           let db = Backend_xml.populate schema conn in
            Db_ref.update_database db_ref (fun _ -> db);
 
            R.debug "Finished reading database from %s into cache (generation = %Ld)" temp_file gen_count;
@@ -97,6 +97,9 @@ let read_from_redo_log log staging_path db_ref =
         Xapi_stdext_unix.Unixext.write_string_to_file (staging_path ^ ".generation") (Generation.to_string generation)
     end
   with _ -> () (* it's just a best effort. if we can't read from the log, then don't worry. *)
+
+let read_from_redo_log log staging_path db_ref =
+  replay_from_redo_log log staging_path (Datamodel_schema.of_datamodel ()) db_ref
 
 let stop_using_redo_log log =
   R.debug "Stopping using redo log";
