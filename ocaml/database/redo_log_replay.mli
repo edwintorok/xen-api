@@ -17,4 +17,4 @@
 
 (** Connect to the block device and write the latest version of the database
  * on it to a file with a given name. *)
-val replay_from_redo_log : Redo_log.redo_log -> string -> Schema.t -> Db_ref.t -> unit
+val replay_from_redo_log : ?on_read_db:(Db_ref.t -> unit) -> Redo_log.redo_log -> string -> Schema.t -> Db_ref.t -> unit
