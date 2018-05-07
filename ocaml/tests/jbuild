@@ -28,14 +28,15 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
 
 
 (executables
-((names (suite suite_alcotest))
+((names (suite suite_alcotest test_database_redo_log))
 (flags (:standard -bin-annot %s -warn-error +a-3-4-6-9-27-28-29-52))
 (libraries (
-            xapi_internal
             alcotest
             oUnit
+            sexplib
             stdext
             threads
+            xapi_internal
             ))
 %s)
 )
@@ -55,4 +56,11 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
 (action (run ${<}))
 )
 )
+
+(alias
+ ((name runtest2)
+  (deps (test_database_redo_log.exe ../database/block_device_io.exe))
+  (package xapi-database)
+  (action (run ${<} --block-device-io=${bin:block_device_io}))))
+
 |} (flags rewriters) coverage_rewriter

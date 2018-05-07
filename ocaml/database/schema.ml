@@ -31,6 +31,7 @@ module Type = struct
 end
 
 module Value = struct
+  open Rpc
   type t =
     | String of string
     | Set of string list

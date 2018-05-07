@@ -13,6 +13,7 @@
  *)
 
 open Db_exn
+open Sexplib.Std
 
 module Time = struct
   type t = Generation.t
@@ -221,6 +222,7 @@ type update =
   | PreDelete of string (* tblname *) * string (* objref *)
   | Delete of string (* tblname *) * string (* objref *) * (string * Schema.Value.t) list (* values *)
   | Create of string (* tblname *) * string (* objref *) * (string * Schema.Value.t) list (* values *)
+  [@@deriving sexp]
 
 module Database = struct
   type t = {
