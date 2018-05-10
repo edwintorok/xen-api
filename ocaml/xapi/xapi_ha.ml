@@ -379,7 +379,8 @@ module Monitor = struct
               try
                 Xapi_ha_vm_failover.restart_auto_run_vms ~__context liveset_refs to_tolerate
               with e ->
-                error "Caught unexpected exception when executing restart plan: %s" (ExnHelper.string_of_exn e)
+                Debug.log_backtrace e (Backtrace.get e);
+                error "Caught unexpected exception when executing restart plan: %s" (ExnHelper.string_of_exn e);
             end;
 
             (* At this point the hosts not in the liveset have been declared dead *)

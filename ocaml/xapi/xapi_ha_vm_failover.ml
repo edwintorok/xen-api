@@ -98,7 +98,7 @@ let map_grouped_tasks ~rpc ~session_id
   |> List.concat
 
 (*****************************************************************************************************)
-(* Planning code follows                                                                             *)
+  (* Planning code follows                                                                             *)
 
 (* Compute the total memory required of a VM (Running or not) *)
 let total_memory_of_vm ~__context policy snapshot =
