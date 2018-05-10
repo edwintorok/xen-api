@@ -29,6 +29,73 @@ let by_order (vm_ref1,vm_rec1) (vm_ref2,vm_rec2) =
 
 let ($) x y = x y
 
+(* for backporting this will need:
+ * module Result = struct type 'a result = Ok of 'a | Error of 'a end
+ * let (|>) x f = f x
+ *)
+
+let task_status ~rpc ~session_id = function | Result.Error _ as err -> err
+  | Result.Ok self ->
+    match Client.Client.Task.get_status ~rpc ~session_id ~self with
+    | `success -> Result.Ok ()
+    | `cancelled -> Result.Error (Failure "Cancelled")
+    | `cancelling -> Result.Error (Failure "Cancelling")
+    | `pending ->
+      (* should never happpen after wait_for_all *)
+      Result.Error (Failure "internal error: pending")
+    | `failure ->
+      match Client.Client.Task.get_error_info ~rpc ~session_id ~self with
+      | [] -> Result.Error (Failure "Unknown error")
+      | code :: params -> Result.Error (Api_errors.Server_error(code, params))
+
+let map_vm_error = function
+  | vm, Result.Ok () -> vm, true
+  | (vm, vmr), Result.Error e ->
+      error "caught exception trying to restart vm %s: %s" (Ref.string_of vm)
+        (ExnHelper.string_of_exn e);
+      (vm, vmr), false
+
+let task_of_vm_task_result = function
+  | _, Result.Ok task -> Some task
+  | _, Result.Error _ -> None
+
+(** [map_grouped_tasks rpc session_id f vms]
+ *  groups VMs by restart priority, and inside each group:
+ *    maps VMs to optional tasks
+ *    waits for all the tasks from this group to complete
+ *  this allows us to start as many VMs in parallel as possible,
+ *  while still obeying the HA restart order *)
+let map_grouped_tasks ~rpc ~session_id
+    ~(f:(API.ref_VM -> (API.ref_task, exn) Result.result))
+    (vms:(API.ref_VM * API.vM_t) list) =
+
+  let wait_for_tasks_status vm_tasks =
+    debug "Waiting for %d tasks to complete" (List.length vm_tasks);
+    let tasks = Xapi_stdext_std.Listext.List.filter_map task_of_vm_task_result vm_tasks in
+    Tasks.wait_for_all ~rpc ~session_id ~tasks;
+    debug "%d tasks have completed" (List.length vm_tasks);
+    List.map (fun (vm, task) ->
+        map_vm_error (vm, task_status ~rpc ~session_id task)) vm_tasks
+  in
+
+  let map_group_parallel vms =
+    (* start all in parallel,
+     * rely on worker limit in xenopsd for limiting *)
+    vms
+    |> List.map (fun ((vm, vmr), _) -> (vm, vmr), f vm)
+    |> wait_for_tasks_status
+  in
+
+  debug "Processing %d vms" (List.length vms);
+
+  (* Start all priority 0 VMs, then all priority 1 VMs, and so on.
+   * This needs to be sequential, however starting VMs with same
+   * priority can be parallelized *)
+  vms
+  |> Helpers.group_by ~ordering:`ascending by_order
+  |> List.map map_group_parallel (* we need to preserve order here *)
+  |> List.concat
+
 (*****************************************************************************************************)
 (* Planning code follows                                                                             *)
 
@@ -580,28 +647,27 @@ let restart_auto_run_vms ~__context live_set n =
            if attempt_restart then begin
              Hashtbl.replace last_start_attempt vm (Unix.gettimeofday ());
              match host with
-             | None -> Client.Client.VM.start rpc session_id vm false true
-             | Some h -> Client.Client.VM.start_on rpc session_id vm h false true
+             | None -> Client.Client.Async.VM.start rpc session_id vm false true
+             | Some h -> Client.Client.Async.VM.start_on rpc session_id vm h false true
            end else failwith (Printf.sprintf "VM: %s restart attempt delayed for 120s" (Ref.string_of vm)) in
          try
-           go ();
-           true
+           Result.Ok (go ())
          with
+         (*TODO: check same after task completion *)
          | Api_errors.Server_error(code, params) when code = Api_errors.ha_operation_would_break_failover_plan ->
            (* This should never happen since the planning code would always allow the restart of a protected VM... *)
            error "Caught exception HA_OPERATION_WOULD_BREAK_FAILOVER_PLAN: setting pool as overcommitted and retrying";
            ignore (mark_pool_as_overcommitted ~__context ~live_set : bool);
            begin
              try
-               go ();
-               true
+               Result.Ok (go ())
              with e ->
                error "Caught exception trying to restart VM %s: %s" (Ref.string_of vm) (ExnHelper.string_of_exn e);
-               false
+               Result.Error e
            end
          | e ->
            error "Caught exception trying to restart VM %s: %s" (Ref.string_of vm) (ExnHelper.string_of_exn e);
-           false in
+           Result.Error e in
 
        (* Build a list of bools, one per Halted protected VM indicating whether we managed to start it or not *)
        let started =
@@ -611,20 +677,21 @@ let restart_auto_run_vms ~__context live_set n =
            let all = List.filter (fun (_, r) -> r.API.vM_power_state = `Halted) all_protected_vms in
            let all = List.sort by_order all in
            warn "Failed to find plan to restart all protected VMs: falling back to simple VM.start in priority order";
-           List.map (fun (vm, _) -> vm, restart_vm vm ()) all
+           map_grouped_tasks ~rpc ~session_id all ~f:(fun vm -> restart_vm vm ())
          end else begin
            (* Walk over the VMs in priority order, starting each on the planned host *)
            let all = List.sort by_order (List.map (fun (vm, _) -> vm, Db.VM.get_record ~__context ~self:vm) plan) in
-           List.map (fun (vm, _) ->
-               vm, (if List.mem_assoc vm plan
+           map_grouped_tasks ~rpc ~session_id all ~f:(fun vm ->
+               if List.mem_assoc vm plan
                     then restart_vm vm ~host:(List.assoc vm plan) ()
-                    else false)) all
+                    else Result.Error (Failure "No plan for VM"))
          end in
-       (* Perform one final restart attempt of any that weren't started. *)
-       let started = List.map (fun (vm, started) -> match started with
+       (* TODO: Perform one final restart attempt of any that weren't started. *)
+    (*   let started = List.map (fun (vm, started) -> match started with
            | true -> vm, true
-           | false -> vm, restart_vm vm ()) started in
+           | false -> vm, restart_vm vm ()) started in *)
        (* Send an alert for any failed VMs *)
+       let started = List.map (fun ((vm, _), started) -> vm, started) started in
        List.iter (fun (vm, started) -> if not started then consider_sending_failed_alert_for vm) started;
 
        (* Forget about previously failed VMs which have gone *)
@@ -635,6 +702,7 @@ let restart_auto_run_vms ~__context live_set n =
        gc_table last_start_attempt;
        gc_table restart_failed;
 
+       (* TODO: do these in parallel too *)
        (* Consider restarting the best-effort VMs we *think* have failed (but we might get this wrong --
           			   ok since this is 'best-effort'). NOTE we do not use the restart_vm function above as this will mark the
           			   pool as overcommitted if an HA_OPERATION_WOULD_BREAK_FAILOVER_PLAN is received (although this should never
