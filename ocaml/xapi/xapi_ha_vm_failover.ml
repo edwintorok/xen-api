@@ -20,12 +20,13 @@ let all_protected_vms ~__context =
   let vms = Db.VM.get_all_records ~__context in
   List.filter (fun (_, vm_rec) -> Helpers.vm_should_always_run vm_rec.API.vM_ha_always_run vm_rec.API.vM_ha_restart_priority) vms
 
-(* Comparison function which can be used to sort a list of VM ref, record by order *)
-let by_order (vm_ref1,vm_rec1) (vm_ref2,vm_rec2) =
+let order (vm_ref, vm_rec) =
   let negative_high x = if x<0L then Int64.max_int else x in
-  let vm1_order = negative_high (vm_rec1.API.vM_order) in
-  let vm2_order = negative_high (vm_rec2.API.vM_order) in
-  compare vm1_order vm2_order
+  negative_high (vm_rec.API.vM_order)
+
+(* Comparison function which can be used to sort a list of VM ref, record by order *)
+let by_order a b =
+  compare (order a) (order b)
 
 let ($) x y = x y
 
@@ -92,7 +93,7 @@ let map_grouped_tasks ~rpc ~session_id
    * This needs to be sequential, however starting VMs with same
    * priority can be parallelized *)
   vms
-  |> Helpers.group_by ~ordering:`ascending by_order
+  |> Helpers.group_by ~ordering:`ascending order
   |> List.map map_group_parallel (* we need to preserve order here *)
   |> List.concat
 
