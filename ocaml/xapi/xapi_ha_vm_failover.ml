@@ -71,6 +71,7 @@ let map_grouped_tasks ~rpc ~session_id
     (vms:(API.ref_VM * API.vM_t) list) =
 
   let wait_for_tasks_status vm_tasks =
+    (* TODO: destroy tasks *)
     debug "Waiting for %d tasks to complete" (List.length vm_tasks);
     let tasks = Xapi_stdext_std.Listext.List.filter_map task_of_vm_task_result vm_tasks in
     Tasks.wait_for_all ~rpc ~session_id ~tasks;
