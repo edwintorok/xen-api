@@ -754,6 +754,7 @@ let restart_auto_run_vms ~__context live_set n =
       Xapi_alert.add ~msg:Api_messages.ha_protected_vm_restart_failed ~cls:`VM ~obj_uuid ~body:""
     end in
 
+  let open OrderedTaskChains.Infix in
   (* execute the plan *)
   Helpers.call_api_functions ~__context
     (fun rpc session_id ->
@@ -779,28 +780,32 @@ let restart_auto_run_vms ~__context live_set n =
            if attempt_restart then begin
              Hashtbl.replace last_start_attempt vm (Unix.gettimeofday ());
              match host with
-             | None -> Client.Client.VM.start rpc session_id vm false true
-             | Some h -> Client.Client.VM.start_on rpc session_id vm h false true
+             | None -> Client.Client.Async.VM.start rpc session_id vm false true
+             | Some h -> Client.Client.Async.VM.start_on rpc session_id vm h false true
            end else failwith (Printf.sprintf "VM: %s restart attempt delayed for 120s" (Ref.string_of vm)) in
-         try
-           go ();
-           true
-         with
-         | Api_errors.Server_error(code, params) when code = Api_errors.ha_operation_would_break_failover_plan ->
+         OrderedTaskChains.task go >>= function
+         | Result.Error Api_errors.Server_error(code, params) when code = Api_errors.ha_operation_would_break_failover_plan ->
            (* This should never happen since the planning code would always allow the restart of a protected VM... *)
            error "Caught exception HA_OPERATION_WOULD_BREAK_FAILOVER_PLAN: setting pool as overcommitted and retrying";
            ignore (mark_pool_as_overcommitted ~__context ~live_set : bool);
            begin
-             try
-               go ();
-               true
-             with e ->
-               error "Caught exception trying to restart VM %s: %s" (Ref.string_of vm) (ExnHelper.string_of_exn e);
-               false
+             OrderedTaskChains.task go >>= function
+             | Result.Ok _ -> OrderedTaskChains.ok ()
+             | Result.Error e -> error "Caught exception trying to restart VM %s: %s" (Ref.string_of vm) (ExnHelper.string_of_exn e);
+               OrderedTaskChains.fail e
            end
-         | e ->
+         | Result.Error e ->
            error "Caught exception trying to restart VM %s: %s" (Ref.string_of vm) (ExnHelper.string_of_exn e);
-           false in
+           OrderedTaskChains.fail e
+         | Result.Ok _ -> OrderedTaskChains.ok ()
+       in
+
+       let map_parallel ~order f lst =
+         lst
+         |> List.map (fun x ->
+             x, OrderedTaskChains.ordered_action (order x) (fun () -> f x))
+         |> OrderedTaskChains.parallel ~__context ~rpc ~session_id
+       in
 
        (* Build a list of bools, one per Halted protected VM indicating whether we managed to start it or not *)
        let started =
@@ -808,23 +813,24 @@ let restart_auto_run_vms ~__context live_set n =
            (* If the Pool is overcommitted the restart priority will make the difference between a VM restart or not,
               					   while if we're undercommitted the restart priority only affects the timing slightly. *)
            let all = List.filter (fun (_, r) -> r.API.vM_power_state = `Halted) all_protected_vms in
-           let all = List.sort by_order all in
            warn "Failed to find plan to restart all protected VMs: falling back to simple VM.start in priority order";
-           List.map (fun (vm, _) -> vm, restart_vm vm ()) all
+           map_parallel ~order (fun (vm, _) -> restart_vm vm ()) all
          end else begin
            (* Walk over the VMs in priority order, starting each on the planned host *)
-           let all = List.sort by_order (List.map (fun (vm, _) -> vm, Db.VM.get_record ~__context ~self:vm) plan) in
-           List.map (fun (vm, _) ->
-               vm, (if List.mem_assoc vm plan
+           let all = List.map (fun (vm, _) -> vm, Db.VM.get_record ~__context ~self:vm) plan in
+           map_parallel ~order (fun (vm, vmr) ->
+               if List.mem_assoc vm plan
                     then restart_vm vm ~host:(List.assoc vm plan) ()
-                    else false)) all
+                    else OrderedTaskChains.fail (Failure "VM has no plan")) all
          end in
        (* Perform one final restart attempt of any that weren't started. *)
-       let started = List.map (fun (vm, started) -> match started with
-           | true -> vm, true
-           | false -> vm, restart_vm vm ()) started in
+       let started = map_parallel ~order:(fun (vminfo, _) -> order vminfo)
+           (fun ((vm,_), started) -> match started with
+           | Result.Ok () -> OrderedTaskChains.ok ()
+           | Result.Error _ -> restart_vm vm ()) started in
+       let started = List.map (fun (((vm, _), _), started) -> vm, started) started in
        (* Send an alert for any failed VMs *)
-       List.iter (fun (vm, started) -> if not started then consider_sending_failed_alert_for vm) started;
+       List.iter (fun (vm, started) -> if started <> Result.Ok () then consider_sending_failed_alert_for vm) started;
 
        (* Forget about previously failed VMs which have gone *)
        let vms_we_know_about = List.map fst started in
@@ -838,16 +844,18 @@ let restart_auto_run_vms ~__context live_set n =
           			   ok since this is 'best-effort'). NOTE we do not use the restart_vm function above as this will mark the
           			   pool as overcommitted if an HA_OPERATION_WOULD_BREAK_FAILOVER_PLAN is received (although this should never
           			   happen it's better safe than sorry) *)
-       List.iter
+       map_parallel ~order:(fun vm -> order (vm, Db.VM.get_record ~__context ~self:vm))
          (fun vm ->
-            try
               if Db.VM.get_power_state ~__context ~self:vm = `Halted
               && Db.VM.get_ha_restart_priority ~__context ~self:vm = Constants.ha_restart_best_effort
-              then Client.Client.VM.start rpc session_id vm false true
-            with e ->
-              error "Failed to restart best-effort VM %s (%s): %s"
-                (Db.VM.get_uuid ~__context ~self:vm)
-                (Db.VM.get_name_label ~__context ~self:vm)
-                (ExnHelper.string_of_exn e)) !reset_vms
-
+              then OrderedTaskChains.task (fun () -> Client.Client.Async.VM.start rpc session_id vm false true)
+              else OrderedTaskChains.ok (Result.Ok Rpc.Null)) !reset_vms
+       |> List.iter (fun (vm, result) ->
+           match result with
+           | Result.Error e ->
+             error "Failed to restart best-effort VM %s (%s): %s"
+               (Db.VM.get_uuid ~__context ~self:vm)
+               (Db.VM.get_name_label ~__context ~self:vm)
+               (ExnHelper.string_of_exn e)
+           | Result.Ok _ -> ())
     )
