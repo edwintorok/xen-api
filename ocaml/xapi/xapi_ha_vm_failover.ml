@@ -15,6 +15,205 @@
 module D = Debug.Make(struct let name="xapi_ha_vm_failover" end)
 open D
 
+type task_result = (Rpc.t, exn) result
+
+let result_of_task ~__context self : task_result =
+  match Db.Task.get_status ~__context ~self with
+  | `success ->
+    Result.Ok (match Db.Task.get_result ~__context ~self with
+        | "" -> Rpc.Null
+        | s -> Xmlrpc.of_string s)
+  | `cancelled -> Result.Error (Failure "Cancelled")
+  | `cancelling -> Result.Error (Failure "Cancelling")
+  | `pending ->
+    (* should never happpen after wait_for_all *)
+    Result.Error (Failure "internal error: pending")
+  | `failure ->
+    match Db.Task.get_error_info ~__context ~self with
+    | [] -> Result.Error (Failure "Unknown error")
+    | code :: params -> Result.Error (Api_errors.Server_error (code, params))
+
+module OrderedTaskChains : sig
+  (** the type of delayed task related actions *)
+  type +'a t
+
+  type 'a value = ('a, exn) Result.result
+
+  (**[return x] an immediately available result *)
+  val ok : 'a -> 'a value t
+
+  (**[fail exn] an immediately available error.
+   * This does not necesarily stop further computation. *)
+  val fail : exn -> 'a value t
+
+  (**[task f] is an action that evaluates to the result of task [f ()] *)
+  val task : (unit -> API.ref_task) -> task_result t
+
+  (**[ordered_action order f] [f ()] is a function that creates an action, to be invoked
+   * when we have run all actions with order < [order] *)
+  val ordered_action : int64 -> (unit -> 'a t) -> 'a t
+
+  (** [fmap f t] will map the final result of action [t] through the function [f].
+     * It is not guaranteed that [f] is executed as soon as the result of [t] is available. *)
+  val fmap : ('a -> 'b value) -> 'a t -> 'b value t
+  module Infix : sig
+    (** [m >>= k] monadic bind: executes [k] with the result of [m] computation.
+     * It is not guaranteed that [k] is executed as soon as the result of [m] is available.
+     * *)
+    val (>>=): 'a value t -> ('a value -> 'b value t) -> 'b value t
+  end
+
+  (** [parallel ~__context lst] groups actions in [lst] by order number and
+   * executes all actions with same order number in parallel.
+   * In the current implementation binds and fmaps are executed after waiting for all tasks of same
+   * order number to complete.
+   * Returns the results from [lst], in an unspecified order, hence each item in [lst] is a tuple
+   * with arbitrary data (e.g. a VM ref) as first element, and the action as second:
+   * this way the results will be associated with some meaningful data.
+   *
+   * e.g. given : [task1_order0 >>= action1 , task2_order1, task3_order0 >>= action2]
+   * we first launch task1 and task3, when both task1 and task3 has finished we execute
+   * action1 and action2 recursively to completion.
+   * Only then we launch task2 and waits for its completion.
+  *)
+  val parallel: __context:Context.t -> rpc:(Rpc.call -> Rpc.response) -> session_id:API.ref_session ->
+    ('a * 'b value t) list -> ('a * 'b value) list
+end = struct
+  (** structured like a Freer Monad *)
+  type +'a t =
+    | Completed of 'a
+    (** [Completed result] an action that has finished, sometimes refered to as 'pure' *)
+
+    | Task of API.ref_task * (task_result -> 'a t)
+    (** [Task(task, next)] a task, and a function to call when the task finishes (continuation).
+     * This is an impure action. *)
+
+    | StrictOrder of int64 * (unit -> 'a t)
+    (** [StrictOrder(number, action)] an action ordered by priority:
+     * actions with a higher order number are run
+     * only when actions with a lower order number have completed,
+     * i.e. all actions with same order number can be run in parallel.
+     * It is important that the action here is delayed [unit -> ... ],
+     * so that we can first construct all the actions and then group by order.
+     * This is an impure action *)
+
+  type 'a value = ('a, exn) Result.result
+  (* Constructors *)
+
+  let ok x = Completed (Result.Ok x)
+  let fail e = Completed (Result.Error e)
+
+  let pure x = Completed x
+
+  (** we start out with a task that returns its result when completed,
+   *  more actions can be chained via bind below *)
+  let task f = StrictOrder(0L, fun () -> Task(f (), pure))
+
+  let ordered_action order f = StrictOrder(order, f)
+
+  (* Accessors *)
+
+  let order_of = function
+    | Completed _ | Task _ -> Int64.min_int
+    | StrictOrder(i, _) -> i
+
+  let task_of = function
+    | Completed _ | StrictOrder _ -> None
+    | Task (task, _) -> Some task
+
+
+  (* Operations *)
+
+  let map_result f result =
+    try f result
+    with e -> Result.Error e
+
+  let rec fmap f : 'a t -> 'b value t = function
+    | Completed x ->
+      (* just map the result if we already have it, making sure exceptions do not escape *)
+      Completed (map_result f x)
+    | Task(task, task_next) ->
+      (* If everything was immediately available then the result would be:
+       * [f (task_next (result_of_task task))]
+       * However we first need to wait for the same task to finish,
+       * and when we receive the result from the task, we first need to map it through
+       * [task_next] and then through [f].
+       * The type system helps to ensure the below pipeline is correct *)
+       Task(task, fun x -> x |> task_next |> fmap f)
+    | StrictOrder (order, next) ->
+      StrictOrder(order, fun x -> x |> next |> fmap f)
+
+  (** this module is meant to be opened, defines only an infix operator,
+   * avoids polluting the namespace with other functions *)
+  module Infix = struct
+    (** [m >>= k] monadic bind: executes [k] with the result of [m] computation.
+     * It is not guaranteed that [k] is executed as soon as the result of [m] is available.
+     * *)
+    let rec (>>=) m k = match m with
+      | Completed x -> (try k x with e -> fail e)
+      | Task (task, next) ->
+        (* similar reasoning as above, when we get the result we need to chain the computations,
+         * refer to http://okmij.org/ftp/Computation/free-monad.html for a deeper theoretical explanation *)
+        Task(task, fun x -> next x >>= k)
+      | StrictOrder (i, next) -> StrictOrder(i, fun x -> next x >>= k)
+  end
+
+  let rec parallel  ~__context ~rpc ~session_id lst =
+    let get_completed (k, t) = match t with
+    | Completed r -> k, r
+    | StrictOrder _ | Task _ -> assert false
+    in
+    let rec next (k, t) = match t with
+      | Completed _ as r -> k, r (* nothing more to do, already completed *)
+      | StrictOrder (_, f) ->
+        (* expects to be called after grouping by order *)
+        next (k, f ()) (* time to launch the action *)
+      | Task (task, f) ->
+        (* expects to be called after wait_for_all *)
+        (* retrieve the result of the task,
+         * and invoke next action in the chain *)
+        next (k, try
+                let r = result_of_task ~__context task in
+                log_and_ignore_exn (fun () -> Xapi_task.destroy ~__context ~self:task);
+                f r
+              with e -> fail e)
+    in
+
+    let task_of (_, t) = task_of t in
+
+    let wait_for_and_run_next lst =
+      (* find any pending tasks we can wait for right now *)
+      match Xapi_stdext_std.Listext.List.filter_map task_of lst with
+      | [] ->
+        List.map get_completed lst (* no pending tasks, all done *)
+      | tasks ->
+        Tasks.wait_for_all ~rpc ~session_id ~tasks;
+        List.map next lst |> parallel ~__context ~rpc ~session_id
+    in
+
+    let order_of (_, t) = order_of t in
+
+    (* start with a list of all actions,
+     * group them into lists based on the order,
+     * (each list will contain actions with same order)
+     * execute all actions in the inner lists in parallel
+     * wait until they all complete
+     * move on to next group
+     * using a fold_left here to guarantee order of execution
+     * (an optimized List.map might execute in reverse order *)
+    lst
+    |> Helpers.group_by ~ordering:`ascending order_of
+    |> List.fold_left (fun accum group ->
+        let append lst = List.rev_append lst accum in
+        group
+        |> List.map fst (* remove order number added by group_by *)
+        |> List.map next (* launch all tasks in parallel *)
+        |> wait_for_and_run_next
+        |> append
+      ) []
+end
+
+
 (* Return a list of (ref, record) pairs for all VMs which are marked as always_run *)
 let all_protected_vms ~__context =
   let vms = Db.VM.get_all_records ~__context in
