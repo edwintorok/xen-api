@@ -647,7 +647,8 @@ let restart_auto_run_vms ~__context live_set n =
           			   ok since this is 'best-effort'). NOTE we do not use the restart_vm function above as this will mark the
           			   pool as overcommitted if an HA_OPERATION_WOULD_BREAK_FAILOVER_PLAN is received (although this should never
           			   happen it's better safe than sorry) *)
-       List.iter
+       map_tasks ~order:(fun vm ->
+           order (vm, Db.VM.get_record ~__context ~self:vm))
          (fun vm ->
             try
               if Db.VM.get_power_state ~__context ~self:vm = `Halted
