@@ -603,19 +603,24 @@ let restart_auto_run_vms ~__context live_set n =
            error "Caught exception trying to restart VM %s: %s" (Ref.string_of vm) (ExnHelper.string_of_exn e);
            false in
 
+       let map_tasks f all =
+         all
+         |> List.sort by_order
+         |> List.map f
+       in
+
        (* Build a list of bools, one per Halted protected VM indicating whether we managed to start it or not *)
        let started =
          if not plan_is_complete then begin
            (* If the Pool is overcommitted the restart priority will make the difference between a VM restart or not,
               					   while if we're undercommitted the restart priority only affects the timing slightly. *)
            let all = List.filter (fun (_, r) -> r.API.vM_power_state = `Halted) all_protected_vms in
-           let all = List.sort by_order all in
            warn "Failed to find plan to restart all protected VMs: falling back to simple VM.start in priority order";
-           List.map (fun (vm, _) -> vm, restart_vm vm ()) all
+           map_tasks (fun (vm, _) -> vm, restart_vm vm ()) all
          end else begin
            (* Walk over the VMs in priority order, starting each on the planned host *)
-           let all = List.sort by_order (List.map (fun (vm, _) -> vm, Db.VM.get_record ~__context ~self:vm) plan) in
-           List.map (fun (vm, _) ->
+           let all = List.map (fun (vm, _) -> vm, Db.VM.get_record ~__context ~self:vm) plan in
+           map_tasks (fun (vm, _) ->
                vm, (if List.mem_assoc vm plan
                     then restart_vm vm ~host:(List.assoc vm plan) ()
                     else false)) all
