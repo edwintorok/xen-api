@@ -603,9 +603,11 @@ let restart_auto_run_vms ~__context live_set n =
            error "Caught exception trying to restart VM %s: %s" (Ref.string_of vm) (ExnHelper.string_of_exn e);
            false in
 
-       let map_tasks f all =
+       let map_tasks ~order f all =
          all
-         |> List.sort by_order
+         |> Helpers.group_by ~ordering:`ascending order
+         |> List.concat
+         |> List.map fst
          |> List.map f
        in
 
@@ -616,17 +618,18 @@ let restart_auto_run_vms ~__context live_set n =
               					   while if we're undercommitted the restart priority only affects the timing slightly. *)
            let all = List.filter (fun (_, r) -> r.API.vM_power_state = `Halted) all_protected_vms in
            warn "Failed to find plan to restart all protected VMs: falling back to simple VM.start in priority order";
-           map_tasks (fun (vm, _) -> vm, restart_vm vm ()) all
+           map_tasks ~order (fun (vm, vmr) -> (vm, vmr), restart_vm vm ()) all
          end else begin
            (* Walk over the VMs in priority order, starting each on the planned host *)
            let all = List.map (fun (vm, _) -> vm, Db.VM.get_record ~__context ~self:vm) plan in
-           map_tasks (fun (vm, _) ->
-               vm, (if List.mem_assoc vm plan
+           map_tasks ~order (fun (vm, vmr) ->
+               (vm, vmr), (if List.mem_assoc vm plan
                     then restart_vm vm ~host:(List.assoc vm plan) ()
                     else false)) all
          end in
        (* Perform one final restart attempt of any that weren't started. *)
-       let started = List.map (fun (vm, started) -> match started with
+       let started = map_tasks ~order:(fun ((vm, vmr), _) -> order (vm, vmr))
+           (fun ((vm, vmr), started) -> match started with
            | true -> vm, true
            | false -> vm, restart_vm vm ()) started in
        (* Send an alert for any failed VMs *)
