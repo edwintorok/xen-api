@@ -47,7 +47,7 @@ module OrderedTaskChains : sig
   val fail : exn -> 'a value t
 
   (**[task f] is an action that evaluates to the result of task [f ()] *)
-  val task : (unit -> API.ref_task) -> task_result value t
+  val task : (unit -> API.ref_task) -> task_result t
 
   (**[ordered_action order f] [f ()] is a function that creates an action, to be invoked
    * when we have run all actions with order < [order] *)
@@ -107,7 +107,7 @@ end = struct
 
   (** we start out with a task that returns its result when completed,
    *  more actions can be chained via bind below *)
-  let task f = StrictOrder(0L, fun () -> Task(f (), ok))
+  let task f = StrictOrder(0L, fun () -> Task(f (), pure))
 
   let ordered_action order f = StrictOrder(order, f)
 
@@ -849,7 +849,7 @@ let restart_auto_run_vms ~__context live_set n =
               if Db.VM.get_power_state ~__context ~self:vm = `Halted
               && Db.VM.get_ha_restart_priority ~__context ~self:vm = Constants.ha_restart_best_effort
               then OrderedTaskChains.task (fun () -> Client.Client.Async.VM.start rpc session_id vm false true)
-              else OrderedTaskChains.ok (Result.Ok Rpc.Null)) !reset_vms
+              else OrderedTaskChains.ok (Rpc.Null)) !reset_vms
        |> List.iter (fun (vm, result) ->
            match result with
            | Result.Error e ->
