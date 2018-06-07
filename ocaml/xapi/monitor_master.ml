@@ -141,5 +141,6 @@ let update_pifs ~__context host pifs =
             let pmr = Db.PIF_metrics.get_record ~__context ~self:metrics in
             set_pif_metrics ~__context ~self:metrics ~vendor ~device ~carrier ~speed:speed ~duplex:duplex
               ~pcibuspath pmr;
+            Xapi_mgmt_iface.on_dom0_networking_change ~__context
           with Not_found -> () end
       ) db_pifs

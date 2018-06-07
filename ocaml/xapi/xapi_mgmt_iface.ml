@@ -180,13 +180,9 @@ let has_carrier ~__context ~self =
 (* CA-280237: Called in startup sequence after creating cluster_hosts *)
 let wait_for_clustering_ip ~__context ~(self : API.ref_Cluster_host) =
   let pIF = Db.Cluster_host.get_PIF ~__context ~self in
-  let iP = ref (Db.PIF.get_IP ~__context ~self:pIF) in
-  Mutex.execute ip_mutex (* Don't return until PIF is plugged AND has a valid IP *)
-    (fun () -> while !iP="" || not (has_carrier ~__context ~self:pIF) do
-        Condition.wait ip_cond ip_mutex;
-        iP := Db.PIF.get_IP ~__context ~self:pIF
-      done);
-  !iP
+  let get_ip () = Db.PIF.get_IP ~__context ~self:pIF in
+  let is_connected () = has_carrier ~__context ~self:pIF in
+  wait_for_ip get_ip is_connected
 
 let on_dom0_networking_change ~__context =
   debug "Checking to see if hostname or management IP has changed";
