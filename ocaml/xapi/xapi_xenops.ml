@@ -1032,7 +1032,7 @@ let string_of_exn = function
   | e -> Printexc.to_string e
 
 (* Serialise updates to the metadata caches *)
-let metadata_m = Locking_helpers.Named_mutex.create "Xapi_xenops.metadata"
+let metadata_m = Locking_helpers.Named_mutex.create "xapi-xenops: metadata"
 
 module Xapi_cache = struct
   (** Keep a cache of the "xenops-translation" of XenAPI VM configuration,
@@ -1208,7 +1208,7 @@ module Xenopsd_metadata = struct
 
   let push ~__context ~self =
     Locking_helpers.Named_mutex.execute metadata_m (fun () ->
-        Stats.time_this "Xenopsd_metadata.push" (fun () ->
+        Stats.time_this "xapi-xenops: Xenopsd_metadata.push" (fun () ->
         let md = create_metadata ~__context ~self in
         let txt = md |> Metadata.rpc_of_t |> Jsonrpc.to_string in
         info "xenops: VM.import_metadata %s" txt;
@@ -1246,7 +1246,7 @@ module Xenopsd_metadata = struct
   let pull ~__context id =
     Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
-         Stats.time_this "Xenopsd_metadata.pull" (fun () ->
+         Stats.time_this "xapi-xenops: Xenopsd_metadata.pull" (fun () ->
          info "xenops: VM.export_metadata %s" id;
          let dbg = Context.string_of_task __context in
          let module Client = (val make_client (queue_of_vm ~__context ~self:(vm_of_id ~__context id)) : XENOPS) in
@@ -1259,7 +1259,7 @@ module Xenopsd_metadata = struct
   let delete ~__context id =
     Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
-         Stats.time_this "Xenopsd_metadata.delete" (fun () ->
+         Stats.time_this "xapi-xenops: Xenopsd_metadata.delete" (fun () ->
              delete_nolock ~__context id)
       )
 
@@ -1268,7 +1268,7 @@ module Xenopsd_metadata = struct
     let queue_name = queue_of_vm ~__context ~self in
     Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
-         Stats.time_this "Xenopsd_metadata.update" (fun () ->
+         Stats.time_this "xapi-xenops: Xenopsd_metadata.update" (fun () ->
          let dbg = Context.string_of_task __context in
          if vm_exists_in_xenopsd queue_name dbg id
          then
@@ -2152,13 +2152,13 @@ let rec events_watch ~__context cancel queue_name from =
   in
   List.iter (fun (id,b_events) ->
       debug "Processing barrier %d" id;
-      Stats.time_this "Xapi_xenops.process_barrier" (fun () ->
+      Stats.time_this "xapi-xenops: process barrier" (fun () ->
           do_updates b_events);
       (* TODO: have separate API to sample queue length for saturation as an RRD. *)
-      Stats.sample "xenopsd barrier events" (List.length b_events |> float_of_int);
+      Stats.sample "xapi-xenops: Count(barrier events)" (List.length b_events |> float_of_int);
       Events_from_xenopsd.wakeup queue_name dbg id) barriers;
-  Stats.sample "xenopsd events" (List.length events |> float_of_int);
-  Stats.time_this "Xapi_xenops.process_events" (fun () ->
+  Stats.sample "xapi-xenops: Count(other events)" (List.length events |> float_of_int);
+  Stats.time_this "xapi-xenops: process events" (fun () ->
       do_updates events);
   events_watch ~__context cancel queue_name (Some next)
 

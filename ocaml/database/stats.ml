@@ -55,24 +55,16 @@ open Xapi_stdext_pervasives.Pervasiveext
 let timings : (string, Normal_population.t) Hashtbl.t = Hashtbl.create 10
 let timings_m = Mutex.create ()
 
-let mean (p: Normal_population.t) =
-  let sigma = Normal_population.sd p in
-  let mu = Normal_population.mean p in
-  exp (mu +. sigma *. sigma /. 2.)
+let mean (p: Normal_population.t) = Normal_population.mean p
 
-let sd (p: Normal_population.t) =
-  let sigma = Normal_population.sd p in
-  let mu = Normal_population.mean p in
-  let v = (exp(sigma *. sigma) -. 1.) *. (exp (2. *. mu +. sigma *. sigma)) in
-  sqrt v
+let sd (p: Normal_population.t) = Normal_population.sd p
 
 let string_of (p: Normal_population.t) =
   Printf.sprintf "%f [sd = %f]" (mean p) (sd p)
 
 (** [sample thing t] records new time [t] for population named [thing] *)
 let sample (name: string) (x: float) : unit =
-  (* Use the lognormal distribution: *)
-  let x' = log (x +. epsilon_float) in
+  let x' = x in
   Mutex.execute timings_m
     (fun () ->
        let p =
@@ -81,7 +73,7 @@ let sample (name: string) (x: float) : unit =
          else Normal_population.empty in
        let p' = Normal_population.sample p x' in
        Hashtbl.replace timings name p';
-       (*       debug "Population %s time = %f mean = %s" name x (string_of p'); *)
+              debug "Population %s time = %f (%h) mean = %s" name x x (string_of p');
     )
 (*
   (* Check to see if the value is > 3 standard deviations from the mean *)
