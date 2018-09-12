@@ -72,7 +72,7 @@ let string_of (p: Normal_population.t) =
 (** [sample thing t] records new time [t] for population named [thing] *)
 let sample (name: string) (x: float) : unit =
   (* Use the lognormal distribution: *)
-  let x' = log x in
+  let x' = log (x +. epsilon_float) in
   Mutex.execute timings_m
     (fun () ->
        let p =
