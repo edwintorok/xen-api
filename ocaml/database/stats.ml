@@ -73,7 +73,7 @@ let sample (name: string) (x: float) : unit =
          else Normal_population.empty in
        let p' = Normal_population.sample p x' in
        Hashtbl.replace timings name p';
-              debug "Population %s time = %f (%h) mean = %s" name x x (string_of p');
+    (*          debug "Population %s time = %f (%h) mean = %s" name x x (string_of p');*)
     )
 (*
   (* Check to see if the value is > 3 standard deviations from the mean *)
