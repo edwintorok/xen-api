@@ -30,7 +30,7 @@ module Thread_state : sig
   val waiting_for: resource -> unit
 
   (** Called when a thread acquires a resource *)
-  val acquired: resource -> unit
+  val acquired: ?stat:string -> resource -> unit
 
   (** Called when a thread releases a resource *)
   val released: resource -> unit

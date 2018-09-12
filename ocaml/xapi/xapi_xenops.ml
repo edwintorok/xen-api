@@ -1032,7 +1032,7 @@ let string_of_exn = function
   | e -> Printexc.to_string e
 
 (* Serialise updates to the metadata caches *)
-let metadata_m = Mutex.create ()
+let metadata_m = Locking_helpers.Named_mutex.create "Xapi_xenops.metadata"
 
 module Xapi_cache = struct
   (** Keep a cache of the "xenops-translation" of XenAPI VM configuration,
@@ -1097,7 +1097,7 @@ module Xenops_cache = struct
     Hashtbl.remove cache id
 
   let find id : t option =
-    Mutex.execute metadata_m
+    Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
          if Hashtbl.mem cache id
          then Some (Hashtbl.find cache id)
@@ -1147,7 +1147,7 @@ module Xenops_cache = struct
     | _ -> None
 
   let update id t =
-    Mutex.execute metadata_m
+    Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
          if Hashtbl.mem cache id
          then Hashtbl.replace cache id t
@@ -1207,7 +1207,8 @@ module Xenopsd_metadata = struct
     end
 
   let push ~__context ~self =
-    Mutex.execute metadata_m (fun () ->
+    Locking_helpers.Named_mutex.execute metadata_m (fun () ->
+        Stats.time_this "Xenopsd_metadata.push" (fun () ->
         let md = create_metadata ~__context ~self in
         let txt = md |> Metadata.rpc_of_t |> Jsonrpc.to_string in
         info "xenops: VM.import_metadata %s" txt;
@@ -1219,7 +1220,7 @@ module Xenopsd_metadata = struct
 
         Xapi_cache._register_nolock id (Some txt);
         Xenops_cache._register_nolock id;
-        id
+        id)
       )
 
   let delete_nolock ~__context id =
@@ -1243,8 +1244,9 @@ module Xenopsd_metadata = struct
 
   (* Unregisters a VM with xenopsd, and cleans up metadata and caches *)
   let pull ~__context id =
-    Mutex.execute metadata_m
+    Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
+         Stats.time_this "Xenopsd_metadata.pull" (fun () ->
          info "xenops: VM.export_metadata %s" id;
          let dbg = Context.string_of_task __context in
          let module Client = (val make_client (queue_of_vm ~__context ~self:(vm_of_id ~__context id)) : XENOPS) in
@@ -1252,19 +1254,21 @@ module Xenopsd_metadata = struct
 
          delete_nolock ~__context id;
 
-         md)
+         md))
 
   let delete ~__context id =
-    Mutex.execute metadata_m
+    Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
-         delete_nolock ~__context id
+         Stats.time_this "Xenopsd_metadata.delete" (fun () ->
+             delete_nolock ~__context id)
       )
 
   let update ~__context ~self =
     let id = id_of_vm ~__context ~self in
     let queue_name = queue_of_vm ~__context ~self in
-    Mutex.execute metadata_m
+    Locking_helpers.Named_mutex.execute metadata_m
       (fun () ->
+         Stats.time_this "Xenopsd_metadata.update" (fun () ->
          let dbg = Context.string_of_task __context in
          if vm_exists_in_xenopsd queue_name dbg id
          then
@@ -1279,12 +1283,12 @@ module Xenopsd_metadata = struct
                let module Client = (val make_client queue_name : XENOPS) in
                let (_: Vm.id) = Client.VM.import_metadata dbg txt in
                ()
-           end
+           end)
       )
 end
 
 let add_caches id =
-  Mutex.execute metadata_m
+  Locking_helpers.Named_mutex.execute metadata_m
     (fun () ->
        Xapi_cache._register_nolock id None;
        Xenops_cache._register_nolock id;
@@ -2148,9 +2152,14 @@ let rec events_watch ~__context cancel queue_name from =
   in
   List.iter (fun (id,b_events) ->
       debug "Processing barrier %d" id;
-      do_updates b_events;
+      Stats.time_this "Xapi_xenops.process_barrier" (fun () ->
+          do_updates b_events);
+      (* TODO: have separate API to sample queue length for saturation as an RRD. *)
+      Stats.sample "xenopsd barrier events" (List.length b_events |> float_of_int);
       Events_from_xenopsd.wakeup queue_name dbg id) barriers;
-  do_updates events;
+  Stats.sample "xenopsd events" (List.length events |> float_of_int);
+  Stats.time_this "Xapi_xenops.process_events" (fun () ->
+      do_updates events);
   events_watch ~__context cancel queue_name (Some next)
 
 let events_from_xenopsd queue_name =
@@ -2371,7 +2380,7 @@ let events_from_xapi () =
                 let resident_VMs = Db.Host.get_resident_VMs ~__context ~self:localhost in
 
                 let uuids = List.map (fun self -> Db.VM.get_uuid ~__context ~self) resident_VMs in
-                let cached = Mutex.execute metadata_m (fun () -> Xenops_cache.list_nolock ()) in
+                let cached = Locking_helpers.Named_mutex.execute metadata_m (fun () -> Xenops_cache.list_nolock ()) in
                 let missing_in_cache = Listext.List.set_difference uuids cached in
                 let extra_in_cache = Listext.List.set_difference cached uuids in
                 if missing_in_cache <> []

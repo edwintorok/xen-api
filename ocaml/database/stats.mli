@@ -14,5 +14,8 @@
 (** Produce a string name -> string mean, standard deviation summary for each population *)
 val summarise : unit -> (string * string) list
 
+(** [sample thing t] records new time [t] for population named [thing] *)
+val sample: string -> float -> unit
+
 (** Time the given function and attribute the result to the named population *)
 val time_this : string -> (unit -> 'a) -> 'a

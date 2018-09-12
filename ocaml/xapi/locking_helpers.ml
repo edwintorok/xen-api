@@ -85,8 +85,14 @@ module Thread_state = struct
   let waiting_for resource =
     update (fun ts -> { ts with waiting_for = Some (resource, now()) })
 
-  let acquired resource =
-    update (fun ts -> { ts with waiting_for = None; acquired_resources = (resource, now()) :: ts.acquired_resources })
+  let acquired ?stat resource =
+    update (fun ts ->
+        let t = now () in
+        (match stat, ts.waiting_for with
+        | Some name, Some (_, t0) ->
+          Stats.sample name (t -. t0)
+        | _ -> ());
+        { ts with waiting_for = None; acquired_resources = (resource, t) :: ts.acquired_resources })
 
   let released resource =
     update (fun ts -> { ts with acquired_resources = List.filter (fun (r,_) -> r <> resource) ts.acquired_resources })
@@ -145,10 +151,14 @@ end
 module Named_mutex = struct
   type t = {
     name: string;
+    stat_acquire_name: string;
     m: Mutex.t;
   }
-  let create name = {
+  let create name =
+    let res = Lock name |> string_of_resource in
+    {
     name = name;
+    stat_acquire_name = Printf.sprintf "%s - acquire" res;
     m = Mutex.create ();
   }
   let execute (x:t) f =
@@ -156,7 +166,7 @@ module Named_mutex = struct
     Thread_state.waiting_for r;
     Mutex.execute x.m
       (fun () ->
-         Thread_state.acquired r;
+         Thread_state.acquired ~stat:x.stat_acquire_name r;
          finally
            f
            (fun () -> Thread_state.released r)
