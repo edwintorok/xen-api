@@ -306,9 +306,11 @@ module Wrapper = functor(Impl: Server_impl) -> struct
             | Vdi_automaton.Nothing -> vdi_t
             | Vdi_automaton.Attach ro_rw ->
               let read_write = (ro_rw = Vdi_automaton.RW) in
+              debug "Impl.VDI.attach2 dbg:%s vdi:%s" dbg vdi;
               let x = Impl.VDI.attach2 context ~dbg ~dp ~sr ~vdi ~read_write in
               { vdi_t with Vdi.attach_info = Some x }
             | Vdi_automaton.Activate ->
+              debug "Impl.VDI.activate dbg:%s vdi:%s" dbg vdi;
               Impl.VDI.activate context ~dbg ~dp ~sr ~vdi; vdi_t
             | Vdi_automaton.Deactivate ->
               Storage_migrate.pre_deactivate_hook ~dbg ~dp ~sr ~vdi;
@@ -344,9 +346,11 @@ module Wrapper = functor(Impl: Server_impl) -> struct
             let superstate = Vdi.superstate vdi_t in
             (* We first assume the operation succeeds and compute the new
                						   datapath+VDI state *)
+            debug "before Vdi.perform dbg:%s dp:%s sr:%s vdi:%s superstate:%s" dbg dp sr vdi (Vdi_automaton.string_of_state superstate);
             let new_vdi_t = Vdi.perform (Dp.make dp) this_op vdi_t in
             (* Compute the new overall state ('superstate') *)
             let superstate' = Vdi.superstate new_vdi_t in
+            debug "after Vdi.perform dbg:%s dp:%s sr:%s vdi:%s superstate:%s" dbg dp sr vdi (Vdi_automaton.string_of_state superstate');
             (* Compute the real operations which would drive the system from
                						   superstate to superstate'. These may fail: if so we revert the
                						   datapath+VDI state to the most appropriate value. *)
@@ -476,8 +480,11 @@ module Wrapper = functor(Impl: Server_impl) -> struct
       info "VDI.activate dbg:%s dp:%s sr:%s vdi:%s" dbg dp sr vdi;
       with_vdi sr vdi
         (fun () ->
+           debug "VDI.activate inside with_vdi vdi:%s" vdi;
+           debug "VDI.activate inside with_vdi vdi:%s" vdi;
            remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi Vdi.leaked
              (fun () ->
+                debug "VDI.activate after remove_datapaths vdi:%s" vdi;
                 ignore(perform_nolock context ~dbg ~dp ~sr ~vdi Vdi_automaton.Activate)))
 
     let deactivate context ~dbg ~dp ~sr ~vdi =
