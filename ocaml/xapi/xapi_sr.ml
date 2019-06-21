@@ -63,11 +63,12 @@ let scan_one ~__context ?callback sr =
                     finally
                       (fun () ->
                          try
-                           Helpers.call_api_functions ~__context
-                             (fun rpc session_id ->
-                                Helpers.log_exn_continue (Printf.sprintf "scanning SR %s" (Ref.string_of sr))
-                                  (fun sr ->
-                                     Client.SR.scan rpc session_id sr) sr)
+                           Throttle.execute (fun () ->
+                               Helpers.call_api_functions ~__context
+                                 (fun rpc session_id ->
+                                    Helpers.log_exn_continue (Printf.sprintf "scanning SR %s" (Ref.string_of sr))
+                                      (fun sr ->
+                                         Client.SR.scan rpc session_id sr) sr))
                          with e ->
                            error "Caught exception attempting an SR.scan: %s" (ExnHelper.string_of_exn e)
                       )
