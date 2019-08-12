@@ -425,6 +425,7 @@ module ResetCPUFlags = Generic.MakeStateful(struct
     (["a", `hvm], [features_hvm]);
     (["a", `pv], [features_pv]);
     (["a", `pv_in_pvh], [features_hvm]);
+    (["a", `pvh], [features_hvm]);
     (["a", `hvm; "b", `pv; "c", `pv_in_pvh],
       [features_hvm; features_pv; features_hvm]);
   ]

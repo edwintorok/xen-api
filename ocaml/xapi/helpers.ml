@@ -488,14 +488,15 @@ let rolling_upgrade_in_progress ~__context =
   with _ ->
     false
 
-let check_domain_type : API.domain_type -> [ `hvm | `pv_in_pvh | `pv ] = function
+let check_domain_type : API.domain_type -> [ `hvm | `pv_in_pvh | `pv | `pvh ] = function
   | `hvm -> `hvm
   | `pv_in_pvh -> `pv_in_pvh
+  | `pvh -> `pvh
   | `pv -> `pv
   | `unspecified ->
     raise Api_errors.(Server_error (internal_error, ["unspecified domain type"]))
 
-let domain_type ~__context ~self : [ `hvm | `pv_in_pvh | `pv ] =
+let domain_type ~__context ~self : [ `hvm | `pv_in_pvh | `pv | `pvh ] =
   let vm = Db.VM.get_record ~__context ~self in
   match vm.API.vM_power_state with
   | `Paused | `Running | `Suspended ->
@@ -539,12 +540,12 @@ let boot_method_of_vm ~__context ~vm =
   let direct_boot = vm.API.vM_PV_bootloader = "" in
   match check_domain_type vm.API.vM_domain_type, direct_boot with
   | `hvm, _ ->                        Hvmloader (hvmloader_options ())
-  | `pv, true  | `pv_in_pvh, true ->  Direct (direct_options ())
-  | `pv, false | `pv_in_pvh, false -> Indirect (indirect_options ())
+  | `pv, true  | `pv_in_pvh, true | `pvh, true ->  Direct (direct_options ())
+  | `pv, false | `pv_in_pvh, false | `pvh, false -> Indirect (indirect_options ())
 
 let needs_qemu_from_domain_type = function
   | `hvm -> true
-  | `pv_in_pvh | `pv | `unspecified -> false
+  | `pv_in_pvh | `pv | `pvh | `unspecified -> false
 
 let will_have_qemu_from_record (x: API.vM_t) =
   x.API.vM_domain_type

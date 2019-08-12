@@ -94,7 +94,7 @@ let vendor       = Map_check.(field "vendor" string)
 let get_flags_for_vm ~__context vm cpu_info =
   let features_key =
     match Helpers.domain_type ~__context ~self:vm with
-    | `hvm | `pv_in_pvh ->
+    | `hvm | `pv_in_pvh | `pvh ->
       cpu_info_features_hvm_key
     | `pv ->
       cpu_info_features_pv_key
@@ -119,7 +119,7 @@ let upgrade_features ~__context ~vm host_features vm_features =
       let module Client = (val make_client (default_xenopsd ()): XENOPS) in
       let uses_hvm_features =
         match Helpers.domain_type ~__context ~self:vm with
-        | `hvm | `pv_in_pvh -> true
+        | `hvm | `pv_in_pvh | `pvh -> true
         | `pv -> false
       in
       let vm_features' = Client.HOST.upgrade_cpu_features dbg vm_features uses_hvm_features in

@@ -151,6 +151,7 @@ let has_definitely_booted_pv ~vmmr =
     | `hvm
     | `unspecified -> false
     | `pv
+    | `pvh
     | `pv_in_pvh -> true
 
 (** Return an error iff vmr is an HVM guest and lacks a needed feature.

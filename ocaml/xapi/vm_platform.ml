@@ -128,7 +128,7 @@ let sanity_check ~platformdata ?firmware ~vcpu_max ~vcpu_at_startup ~domain_type
   (* Sanity check for HVM or PV-in-PVH domains with invalid VCPU configuration*)
   let check_cores_per_socket =
     match domain_type with
-    | `hvm | `pv_in_pvh -> true
+    | `hvm | `pv_in_pvh | `pvh -> true
     | `pv -> false
   in
   begin match List.assoc device_model platformdata, firmware with

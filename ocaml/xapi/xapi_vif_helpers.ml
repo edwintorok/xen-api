@@ -89,7 +89,7 @@ let valid_operations ~__context record _ref' : table =
   let needs_driver_check () =
     match Helpers.domain_type ~__context ~self:vm with
     | `hvm -> true
-    | `pv_in_pvh | `pv -> false
+    | `pv_in_pvh | `pv | `pvh -> false
   in
   if power_state = `Running && needs_driver_check ()
   then (

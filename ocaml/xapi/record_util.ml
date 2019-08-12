@@ -540,6 +540,7 @@ let domain_type_to_string = function
   | `hvm -> "hvm"
   | `pv -> "pv"
   | `pv_in_pvh -> "pv-in-pvh"
+  | `pvh -> "pvh"
   | `unspecified -> "unspecified"
 
 let domain_type_of_string x =
@@ -547,6 +548,7 @@ let domain_type_of_string x =
   | "hvm" -> `hvm
   | "pv" -> `pv
   | "pv-in-pvh" -> `pv_in_pvh
+  | "pvh" -> `pvh
   | s -> raise (Record_failure ("Invalid domain type. Got " ^ s))
 
 (** Parse a string which might have a units suffix on the end *)

@@ -374,6 +374,8 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
   | `pv,        Helpers.Indirect options ->  PV (make_indirect_boot_record options)
   | `pv_in_pvh, Helpers.Direct options ->    PVinPVH (make_direct_boot_record options)
   | `pv_in_pvh, Helpers.Indirect options ->  PVinPVH (make_indirect_boot_record options)
+  | `pvh, Helpers.Direct options ->    PVH (make_direct_boot_record options)
+  | `pvh, Helpers.Indirect options ->  PVH (make_indirect_boot_record options)
   | _ -> raise Api_errors.(Server_error (internal_error, ["invalid boot configuration"]))
 
 let list_net_sriov_vf_pcis ~__context ~vm =
@@ -393,6 +395,7 @@ module MD = struct
       | `hvm -> true
       | `pv_in_pvh
       | `pv
+      | `pvh
       | `unspecified -> false
     in
     let device_number = Device_number.of_string hvm vbd.API.vBD_userdevice in
@@ -1536,6 +1539,7 @@ let update_vm ~__context id =
                  | Domain_HVM       -> update `hvm
                  | Domain_PV        -> update `pv
                  | Domain_PVinPVH   -> update `pv_in_pvh
+                 | Domain_PVH       -> update `pvh
                  | Domain_undefined ->
                    if power_state <> `Halted then
                      debug "xenopsd returned an undefined domain type for non-halted VM %s;\

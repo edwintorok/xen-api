@@ -30,6 +30,7 @@ let vm_compute_required_memory vm_record guest_memory_kib =
     match Helpers.check_domain_type vm_record.API.vM_domain_type with
     | `hvm       -> vm_record.API.vM_HVM_shadow_multiplier, Memory.HVM.full_config
     | `pv_in_pvh -> vm_record.API.vM_HVM_shadow_multiplier, Memory.PVinPVH.full_config
+    | `pvh       -> vm_record.API.vM_HVM_shadow_multiplier, Memory.HVM.full_config
     | `pv        -> Memory.Linux.shadow_multiplier_default, Memory.Linux.full_config
   in
   let memory = full_config max_mib video_mib target_mib vcpu_count multiplier in
@@ -224,7 +225,7 @@ let vm_compute_memory_overhead ~vm_record =
   let vcpu_count = Int64.to_int (vm_record.API.vM_VCPUs_max) in
   let model =
     match Helpers.check_domain_type vm_record.API.vM_domain_type with
-    | `hvm       -> Memory.HVM.overhead_mib
+    | `hvm | `pvh -> Memory.HVM.overhead_mib
     | `pv_in_pvh -> Memory.PVinPVH.overhead_mib
     | `pv        -> Memory.Linux.overhead_mib
   in
