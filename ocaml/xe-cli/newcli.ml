@@ -40,6 +40,7 @@ let xedebug = ref false
 
 let xedebugonfail = ref false
 
+let stunnel_processes = ref []
 let debug_channel = ref None
 
 let debug_file = ref None
@@ -297,22 +298,12 @@ let with_open_tcp_ssl server f =
   let open Safe_resources in
   Stunnel.with_connect ~use_fork_exec_helper:false
     ~write_to_log:(fun x -> debug "stunnel: %s\n%!" x)
-    ~extended_diagnosis:(!debug_file <> None) server port
-  @@ fun x ->
-  Pervasiveext.finally
-    (fun () ->
-      let r = Unixfd.with_channels x.Stunnel.fd f in
-      Stunnel.disconnect x ; r)
-    (fun () ->
-      if Sys.file_exists x.Stunnel.logfile then (
-        if !exit_status <> 0 then (
-          debug "\nStunnel diagnosis:\n\n" ;
-          try Stunnel.diagnose_failure x
-          with e -> debug "%s\n" (Printexc.to_string e)
-        ) ;
-        try Unix.unlink x.Stunnel.logfile with _ -> ()
-      ) ;
-      Stunnel.disconnect ~wait:false ~force:true x)
+    ~extended_diagnosis:(!debug_file <> None) server port @@ fun x ->
+  let x = Stunnel.move_out_exn x in
+  let ic = Unix.in_channel_of_descr (Unix.dup Unixfd.(!(x.Stunnel.fd))) in
+  let oc = Unix.out_channel_of_descr (Unix.dup Unixfd.(!(x.Stunnel.fd))) in
+  stunnel_processes := (x, ic, oc) :: !stunnel_processes;
+  f (ic, oc)
 
 let with_open_tcp server f =
   if !xeusessl && not (is_localhost server) then (* never use SSL on-host *)
@@ -829,20 +820,30 @@ let main () =
     | ClientSideError e ->
         error "Client Side error: %s.\n" e
     | e ->
-        error "Unhandled exception\n%s\n" (Printexc.to_string e)
-  in
-  ( match (!debug_file, !debug_channel) with
-  | Some f, Some ch -> (
-      close_out ch ;
-      if !exit_status <> 0 then (
-        output_string stderr "\nDebug info:\n\n" ;
-        output_string stderr (Xapi_stdext_unix.Unixext.string_of_file f)
-      ) ;
-      try Unix.unlink f with _ -> ()
-    )
-  | _ ->
-      ()
-  ) ;
+      error "Unhandled exception\n%s\n" (Printexc.to_string e) in
+  List.iter (fun (p, ic, oc) ->
+      close_out_noerr oc;
+      close_in_noerr ic;
+      if Sys.file_exists p.Stunnel.logfile then
+        begin
+          if !exit_status <> 0 then
+            (debug "\nStunnel diagnosis:\n\n";
+             try Stunnel.diagnose_failure p
+             with e -> debug "%s\n" (Printexc.to_string e));
+          try Unix.unlink p.Stunnel.logfile with _ -> ()
+        end;
+      Stunnel.disconnect ~wait:false ~force:true p) !stunnel_processes;
+  begin match !debug_file, !debug_channel with
+    | Some f, Some ch -> begin
+        close_out ch;
+        if !exit_status <> 0 then begin
+          output_string stderr "\nDebug info:\n\n";
+          output_string stderr (Xapi_stdext_unix.Unixext.string_of_file f)
+        end;
+        try Unix.unlink f with _ -> ()
+      end
+    | _ -> ()
+  end;
   exit !exit_status
 
 let _ = main ()
