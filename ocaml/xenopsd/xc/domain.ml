@@ -49,8 +49,15 @@ type x86_arch_emulation_flags = Xenctrl.x86_arch_emulation_flags =
   | X86_EMU_VPCI
 [@@deriving rpcty]
 
+type x86_arch_misc_flags = Xenctrl.x86_arch_misc_flags =
+  | X86_MSR_RELAXED
+[@@deriving rpcty]
+
 type xen_x86_arch_domainconfig = Xenctrl.xen_x86_arch_domainconfig = {
     emulation_flags: x86_arch_emulation_flags list
+  ; misc_flags: x86_arch_misc_flags list [@default [X86_MSR_RELAXED]]
+        (* misc_flags is missing when migrating from old version.
+           set the default to relaxed MSR for backwards compatibility *)
 }
 [@@deriving rpcty]
 
@@ -66,6 +73,8 @@ type domain_create_flag = Xenctrl.domain_create_flag =
   | CDF_OOS_OFF
   | CDF_XS_DOMAIN
   | CDF_IOMMU
+  | CDF_NESTED_VIRT
+  | CDF_VPMU
 [@@deriving rpcty]
 
 type domain_create_iommu_opts = Xenctrl.domain_create_iommu_opts =
@@ -97,6 +106,8 @@ type domctl_create_config = Xenctrl.domctl_create_config = {
   ; max_evtchn_port: int
   ; max_grant_frames: int
   ; max_maptrack_frames: int
+  ; max_grant_version: int
+  ; cpupool_id: int32
   ; arch: arch_domainconfig
 }
 [@@deriving rpcty]
@@ -365,6 +376,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
             int_of_string (List.assoc "max_maptrack_frames" vm_info.platformdata)
           with _ -> 1024
         )
+    ; max_grant_version=
+        if (List.mem CAP_Gnttab_v2 host_info.capabilities) then 2 else 1
+    ; cpupool_id= 0l
     ; arch= domain_config
     }
   in
