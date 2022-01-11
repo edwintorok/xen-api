@@ -42,9 +42,14 @@ type pems = {cn: string; blobs: string list} [@@deriving rpcty]
 
 type pems_opt = pems option [@@deriving rpcty]
 
-type tls_config = {pems: pems option; verify_tls_certs: bool} [@@deriving rpcty]
+type pem = string [@@deriving rpcty]
 
-let tls_config_empty = {pems= None; verify_tls_certs= false}
+type tls_config = {
+    cn: string
+  ; server: pem
+  ; trusted: pem list  (** not empty implies cert checking *)
+}
+[@@deriving rpcty]
 
 (** This type contains all of the information required to initialise the
     cluster. All optional params will have the recommended defaults if None. *)
@@ -53,7 +58,7 @@ type init_config = {
   ; token_timeout_ms: int64 option
   ; token_coefficient_ms: int64 option
   ; name: string option
-  ; tls_config: tls_config [@default tls_config_empty]
+  ; tls_config: tls_config option [@default None]
 }
 [@@deriving rpcty]
 
@@ -68,7 +73,7 @@ type cluster_config = {
   ; config_version: int64
   ; cluster_token_timeout_ms: int64
   ; cluster_token_coefficient_ms: int64
-  ; tls_config: tls_config [@default tls_config_empty]
+  ; tls_config: tls_config option [@default None]
 }
 [@@deriving rpcty]
 
