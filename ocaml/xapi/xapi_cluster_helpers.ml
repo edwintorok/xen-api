@@ -109,8 +109,6 @@ module Pem = struct
   open Cluster_interface
   module Client = Client.Client
 
-  let init' cn = {cn; blobs= [Gencertlib.Selfcert.xapi_cluster ~cn ()]}
-
   let tls_verification_is_enabled ~__context =
     match Db.Pool.get_all ~__context with
     | [pool] ->
@@ -119,88 +117,60 @@ module Pem = struct
         D.warn "Pool is undefined %s" __LOC__ ;
         false
 
+  (** create a TLS configuration for clusterd *)
   let init ~__context ~cn =
-    if unit_test ~__context then
-      tls_config_empty
-    else
-      let verify_tls_certs = false in
-      D.debug "Cluster configuration: verify_tls_certs = %b" verify_tls_certs ;
-      {pems= Some (init' cn); verify_tls_certs}
+    {
+      cn
+    ; server= Gencertlib.Selfcert.xapi_cluster ~cn ()
+    ; trusted= [] (* no cert checking for now *)
+    }
 
-  let get_existing' ~__context self =
-    let cc_of_cluster_host h =
-      call_api_functions ~__context @@ fun rpc session_id ->
-      Client.Cluster_host.get_cluster_config rpc session_id h
-      |> SecretString.json_rpc_of_t
-      |> Rpcmarshal.unmarshal cluster_config.Rpc.Types.ty
-      |> function
-      | Ok x ->
-          x
-      | Error e ->
-          raise
-            Api_errors.(
-              Server_error (internal_error, ["bad response from cluster host"])
-            )
-    in
-    if unit_test ~__context then
-      `unittest
-    else
-      let hs = Db.Cluster.get_cluster_hosts ~__context ~self in
-      let enabled_hs =
-        List.filter
-          (fun self -> Db.Cluster_host.get_enabled ~__context ~self)
-          hs
-      in
-      match (hs, enabled_hs) with
-      | [], _ ->
-          `no_cluster_hosts
-      | _, [] ->
-          `all_disabled
-      | _, h :: _ ->
-          if enabled_hs = hs then
-            `all_enabled (h, cc_of_cluster_host h)
-          else
-            `not_all_enabled (h, cc_of_cluster_host h)
+  (** obtain cluster configuration from a cluster host *)
+  let cc_of_cluster_host ~__context host =
+    call_api_functions ~__context @@ fun rpc session_id ->
+    Client.Cluster_host.get_cluster_config rpc session_id host
+    |> SecretString.json_rpc_of_t
+    |> Rpcmarshal.unmarshal cluster_config.Rpc.Types.ty
+    |> function
+    | Ok x ->
+        x
+    | Error e ->
+        raise
+          Api_errors.(
+            Server_error (internal_error, ["bad response from cluster host"])
+          )
 
-  let get_existing ~__context self =
-    (* try to get existing pem, though this might not be possible for example if
-     * every cluster host has been disabled
-     *
-     * create a new pem if we are the first cluster host *)
-    let gen () =
-      D.debug "Pem.get_existing: generating new" ;
-      let cn = Db.Cluster.get_uuid ~__context ~self in
-      init ~__context ~cn
+  (** get existing TLS configuration or create a new one *)
+  let get_tls_config ~__context self =
+    let testing = unit_test ~__context in
+    let cn = Db.Cluster.get_uuid ~__context ~self in
+    let enabled_hosts =
+      Db.Cluster.get_cluster_hosts ~__context ~self
+      |> List.filter (fun self -> Db.Cluster_host.get_enabled ~__context ~self)
     in
-    match get_existing' ~__context self with
-    | `unittest ->
-        tls_config_empty
-    | `all_disabled ->
-        D.debug "Pem.get_existing: all existing cluster hosts disabled" ;
-        gen ()
-    | `no_cluster_hosts ->
-        D.debug "Pem.get_existing: there are no existing cluster hosts" ;
-        gen ()
-    | `all_enabled (_, cc) | `not_all_enabled (_, cc) -> (
-      match cc.tls_config.pems with
-      | None when cc.tls_config.verify_tls_certs ->
-          D.error "Pem.get_existing: existing cluster does not have a pem" ;
-          cc.tls_config
-      | None ->
-          (* this is not a problem unless tls verification is enabled! *)
-          D.debug "Pem.get_existing: existing cluster does not have a pem" ;
-          cc.tls_config
-      | Some p ->
-          D.debug "Pem.get_existing: found existing pem!" ;
-          cc.tls_config
-    )
-    | exception Api_errors.(Server_error (message_method_unknown, _)) ->
-        tls_config_empty
+    match enabled_hosts with
+    | _ when testing ->
+        None
+    | [] ->
+        Some (init ~__context ~cn)
+    | h :: _ ->
+        let cc = cc_of_cluster_host ~__context h in
+        cc.tls_config
 
   let update_tls_config ~__context ~verify self =
     let dbg = Context.string_of_task __context in
-    let tls_config = get_existing ~__context self in
-    let tls_config = {tls_config with verify_tls_certs= verify} in
+    let tls_config =
+      match (get_tls_config~__context self, verify) with
+      | None, _ ->
+          D.warn "update_tls_config: no TLS configuration to update exists";
+          failwith __LOC__
+      | Some tls, false ->
+          D.warn "update_tls_config: disabling certificate checking" ;
+          {tls with trusted= []}
+      | Some tls, true ->
+          D.debug "update_tls_config: enabling certificate checking" ;
+          {tls with trusted= [tls.server]}
+    in
     let result =
       Cluster_client.LocalClient.upd_config
         (Xapi_clustering.rpc ~__context)
