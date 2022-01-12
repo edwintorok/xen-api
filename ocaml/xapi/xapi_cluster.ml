@@ -63,7 +63,7 @@ let create ~__context ~pIF ~cluster_stack ~pool_auto_join ~token_timeout
         ; token_timeout_ms= Some token_timeout_ms
         ; token_coefficient_ms= Some token_timeout_coefficient_ms
         ; name= None
-        ; tls_config
+        ; tls_config= Some tls_config
         }
       in
       Xapi_clustering.Daemon.enable ~__context ;
@@ -262,24 +262,14 @@ let pool_refresh_certificate ~__context ~self =
   let open Cluster_interface in
   let module Client = Client.Client in
   let dbg = Context.string_of_task __context in
-  let tls_config = Xapi_cluster_helpers.Pem.get_existing ~__context self in
+  let tls_config = Xapi_cluster_helpers.Pem.get_tls_config ~__context self in
+  let pem = Gencertlib.Selfcert.xapi_cluster ~cn:tls_config.cn () in
   let tls_config' =
-    match tls_config with
-    | {pems= None; _} ->
-        raise
-          Api_errors.(
-            Server_error (cluster_has_no_certificate, [Ref.string_of self])
-          )
-    | {pems= Some {cn; blobs}; _} ->
-        if List.length blobs > 1 then
-          warn
-            "pool_refresh_certificate: existing cluster TLS configuration has \
-             more than one certificate" ;
-        (* generate configuration with new cert *)
-        {
-          tls_config with
-          pems= Some {cn; blobs= [Gencertlib.Selfcert.xapi_cluster ~cn ()]}
-        }
+    match tls_config.trusted with
+    | [] ->
+        {tls_config with server= pem}
+    | _ ->
+        {tls_config with server= pem; trusted= [pem]}
   in
   let result =
     Cluster_client.LocalClient.upd_config

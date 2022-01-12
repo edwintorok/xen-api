@@ -142,32 +142,32 @@ module Pem = struct
 
   (** get existing TLS configuration or create a new one *)
   let get_tls_config ~__context self =
-    let testing = unit_test ~__context in
     let cn = Db.Cluster.get_uuid ~__context ~self in
     let enabled_hosts =
       Db.Cluster.get_cluster_hosts ~__context ~self
       |> List.filter (fun self -> Db.Cluster_host.get_enabled ~__context ~self)
     in
     match enabled_hosts with
-    | _ when testing ->
-        None
     | [] ->
-        Some (init ~__context ~cn)
-    | h :: _ ->
+        init ~__context ~cn
+    | h :: _ -> (
         let cc = cc_of_cluster_host ~__context h in
-        cc.tls_config
+        match cc.tls_config with
+        | None ->
+            D.warn "This should not happen: no TLS config found" ;
+            init ~__context ~cn
+        | Some tls_config ->
+            tls_config
+      )
 
   let update_tls_config ~__context ~verify self =
     let dbg = Context.string_of_task __context in
     let tls_config =
-      match (get_tls_config~__context self, verify) with
-      | None, _ ->
-          D.warn "update_tls_config: no TLS configuration to update exists";
-          failwith __LOC__
-      | Some tls, false ->
+      match (get_tls_config ~__context self, verify) with
+      | tls, false ->
           D.warn "update_tls_config: disabling certificate checking" ;
           {tls with trusted= []}
-      | Some tls, true ->
+      | tls, true ->
           D.debug "update_tls_config: enabling certificate checking" ;
           {tls with trusted= [tls.server]}
     in

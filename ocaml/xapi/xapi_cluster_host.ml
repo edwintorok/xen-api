@@ -101,10 +101,12 @@ let join_internal ~__context ~self =
           ) ;
       debug "Enabling clusterd and joining cluster_host %s" (Ref.string_of self) ;
       Xapi_clustering.Daemon.enable ~__context ;
-      let pems = Xapi_cluster_helpers.Pem.get_existing ~__context cluster in
+      let tls_config =
+        Xapi_cluster_helpers.Pem.get_tls_config ~__context cluster
+      in
       let result =
         Cluster_client.LocalClient.join (rpc ~__context) dbg cluster_token ip
-          ip_list pems
+          ip_list tls_config
       in
       match Idl.IdM.run @@ Cluster_client.IDL.T.get result with
       | Ok () ->
@@ -265,7 +267,7 @@ let enable ~__context ~self =
       ) ;
 
       let tls_config =
-        Xapi_cluster_helpers.Pem.get_existing ~__context cluster
+        Xapi_cluster_helpers.Pem.get_tls_config ~__context cluster
       in
       let init_config =
         {
@@ -273,7 +275,7 @@ let enable ~__context ~self =
         ; token_timeout_ms= None
         ; token_coefficient_ms= None
         ; name= None
-        ; tls_config
+        ; tls_config= Some tls_config
         }
       in
       let result =
@@ -407,7 +409,7 @@ let is_local_cluster_host_using_xapis_pem ~__context =
         Debug.log_backtrace e (Backtrace.get e) ;
         false
     | cc -> (
-      match cc.Cluster_interface.tls_config.pems with
+      match cc.Cluster_interface.tls_config with
       | None ->
           D.info "Pem.is_local_cluster_host_using_xapis_pem? yes!" ;
           true
