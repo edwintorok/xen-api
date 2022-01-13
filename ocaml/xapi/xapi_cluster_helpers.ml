@@ -154,7 +154,7 @@ module Pem = struct
         let cc = cc_of_cluster_host ~__context h in
         match cc.tls_config with
         | None ->
-            D.warn "This should not happen: no TLS config found" ;
+            D.debug "No TLS config found, generating" ;
             init ~__context ~cn
         | Some tls_config ->
             tls_config
@@ -169,6 +169,7 @@ module Pem = struct
           {tls with trusted= []}
       | tls, true ->
           D.debug "update_tls_config: enabling certificate checking" ;
+          (* TODO: assumes we have a single global cert, not per host *)
           {tls with trusted= [tls.server]}
     in
     let result =

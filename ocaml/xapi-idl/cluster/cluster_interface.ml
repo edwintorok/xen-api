@@ -31,10 +31,19 @@ type enabled = bool [@@deriving rpcty]
 
 let string_of_nodeid = Int32.to_string
 
+type pem = {
+  certificate: string
+  cn: string
+} [@@deriving rpcty]
+
 (** This type describes an individual node in the cluster. It must have a unique
     identity (an int32), and may have multiple IPv4 addresses on which it can be
     contacted. *)
-type node = {addr: address; id: nodeid} [@@deriving rpcty]
+type node = {
+  addr: address
+  ; id: nodeid
+  ; pem: pem option [@default None] (* None = upgrade case *)
+} [@@deriving rpcty]
 
 type all_members = node list [@@deriving rpcty]
 
@@ -45,9 +54,8 @@ type pems_opt = pems option [@@deriving rpcty]
 type pem = string [@@deriving rpcty]
 
 type tls_config = {
-    cn: string
-  ; server: pem
-  ; trusted: pem list  (** not empty implies cert checking *)
+    pem: pem
+  ; verify: bool
 }
 [@@deriving rpcty]
 
@@ -58,7 +66,7 @@ type init_config = {
   ; token_timeout_ms: int64 option
   ; token_coefficient_ms: int64 option
   ; name: string option
-  ; tls_config: tls_config option [@default None]
+  (* empty tls_config implies upgrade case *)
 }
 [@@deriving rpcty]
 
@@ -74,6 +82,7 @@ type cluster_config = {
   ; cluster_token_timeout_ms: int64
   ; cluster_token_coefficient_ms: int64
   ; tls_config: tls_config option [@default None]
+  ; trusted: pem list [@default []]  (** not empty implies cert checking, managed by clusterd *)
 }
 [@@deriving rpcty]
 
