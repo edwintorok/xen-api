@@ -150,7 +150,7 @@ let pool_resync = call
     ~params:[ Ref _cluster, "self", "The cluster to resync"]
     ~lifecycle
     ~allowed_roles:_R_POOL_OP
-    ~errs:Api_errors.([])
+    ~errs:[]
     ()
 
 let t =

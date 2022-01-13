@@ -311,6 +311,7 @@ type ty =
   | Option of ty
   [@@deriving rpc]
 
+[@@@ocaml.warning "-33"]
 type api_value =
     VString of string
   | VInt of int64
