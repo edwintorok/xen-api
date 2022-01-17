@@ -63,6 +63,16 @@ type cluster_config = {
 type cluster_config_and_all_members = cluster_config * all_members
 [@@deriving rpcty]
 
+type tls_config = {
+    server_pem_path: string  (** Path containing private and public keys *)
+  ; trusted_bundle_path: string option
+        (** Path to CA bundle containing used for verification.
+            Can contain multiple (public) certificates. None = no verification *)
+}
+[@@deriving rpcty]
+
+type optional_path = string option [@@deriving rpcty]
+
 (** This type contains diagnostic information about the current state of the
     cluster daemon. All state required for test purposes should be in this type. *)
 type diagnostics = {
@@ -78,6 +88,7 @@ type diagnostics = {
   ; is_quorate: bool
   ; is_running: bool
   ; startup_finished: bool
+  ; tls_config: tls_config
 }
 [@@deriving rpcty]
 
@@ -103,6 +114,8 @@ type my_string = string [@@deriving rpcty]
 let unit_p = Param.mk ~name:"unit" ~description:["unit"] named_unit
 
 let string_p = Param.mk ~name:"string" ~description:["string"] my_string
+
+type enabled = bool [@@deriving rpcty]
 
 let address_p =
   Param.mk ~name:"address"
@@ -231,4 +244,21 @@ module LocalAPI (R : RPC) = struct
     declare "diagnostics"
       ["Returns diagnostic information about the cluster"]
       (debug_info_p @-> returning diagnostics_p err)
+
+  let set_tls_verification =
+    let server_pem_p = Param.mk ~name:"server_pem_path" my_string in
+    let trusted_bundle_p = Param.mk ~name:"trusted_bundle_path" my_string in
+    let enabled_p = Param.mk ~name:"enabled" enabled in
+    declare "set-tls-verification"
+      [
+        "Enable or disable TLS verification for xapi/clusterd communication."
+      ; "The trusted_bundle_path is ignored when verification is disabled and \
+         can be empty"
+      ]
+      (debug_info_p
+      @-> server_pem_p
+      @-> trusted_bundle_p
+      @-> enabled_p
+      @-> returning unit_p err
+      )
 end
