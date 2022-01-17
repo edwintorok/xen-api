@@ -90,7 +90,6 @@ type diagnostics = {
   ; is_quorate: bool
   ; is_running: bool
   ; startup_finished: bool
-  ; tls_config: tls_config
 }
 [@@deriving rpcty]
 
