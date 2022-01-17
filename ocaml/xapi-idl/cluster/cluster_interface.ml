@@ -27,37 +27,14 @@ type nodeid = int32 [@@deriving rpcty]
 
 type start = bool [@@deriving rpcty]
 
-type enabled = bool [@@deriving rpcty]
-
 let string_of_nodeid = Int32.to_string
-
-type pem = {
-  certificate: string
-  cn: string
-} [@@deriving rpcty]
 
 (** This type describes an individual node in the cluster. It must have a unique
     identity (an int32), and may have multiple IPv4 addresses on which it can be
     contacted. *)
-type node = {
-  addr: address
-  ; id: nodeid
-  ; pem: pem option [@default None] (* None = upgrade case *)
-} [@@deriving rpcty]
+type node = {addr: address; id: nodeid} [@@deriving rpcty]
 
 type all_members = node list [@@deriving rpcty]
-
-type pems = {cn: string; blobs: string list} [@@deriving rpcty]
-
-type pems_opt = pems option [@@deriving rpcty]
-
-type pem = string [@@deriving rpcty]
-
-type tls_config = {
-    pem: pem
-  ; verify: bool
-}
-[@@deriving rpcty]
 
 (** This type contains all of the information required to initialise the
     cluster. All optional params will have the recommended defaults if None. *)
@@ -66,7 +43,6 @@ type init_config = {
   ; token_timeout_ms: int64 option
   ; token_coefficient_ms: int64 option
   ; name: string option
-  (* empty tls_config implies upgrade case *)
 }
 [@@deriving rpcty]
 
@@ -81,16 +57,8 @@ type cluster_config = {
   ; config_version: int64
   ; cluster_token_timeout_ms: int64
   ; cluster_token_coefficient_ms: int64
-  ; tls_config: tls_config option [@default None]
-  ; trusted: pem list [@default []]  (** not empty implies cert checking, managed by clusterd *)
 }
 [@@deriving rpcty]
-
-let encode_cluster_config x =
-  Rpcmarshal.marshal cluster_config.Rpc.Types.ty x |> Jsonrpc.to_string
-
-let decode_cluster_config x =
-  Jsonrpc.of_string x |> Rpcmarshal.unmarshal cluster_config.Rpc.Types.ty
 
 type cluster_config_and_all_members = cluster_config * all_members
 [@@deriving rpcty]
@@ -151,11 +119,6 @@ let debug_info_p =
     ~description:["An uninterpreted string to associate with the operation."]
     debug_info
 
-let pems_opt_p =
-  Param.mk ~name:"pems"
-    ~description:["keys and certs cluster node should use"]
-    pems_opt
-
 type remove = bool [@@deriving rpcty]
 
 module LocalAPI (R : RPC) = struct
@@ -175,7 +138,6 @@ module LocalAPI (R : RPC) = struct
           ]
       ; version= (1, 0, 0)
       }
-    
 
   let implementation = implement description
 
@@ -217,14 +179,14 @@ module LocalAPI (R : RPC) = struct
     declare "enable"
       [
         "Rejoins the cluster following a call to `disable`. The parameter"
-      ; "passed is the local IP to use"
-      ; "in case it changed while the host was disabled."
+      ; "passed is the cluster config to use (optional fields set to None"
+      ; "unless updated) in case it changed while the host was disabled."
+      ; "(Note that changing optional fields isn't yet supported, TODO)"
       ]
-      (debug_info_p @-> address_p @-> returning unit_p err)
+      (debug_info_p @-> init_config_p @-> returning unit_p err)
 
   let join =
     let new_p = Param.mk ~name:"new_member" address in
-    let tls_config_p = Param.mk ~name:"tls_config" tls_config in
     let existing_p = Param.mk ~name:"existing_members" addresslist in
     declare "join"
       [
@@ -236,7 +198,6 @@ module LocalAPI (R : RPC) = struct
       @-> token_p
       @-> new_p
       @-> existing_p
-      @-> tls_config_p
       @-> returning unit_p err
       )
 
@@ -270,22 +231,4 @@ module LocalAPI (R : RPC) = struct
     declare "diagnostics"
       ["Returns diagnostic information about the cluster"]
       (debug_info_p @-> returning diagnostics_p err)
-
-  let get_config =
-    let cluster_config_p = Param.mk ~name:"cluster_config" cluster_config in
-    declare "get-config"
-      ["Returns local cluster config"]
-      (debug_info_p @-> returning cluster_config_p err)
-
-  let upd_config =
-    let tls_config_p = Param.mk ~name:"tls_config" tls_config in
-    declare "upd-config"
-      ["Distribute new TLS configuration to existing cluster"]
-      (debug_info_p @-> tls_config_p @-> returning unit_p err)
-
-  let set_tls_verification =
-    let enabled_p = Param.mk ~name:"enable" enabled in
-    declare "set-tls-verification"
-      ["Enable or disable TLS verification for xapi/clusterd communication"]
-      (debug_info_p @-> enabled_p @-> returning unit_p err)
 end
