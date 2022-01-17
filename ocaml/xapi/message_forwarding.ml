@@ -1002,14 +1002,11 @@ functor
               debug "Pool.enable_tls_verification sleeping on fistpoint" ;
               Thread.delay 5.0
             done ;
-            Db.Cluster.get_all ~__context
-            |> List.iter
-                 (Xapi_cluster_helpers.Pem.update_tls_config ~__context
-                    ~verify:true
-                 ) ;
             all_hosts
             |> List.iter (fun host ->
                    do_op_on ~local_fn ~__context ~host (fun session_id rpc ->
+                       (* TODO: this should be Client.Host.enable_tls, not Client.Pool since it is
+                          perf host! *)
                        Client.Pool.enable_tls_verification rpc session_id
                    ) ;
                    debug "Pool.enable_tls_verification enabling on host %s"
@@ -6236,12 +6233,6 @@ functor
                ) ;
                debug "Cluster.pool_resync for host %s" (Ref.string_of host)
            )
-
-      let pool_refresh_certificate ~__context ~self =
-        info "Cluster.pool_refresh_certificate: %s" (Ref.string_of self) ;
-        (* call implementation on this (master) host because it does not
-           matter on which host we execute this *)
-        Local.Cluster.pool_refresh_certificate ~__context ~self
     end
 
     module Cluster_host = struct
@@ -6358,14 +6349,6 @@ functor
           )
         in
         find_first_live other_hosts
-
-      let get_cluster_config ~__context ~self =
-        info "Cluster_host.get_cluster_config:%s" (Ref.string_of self) ;
-        let host = Db.Cluster_host.get_host ~__context ~self in
-        let local_fn = Local.Cluster_host.get_cluster_config ~self in
-        do_op_on ~__context ~local_fn ~host (fun session_id rpc ->
-            Client.Cluster_host.get_cluster_config rpc session_id self
-        )
     end
 
     module Certificate = struct end

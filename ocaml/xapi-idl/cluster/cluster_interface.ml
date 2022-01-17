@@ -65,6 +65,8 @@ type cluster_config_and_all_members = cluster_config * all_members
 
 type tls_config = {
     server_pem_path: string  (** Path containing private and public keys *)
+  ; cn: string
+        (** CN used for verification, typically host UUID, ignored otherwise *)
   ; trusted_bundle_path: string option
         (** Path to CA bundle containing used for verification.
             Can contain multiple (public) certificates. None = no verification *)
@@ -151,6 +153,7 @@ module LocalAPI (R : RPC) = struct
           ]
       ; version= (1, 0, 0)
       }
+    
 
   let implementation = implement description
 
@@ -248,6 +251,7 @@ module LocalAPI (R : RPC) = struct
   let set_tls_verification =
     let server_pem_p = Param.mk ~name:"server_pem_path" my_string in
     let trusted_bundle_p = Param.mk ~name:"trusted_bundle_path" my_string in
+    let cn_p = Param.mk ~name:"cn" my_string in
     let enabled_p = Param.mk ~name:"enabled" enabled in
     declare "set-tls-verification"
       [
@@ -258,6 +262,7 @@ module LocalAPI (R : RPC) = struct
       (debug_info_p
       @-> server_pem_p
       @-> trusted_bundle_p
+      @-> cn_p
       @-> enabled_p
       @-> returning unit_p err
       )

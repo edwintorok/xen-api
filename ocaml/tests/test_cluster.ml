@@ -23,7 +23,7 @@ let test_clusterd_rpc ~__context call =
       Rpc.
         {success= true; contents= Rpc.String test_token; is_notification= false}
       
-  | ("enable" | "disable" | "destroy" | "leave"), _ ->
+  | ("enable" | "disable" | "destroy" | "leave" | "set-tls-verification"), _ ->
       Rpc.{success= true; contents= Rpc.Null; is_notification= false}
   | "diagnostics", _ ->
       let open Cluster_interface in
@@ -37,7 +37,6 @@ let test_clusterd_rpc ~__context call =
         ; config_version= 1L
         ; cluster_token_timeout_ms= 20000L
         ; cluster_token_coefficient_ms= 1000L
-        ; tls_config= None
         }
       in
       let diag =
@@ -54,6 +53,8 @@ let test_clusterd_rpc ~__context call =
         ; is_quorate= true
         ; is_running= true
         ; startup_finished= true
+        ; tls_config=
+            {server_pem_path= "/dev/null"; cn= ""; trusted_bundle_path= None}
         }
       in
       let contents =
