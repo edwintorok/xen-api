@@ -60,6 +60,12 @@ type cluster_config = {
 }
 [@@deriving rpcty]
 
+let encode_cluster_config x =
+  Rpcmarshal.marshal cluster_config.Rpc.Types.ty x |> Jsonrpc.to_string
+
+let decode_cluster_config x =
+  Jsonrpc.of_string x |> Rpcmarshal.unmarshal cluster_config.Rpc.Types.ty
+
 type cluster_config_and_all_members = cluster_config * all_members
 [@@deriving rpcty]
 
