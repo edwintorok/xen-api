@@ -67,26 +67,27 @@ let create_internal ~__context ~cluster ~host ~pIF : API.ref_Cluster_host =
       ref
   )
 
+let build_tls_config ~__context ~verify =
+  let open Cluster_interface in
+  let cn = Helpers.get_localhost_uuid () in
+  if verify then
+    {
+      server_pem_path= !Xapi_globs.server_cert_internal_path
+    ; cn
+    ; trusted_bundle_path= Some !Xapi_globs.pool_bundle_path
+    }
+  else
+    {
+      server_pem_path= !Xapi_globs.server_cert_path
+    ; cn
+    ; trusted_bundle_path= None
+    }
+
 let set_tls_config ~__context ~self ~verify =
   let host = Db.Cluster_host.get_host ~__context ~self in
   assert_operation_host_target_is_localhost ~__context ~host ;
   let dbg = Context.string_of_task __context in
-  let open Cluster_interface in
-  let cn = Helpers.get_localhost_uuid () in
-  let tls_config =
-    if verify then
-      {
-        server_pem_path= !Xapi_globs.server_cert_internal_path
-      ; cn
-      ; trusted_bundle_path= Some !Xapi_globs.pool_bundle_path
-      }
-    else
-      {
-        server_pem_path= !Xapi_globs.server_cert_path
-      ; cn
-      ; trusted_bundle_path= None
-      }
-  in
+  let tls_config = build_tls_config ~__context ~verify in
   let result =
     Cluster_client.LocalClient.set_tls_verification
       (Xapi_clustering.rpc ~__context)
@@ -136,10 +137,10 @@ let join_internal ~__context ~self =
       debug "Enabling clusterd and joining cluster_host %s" (Ref.string_of self) ;
       Xapi_clustering.Daemon.enable ~__context ;
       let verify = Stunnel_client.get_verify_by_default () in
-      set_tls_config ~__context ~self ~verify ;
+      let tls_config = build_tls_config ~__context ~verify in
       let result =
         Cluster_client.LocalClient.join (rpc ~__context) dbg cluster_token ip
-          ip_list
+          tls_config ip_list
       in
       match Idl.IdM.run @@ Cluster_client.IDL.T.get result with
       | Ok () ->

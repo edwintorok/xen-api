@@ -209,6 +209,7 @@ module LocalAPI (R : RPC) = struct
   let join =
     let new_p = Param.mk ~name:"new_member" address in
     let existing_p = Param.mk ~name:"existing_members" addresslist in
+    let tls_config_p = Param.mk ~name:"tls_config" tls_config in
     declare "join"
       [
         "Adds a node to an initialised cluster. Takes the IPv4 address of"
@@ -218,6 +219,7 @@ module LocalAPI (R : RPC) = struct
       (debug_info_p
       @-> token_p
       @-> new_p
+      @-> tls_config_p
       @-> existing_p
       @-> returning unit_p err
       )
