@@ -30,5 +30,6 @@
 
 (library
  (public_name opentelemetry)
+ (flags (:standard -w -27-33-34-37))
  (preprocess (pps ppx_deriving.show))
- (libraries ocaml-protoc-plugin uuidm oclock hmap logs))
+ (libraries ocaml-protoc-plugin uuidm oclock hmap logs logs.fmt))

@@ -73,9 +73,6 @@ end
 val get_span : Context.t -> Span.t option
 (** [get_span context] extracts the span from a [context] *)
 
-val add_span : Context.t -> Span.t -> Context.t
-(** [add_span context] adds a span to the [context] *)
-
 (* TODO: for Lwt we could add support for an implicit context *)
 
 type span_kind = Proto.Trace.V1.Span.SpanKind.t
@@ -87,6 +84,9 @@ type links = Proto.Trace.V1.Span.Link.t list
 type config
 
 type span = Span.t * config
+
+val add_span : Context.t -> span -> Context.t
+(** [add_span context] adds a span to the [context] *)
 
 val create_span :
      name:string

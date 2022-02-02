@@ -1,7 +1,9 @@
 open Opentelemetry.Tracer
 module Proto = Opentelemetry.Proto
 
-let () = Logs.set_level ~all:true (Some Logs.Debug)
+let () =
+  Logs.set_reporter @@ Logs_fmt.reporter () ;
+  Logs.set_level ~all:true (Some Logs.Debug)
 
 let encoder, decoder =
   Ocaml_protoc_plugin.Service.make_client_functions
@@ -67,6 +69,13 @@ let () =
 
 let test_with_span () =
   let context = Opentelemetry.Context.empty in
-  with_span ~name:"span" ~context tracer @@ fun span -> ()
+  with_span ~name:"span" ~context tracer @@ fun span ->
+  let context = add_span context span in
+  (Logs.debug @@ fun m -> m "inside span") ;
+  with_span ~name:"inner" ~context tracer @@ fun _span2 ->
+  Logs.debug @@ fun m -> m "inside inner span"
 
-let () = Alcotest.run "span" [("with", [("with", `Quick, test_with_span)])]
+let () =
+  Alcotest.run "span"
+    [("with", [("with", `Quick, test_with_span)])]
+    ~verbose:true

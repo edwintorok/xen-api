@@ -211,7 +211,7 @@ end
 
 let get_span = Context.get_active
 
-let add_span context span = Context.set_active context (Some span)
+let add_span context (span, _) = Context.set_active context (Some span)
 
 type span_kind = Proto.Trace.V1.Span.SpanKind.t
 
