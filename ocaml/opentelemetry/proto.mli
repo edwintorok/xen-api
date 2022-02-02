@@ -25,12 +25,6 @@ module Common : sig
              | `not_set ]
         -> unit
         -> t
-
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and ArrayValue : sig
@@ -40,11 +34,6 @@ module Common : sig
 
       val make : ?values:AnyValue.t list -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and KeyValueList : sig
@@ -54,11 +43,6 @@ module Common : sig
 
       val make : ?values:KeyValue.t list -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and KeyValue : sig
@@ -68,11 +52,6 @@ module Common : sig
 
       val make : ?key:string -> ?value:AnyValue.t -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and StringKeyValue : sig
@@ -82,11 +61,6 @@ module Common : sig
 
       val make : ?key:string -> ?value:string -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and InstrumentationLibrary : sig
@@ -96,11 +70,6 @@ module Common : sig
 
       val make : ?name:string -> ?version:string -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
   end
 end
@@ -121,11 +90,6 @@ module Resource : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
   end
 end
@@ -160,11 +124,6 @@ module Metrics : sig
 
       val make : ?resource_metrics:ResourceMetrics.t list -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and ResourceMetrics : sig
@@ -183,11 +142,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and InstrumentationLibraryMetrics : sig
@@ -206,11 +160,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Metric : sig
@@ -243,11 +192,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Gauge : sig
@@ -257,11 +201,6 @@ module Metrics : sig
 
       val make : ?data_points:NumberDataPoint.t list -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Sum : sig
@@ -280,11 +219,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Histogram : sig
@@ -301,11 +235,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and ExponentialHistogram : sig
@@ -322,11 +251,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Summary : sig
@@ -336,11 +260,6 @@ module Metrics : sig
 
       val make : ?data_points:SummaryDataPoint.t list -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and NumberDataPoint : sig
@@ -365,11 +284,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and HistogramDataPoint : sig
@@ -400,11 +314,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and ExponentialHistogramDataPoint : sig
@@ -415,11 +324,6 @@ module Metrics : sig
 
         val make : ?offset:int -> ?bucket_counts:int list -> unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       val name' : unit -> string
@@ -453,11 +357,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and SummaryDataPoint : sig
@@ -468,11 +367,6 @@ module Metrics : sig
 
         val make : ?quantile:float -> ?value:float -> unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       val name' : unit -> string
@@ -498,11 +392,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Exemplar : sig
@@ -525,11 +414,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
   end
 
@@ -548,11 +432,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and MetricConfigResponse : sig
@@ -567,11 +446,6 @@ module Metrics : sig
             -> unit
             -> t
 
-          val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-          val from_proto :
-               Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-            -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
         end
 
         val name' : unit -> string
@@ -589,11 +463,6 @@ module Metrics : sig
           -> unit
           -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       val name' : unit -> string
@@ -611,11 +480,6 @@ module Metrics : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     module MetricConfig : sig
@@ -682,11 +546,6 @@ module Logs : sig
 
       val make : ?resource_logs:ResourceLogs.t list -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and ResourceLogs : sig
@@ -705,11 +564,6 @@ module Logs : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and InstrumentationLibraryLogs : sig
@@ -728,11 +582,6 @@ module Logs : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and LogRecord : sig
@@ -765,11 +614,6 @@ module Logs : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
   end
 end
@@ -783,11 +627,6 @@ module Trace : sig
 
       val make : ?resource_spans:ResourceSpans.t list -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and ResourceSpans : sig
@@ -806,11 +645,6 @@ module Trace : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and InstrumentationLibrarySpans : sig
@@ -829,11 +663,6 @@ module Trace : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Span : sig
@@ -871,11 +700,6 @@ module Trace : sig
           -> unit
           -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       and Link : sig
@@ -898,11 +722,6 @@ module Trace : sig
           -> unit
           -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       val name' : unit -> string
@@ -944,11 +763,6 @@ module Trace : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and Status : sig
@@ -968,11 +782,6 @@ module Trace : sig
 
       val make : ?message:string -> ?code:Status.StatusCode.t -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     module rec TraceConfig : sig
@@ -1005,11 +814,6 @@ module Trace : sig
         -> unit
         -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and ConstantSampler : sig
@@ -1029,11 +833,6 @@ module Trace : sig
 
       val make : ?decision:ConstantSampler.ConstantDecision.t -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and TraceIdRatioBased : sig
@@ -1043,11 +842,6 @@ module Trace : sig
 
       val make : ?samplingRatio:float -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
 
     and RateLimitingSampler : sig
@@ -1057,11 +851,6 @@ module Trace : sig
 
       val make : ?qps:int -> unit -> t
 
-      val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-      val from_proto :
-           Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-        -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
     end
   end
 end
@@ -1077,11 +866,6 @@ module Collector : sig
         val make :
           ?resource_metrics:Metrics.V1.ResourceMetrics.t list -> unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       and ExportMetricsServiceResponse : sig
@@ -1091,11 +875,6 @@ module Collector : sig
 
         val make : unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       module MetricsService : sig
@@ -1119,11 +898,6 @@ module Collector : sig
 
         val make : ?resource_logs:Logs.V1.ResourceLogs.t list -> unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       and ExportLogsServiceResponse : sig
@@ -1133,11 +907,6 @@ module Collector : sig
 
         val make : unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       module LogsService : sig
@@ -1161,11 +930,6 @@ module Collector : sig
 
         val make : ?resource_spans:Trace.V1.ResourceSpans.t list -> unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       and ExportTraceServiceResponse : sig
@@ -1175,11 +939,6 @@ module Collector : sig
 
         val make : unit -> t
 
-        val to_proto : t -> Ocaml_protoc_plugin.Runtime.Runtime'.Writer.t
-
-        val from_proto :
-             Ocaml_protoc_plugin.Runtime.Runtime'.Reader.t
-          -> (t, [> Ocaml_protoc_plugin.Runtime.Runtime'.Result.error]) result
       end
 
       module TraceService : sig
