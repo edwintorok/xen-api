@@ -1,6 +1,7 @@
 module type IdGenerator = sig
   val generate_span_id_bytes : unit -> bytes
-  val generate_trace_id_bytes: unit -> bytes
+
+  val generate_trace_id_bytes : unit -> bytes
 end
 
 module DefaultIDGenerator = struct
@@ -9,147 +10,291 @@ module DefaultIDGenerator = struct
 
   let generate_span_id_bytes () =
     let b = Bytes.create 8 in
-    Bytes.set_int64_ne b 0 (Random.int64 Int64.max_int);
+    Bytes.set_int64_ne b 0 (Random.int64 Int64.max_int) ;
     b
-
 end
 
+module NoopGenerator = struct
+  (* TODO: should be strings.. *)
+  let generate_trace_id_bytes () = Bytes.make 16 '\x00'
+
+  let generate_span_id_bytes () = Bytes.make 8 '\x00'
+end
+
+let get_trace_state ctx =
+  ctx |> Context.get_active |> Option.map Span.get_trace_state
+
 module Sampler = struct
-  type t = unit
+  type t = bool
 
   type decision = DROP | RECORD_ONLY | RECORD_AND_SAMPLE
 
-  let should_sample ?context ~trace_id ~name ~kind ~attributes ~links t =
-    RECORD_AND_SAMPLE, [], Context.get_trace_state context
+  let always_on = true
 
-  let default = ()
+  let noop = false
+
+  let should_sample ?context ~trace_id ~name ~kind ~attributes ~links t =
+    if t then (* TODO: overridable *)
+      (RECORD_AND_SAMPLE, [], Option.bind context get_trace_state)
+    else
+      (DROP, [], Option.bind context get_trace_state)
 end
 
 module Config = struct
-  type t = {
-    idgen: (module IdGenerator)
-  ; sampler: Sampler.t
-  }
+  type t = {idgen: (module IdGenerator); sampler: Sampler.t}
 
-  let default = { idgen = (module DefaultIDGenerator); sampler = Sampler.default }
+  let default = {idgen= (module DefaultIDGenerator); sampler= Sampler.always_on}
+
+  let noop = {idgen= (module NoopGenerator); sampler= Sampler.noop}
 end
 
 module T = struct
-  type t =
-    { config: Config.t
+  type t = {
+      config: Config.t
     ; lib: Proto.Common.V1.InstrumentationLibrary.t
     ; schema_url: string option
   }
-
 end
 
-type t = T.t option
+include T
 
-module SpanProcessor = struct
+module type SpanProcessor = sig
   type t
 
-  let force_flush t = ()
-  let shutdown t = ()
+  (* TODO: attributs on whether span is rw *)
+
+  val on_start : t -> span:Span.t -> parent_context:Context.t -> unit
+
+  val on_end : t -> span:Span.t -> unit
+
+  val force_flush : t -> unit
+
+  val shutdown : t -> unit
 end
 
-module Provider = struct
-  type t = {
-    config: Config.t
-  ; mutable processors: SpanProcessor.t list option
-  }
+type exportable_spans = Proto.Trace.V1.ResourceSpans.t
 
-  let global = failwith "TODO"
-  let create () = failwith "TODO"
-  let get ~name ?version ?schema_url t =
-    match t.processors with
-    | None -> None (* shutdown *)
-    | Some _ ->
-    let lib = Proto.Common.V1.InstrumentationLibrary.make ~name ?version () in
-    Some T.{ config = t.config; lib; schema_url }
+module type SpanExporter = sig
+  type t
 
-  let shutdown t =
-    Option.iter (List.iter SpanProcessor.shutdown) t.processors;
-    t.processors <- None
+  val export : t -> exportable_spans list -> bool
 
-  let force_flush t =
-    Option.iter (List.iter SpanProcessor.force_flush) t.processors;
+  val force_flush : t -> unit
+
+  val shutdown : t -> unit
 end
 
-let get_span context = failwith "TODO"
-let add_span context = failwith "TODO"
-
-type span_kind = Proto.Trace.V1.Span.SpanKind.t
-
-let encoder, decoder = Ocaml_protoc_plugin.Service.make_client_functions
+let encoder, decoder =
+  Ocaml_protoc_plugin.Service.make_client_functions
     Proto.Collector.Trace.V1.TraceService.export
 
 let send_spans resource_spans f =
   Proto.Collector.Trace.V1.ExportTraceServiceRequest.make ~resource_spans ()
-  |> encoder |> Ocaml_protoc_plugin.Writer.contents
+  |> encoder
+  |> Ocaml_protoc_plugin.Writer.contents
   |> f
 
 let to_result = function
-  | Ok v -> Ok v
-  | Error e -> Error (`Msg (Ocaml_protoc_plugin.Result.show_error e))
+  | Ok v ->
+      Ok v
+  | Error e ->
+      Error (`Msg (Ocaml_protoc_plugin.Result.show_error e))
 
 let parse_reply reply =
-  reply |> Ocaml_protoc_plugin.Reader.create
-  |> decoder
-  |> to_result
+  reply |> Ocaml_protoc_plugin.Reader.create |> decoder |> to_result
 
 let parse_reply_exn reply =
-  match parse_reply reply with
-  | Ok v -> v
-  | Error (`Msg m) -> failwith m
+  match parse_reply reply with Ok v -> v | Error (`Msg m) -> failwith m
 
-let get_parent_trace_id ctx = failwith "TODO"
-let get_parent_span_id ctx = failwith "TODO"
-let internal = Proto.Trace.V1.Span.SpanKind.SPAN_KIND_INTERNAL
+module TestExporter = struct
+  type t = unit
 
-module Span = struct
-  type t =
-    { mutable raw: Proto.Trace.V1.Span.t
-    ; mutable is_recording: bool
-    ; sampled: bool
-  }
+  let create () = ()
+
+  let sdecoder, sencoder =
+    Ocaml_protoc_plugin.Service.make_service_functions
+      Proto.Collector.Trace.V1.TraceService.export
+
+  let handler s =
+    match s |> Ocaml_protoc_plugin.Reader.create |> sdecoder |> to_result with
+    | Error (`Msg m) ->
+        failwith m
+    | Ok _ ->
+        (* TODO: pp+log *)
+        Proto.Collector.Trace.V1.ExportTraceServiceResponse.make ()
+        |> sencoder
+        |> Ocaml_protoc_plugin.Writer.contents
+
+  let export () spans =
+    send_spans spans handler |> parse_reply_exn ;
+    true
+
+  let force_flush _ = ()
+
+  let shutdown _ = ()
 end
 
-let get_time_if_needed = function
-  | Some t -> t
-  | None -> Oclock.gettime Oclock.realtime
+module SimpleProcessor (E : SpanExporter) = struct
+  type t = {tracer: T.t; exporter: E.t}
 
-let create_span ~name ~context ?(kind = internal) ?(attributes=[]) ?(links=[]) ?start_time_unix_nano t =
+  let create tracer exporter = {tracer; exporter}
+
+  let get_raw span = span.Span.raw
+
+  open Proto.Trace.V1
+
+  let on_start t ~span ~parent_context = ()
+
+  let on_end t ~span =
+    let instrumentation_library_spans =
+      [
+        InstrumentationLibrarySpans.make ~instrumentation_library:t.tracer.lib
+          ~spans:[get_raw span] ?schema_url:t.tracer.schema_url ()
+      ]
+    in
+    (* TODO: resource *)
+    (* TODO: handle dropping *)
+    let (_ : bool) =
+      [ResourceSpans.make ~instrumentation_library_spans ()]
+      |> E.export t.exporter
+    in
+    ()
+
+  let force_flush t = E.force_flush t.exporter
+
+  let shutdown t = E.shutdown t.exporter
+end
+
+module BatchProcessor (E : SpanExporter) = struct
+  type t = {exporter: E.t}
+
+  let on_start t ~span ~parent_context = ()
+
+  let on_end t ~span = failwith "TODO"
+
+  let force_flush t = failwith "TODO"
+
+  let shutdown t = E.shutdown t.exporter
+
+  let create ?(max_queue_size = 2048) ?(scheduled_delay_millis = 5000)
+      ?(export_timeout_millis = 30000) ?(max_export_batch_size = 512) t exporter
+      =
+    failwith "TODO"
+end
+
+type processor = {v: 'a. (module SpanProcessor with type t = 'a) * 'a}
+
+module Provider = struct
+  type t = {config: Config.t; mutable processors: processor list option}
+
+  let create () = {config= Config.default; processors= Some []}
+
+  let global = create ()
+
+  let noop =
+    T.
+      {
+        config= Config.noop
+      ; lib= Proto.Common.V1.InstrumentationLibrary.make ~name:"builtin-noop" ()
+      ; schema_url= None
+      }
+    
+
+  let get ~name ?version ?schema_url t =
+    match t.processors with
+    | None ->
+        noop (* shutdown *)
+    | Some _ ->
+        let lib =
+          Proto.Common.V1.InstrumentationLibrary.make ~name ?version ()
+        in
+        T.{config= t.config; lib; schema_url}
+
+  let do_shutdown (type a) p =
+    let (module S : SpanProcessor with type t = a), p = p.v in
+    S.shutdown p
+
+  let shutdown t =
+    Option.iter (List.iter do_shutdown) t.processors ;
+    t.processors <- None
+
+  let do_flush (type a) p =
+    let (module S : SpanProcessor with type t = a), p = p.v in
+    S.force_flush p
+
+  let force_flush t = Option.iter (List.iter do_flush) t.processors
+end
+
+let get_span = Context.get_active
+
+let add_span context span = Context.set_active context (Some span)
+
+type span_kind = Proto.Trace.V1.Span.SpanKind.t
+
+let get_parent ctx = Context.get_active ctx
+
+let get_parent_trace_id ctx = ctx |> get_parent |> Option.map Span.get_trace_id
+
+let get_parent_span_id ctx = ctx |> get_parent |> Option.map Span.get_span_id
+
+let internal = Proto.Trace.V1.Span.SpanKind.SPAN_KIND_INTERNAL
+
+let get_time_if_needed = function
+  | Some t ->
+      t
+  | None ->
+      Oclock.gettime Oclock.realtime
+
+type attributes = Proto.Common.V1.KeyValue.t list
+
+type links = Proto.Trace.V1.Span.Link.t list
+
+let create_span ~name ~context ?(kind = internal) ?(attributes = [])
+    ?(links = []) ?start_time_unix_nano t =
   let config = t.T.config in
   let module IDGen = (val config.Config.idgen) in
-  let trace_id = match get_parent_trace_id context with
-    | Some id -> id
+  let trace_id =
+    match get_parent_trace_id context with
+    | Some id ->
+        id
     | None ->
-      IDGen.generate_trace_id_bytes ()
-   in
-   let decision, attributes, trace_state = Sampler.should_sample config.Config.sampler ~context ~trace_id
-   ~name ~kind ~attributes ~links
-   in
-   let is_recording, sampled = match decision with
-     | DROP -> false, false
-     | RECORD_ONLY -> true, false
-     | RECORD_AND_SAMPLE -> true, true
-   in
-   (* SDK spec says to always generate this *)
-   let span_id = IDGen.generate_span_id_bytes () in
-   let parent_span_id = get_parent_span_id context in
-   let start_time_unix_nano = get_time_if_needed start_time_unix_nano in
-   let raw = Proto.Trace.V1.Span.make
-     ~trace_id ~span_id ~trace_state ?parent_span_id
-     ~name ~kind ~start_time_unix_nano ~attributes ~links () in
-   Span.{ raw; is_recording; sampled }
+        IDGen.generate_trace_id_bytes ()
+  in
+  let decision, extra_attributes, trace_state =
+    Sampler.should_sample config.Config.sampler ~context ~trace_id ~name ~kind
+      ~attributes ~links
+  in
+  let attributes = List.rev_append extra_attributes attributes in
+  let is_recording, sampled =
+    match decision with
+    | DROP ->
+        (false, false)
+    | RECORD_ONLY ->
+        (true, false)
+    | RECORD_AND_SAMPLE ->
+        (true, true)
+  in
+  (* SDK spec says to always generate this *)
+  let span_id = IDGen.generate_span_id_bytes () in
+  let parent_span_id = get_parent_span_id context in
+  let start_time_unix_nano = get_time_if_needed start_time_unix_nano in
+  let raw =
+    Proto.Trace.V1.Span.make ~trace_id ~span_id ?trace_state ?parent_span_id
+      ~name ~kind ~start_time_unix_nano ~attributes ~links ()
+  in
+  Span.{raw; is_recording; sampled}
 
 let end_span ?end_time_unix_nano span =
   let open Span in
   let end_time_unix_nano = get_time_if_needed end_time_unix_nano in
-  span.raw <- { span.raw with Proto.Trace.V1.Span.end_time_unix_nano };
+  span.raw <- {span.raw with Proto.Trace.V1.Span.end_time_unix_nano} ;
   span.is_recording <- false
 
 let with_span ~name ~context ?kind ?attributes ?links t f =
   let span = create_span ~name ~context ?kind ?attributes ?links t in
   let finally () = end_span span in
-  Fun.protect ~finally f span
+  Fun.protect ~finally (fun () -> f span)
+
+(* see
+   https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/sdk.md
+   *)

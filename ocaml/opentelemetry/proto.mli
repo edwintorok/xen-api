@@ -33,7 +33,6 @@ module Common : sig
       type t = AnyValue.t list
 
       val make : ?values:AnyValue.t list -> unit -> t
-
     end
 
     and KeyValueList : sig
@@ -42,7 +41,6 @@ module Common : sig
       type t = KeyValue.t list
 
       val make : ?values:KeyValue.t list -> unit -> t
-
     end
 
     and KeyValue : sig
@@ -51,7 +49,6 @@ module Common : sig
       type t = {key: string; value: AnyValue.t option}
 
       val make : ?key:string -> ?value:AnyValue.t -> unit -> t
-
     end
 
     and StringKeyValue : sig
@@ -60,7 +57,6 @@ module Common : sig
       type t = {key: string; value: string}
 
       val make : ?key:string -> ?value:string -> unit -> t
-
     end
 
     and InstrumentationLibrary : sig
@@ -69,7 +65,6 @@ module Common : sig
       type t = {name: string; version: string}
 
       val make : ?name:string -> ?version:string -> unit -> t
-
     end
   end
 end
@@ -89,7 +84,6 @@ module Resource : sig
         -> ?dropped_attributes_count:int
         -> unit
         -> t
-
     end
   end
 end
@@ -123,7 +117,6 @@ module Metrics : sig
       type t = ResourceMetrics.t list
 
       val make : ?resource_metrics:ResourceMetrics.t list -> unit -> t
-
     end
 
     and ResourceMetrics : sig
@@ -141,7 +134,6 @@ module Metrics : sig
         -> ?schema_url:string
         -> unit
         -> t
-
     end
 
     and InstrumentationLibraryMetrics : sig
@@ -159,7 +151,6 @@ module Metrics : sig
         -> ?schema_url:string
         -> unit
         -> t
-
     end
 
     and Metric : sig
@@ -191,7 +182,6 @@ module Metrics : sig
              | `not_set ]
         -> unit
         -> t
-
     end
 
     and Gauge : sig
@@ -200,7 +190,6 @@ module Metrics : sig
       type t = NumberDataPoint.t list
 
       val make : ?data_points:NumberDataPoint.t list -> unit -> t
-
     end
 
     and Sum : sig
@@ -218,7 +207,6 @@ module Metrics : sig
         -> ?is_monotonic:bool
         -> unit
         -> t
-
     end
 
     and Histogram : sig
@@ -234,7 +222,6 @@ module Metrics : sig
         -> ?aggregation_temporality:AggregationTemporality.t
         -> unit
         -> t
-
     end
 
     and ExponentialHistogram : sig
@@ -250,7 +237,6 @@ module Metrics : sig
         -> ?aggregation_temporality:AggregationTemporality.t
         -> unit
         -> t
-
     end
 
     and Summary : sig
@@ -259,7 +245,6 @@ module Metrics : sig
       type t = SummaryDataPoint.t list
 
       val make : ?data_points:SummaryDataPoint.t list -> unit -> t
-
     end
 
     and NumberDataPoint : sig
@@ -283,7 +268,6 @@ module Metrics : sig
         -> ?flags:int
         -> unit
         -> t
-
     end
 
     and HistogramDataPoint : sig
@@ -313,7 +297,6 @@ module Metrics : sig
         -> ?flags:int
         -> unit
         -> t
-
     end
 
     and ExponentialHistogramDataPoint : sig
@@ -323,7 +306,6 @@ module Metrics : sig
         type t = {offset: int; bucket_counts: int list}
 
         val make : ?offset:int -> ?bucket_counts:int list -> unit -> t
-
       end
 
       val name' : unit -> string
@@ -356,7 +338,6 @@ module Metrics : sig
         -> ?exemplars:Exemplar.t list
         -> unit
         -> t
-
     end
 
     and SummaryDataPoint : sig
@@ -366,7 +347,6 @@ module Metrics : sig
         type t = {quantile: float; value: float}
 
         val make : ?quantile:float -> ?value:float -> unit -> t
-
       end
 
       val name' : unit -> string
@@ -391,7 +371,6 @@ module Metrics : sig
         -> ?flags:int
         -> unit
         -> t
-
     end
 
     and Exemplar : sig
@@ -413,7 +392,6 @@ module Metrics : sig
         -> ?trace_id:bytes
         -> unit
         -> t
-
     end
   end
 
@@ -431,7 +409,6 @@ module Metrics : sig
         -> ?last_known_fingerprint:bytes
         -> unit
         -> t
-
     end
 
     and MetricConfigResponse : sig
@@ -445,7 +422,6 @@ module Metrics : sig
                ?match':[`Equals of string | `Starts_with of string | `not_set]
             -> unit
             -> t
-
         end
 
         val name' : unit -> string
@@ -462,7 +438,6 @@ module Metrics : sig
           -> ?period_sec:int
           -> unit
           -> t
-
       end
 
       val name' : unit -> string
@@ -479,7 +454,6 @@ module Metrics : sig
         -> ?suggested_wait_time_sec:int
         -> unit
         -> t
-
     end
 
     module MetricConfig : sig
@@ -545,7 +519,6 @@ module Logs : sig
       type t = ResourceLogs.t list
 
       val make : ?resource_logs:ResourceLogs.t list -> unit -> t
-
     end
 
     and ResourceLogs : sig
@@ -563,7 +536,6 @@ module Logs : sig
         -> ?schema_url:string
         -> unit
         -> t
-
     end
 
     and InstrumentationLibraryLogs : sig
@@ -581,7 +553,6 @@ module Logs : sig
         -> ?schema_url:string
         -> unit
         -> t
-
     end
 
     and LogRecord : sig
@@ -613,7 +584,6 @@ module Logs : sig
         -> ?span_id:bytes
         -> unit
         -> t
-
     end
   end
 end
@@ -626,7 +596,6 @@ module Trace : sig
       type t = ResourceSpans.t list
 
       val make : ?resource_spans:ResourceSpans.t list -> unit -> t
-
     end
 
     and ResourceSpans : sig
@@ -644,7 +613,6 @@ module Trace : sig
         -> ?schema_url:string
         -> unit
         -> t
-
     end
 
     and InstrumentationLibrarySpans : sig
@@ -662,7 +630,6 @@ module Trace : sig
         -> ?schema_url:string
         -> unit
         -> t
-
     end
 
     and Span : sig
@@ -699,7 +666,6 @@ module Trace : sig
           -> ?dropped_attributes_count:int
           -> unit
           -> t
-
       end
 
       and Link : sig
@@ -721,7 +687,6 @@ module Trace : sig
           -> ?dropped_attributes_count:int
           -> unit
           -> t
-
       end
 
       val name' : unit -> string
@@ -762,7 +727,6 @@ module Trace : sig
         -> ?status:Status.t
         -> unit
         -> t
-
     end
 
     and Status : sig
@@ -781,7 +745,6 @@ module Trace : sig
       type t = {message: string; code: Status.StatusCode.t}
 
       val make : ?message:string -> ?code:Status.StatusCode.t -> unit -> t
-
     end
 
     module rec TraceConfig : sig
@@ -813,7 +776,6 @@ module Trace : sig
         -> ?max_number_of_attributes_per_link:int
         -> unit
         -> t
-
     end
 
     and ConstantSampler : sig
@@ -832,7 +794,6 @@ module Trace : sig
       type t = ConstantSampler.ConstantDecision.t
 
       val make : ?decision:ConstantSampler.ConstantDecision.t -> unit -> t
-
     end
 
     and TraceIdRatioBased : sig
@@ -841,7 +802,6 @@ module Trace : sig
       type t = float
 
       val make : ?samplingRatio:float -> unit -> t
-
     end
 
     and RateLimitingSampler : sig
@@ -850,7 +810,6 @@ module Trace : sig
       type t = int
 
       val make : ?qps:int -> unit -> t
-
     end
   end
 end
@@ -865,7 +824,6 @@ module Collector : sig
 
         val make :
           ?resource_metrics:Metrics.V1.ResourceMetrics.t list -> unit -> t
-
       end
 
       and ExportMetricsServiceResponse : sig
@@ -874,7 +832,6 @@ module Collector : sig
         type t = unit
 
         val make : unit -> t
-
       end
 
       module MetricsService : sig
@@ -897,7 +854,6 @@ module Collector : sig
         type t = Logs.V1.ResourceLogs.t list
 
         val make : ?resource_logs:Logs.V1.ResourceLogs.t list -> unit -> t
-
       end
 
       and ExportLogsServiceResponse : sig
@@ -906,7 +862,6 @@ module Collector : sig
         type t = unit
 
         val make : unit -> t
-
       end
 
       module LogsService : sig
@@ -929,7 +884,6 @@ module Collector : sig
         type t = Trace.V1.ResourceSpans.t list
 
         val make : ?resource_spans:Trace.V1.ResourceSpans.t list -> unit -> t
-
       end
 
       and ExportTraceServiceResponse : sig
@@ -938,7 +892,6 @@ module Collector : sig
         type t = unit
 
         val make : unit -> t
-
       end
 
       module TraceService : sig
