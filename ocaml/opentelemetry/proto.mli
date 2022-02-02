@@ -884,6 +884,8 @@ module Collector : sig
         type t = Trace.V1.ResourceSpans.t list
 
         val make : ?resource_spans:Trace.V1.ResourceSpans.t list -> unit -> t
+
+        val pp : Format.formatter -> t -> unit
       end
 
       and ExportTraceServiceResponse : sig
@@ -892,6 +894,8 @@ module Collector : sig
         type t = unit
 
         val make : unit -> t
+
+        val pp : Format.formatter -> t -> unit
       end
 
       module TraceService : sig

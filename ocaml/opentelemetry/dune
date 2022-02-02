@@ -26,8 +26,9 @@
   )
  )
  (action
-  (run protoc -I opentelemetry-proto/ --ocaml_out=. %{proto})))
+  (run protoc -I opentelemetry-proto/ "--ocaml_opt=annot=[@@deriving show { with_path=false}]" --ocaml_out=. %{proto})))
 
 (library
  (public_name opentelemetry)
+ (preprocess (pps ppx_deriving.show))
  (libraries ocaml-protoc-plugin uuidm oclock hmap logs))

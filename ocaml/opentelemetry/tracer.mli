@@ -31,12 +31,6 @@ module type SpanExporter = sig
   val shutdown : t -> unit
 end
 
-module TestExporter : sig
-  include SpanExporter
-
-  val create : unit -> t
-end
-
 module SimpleProcessor (E : SpanExporter) : sig
   include SpanProcessor
 

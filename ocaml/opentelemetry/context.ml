@@ -2,7 +2,7 @@ type t = {map: Hmap.t; active: Span.t option}
 
 type 'a key = 'a Hmap.key * string
 
-let empty = {map = Hmap.empty; active = None}
+let empty = {map= Hmap.empty; active= None}
 
 let create_key name : 'a key = (Hmap.Key.create (), name)
 

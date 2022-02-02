@@ -100,56 +100,6 @@ module type SpanExporter = sig
   val shutdown : t -> unit
 end
 
-let encoder, decoder =
-  Ocaml_protoc_plugin.Service.make_client_functions
-    Proto.Collector.Trace.V1.TraceService.export
-
-let send_spans resource_spans f =
-  Proto.Collector.Trace.V1.ExportTraceServiceRequest.make ~resource_spans ()
-  |> encoder
-  |> Ocaml_protoc_plugin.Writer.contents
-  |> f
-
-let to_result = function
-  | Ok v ->
-      Ok v
-  | Error e ->
-      Error (`Msg (Ocaml_protoc_plugin.Result.show_error e))
-
-let parse_reply reply =
-  reply |> Ocaml_protoc_plugin.Reader.create |> decoder |> to_result
-
-let parse_reply_exn reply =
-  match parse_reply reply with Ok v -> v | Error (`Msg m) -> failwith m
-
-module TestExporter = struct
-  type t = unit
-
-  let create () = ()
-
-  let sdecoder, sencoder =
-    Ocaml_protoc_plugin.Service.make_service_functions
-      Proto.Collector.Trace.V1.TraceService.export
-
-  let handler s =
-    match s |> Ocaml_protoc_plugin.Reader.create |> sdecoder |> to_result with
-    | Error (`Msg m) ->
-        failwith m
-    | Ok _ ->
-        (* TODO: pp+log *)
-        Proto.Collector.Trace.V1.ExportTraceServiceResponse.make ()
-        |> sencoder
-        |> Ocaml_protoc_plugin.Writer.contents
-
-  let export () spans =
-    send_spans spans handler |> parse_reply_exn ;
-    true
-
-  let force_flush _ = ()
-
-  let shutdown _ = ()
-end
-
 module SimpleProcessor (E : SpanExporter) = struct
   type t = {tracer: T.t; exporter: E.t}
 
@@ -165,19 +115,19 @@ module SimpleProcessor (E : SpanExporter) = struct
 
   let on_end t ~span =
     if is_sampled span then
-    let instrumentation_library_spans =
-      [
-        InstrumentationLibrarySpans.make ~instrumentation_library:t.tracer.lib
-          ~spans:[get_raw span] ?schema_url:t.tracer.schema_url ()
-      ]
-    in
-    (* TODO: resource *)
-    (* TODO: handle dropping *)
-    let (_ : bool) =
-      [ResourceSpans.make ~instrumentation_library_spans ()]
-      |> E.export t.exporter
-    in
-    ()
+      let instrumentation_library_spans =
+        [
+          InstrumentationLibrarySpans.make ~instrumentation_library:t.tracer.lib
+            ~spans:[get_raw span] ?schema_url:t.tracer.schema_url ()
+        ]
+      in
+      (* TODO: resource *)
+      (* TODO: handle dropping *)
+      let (_ : bool) =
+        [ResourceSpans.make ~instrumentation_library_spans ()]
+        |> E.export t.exporter
+      in
+      ()
 
   let force_flush t = E.force_flush t.exporter
 
@@ -328,8 +278,8 @@ let end_span ?end_time_unix_nano (span, config) =
   let open Span in
   let end_time_unix_nano = get_time_if_needed end_time_unix_nano in
   span.raw <- {span.raw with Proto.Trace.V1.Span.end_time_unix_nano} ;
-  Provider.on_end config ~span;
-  span.is_recording <- false 
+  Provider.on_end config ~span ;
+  span.is_recording <- false
 
 let with_span ~name ~context ?kind ?attributes ?links t f =
   let span = create_span ~name ~context ?kind ?attributes ?links t in

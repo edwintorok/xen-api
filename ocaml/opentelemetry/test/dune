@@ -1,3 +1,4 @@
 (test
  (name test)
+ (preprocess (pps ppx_deriving.show))
  (libraries opentelemetry alcotest))
