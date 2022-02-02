@@ -40,24 +40,6 @@ module Sampler = struct
       (DROP, [], Option.bind context get_trace_state)
 end
 
-module Config = struct
-  type t = {idgen: (module IdGenerator); sampler: Sampler.t}
-
-  let default = {idgen= (module DefaultIDGenerator); sampler= Sampler.always_on}
-
-  let noop = {idgen= (module NoopGenerator); sampler= Sampler.noop}
-end
-
-module T = struct
-  type t = {
-      config: Config.t
-    ; lib: Proto.Common.V1.InstrumentationLibrary.t
-    ; schema_url: string option
-  }
-end
-
-include T
-
 module type SpanProcessor = sig
   type t
 
@@ -71,6 +53,40 @@ module type SpanProcessor = sig
 
   val shutdown : t -> unit
 end
+
+module type SpanProcessorInstance = sig
+  module P : SpanProcessor
+
+  val t : P.t
+end
+
+module Config = struct
+  type t = {
+      idgen: (module IdGenerator)
+    ; sampler: Sampler.t
+    ; mutable processors: (module SpanProcessorInstance) Queue.t option
+  }
+
+  let default () =
+    {
+      idgen= (module DefaultIDGenerator)
+    ; sampler= Sampler.always_on
+    ; processors= Some (Queue.create ())
+    }
+
+  let noop =
+    {idgen= (module NoopGenerator); sampler= Sampler.noop; processors= None}
+end
+
+module T = struct
+  type t = {
+      config: Config.t
+    ; lib: Proto.Common.V1.InstrumentationLibrary.t
+    ; schema_url: string option
+  }
+end
+
+include T
 
 type exportable_spans = Proto.Trace.V1.ResourceSpans.t
 
@@ -182,12 +198,10 @@ module BatchProcessor (E : SpanExporter) = struct
     failwith "TODO"
 end
 
-type processor = {v: 'a. (module SpanProcessor with type t = 'a) * 'a}
-
 module Provider = struct
-  type t = {config: Config.t; mutable processors: processor list option}
+  type t = Config.t
 
-  let create () = {config= Config.default; processors= Some []}
+  let create () = Config.default ()
 
   let global = create ()
 
@@ -200,29 +214,44 @@ module Provider = struct
       }
     
 
+  let register (type a) t processor_module p =
+    match t.Config.processors with
+    | Some q ->
+        let module M = struct
+          module P = (val processor_module : SpanProcessor with type t = a)
+
+          let t = p
+        end in
+        Queue.push (module M : SpanProcessorInstance) q
+    | None ->
+        ()
+  (* TODO: log noop *)
+
   let get ~name ?version ?schema_url t =
-    match t.processors with
+    match t.Config.processors with
     | None ->
         noop (* shutdown *)
     | Some _ ->
         let lib =
           Proto.Common.V1.InstrumentationLibrary.make ~name ?version ()
         in
-        T.{config= t.config; lib; schema_url}
+        T.{config= t; lib; schema_url}
 
-  let do_shutdown (type a) p =
-    let (module S : SpanProcessor with type t = a), p = p.v in
-    S.shutdown p
+  let forall (type a) t v f =
+    Option.iter (Queue.iter @@ fun p -> f p v) t.Config.processors
 
   let shutdown t =
-    Option.iter (List.iter do_shutdown) t.processors ;
+    (forall t () @@ fun (module P) () -> P.P.shutdown P.t) ;
     t.processors <- None
 
-  let do_flush (type a) p =
-    let (module S : SpanProcessor with type t = a), p = p.v in
-    S.force_flush p
+  let force_flush (type a) t =
+    forall t () @@ fun (module P) () -> P.P.force_flush P.t
 
-  let force_flush t = Option.iter (List.iter do_flush) t.processors
+  let on_start (type a) t ~span ~parent_context =
+    forall t () @@ fun (module P) () -> P.P.on_start P.t ~span ~parent_context
+
+  let on_end (type a) t ~span =
+    forall t () @@ fun (module P) () -> P.P.on_end P.t ~span
 end
 
 let get_span = Context.get_active
@@ -248,6 +277,10 @@ let get_time_if_needed = function
 type attributes = Proto.Common.V1.KeyValue.t list
 
 type links = Proto.Trace.V1.Span.Link.t list
+
+type config = Config.t
+
+type span = Span.t * config
 
 let create_span ~name ~context ?(kind = internal) ?(attributes = [])
     ?(links = []) ?start_time_unix_nano t =
@@ -282,13 +315,16 @@ let create_span ~name ~context ?(kind = internal) ?(attributes = [])
     Proto.Trace.V1.Span.make ~trace_id ~span_id ?trace_state ?parent_span_id
       ~name ~kind ~start_time_unix_nano ~attributes ~links ()
   in
-  Span.{raw; is_recording; sampled}
+  let span = Span.{raw; is_recording; sampled} in
+  Provider.on_start config ~span ~parent_context:context ;
+  (span, config)
 
-let end_span ?end_time_unix_nano span =
+let end_span ?end_time_unix_nano (span, config) =
   let open Span in
   let end_time_unix_nano = get_time_if_needed end_time_unix_nano in
   span.raw <- {span.raw with Proto.Trace.V1.Span.end_time_unix_nano} ;
-  span.is_recording <- false
+  span.is_recording <- false ;
+  Provider.on_end config ~span
 
 let with_span ~name ~context ?kind ?attributes ?links t f =
   let span = create_span ~name ~context ?kind ?attributes ?links t in

@@ -72,6 +72,8 @@ module Provider : sig
   val shutdown : t -> unit
 
   val force_flush : t -> unit
+
+  val register : t -> (module SpanProcessor with type t = 'a) -> 'a -> unit
 end
 
 val get_span : Context.t -> Span.t option
@@ -88,6 +90,10 @@ type attributes = Proto.Common.V1.KeyValue.t list
 
 type links = Proto.Trace.V1.Span.Link.t list
 
+type config
+
+type span = Span.t * config
+
 val create_span :
      name:string
   -> context:Context.t
@@ -96,11 +102,11 @@ val create_span :
   -> ?links:links
   -> ?start_time_unix_nano:int64
   -> t
-  -> Span.t
+  -> span
 (** [create_span tracer] creates a span using [tracer].
     This is the only API to create spans *)
 
-val end_span : ?end_time_unix_nano:int64 -> Span.t -> unit
+val end_span : ?end_time_unix_nano:int64 -> span -> unit
 (** [end_span ?end_time_unix_nano span] *)
 
 val with_span :
@@ -110,7 +116,7 @@ val with_span :
   -> ?attributes:attributes
   -> ?links:links
   -> t
-  -> (Span.t -> 'a)
+  -> (span -> 'a)
   -> 'a
 (** [with_span ~name ~context f] *)
 
