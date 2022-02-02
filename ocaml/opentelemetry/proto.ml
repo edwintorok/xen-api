@@ -1,7 +1,11 @@
 (* ocaml-protoc-plugin wraps each .proto file into OpenTelemetry.Proto...,
    and we can't easily merge these by just including the toplevel file since it'd just keep
    overwriting the OpenTelemetry module *)
-module Common = struct module V1 = Common.Opentelemetry.Proto.Common.V1 end
+
+(** @canonical Opentelemetry.Proto.Common *)
+module Common = struct
+  module V1 = Common.Opentelemetry.Proto.Common.V1
+end
 
 module Resource = struct
   module V1 = Resource.Opentelemetry.Proto.Resource.V1
@@ -32,7 +36,19 @@ module Logs = struct module V1 = Logs.Opentelemetry.Proto.Logs.V1 end
 
 module Trace = struct
   module V1 = struct
-    include Trace_config.Opentelemetry.Proto.Trace.V1
-    include Trace.Opentelemetry.Proto.Trace.V1
+    module TracesData = Trace.Opentelemetry.Proto.Trace.V1.TracesData
+    module ResourceSpans = Trace.Opentelemetry.Proto.Trace.V1.ResourceSpans
+    module Span = Trace.Opentelemetry.Proto.Trace.V1.Span
+    module Status = Trace.Opentelemetry.Proto.Trace.V1.Status
+    module TraceConfig = Trace_config.Opentelemetry.Proto.Trace.V1.TraceConfig
+
+    module ConstantSampler =
+      Trace_config.Opentelemetry.Proto.Trace.V1.ConstantSampler
+
+    module TraceIdRatioBased =
+      Trace_config.Opentelemetry.Proto.Trace.V1.TraceIdRatioBased
+
+    module RateLimitingSampler =
+      Trace_config.Opentelemetry.Proto.Trace.V1.RateLimitingSampler
   end
 end

@@ -33,31 +33,19 @@ end
 
 module Trace : sig
   module V1 : sig
-    module TraceConfig =
-      Opentelemetry__Trace_config.Opentelemetry.Proto.Trace.V1.TraceConfig
+    module TracesData = Trace.Opentelemetry.Proto.Trace.V1.TracesData
+    module ResourceSpans = Trace.Opentelemetry.Proto.Trace.V1.ResourceSpans
+    module Span = Trace.Opentelemetry.Proto.Trace.V1.Span
+    module Status = Trace.Opentelemetry.Proto.Trace.V1.Status
+    module TraceConfig = Trace_config.Opentelemetry.Proto.Trace.V1.TraceConfig
 
     module ConstantSampler =
-      Opentelemetry__Trace_config.Opentelemetry.Proto.Trace.V1.ConstantSampler
+      Trace_config.Opentelemetry.Proto.Trace.V1.ConstantSampler
 
     module TraceIdRatioBased =
-      Opentelemetry__Trace_config.Opentelemetry.Proto.Trace.V1.TraceIdRatioBased
+      Trace_config.Opentelemetry.Proto.Trace.V1.TraceIdRatioBased
 
     module RateLimitingSampler =
-      Opentelemetry__Trace_config.Opentelemetry.Proto.Trace.V1
-      .RateLimitingSampler
-
-    module TracesData =
-      Opentelemetry__Trace.Opentelemetry.Proto.Trace.V1.TracesData
-
-    module ResourceSpans =
-      Opentelemetry__Trace.Opentelemetry.Proto.Trace.V1.ResourceSpans
-
-    module InstrumentationLibrarySpans =
-      Opentelemetry__Trace.Opentelemetry.Proto.Trace.V1
-      .InstrumentationLibrarySpans
-
-    module Span = Opentelemetry__Trace.Opentelemetry.Proto.Trace.V1.Span
-
-    module Status = Opentelemetry__Trace.Opentelemetry.Proto.Trace.V1.Status
+      Trace_config.Opentelemetry.Proto.Trace.V1.RateLimitingSampler
   end
 end
