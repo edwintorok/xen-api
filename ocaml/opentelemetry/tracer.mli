@@ -3,7 +3,7 @@ module T : sig
   type t
 end
 
-include module type of T
+type t = T.t
 
 module type SpanProcessor = sig
   type t
