@@ -211,3 +211,10 @@ uninstall:
 		gzip http-svr pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
 		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script
+
+# not adding %.ml as dependency here since it might be an auto-generated file
+%.mli:
+	# do not write to .mli directly since that will create an empty .mli
+	# leaving nothing for ocaml-print-intf to generate
+	dune exec -- ocaml-print-intf $*.ml >$*.mli.tmp
+	mv $*.mli.tmp $*.mli
