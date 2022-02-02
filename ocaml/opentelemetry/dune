@@ -1,0 +1,33 @@
+(rule
+ (targets
+   common.ml
+   resource.ml
+   metrics_service.ml
+   logs_service.ml
+   trace_service.ml
+   metrics_config_service.ml
+   metrics.ml
+   logs.ml
+   trace_config.ml
+   trace.ml
+  )
+ (deps
+  (:proto
+   ./opentelemetry-proto/opentelemetry/proto/common/v1/common.proto
+   ./opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto
+   ./opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto
+   ./opentelemetry-proto/opentelemetry/proto/collector/logs/v1/logs_service.proto
+   ./opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto
+   ./opentelemetry-proto/opentelemetry/proto/metrics/experimental/metrics_config_service.proto
+   ./opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto
+   ./opentelemetry-proto/opentelemetry/proto/logs/v1/logs.proto
+   ./opentelemetry-proto/opentelemetry/proto/trace/v1/trace_config.proto
+   ./opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto
+  )
+ )
+ (action
+  (run protoc -I opentelemetry-proto/ --ocaml_out=. %{proto})))
+
+(library
+ (public_name opentelemetry)
+ (libraries ocaml-protoc-plugin))
