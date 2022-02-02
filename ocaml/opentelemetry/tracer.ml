@@ -157,11 +157,14 @@ module SimpleProcessor (E : SpanExporter) = struct
 
   let get_raw span = span.Span.raw
 
+  let is_sampled span = span.Span.sampled
+
   open Proto.Trace.V1
 
   let on_start t ~span ~parent_context = ()
 
   let on_end t ~span =
+    if is_sampled span then
     let instrumentation_library_spans =
       [
         InstrumentationLibrarySpans.make ~instrumentation_library:t.tracer.lib
@@ -248,10 +251,12 @@ module Provider = struct
     forall t () @@ fun (module P) () -> P.P.force_flush P.t
 
   let on_start (type a) t ~span ~parent_context =
-    forall t () @@ fun (module P) () -> P.P.on_start P.t ~span ~parent_context
+    if span.Span.is_recording then
+      forall t () @@ fun (module P) () -> P.P.on_start P.t ~span ~parent_context
 
   let on_end (type a) t ~span =
-    forall t () @@ fun (module P) () -> P.P.on_end P.t ~span
+    if span.Span.is_recording then
+      forall t () @@ fun (module P) () -> P.P.on_end P.t ~span
 end
 
 let get_span = Context.get_active
@@ -323,8 +328,8 @@ let end_span ?end_time_unix_nano (span, config) =
   let open Span in
   let end_time_unix_nano = get_time_if_needed end_time_unix_nano in
   span.raw <- {span.raw with Proto.Trace.V1.Span.end_time_unix_nano} ;
-  span.is_recording <- false ;
-  Provider.on_end config ~span
+  Provider.on_end config ~span;
+  span.is_recording <- false 
 
 let with_span ~name ~context ?kind ?attributes ?links t f =
   let span = create_span ~name ~context ?kind ?attributes ?links t in
