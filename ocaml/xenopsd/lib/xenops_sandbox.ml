@@ -145,18 +145,17 @@ module Varstore_guard = struct
 
   let stop dbg ~domid ~vm_uuid =
     let chroot = varstored_chroot ~domid ~vm_uuid in
-    if Sys.file_exists chroot.root then (
-      D.debug "About to stop varstored for %d (%s) %s" domid vm_uuid __LOC__ ;
-      let gid = chroot.Chroot.gid in
-      let absolute_socket_path =
-        Chroot.absolute_path_outside chroot socket_path
-      in
-      Xenops_utils.best_effort "Stop listening on deprivileged socket"
-        (fun () ->
-          Varstore_privileged_client.Client.destroy dbg gid absolute_socket_path
-      ) ;
+    D.debug "About to stop varstored for %d (%s) %s" domid vm_uuid __LOC__ ;
+    let gid = chroot.Chroot.gid in
+    let absolute_socket_path =
+      Chroot.absolute_path_outside chroot socket_path
+    in
+    Xenops_utils.best_effort "Stop listening on deprivileged socket" (fun () ->
+        Varstore_privileged_client.Client.destroy dbg gid absolute_socket_path
+    ) ;
+    if Sys.file_exists chroot.root then
       Chroot.destroy chroot
-    ) else
+    else
       D.warn "Can't stop varstored for %d (%s): %s does not exist" domid vm_uuid
         chroot.root
 end
