@@ -5,9 +5,5 @@
   conduit-lwt-unix
   inotify.lwt
   rpclib-lwt
-  xapi-idl
-  xapi-idl.varstore.deprivileged
-  xapi-idl.varstore.privileged
-  xen-api-client-lwt
  )
  (preprocess (pps ppx_deriving_rpc)))
