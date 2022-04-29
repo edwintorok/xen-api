@@ -847,6 +847,10 @@ let varstore_rm = ref "/usr/bin/varstore-rm"
 
 let varstore_dir = ref "/usr/share/varstored"
 
+let dmsetup = ref "/usr/sbin/dmsetup"
+let losetup = ref "/usr/sbin/losetup"
+let stat = ref "/usr/bin/stat"
+
 let disable_logging_for = ref []
 
 let nvidia_whitelist = ref "/usr/share/nvidia/vgpu/vgpuConfig.xml"
@@ -1500,6 +1504,9 @@ module Resources = struct
       , nvidia_sriov_manage_script
       , "Path to NVIDIA sriov-manage script"
       )
+    ; ("dmsetup", dmsetup, "Path to dmsetup executable")
+    ; ("losetup", losetup, "Path to losetup executable")
+    ; ("stat", stat, "Path to stat executable")
     ; ( "gen_pool_secret_script"
       , gen_pool_secret_script
       , "Generates new pool secrets"
