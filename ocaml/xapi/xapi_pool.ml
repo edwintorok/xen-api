@@ -29,6 +29,7 @@ module D = Debug.Make (struct let name = "xapi_pool" end)
 
 open D
 open Workload_balancing
+open Safe_resources
 
 (* Surpress exceptions *)
 let no_exn f x =
@@ -3513,7 +3514,7 @@ let get_updates_handler (req : Http.Request.t) s _ =
                   (Http.http_200_ok_with_content size ~keep_alive:false ()
                   @ [Http.Hdr.content_type ^ ": application/json"]
                   ) ;
-                Unixext.really_write_string s json_str |> ignore
+                Unixext.really_write_string Unixfd.(!s) json_str |> ignore
               with
               | Api_errors.(Server_error (failure, _)) as e
                 when List.mem failure failures_of_404 ->

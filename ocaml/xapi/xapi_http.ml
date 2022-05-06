@@ -16,6 +16,7 @@
 module D = Debug.Make (struct let name = "xapi_http" end)
 
 open D
+open Safe_resources
 
 let validate_session __context session_id realm =
   try
@@ -130,7 +131,7 @@ let assert_credentials_ok realm ?(http_action = realm) ?(fn = Rbac.nofn)
         try Client.Session.logout ~rpc:inet_rpc ~session_id with _ -> ()
       )
   in
-  if Context.is_unix_socket ic then
+  if Context.is_unix_socket Unixfd.(!ic) then
     ()
   (* Connections from unix-domain socket implies you're root on the box, ergo everything is OK *)
   else
@@ -173,7 +174,7 @@ let assert_credentials_ok realm ?(http_action = realm) ?(fn = Rbac.nofn)
             create_session_for_client_cert req ic
         )
 
-let with_context ?(dummy = false) label (req : Request.t) (s : Unix.file_descr)
+let with_context ?(dummy = false) label (req : Request.t) (s : Unixfd.t)
     f =
   let task_id = ref_param_of_req req "task_id" in
   let subtask_of = ref_param_of_req req "subtask_of" in
@@ -184,7 +185,7 @@ let with_context ?(dummy = false) label (req : Request.t) (s : Unix.file_descr)
   in
   try
     let session_id, must_logout =
-      if Context.is_unix_socket s then
+      if Context.is_unix_socket Unixfd.(!s) then
         ( Client.Session.slave_login ~rpc:inet_rpc ~host:localhost
             ~psecret:(Xapi_globs.pool_secret ())
         , true

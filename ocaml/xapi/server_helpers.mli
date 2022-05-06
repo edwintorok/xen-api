@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+open Safe_resources
+
 val exec_with_new_task :
      ?http_other_config:(string * string) list
   -> ?quiet:bool
@@ -63,7 +65,7 @@ val do_dispatch :
   -> string
   -> (__context:Context.t -> 'a)
   -> ('a -> Rpc.t)
-  -> Unix.file_descr
+  -> Unixfd.t
   -> Http.Request.t
   -> string
   -> [< `Async | `InternalAsync | `Sync > `Sync `InternalAsync]

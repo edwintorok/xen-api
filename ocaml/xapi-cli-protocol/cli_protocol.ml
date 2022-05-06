@@ -16,6 +16,7 @@
 *)
 
 open Xapi_stdext_unix
+open Safe_resources
 
 (** Used to ensure that we actually are talking to a thin CLI server *)
 let major = 0

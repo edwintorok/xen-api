@@ -24,6 +24,7 @@ open Workload_balancing
 module D = Debug.Make (struct let name = "xapi_host" end)
 
 open D
+open Safe_resources
 
 let set_emergency_mode_error code params =
   Xapi_globs.emergency_mode_error := Api_errors.Server_error (code, params)
@@ -2784,7 +2785,7 @@ let get_host_updates_handler (req : Http.Request.t) s _ =
         (Http.http_200_ok_with_content size ~keep_alive:false ()
         @ [Http.Hdr.content_type ^ ": application/json"]
         ) ;
-      Unixext.really_write_string s json_str |> ignore
+      Unixext.really_write_string Unixfd.(!s) json_str |> ignore
   )
 
 let apply_updates ~__context ~self ~hash =

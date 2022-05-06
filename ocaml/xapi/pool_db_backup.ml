@@ -21,6 +21,7 @@ let finally = Xapi_stdext_pervasives.Pervasiveext.finally
 
 open Client
 open Db_cache_types
+open Safe_resources
 
 module D = Debug.Make (struct let name = "pool_db_sync" end)
 
@@ -207,7 +208,7 @@ let pull_database_backup_handler (req : Http.Request.t) s _ =
       debug "sending headers" ;
       Http_svr.headers s (Http.http_200_ok ~keep_alive:false ()) ;
       debug "writing database xml" ;
-      write_database s ~__context ;
+      write_database Unixfd.(!s) ~__context ;
       debug "finished writing database xml"
   )
 
@@ -227,7 +228,7 @@ let push_database_restore_handler (req : Http.Request.t) s _ =
           let xml_file_fd = Unix.openfile tmp_xml_file [Unix.O_WRONLY] 0o600 in
           let () =
             finally
-              (fun () -> ignore (Unixext.copy_file ~limit:l s xml_file_fd))
+              (fun () -> ignore (Unixext.copy_file ~limit:l Unixfd.(!s) xml_file_fd))
               (fun () -> Unix.close xml_file_fd)
           in
           let dry_run =

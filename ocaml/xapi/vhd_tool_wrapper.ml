@@ -19,6 +19,7 @@ module D = Debug.Make (struct let name = "vhd_tool_wrapper" end)
 
 open D
 open Xapi_stdext_std.Xstringext
+open Safe_resources
 
 (* .vhds on XenServer are sometimes found via /dev/mapper *)
 let vhd_search_path = "/dev/mapper:."
@@ -43,7 +44,7 @@ let run_vhd_tool progress_cb args s s' _path =
       match
         with_logfile_fd "vhd-tool" (fun log_fd ->
             let pid =
-              safe_close_and_exec None (Some pipe_write) (Some log_fd) [(s', s)]
+              safe_close_and_exec None (Some pipe_write) (Some log_fd) [(s', Unixfd.(!s))]
                 vhd_tool args
             in
             close pipe_write ;
@@ -79,7 +80,7 @@ let run_vhd_tool progress_cb args s s' _path =
     )
     (fun () -> close pipe_read ; close pipe_write)
 
-let receive progress_cb format protocol (s : Unix.file_descr)
+let receive progress_cb format protocol (s : Unixfd.t)
     (length : int64 option) (path : string) (prefix : string) (prezeroed : bool)
     =
   let s' = Uuid.(to_string (make ())) in
@@ -182,7 +183,7 @@ let vhd_of_device path =
   find_backend_device path |> Option.value ~default:path |> tapdisk_of_path
 
 let send progress_cb ?relative_to (protocol : string) (dest_format : string)
-    (s : Unix.file_descr) (path : string) (prefix : string) =
+    (s : Unixfd.t) (path : string) (prefix : string) =
   let s' = Uuid.(to_string (make ())) in
   let source_format, source =
     match vhd_of_device path with

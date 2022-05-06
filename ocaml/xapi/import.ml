@@ -25,6 +25,7 @@ open Http
 open Importexport
 open Xapi_stdext_pervasives.Pervasiveext
 open Client
+open Safe_resources
 
 type import_failure =
   | Some_checksums_failed
@@ -1989,7 +1990,7 @@ let with_open_archive fd ?length f =
     let feeder pipe_in =
       finally
         (fun () ->
-          decompress pipe_in (fun compressed_in ->
+          decompress Unixfd.(!pipe_in) (fun compressed_in ->
               (* Write the initial buffer *)
               Unix.set_close_on_exec compressed_in ;
               debug "Writing initial buffer" ;
@@ -2003,24 +2004,24 @@ let with_open_archive fd ?length f =
               debug "Written a total of %d + %Ld bytes" Tar_unix.Header.length n
           )
         )
-        (fun () -> ignore_exn (fun () -> Unix.close pipe_in))
+        (fun () -> ignore_exn (fun () -> Unixfd.safe_close pipe_in))
     in
     let consumer pipe_out feeder_t =
       finally
         (fun () ->
-          let hdr = Tar_unix.Header.get_next_header pipe_out in
+          let hdr = Tar_unix.Header.get_next_header Unixfd.(!pipe_out) in
           assert_filename_is hdr ;
-          let xml = read_xml hdr pipe_out in
-          Tar_helpers.skip pipe_out
+          let xml = read_xml hdr Unixfd.(!pipe_out) in
+          Tar_helpers.skip Unixfd.(!pipe_out)
             (Tar_unix.Header.compute_zero_padding_length hdr) ;
-          f xml pipe_out
+          f xml Unixfd.(!pipe_out)
         )
         (fun () ->
-          ignore_exn (fun () -> Unix.close pipe_out) ;
+          ignore_exn (fun () -> Unixfd.safe_close pipe_out) ;
           Thread.join feeder_t
         )
     in
-    let pipe_out, pipe_in = Unix.pipe () in
+    Unixfd.with_pipe () ~loc:__LOC__ @@ fun pipe_out pipe_in ->
     let feeder_t = Thread.create feeder pipe_in in
     consumer pipe_out feeder_t
 
@@ -2159,7 +2160,7 @@ let metadata_handler (req : Request.t) s _ =
               ]
           in
           Http_svr.headers s headers ;
-          with_open_archive s ?length:req.Request.content_length
+          with_open_archive Unixfd.(!s) ?length:req.Request.content_length
             (fun metadata s ->
               debug "Got XML" ;
               (* Skip trailing two zero blocks *)
@@ -2427,7 +2428,7 @@ let handler (req : Request.t) s _ =
                         Http_svr.headers s headers ;
                         debug "Reading XML" ;
                         ignore
-                          (stream_import __context rpc session_id s
+                          (stream_import __context rpc session_id Unixfd.(!s)
                              content_length refresh_session config
                           )
                 )

@@ -39,6 +39,7 @@ open Importexport
 open Xapi_stdext_pervasives.Pervasiveext
 module Date = Xapi_stdext_date.Date
 module Unixext = Xapi_stdext_unix.Unixext
+open Safe_resources
 
 module D = Debug.Make (struct let name = "export" end)
 
@@ -800,10 +801,10 @@ let metadata_handler (req : Request.t) s _ =
               ]
           in
           Http_svr.headers s headers ;
-          Unixext.really_write_string s tar_data
+          Unixext.really_write_string Unixfd.(!s) tar_data
       | Some e ->
           let response_string = Http.Response.(to_wire_string internal_error) in
-          Unixext.really_write_string s response_string ;
+          Unixext.really_write_string Unixfd.(!s) response_string ;
           error "Caught %s while exporting metadata - responding with HTTP 500"
             (Printexc.to_string e) ;
           raise e
@@ -922,11 +923,11 @@ let handler (req : Request.t) s _ =
                     in
                     match compression_algorithm with
                     | Some Gzip ->
-                        Gzip.compress s go
+                        Gzip.compress Unixfd.(!s) go
                     | Some Zstd ->
-                        Zstd.compress s go
+                        Zstd.compress Unixfd.(!s) go
                     | None ->
-                        go s
+                        go Unixfd.(!s)
                 )
                 (* Exceptions are handled by Xapi_http.with_context *)
             )

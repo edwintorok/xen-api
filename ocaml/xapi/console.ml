@@ -25,6 +25,7 @@ let finally = Xapi_stdext_pervasives.Pervasiveext.finally
 module D = Debug.Make (struct let name = "console" end)
 
 open D
+open Safe_resources
 
 exception Failure
 
@@ -96,7 +97,7 @@ let real_proxy __context _ _ vnc_port s =
           Unixext.open_connection_unix_fd x
     in
     (* Unixext.proxy closes fds itself so we must dup here *)
-    let s' = Unix.dup s in
+    let s' = Unix.dup Unixfd.(!s) in
     debug "Connected; running proxy (between fds: %d and %d)"
       (Unixext.int_of_file_descr vnc_sock)
       (Unixext.int_of_file_descr s') ;
@@ -124,7 +125,7 @@ let ws_proxy __context req protocol address s =
         Option.map
           (fun sock ->
             try
-              let result = (sock, Some (Ws_helpers.upgrade req s)) in
+              let result = (sock, Some (Ws_helpers.upgrade req Unixfd.(!s))) in
               result
             with _ -> (sock, None)
           )
@@ -144,7 +145,7 @@ let ws_proxy __context req protocol address s =
                 Printf.sprintf "%s:%s:%s" wsprotocol protocol addr
               in
               let len = String.length message in
-              ignore (Unixext.send_fd_substring sock message 0 len [] s)
+              ignore (Unixext.send_fd_substring sock message 0 len [] Unixfd.(!s))
           | _, None ->
               Http_svr.headers s (Http.http_501_method_not_implemented ())
           )

@@ -18,9 +18,10 @@
 module D = Debug.Make (struct let name = "export_raw_vdi" end)
 
 open D
+open Safe_resources
 
 let localhost_handler rpc session_id vdi (req : Http.Request.t)
-    (s : Unix.file_descr) =
+    (s : Unixfd.t) =
   req.Http.Request.close <- true ;
   Xapi_http.with_context "Exporting raw VDI" req s (fun __context ->
       let task_id = Context.get_task_id __context in
@@ -107,9 +108,9 @@ let localhost_handler rpc session_id vdi (req : Http.Request.t)
                 let size =
                   Client.Client.VDI.get_virtual_size ~rpc ~session_id ~self:vdi
                 in
-                Stream_vdi.send_all refresh_session s ~__context rpc session_id
+                Stream_vdi.send_all refresh_session Unixfd.(!s) ~__context rpc session_id
                   [(Xapi_globs.vdi_tar_export_dir, vdi, size)] ;
-                Tar_helpers.write_end s
+                Tar_helpers.write_end Unixfd.(!s)
           with e ->
             Backtrace.is_important e ;
             TaskHelper.failed ~__context e ;
@@ -117,7 +118,7 @@ let localhost_handler rpc session_id vdi (req : Http.Request.t)
         )
   )
 
-let export_raw vdi (req : Http.Request.t) (s : Unix.file_descr) _ =
+let export_raw vdi (req : Http.Request.t) (s : Unixfd.t) _ =
   (* Check the SR is reachable (in a fresh task context) *)
   Server_helpers.exec_with_new_task "VDI.export_raw_vdi" (fun __context ->
       Helpers.call_api_functions ~__context (fun rpc session_id ->
@@ -132,7 +133,7 @@ let export_raw vdi (req : Http.Request.t) (s : Unix.file_descr) _ =
       )
   )
 
-let handler (req : Http.Request.t) (s : Unix.file_descr) _ =
+let handler (req : Http.Request.t) (s : Unixfd.t) _ =
   debug "export_raw_vdi handler" ;
   Xapi_http.assert_credentials_ok "VDI.export_raw"
     ~http_action:"get_export_raw_vdi" req s ;

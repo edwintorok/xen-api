@@ -15,15 +15,16 @@ module R = Debug.Make (struct let name = "taskhelper" end)
 
 module D = Debug.Make (struct let name = "dummytaskhelper" end)
 
+open Safe_resources
 (** Every operation has an origin: either the HTTP connection it came from or
     an internal subsystem (eg synchroniser thread / event handler
     thread) *)
-type origin = Http of Http.Request.t * Unix.file_descr | Internal
+type origin = Http of Http.Request.t * Unixfd.t | Internal
 
 let string_of_origin = function
   | Http (req, fd) ->
       let peer =
-        match Unix.getpeername fd with
+        match Unix.getpeername Unixfd.(!fd) with
         | Unix.ADDR_UNIX _ ->
             "Unix domain socket"
         | Unix.ADDR_INET _ ->
@@ -91,7 +92,7 @@ let preauth ~__context =
   | Internal ->
       None
   | Http (_, s) -> (
-    match Unix.getsockname s with
+    match Unix.getsockname Unixfd.(!s) with
     | Unix.ADDR_UNIX path when path = Xapi_globs.unix_domain_socket ->
         Some `root
     | Unix.ADDR_UNIX path when path = Xapi_globs.unix_domain_socket_clientcert
@@ -202,7 +203,7 @@ let _client_of_origin = function
         (* this relies on 'protocol = proxy' in Xapi_stunnel_server *)
         Some (Https, client)
     | None -> (
-      match Unix.getpeername fd with
+      match Unix.getpeername Unixfd.(!fd) with
       | Unix.ADDR_INET (addr, _) ->
           addr
           |> Unix.string_of_inet_addr

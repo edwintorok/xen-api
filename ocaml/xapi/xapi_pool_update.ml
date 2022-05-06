@@ -22,6 +22,7 @@ open Xapi_stdext_threads.Threadext
 module D = Debug.Make (struct let name = "xapi_pool_update" end)
 
 open D
+open Safe_resources
 
 (** Updates contain their own metadata in XML format. When the signature has
     been verified the update is executed with argument "info" and it emits XML
@@ -794,7 +795,7 @@ let proxy_request req s host_uuid =
           in
           Xmlrpc_client.with_transport transport (fun fd ->
               Unixext.really_write_string fd (Http.Request.to_wire_string req) ;
-              Unixext.proxy (Unix.dup s) (Unix.dup fd)
+              Unixext.proxy (Unix.dup Unixfd.(!s)) (Unix.dup fd)
           )
       | None ->
           debug "Caught exception while get Host by uuid %s" host_uuid ;

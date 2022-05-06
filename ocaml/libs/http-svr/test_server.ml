@@ -1,5 +1,6 @@
 open Xapi_stdext_threads.Threadext
 open Xapi_stdext_unix
+open Safe_resources
 
 let finished = ref false
 
@@ -24,7 +25,7 @@ let _ =
     (FdIO
        (fun _ s _ ->
          let r = Http.Response.to_wire_string (Http.Response.make "200" "OK") in
-         Unixext.really_write_string s r ;
+         Unixext.really_write_string Unixfd.(!s) r ;
          Mutex.execute finished_m (fun () ->
              finished := true ;
              Condition.signal finished_c
@@ -36,17 +37,17 @@ let _ =
        (fun request s _ ->
          match request.Http.Request.content_length with
          | None ->
-             Unixext.really_write_string s
+             Unixext.really_write_string Unixfd.(!s)
                (Http.Response.to_wire_string
                   (Http.Response.make "404" "content length missing")
                )
          | Some l ->
-             let txt = Unixext.really_read_string s (Int64.to_int l) in
+             let txt = Unixext.really_read_string Unixfd.(!s) (Int64.to_int l) in
              let r =
                Http.Response.to_wire_string
                  (Http.Response.make ~body:txt "200" "OK")
              in
-             Unixext.really_write_string s r
+             Unixext.really_write_string Unixfd.(!s) r
        )
     ) ;
   Server.add_handler server Http.Get "/stats"
@@ -65,7 +66,7 @@ let _ =
          let r =
            Http.Response.to_wire_string (Http.Response.make ~body:txt "200" "OK")
          in
-         Unixext.really_write_string s r
+         Unixext.really_write_string Unixfd.(!s) r
        )
     ) ;
   let ip = "0.0.0.0" in

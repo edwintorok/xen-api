@@ -22,6 +22,7 @@ let do_cmd s cmd args =
   match
     with_logfile_fd "execute_command_get_output" (fun log_fd ->
         (* Capture stderr output for logging *)
+        let s = Safe_resources.Unixfd.(!s) in
         let pid =
           safe_close_and_exec (Some s) (Some s) (Some log_fd) [] cmd args
         in

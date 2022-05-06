@@ -25,6 +25,7 @@ exception Failure of string
 module D = Debug.Make (struct let name = "stream_vdi" end)
 
 open D
+open Safe_resources
 
 (** Inside the tar we divide each VDI into small 'chunk_size' blocks: *)
 let chunk_size = Int64.mul 1024L 1024L

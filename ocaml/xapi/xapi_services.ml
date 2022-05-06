@@ -22,6 +22,7 @@ let finally = Xapi_stdext_pervasives.Pervasiveext.finally
 
 module Unixext = Xapi_stdext_unix.Unixext
 open Constants
+open Safe_resources
 
 type driver_list = Storage_interface.query_result list [@@deriving rpcty]
 
@@ -37,7 +38,7 @@ let respond req rpc s =
   let txt = Jsonrpc.to_string rpc in
   Http_svr.headers s (Http.http_200_ok ~version:"1.0" ~keep_alive:false ()) ;
   req.Http.Request.close <- true ;
-  Unixext.really_write s txt 0 (String.length txt)
+  Unixext.really_write Unixfd.(!s) txt 0 (String.length txt)
 
 let list_drivers req s =
   respond req
@@ -100,7 +101,7 @@ let hand_over_connection req s path =
         Unix.connect control_fd (Unix.ADDR_UNIX path) ;
         let msg = req |> Http.Request.rpc_of_t |> Jsonrpc.to_string in
         let len = String.length msg in
-        let written = Unixext.send_fd_substring control_fd msg 0 len [] s in
+        let written = Unixext.send_fd_substring control_fd msg 0 len [] Unixfd.(!s) in
         if written <> len then (
           error "Failed to transfer fd to %s" path ;
           Http_svr.headers s (Http.http_404_missing ~version:"1.0" ()) ;

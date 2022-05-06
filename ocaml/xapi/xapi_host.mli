@@ -15,6 +15,8 @@
  * @group XenAPI functions
 *)
 
+open Safe_resources
+
 (** {2 (Fill in Title!)} *)
 
 val set_emergency_mode_error : string -> string list -> unit
@@ -528,7 +530,7 @@ val emergency_reenable_tls_verification : __context:Context.t -> unit
 val cert_distrib_atom :
   __context:Context.t -> host:API.ref_host -> command:string -> string
 
-val get_host_updates_handler : Http.Request.t -> Unix.file_descr -> 'a -> unit
+val get_host_updates_handler : Http.Request.t -> Unixfd.t -> 'a -> unit
 
 val apply_updates :
   __context:Context.t -> self:API.ref_host -> hash:string -> unit

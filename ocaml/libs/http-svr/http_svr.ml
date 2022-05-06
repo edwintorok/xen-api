@@ -30,6 +30,8 @@
  *)
 
 open Http
+open Safe_resources
+
 module Mutex = Xapi_stdext_threads.Threadext.Mutex
 module Unixext = Xapi_stdext_unix.Unixext
 
@@ -64,14 +66,16 @@ end
 (** Type of a function which can handle a Request.t *)
 type 'a handler =
   | BufIO of (Http.Request.t -> Buf_io.t -> 'a -> unit)
-  | FdIO of (Http.Request.t -> Unix.file_descr -> 'a -> unit)
+  | FdIO of (Http.Request.t -> Unixfd.t -> 'a -> unit)
 
 (* try and do f (unit -> unit), ignore exceptions *)
 let best_effort f = try f () with _ -> ()
 
-let headers s headers =
+let headers_raw s headers =
   output_http s headers ;
   output_http s [""]
+
+let headers s headers = headers_raw Unixfd.(!s) headers
 
 (* let response s hdrs length f =
    output_http s hdrs;
@@ -106,8 +110,8 @@ let response_fct req ?(hdrs = []) s (response_length : int64)
       Http.Response.content_length= Some response_length
     }
   in
-  Unixext.really_write_string s (Http.Response.to_wire_string res) ;
-  write_response_to_fd_fn s
+  Unixext.really_write_string Unixfd.(!s) (Http.Response.to_wire_string res) ;
+  write_response_to_fd_fn Unixfd.(!s)
 
 let response_str req ?hdrs s body =
   let length = String.length body in
@@ -123,7 +127,7 @@ let response_missing ?(hdrs = []) s body =
       ~headers:(connection :: cache :: hdrs)
       ~body "404" "Not Found"
   in
-  Unixext.really_write_string s (Http.Response.to_wire_string res)
+  Unixext.really_write_string Unixfd.(!s) (Http.Response.to_wire_string res)
 
 let response_error_html ?(version = "1.1") s code message hdrs body =
   let connection = (Http.Hdr.connection, "close") in
@@ -134,7 +138,7 @@ let response_error_html ?(version = "1.1") s code message hdrs body =
       ~headers:(content_type :: connection :: cache :: hdrs)
       ~body code message
   in
-  Unixext.really_write_string s (Http.Response.to_wire_string res)
+  Unixext.really_write_string Unixfd.(!s) (Http.Response.to_wire_string res)
 
 let response_unauthorised ?req label s =
   let version = Option.map get_return_version req in
@@ -208,8 +212,8 @@ let response_file ?mime_content_type s file =
       ~length:size "200" "OK"
   in
   Unixext.with_file file [Unix.O_RDONLY] 0 (fun f ->
-      Unixext.really_write_string s (Http.Response.to_wire_string res) ;
-      let (_ : int64) = Unixext.copy_file f s in
+      Unixext.really_write_string Unixfd.(!s) (Http.Response.to_wire_string res) ;
+      let (_ : int64) = Unixext.copy_file f Unixfd.(!s) in
       ()
   )
 
@@ -430,7 +434,7 @@ let request_of_bio_exn_slow ic =
 
 let request_of_bio_exn ~proxy_seen bio =
   let fd = Buf_io.fd_of bio in
-  let frame, headers, proxy' = Http.read_http_request_header fd in
+  let frame, headers, proxy' = Http.read_http_request_header Unixfd.(!fd) in
   let proxy = match proxy' with None -> proxy_seen | x -> x in
   let additional_headers =
     proxy |> Option.fold ~none:[] ~some:(fun p -> [("STUNNEL_PROXY", p)])
@@ -637,7 +641,7 @@ let handle_connection (x : 'a Server.t) _ ss =
     if not finished then
       loop proxy
   in
-  loop None ; Unix.close ss
+  loop None ; Unixfd.safe_close ss
 
 let bind ?(listen_backlog = 128) sockaddr name =
   let domain =
@@ -667,7 +671,7 @@ let bind ?(listen_backlog = 128) sockaddr name =
   with e ->
     debug "Caught exception in Http_svr.bind (closing socket): %s"
       (Printexc.to_string e) ;
-    Unix.close sock ;
+    Unix.close sock ;(* not an [accept] socket *)
     raise e
 
 let bind_retry ?(listen_backlog = 128) sockaddr =
@@ -734,7 +738,7 @@ let read_body ?limit req bio =
         )
         limit ;
       if Buf_io.is_buffer_empty bio then
-        Unixext.really_read_string (Buf_io.fd_of bio) length
+        Unixext.really_read_string Unixfd.(!(Buf_io.fd_of bio)) length
       else
         Buf_io.really_input_buf ~timeout:Buf_io.infinite_timeout bio length
 

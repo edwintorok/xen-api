@@ -13,8 +13,9 @@
  *)
 (* Buffered IO with timeouts *)
 
+open Safe_resources
 type t = {
-    fd: Unix.file_descr
+    fd: Unixfd.t
   ; mutable buf: bytes
   ; mutable cur: int
   ; mutable max: int
@@ -79,9 +80,9 @@ let is_full ic = ic.cur = 0 && ic.max = Bytes.length ic.buf
 let fill_buf ~buffered ic timeout =
   let buf_size = Bytes.length ic.buf in
   let fill_no_exc timeout len =
-    let l, _, _ = Unix.select [ic.fd] [] [] timeout in
+    let l, _, _ = Unix.select [Unixfd.(!(ic.fd))] [] [] timeout in
     if List.length l <> 0 then (
-      let n = Unix.read ic.fd ic.buf ic.max len in
+      let n = Unix.read Unixfd.(!(ic.fd)) ic.buf ic.max len in
       ic.max <- n + ic.max ;
       if n = 0 && len <> 0 then raise Eof ;
       n

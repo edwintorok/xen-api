@@ -18,6 +18,7 @@
 open Http
 open Forkhelpers
 open Helpers
+open Safe_resources
 
 module D = Debug.Make (struct let name = "xapi_host_backup" end)
 
@@ -27,7 +28,7 @@ let host_backup_handler_core ~__context s =
   match
     with_logfile_fd "host-backup" (fun log_fd ->
         let pid =
-          safe_close_and_exec None (Some s) (Some log_fd) []
+          safe_close_and_exec None (Some Unixfd.(!s)) (Some log_fd) []
             !Xapi_globs.host_backup []
         in
         let waitpid () =
@@ -102,9 +103,9 @@ let host_restore_handler (req : Request.t) s _ =
                       match req.Request.content_length with
                       | Some i ->
                           debug "got content-length of %s" (Int64.to_string i) ;
-                          Unixext.copy_file ~limit:i s in_pipe
+                          Unixext.copy_file ~limit:i Unixfd.(!s) in_pipe
                       | None ->
-                          Unixext.copy_file s in_pipe
+                          Unixext.copy_file Unixfd.(!s) in_pipe
                     in
                     debug "Host restore: read %s bytes of backup..."
                       (Int64.to_string copied_bytes)

@@ -93,6 +93,7 @@
 open Printf
 open Http
 open Xapi_stdext_std.Xstringext
+open Safe_resources
 
 module D = Debug.Make (struct let name = "wlb_reports" end)
 
@@ -114,7 +115,7 @@ let trim_and_send method_name tag recv_sock send_sock =
     n
   in
   (* Since we use xml parser to parse the reponse message, we don't need to escape the xml content in `send` *)
-  let send s = Unix.write_substring send_sock s 0 (String.length s) |> ignore in
+  let send s = Unix.write_substring Unixfd.(!send_sock) s 0 (String.length s) |> ignore in
   let rec recv_all () =
     let n = fill () in
     if n > 0 then
@@ -148,7 +149,7 @@ let handle req bio _method_name tag (method_name, request_func) =
   let client_sock = Buf_io.fd_of bio in
   Buf_io.assert_buffer_empty bio ;
   debug "handle: fd = %d"
-    (Xapi_stdext_unix.Unixext.int_of_file_descr client_sock) ;
+    (Xapi_stdext_unix.Unixext.int_of_file_descr Unixfd.(!client_sock)) ;
   req.Request.close <- true ;
   Xapi_http.with_context (sprintf "WLB %s request" method_name) req client_sock
     (fun __context ->

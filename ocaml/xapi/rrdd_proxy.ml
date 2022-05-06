@@ -23,6 +23,7 @@
 module D = Debug.Make (struct let name = "rrdd_proxy" end)
 
 open D
+open Safe_resources
 module Rrdd = Rrd_client.Client
 
 (* Helper methods. Should probably be moved to the Http.Request module. *)
@@ -39,7 +40,7 @@ let make_url ~(address : string) ~(req : Http.Request.t) : string =
   let open Http.Request in
   make_url_from_query ~address ~uri:req.uri ~query:req.query
 
-let fail_req_with (s : Unix.file_descr) msg (http_err : unit -> string list) =
+let fail_req_with (s : Unixfd.t) msg (http_err : unit -> string list) =
   error msg ;
   Http_svr.headers s (http_err ())
 
@@ -50,7 +51,7 @@ let fail_req_with (s : Unix.file_descr) msg (http_err : unit -> string list) =
  * contains the corresponding VM. The last resort is to unarchive the RRD on
  * the master. The exact logic can be seen under "The logic." below.
  *)
-let get_vm_rrd_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
+let get_vm_rrd_forwarder (req : Http.Request.t) (s : Unixfd.t) _ =
   debug "put_rrd_forwarder: start" ;
   let query = req.Http.Request.query in
   req.Http.Request.close <- true ;
@@ -114,7 +115,7 @@ let get_vm_rrd_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
 (* Forward the request for host RRD data to the RRDD HTTP handler. If the host
  * is initialising, send the unarchive command to the host instead.
  *)
-let get_host_rrd_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
+let get_host_rrd_forwarder (req : Http.Request.t) (s : Unixfd.t) _ =
   debug "get_host_rrd_forwarder" ;
   let query = req.Http.Request.query in
   req.Http.Request.close <- true ;
@@ -145,7 +146,7 @@ let get_host_rrd_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
   )
 
 (* Forward the request for SR RRD data to the RRDD HTTP handler. *)
-let get_sr_rrd_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
+let get_sr_rrd_forwarder (req : Http.Request.t) (s : Unixfd.t) _ =
   debug "get_sr_rrd_forwarder" ;
   let query = req.Http.Request.query in
   req.Http.Request.close <- true ;
@@ -162,7 +163,7 @@ let get_sr_rrd_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
   )
 
 (* Forward the request for obtaining RRD data updates to the RRDD HTTP handler. *)
-let get_rrd_updates_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
+let get_rrd_updates_forwarder (req : Http.Request.t) (s : Unixfd.t) _ =
   (* Do not log this event, since commonly called. *)
   let query = req.Http.Request.query in
   req.Http.Request.close <- true ;
@@ -197,7 +198,7 @@ let uuid_to_domid ~__context ~(uuid : string) : (bool * int) option =
 (* Forward the request for storing RRD. In case an archive is required, the
  * request is redirected to the master. See
  * Rrdd_http_handler.put_rrd_handler. *)
-let put_rrd_forwarder (req : Http.Request.t) (s : Unix.file_descr) _ =
+let put_rrd_forwarder (req : Http.Request.t) (s : Unixfd.t) _ =
   debug "put_rrd_forwarder" ;
   let query = req.Http.Request.query in
   req.Http.Request.close <- true ;

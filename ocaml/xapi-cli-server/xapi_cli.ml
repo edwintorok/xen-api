@@ -19,6 +19,7 @@ module Unixext = Xapi_stdext_unix.Unixext
 open Cli_frontend
 open Cli_cmdtable
 open Cli_protocol
+open Safe_resources
 
 module D = Debug.Make (struct let name = "cli" end)
 
@@ -31,7 +32,7 @@ exception Unknown_command of string
     the HTTP request headers it has already received together with its active file descriptor.
     This way, the cli server can short-circuit API calls without having to go over the network. *)
 let rpc_fun :
-    (Http.Request.t -> Unix.file_descr -> Rpc.call -> Rpc.response) option ref =
+    (Http.Request.t -> Unixfd.t -> Rpc.call -> Rpc.response) option ref =
   ref None
 
 let get_rpc () =
@@ -141,13 +142,13 @@ let do_rpcs _req s username password minimal cmd session args =
     let rpc = generic_rpc req s in
     if do_forward then
       with_session ~local:false rpc username password session (fun sess ->
-          forward args s (Some sess)
+          forward args Unixfd.(!s) (Some sess)
       )
     else
-      let printer, flush = Cli_printer.make_printer s minimal in
+      let printer, flush = Cli_printer.make_printer Unixfd.(!s) minimal in
       let flush_and_marshall () =
         flush () ;
-        marshal s (Command (Exit 0))
+        marshal Unixfd.(!s) (Command (Exit 0))
       in
       match cspec.implementation with
       | No_fd f ->
@@ -164,12 +165,12 @@ let do_rpcs _req s username password minimal cmd session args =
       | With_fd f ->
           with_session ~local:false rpc username password session
             (fun session ->
-              f s printer rpc session (get_params cmd) ;
+              f Unixfd.(!s) printer rpc session (get_params cmd) ;
               flush_and_marshall ()
           )
       | With_fd_local_session f ->
           with_session ~local:true rpc username password session (fun session ->
-              f s printer rpc session (get_params cmd) ;
+              f Unixfd.(!s) printer rpc session (get_params cmd) ;
               flush_and_marshall ()
           )
   with Unix.Unix_error (a, b, c) as e ->
@@ -219,7 +220,7 @@ let exec_command req cmd s session args =
   (* Log the actual CLI command to help diagnose failures like CA-25516 *)
   let cmd_name = get_cmdname cmd in
   if cmd_name = "help" then
-    do_help cmd minimal s
+    do_help cmd minimal Unixfd.(!s)
   else
     let uninteresting =
       List.exists
@@ -341,9 +342,9 @@ let handler (req : Http.Request.t) (bio : Buf_io.t) _ =
   in
   let s = Buf_io.fd_of bio in
   (* Tell the client the server version *)
-  marshal_protocol s ;
+  marshal_protocol Unixfd.(!s) ;
   (* Read the client's protocol version *)
-  let major', _ = unmarshal_protocol s in
+  let major', _ = unmarshal_protocol Unixfd.(!s) in
   if major' <> major then (
     debug "Rejecting request from client" ;
     failwith "Version mismatch"
@@ -358,19 +359,19 @@ let handler (req : Http.Request.t) (bio : Buf_io.t) _ =
     | `Ok _ ->
         ()
     | `Error (e, bt) ->
-        exception_handler s e ;
+        exception_handler Unixfd.(!s) e ;
         (* Command execution errors can use --trace *)
         if Cli_operations.get_bool_param cmd.params "trace" then (
-          marshal s
+          marshal Unixfd.(!s)
             (Command
                (PrintStderr (Printf.sprintf "Raised %s\n" (Printexc.to_string e))
                )
             ) ;
-          marshal s (Command (PrintStderr "Backtrace:\n")) ;
-          marshal s (Command (PrintStderr Backtrace.(to_string_hum bt)))
+          marshal Unixfd.(!s) (Command (PrintStderr "Backtrace:\n")) ;
+          marshal Unixfd.(!s) (Command (PrintStderr Backtrace.(to_string_hum bt)))
         ) ;
         Debug.log_backtrace e bt ;
-        marshal s (Command (Exit 1))
+        marshal Unixfd.(!s) (Command (Exit 1))
   with e ->
-    exception_handler s e ;
-    marshal s (Command (Exit 1))
+    exception_handler Unixfd.(!s) e ;
+    marshal Unixfd.(!s) (Command (Exit 1))

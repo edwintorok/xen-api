@@ -17,6 +17,7 @@
 
 open Http
 open Xapi_stdext_std.Xstringext
+open Safe_resources
 
 module D = Debug.Make (struct let name = "fileserver" end)
 
@@ -81,7 +82,7 @@ let response_file s file_path =
 let access_forbidden req s =
   (* Reject external non-TLS requests (depending on config) *)
   !Xapi_globs.website_https_only
-  && (not (Context.is_unix_socket s))
+  && (not (Context.is_unix_socket Unixfd.(!s)))
   && Context._client_of_rq req = None
 
 let send_file (uri_base : string) (dir : string) (req : Request.t)

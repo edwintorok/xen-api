@@ -33,6 +33,7 @@ module Listext = Xapi_stdext_std.Listext
 module Pervasiveext = Xapi_stdext_pervasives.Pervasiveext
 module Unixext = Xapi_stdext_unix.Unixext
 open Xapi_stdext_threads.Threadext
+open Safe_resources
 
 module D = Debug.Make (struct let name = "xapi_message" end)
 
@@ -800,7 +801,7 @@ let handler (req : Http.Request.t) fd _ =
           Http_svr.headers fd (Http.http_200_ok ()) ;
           (* Read messages in, and write to filesystem *)
           let xml_in =
-            Xmlm.make_input (`Channel (Unix.in_channel_of_descr fd))
+            Xmlm.make_input (`Channel (Unix.in_channel_of_descr Unixfd.(!fd)))
           in
           let messages = import_xml xml_in in
           List.iter

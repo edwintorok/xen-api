@@ -17,6 +17,7 @@ module D = Debug.Make (struct let name = "http_proxy" end)
 open D
 open Xmlrpc_client
 open Xapi_stdext_threads.Threadext
+open Safe_resources
 
 let finally = Xapi_stdext_pervasives.Pervasiveext.finally
 
@@ -36,19 +37,19 @@ let one request fromfd s =
         | _ ->
             request.Http.Request.content_length
       in
-      let (_ : int64) = Unixext.copy_file ?limit fromfd s in
+      let (_ : int64) = Unixext.copy_file ?limit Unixfd.(!fromfd) s in
       (* Receive response headers from master *)
       let response =
         Option.value ~default:Http.Response.internal_error
           (Http_client.response_of_fd s)
       in
       (* Transmit response headers to client *)
-      Unixext.really_write_string fromfd (Http.Response.to_wire_string response) ;
+      Unixext.really_write_string Unixfd.(!fromfd) (Http.Response.to_wire_string response) ;
       if response.Http.Response.code = "200" then
         (* If there is a request payload then transmit *)
         let (_ : int64) =
           Unixext.copy_file ?limit:response.Http.Response.content_length s
-            fromfd
+           Unixfd.(!fromfd)
         in
         ()
   | m ->
@@ -70,7 +71,7 @@ let http_proxy src_ip src_port transport =
           (fun request -> with_transport transport (one request fromfd))
           request
       )
-      (fun () -> Unix.close fromfd)
+      (fun () -> Unixfd.safe_close fromfd)
   in
   try
     let addr = Unix.inet_addr_of_string src_ip in

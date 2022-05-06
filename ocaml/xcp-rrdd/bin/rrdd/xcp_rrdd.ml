@@ -100,22 +100,11 @@ let start (xmlrpc_path, http_fwd_path) process =
   Unix.bind http_fwd_socket (Unix.ADDR_UNIX http_fwd_path) ;
   Unix.listen http_fwd_socket 5 ;
   accept_forever http_fwd_socket (fun this_connection ->
-      let msg_size = 16384 in
-      let buf = Bytes.make msg_size '\000' in
-      let len, _, received_fd =
-        Xapi_stdext_unix.Unixext.recv_fd this_connection buf 0 msg_size []
-      in
-      finally
-        (fun _ ->
-          let req =
-            Bytes.sub_string buf 0 len
-            |> Jsonrpc.of_string
-            |> Http.Request.t_of_rpc
-          in
-          req.Http.Request.close <- true ;
-          ignore_bool (Http_svr.handle_one server received_fd () req)
-        )
-        (fun _ -> Unix.close received_fd)
+      Safe_resources.Unixfd.with_received ~msg_size:16384 this_connection
+      @@ fun str received_fd ->
+      let req = str |> Jsonrpc.of_string |> Http.Request.t_of_rpc in
+      req.Http.Request.close <- true ;
+      ignore_bool (Http_svr.handle_one server received_fd () req)
   ) ;
   ()
 

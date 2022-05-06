@@ -16,6 +16,7 @@
 module D = Debug.Make (struct let name = "xapi_blob" end)
 
 open D
+open Safe_resources
 
 let create ~__context ~mime_type ~public =
   let uuid = Uuid.make () in
@@ -183,7 +184,7 @@ let handler (req : Http.Request.t) s _ =
               ) ;
             ignore
               (Xapi_stdext_pervasives.Pervasiveext.finally
-                 (fun () -> Xapi_stdext_unix.Unixext.copy_file ifd s)
+                 (fun () -> Xapi_stdext_unix.Unixext.copy_file ifd Unixfd.(!s))
                  (fun () -> Unix.close ifd)
               )
           with _ -> Http_svr.headers s (Http.http_404_missing ())
@@ -206,7 +207,7 @@ let handler (req : Http.Request.t) s _ =
                 (fun () ->
                   Http_svr.headers s
                     (Http.http_200_ok () @ ["Access-Control-Allow-Origin: *"]) ;
-                  Xapi_stdext_unix.Unixext.copy_file ~limit s ofd
+                  Xapi_stdext_unix.Unixext.copy_file ~limit Unixfd.(!s) ofd
                 )
                 (fun () -> Unix.close ofd)
             in

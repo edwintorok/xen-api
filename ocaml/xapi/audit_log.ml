@@ -17,6 +17,7 @@ open D
 open Http
 module Unixext = Xapi_stdext_unix.Unixext
 open Xapi_stdext_pervasives.Pervasiveext
+open Safe_resources
 
 let audit_log_whitelist_prefix = "/var/log/audit.log"
 
@@ -40,7 +41,7 @@ let write_line line fd ?filter since =
     if since = "" || String.compare line_timestamp since >= 0 then
       if went_through ?filter line then
         let len = String.length line in
-        Unix.write_substring fd line 0 len |> ignore
+        Unix.write_substring Unixfd.(!fd) line 0 len |> ignore
 
 let transfer_audit_file _path compression fd_out ?filter since : unit =
   let path = Unixext.resolve_dot_and_dotdot _path in

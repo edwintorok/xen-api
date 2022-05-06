@@ -15,6 +15,7 @@
  * @group XenAPI functions
 *)
 
+open Safe_resources
 (** {2 (Fill in Title!)} *)
 
 val get_master :
@@ -373,7 +374,7 @@ val enable_client_certificate_auth :
 val disable_client_certificate_auth :
   __context:Context.t -> self:API.ref_pool -> unit
 
-val get_updates_handler : Http.Request.t -> Unix.file_descr -> 'a -> unit
+val get_updates_handler : Http.Request.t -> Unixfd.t -> 'a -> unit
 
 val configure_repository_proxy :
      __context:Context.t

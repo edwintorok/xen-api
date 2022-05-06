@@ -15,6 +15,7 @@
 
     @group API Messaging
 *)
+open Safe_resources
 
 (** Actions module *)
 module Actions = struct
@@ -207,7 +208,7 @@ let callback1 ?(json_rpc_version = Jsonrpc.V1) is_json req fd call =
     raise !Xapi_globs.emergency_mode_error ;
   if
     is_slave
-    && ((Context.is_unix_socket fd && not whitelisted)
+    && ((Context.is_unix_socket Unixfd.(!fd) && not whitelisted)
        || (is_himn_req req && not emergency_call)
        )
   then

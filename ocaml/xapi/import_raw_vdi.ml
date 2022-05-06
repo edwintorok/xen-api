@@ -21,8 +21,9 @@ open D
 open Http
 open Importexport
 open Client
+open Safe_resources
 
-let fail_task_in_request (req : Request.t) (s : Unix.file_descr) e =
+let fail_task_in_request (req : Request.t) (s : Unixfd.t) e =
   ignore
     (Xapi_http.ref_param_of_req req "task_id"
     |> Option.map (fun task_id ->
@@ -36,7 +37,7 @@ exception HandleError of exn * string list
 (* Exception to put into the task * headers to return to the client *)
 
 let localhost_handler rpc session_id vdi_opt (req : Request.t)
-    (s : Unix.file_descr) =
+    (s : Unixfd.t) =
   req.Request.close <- true ;
   Xapi_http.with_context "Importing raw VDI" req s (fun __context ->
       let all = req.Request.query @ req.Request.cookie in
@@ -185,7 +186,7 @@ let localhost_handler rpc session_id vdi_opt (req : Request.t)
                       Client.VDI.get_virtual_size ~rpc ~session_id ~self:vdi
                     in
                     (* VDIs exported as TAR archives will always have inline checksums *)
-                    Stream_vdi.recv_all_vdi refresh_session s __context rpc
+                    Stream_vdi.recv_all_vdi refresh_session Unixfd.(!s) __context rpc
                       session_id ~has_inline_checksums:true ~force:false
                       [(Xapi_globs.vdi_tar_export_dir, vdi, size)]
                     |> ignore
@@ -205,7 +206,7 @@ let localhost_handler rpc session_id vdi_opt (req : Request.t)
           raise e
   )
 
-let import vdi (req : Request.t) (s : Unix.file_descr) _ =
+let import vdi (req : Request.t) (s : Unixfd.t) _ =
   Xapi_http.assert_credentials_ok "VDI.import" ~http_action:"put_import_raw_vdi"
     req s ;
   (* Perform the SR reachability check using a fresh context/task because
@@ -246,7 +247,7 @@ let import vdi (req : Request.t) (s : Unix.file_descr) _ =
         raise e
   )
 
-let handler (req : Request.t) (s : Unix.file_descr) _ =
+let handler (req : Request.t) (s : Unixfd.t) _ =
   Xapi_http.assert_credentials_ok "VDI.import" ~http_action:"put_import_raw_vdi"
     req s ;
   (* Using a fresh context/task because we don't want to complete the

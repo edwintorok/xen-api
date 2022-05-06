@@ -26,6 +26,7 @@ open Xmlrpc_client
 open Storage_interface
 open Storage_task
 open Storage_utils
+open Safe_resources
 
 let vm_of_s = Storage_interface.Vm.of_string
 
@@ -1175,7 +1176,7 @@ let nbd_handler req s sr vdi dp =
           Unix.connect control_fd (Unix.ADDR_UNIX path) ;
           let msg = dp in
           let len = String.length msg in
-          let written = Unixext.send_fd_substring control_fd msg 0 len [] s in
+          let written = Unixext.send_fd_substring control_fd msg 0 len [] Unixfd.(!s) in
           if written <> len then (
             error "Failed to transfer fd to %s" path ;
             Http_svr.headers s (Http.http_404_missing ~version:"1.0" ()) ;

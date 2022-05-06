@@ -12,7 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val one : Http.Request.t -> Unix.file_descr -> Unix.file_descr -> unit
+open Safe_resources
+val one : Http.Request.t -> Unixfd.t -> Unix.file_descr -> unit
 (** [one request input output] proxies the single HTTP request [request]
     from [input] to [output] *)
 

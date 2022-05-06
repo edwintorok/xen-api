@@ -13,6 +13,7 @@
  *)
 
 (** A very very simple HTTP server *)
+open Safe_resources
 
 (** A URI path used to index handlers *)
 type uri_path = string
@@ -20,7 +21,7 @@ type uri_path = string
 (** A handler is a function which takes a request and produces a response *)
 type 'a handler =
   | BufIO of (Http.Request.t -> Buf_io.t -> 'a -> unit)
-  | FdIO of (Http.Request.t -> Unix.file_descr -> 'a -> unit)
+  | FdIO of (Http.Request.t -> Unixfd.t -> 'a -> unit)
 
 module Stats : sig
   (** Statistics recorded per-handler *)
@@ -66,7 +67,7 @@ val bind_retry : ?listen_backlog:int -> Unix.sockaddr -> socket
 
 val start : 'a Server.t -> socket -> unit
 
-val handle_one : 'a Server.t -> Unix.file_descr -> 'a -> Http.Request.t -> bool
+val handle_one : 'a Server.t -> Unixfd.t -> 'a -> Http.Request.t -> bool
 
 exception Socket_not_found
 
@@ -89,7 +90,7 @@ val read_chunked_encoding : Http.Request.t -> Buf_io.t -> bytes Http.ll
 val response_fct :
      Http.Request.t
   -> ?hdrs:(string * string) list
-  -> Unix.file_descr
+  -> Unixfd.t
   -> int64
   -> (Unix.file_descr -> unit)
   -> unit
@@ -97,32 +98,32 @@ val response_fct :
 val response_str :
      Http.Request.t
   -> ?hdrs:(string * string) list
-  -> Unix.file_descr
+  -> Unixfd.t
   -> string
   -> unit
 
 val response_missing :
-  ?hdrs:(string * string) list -> Unix.file_descr -> string -> unit
+  ?hdrs:(string * string) list -> Unixfd.t -> string -> unit
 
 val response_unauthorised :
-  ?req:Http.Request.t -> string -> Unix.file_descr -> unit
+  ?req:Http.Request.t -> string -> Unixfd.t -> unit
 
-val response_forbidden : ?req:Http.Request.t -> Unix.file_descr -> unit
+val response_forbidden : ?req:Http.Request.t -> Unixfd.t -> unit
 
-val response_badrequest : ?req:Http.Request.t -> Unix.file_descr -> unit
+val response_badrequest : ?req:Http.Request.t -> Unixfd.t -> unit
 
 val response_internal_error :
-  ?req:Http.Request.t -> ?extra:uri_path -> Unix.file_descr -> unit
+  ?req:Http.Request.t -> ?extra:uri_path -> Unixfd.t -> unit
 
 val response_method_not_implemented :
-  ?req:Http.Request.t -> Unix.file_descr -> unit
+  ?req:Http.Request.t -> Unixfd.t -> unit
 
 val response_file :
-  ?mime_content_type:string -> Unix.file_descr -> string -> unit
+  ?mime_content_type:string -> Unixfd.t -> string -> unit
 
-val respond_to_options : Http.Request.t -> Unix.file_descr -> unit
+val respond_to_options : Http.Request.t -> Unixfd.t -> unit
 
-val headers : Unix.file_descr -> string list -> unit
+val headers : Unixfd.t -> string list -> unit
 
 val read_body : ?limit:int -> Http.Request.t -> Buf_io.t -> string
 

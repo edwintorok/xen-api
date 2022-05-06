@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+open Safe_resources
+
 val introduce :
      __context:Context.t
   -> name_label:string
@@ -41,7 +43,7 @@ val sync :
 val create_pool_repository :
   __context:Context.t -> self:[`Repository] API.Ref.t -> unit
 
-val get_repository_handler : Http.Request.t -> Unix.file_descr -> 'a -> unit
+val get_repository_handler : Http.Request.t -> Unixfd.t -> 'a -> unit
 
 val get_host_updates_in_json :
   __context:Context.t -> installed:bool -> Yojson.Basic.t

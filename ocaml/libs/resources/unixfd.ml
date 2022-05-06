@@ -75,3 +75,33 @@ let with_channels t f =
   f Safe.(borrow_exn ic, borrow_exn oc)
 
 let safe_close = Safe.safe_release
+
+let within_semaphore_opt ?semaphore =
+  Option.iter Semaphore.Counting.acquire semaphore ;
+  let release sem = Option.iter Semaphore.Counting.release sem in
+  Safe.within @@ Safe.create ~release semaphore
+
+let with_accept ?semaphore ~loc sock f =
+  within_semaphore_opt ?semaphore @@ fun semaphore ->
+  let release ufd =
+    Xapi_stdext_pervasives.Pervasiveext.finally
+      (fun () -> release ufd)
+      (fun () ->
+        (* release the semaphore as soon as possible after the file descriptor is closed,
+           even on error (the file descriptor may have been closed already).
+           Do not wait until the scope is closed in case there are some time consuming operations there
+        *)
+        Safe.safe_release semaphore
+      )
+  in
+  let fd, addr = Unix.accept ~cloexec:true sock in
+  let safe = Safe.create ~on_finalise_leaked ~release (fd, loc) in
+  Safe.within safe @@ fun ufd -> f ufd addr
+
+let with_received ~msg_size this_connection f =
+  let buf = Bytes.make msg_size '\000' in
+  let len, _, received_fd =
+    Xapi_stdext_unix.Unixext.recv_fd this_connection buf 0 msg_size []
+  in
+  let s = Bytes.sub_string buf 0 len in
+  within received_fd (f s)

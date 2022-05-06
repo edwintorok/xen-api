@@ -46,3 +46,19 @@ val with_channels : t -> (in_channel * out_channel -> 'a) -> 'a
 val safe_close : t -> unit
 (** [safe_close t] is a convenient way of writing {!Safe.safe_release} [t].
     Calling this is idem-potent, there is no risk of double close. *)
+
+val with_accept :
+     ?semaphore:Semaphore.Counting.t
+  -> loc:string
+  -> Unix.file_descr
+  -> (t -> Unix.sockaddr -> 'a)
+  -> 'a
+(** [with_accept ?semaphore ~loc socket handler] calls [handler] with an accepted connection.
+    If the optional [?semaphore] is specified then it will acquire a semaphore before accepting the
+    connection and release it when the file descriptor is closed.
+    [loc] can be used for debugging to identify the source code location of the accept *)
+
+val with_received : msg_size:int -> Unix.file_descr -> (string -> t -> 'a) -> loc:string -> 'a
+(** [with_received ~msg_size fd f] receives a string and a file descriptor on [f].
+    The string can be at most [msg_size], and is passed to [f] along with the received file
+    descriptor. *)

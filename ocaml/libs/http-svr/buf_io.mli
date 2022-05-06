@@ -13,12 +13,14 @@
  *)
 (** Buffered IO with timeouts *)
 
+open Safe_resources
+
 (** {2 Abstract type of inputs} *)
 type t
 
-val of_fd : Unix.file_descr -> t
+val of_fd : Unixfd.t -> t
 
-val fd_of : t -> Unix.file_descr
+val fd_of : t -> Unixfd.t
 
 val infinite_timeout : float
 
