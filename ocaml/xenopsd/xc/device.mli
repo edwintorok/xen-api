@@ -487,6 +487,20 @@ module Dm : sig
     -> Xenctrl.domid
     -> unit
 
+  val suspend_vtpms :
+       Xenops_task.task_handle
+    -> xs:Xenstore.Xs.xsh
+    -> Xenctrl.domid
+    -> vm_uuid:string
+    -> string list
+
+  val restore_vtpm :
+       Xenops_task.task_handle
+    -> xs:Xenstore.Xs.xsh
+    -> contents:string
+    -> Xenctrl.domid
+    -> unit
+
   val after_suspend_image :
     xs:Xenstore.Xs.xsh -> dm:Profile.t -> qemu_domid:int -> int -> unit
 

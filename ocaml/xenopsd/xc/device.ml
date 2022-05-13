@@ -1271,13 +1271,59 @@ module Varstored = SystemdDaemonMgmt (struct
   let pid_path domid = sprintf "/local/domain/%d/varstored-pid" domid
 end)
 
-module Swtpm = SystemdDaemonMgmt (struct
-  let name = "swtpm-wrapper"
+(* TODO: struct and include and uri to uri mapper, etc.
+   also xapi needs default backend set
+*)
+module Swtpm = struct
+  module D = SystemdDaemonMgmt (struct
+    let name = "swtpm-wrapper"
 
-  let use_pidfile = false
+    let use_pidfile = false
 
-  let pid_path domid = sprintf "/local/domain/%d/varstored-pid" domid
-end)
+    let pid_path domid = sprintf "/local/domain/%d/varstored-pid" domid
+  end)
+
+  let xs_path ~domid = Device_common.get_private_path domid ^ "/vtpm"
+
+  let vtpms_of_domid ~xs ~domid =
+    try
+      let vtpm_path = xs_path domid in
+      xs.Xs.directory vtpm_path
+      |> List.map @@ fun index ->
+         xs.Xs.read @@ Filename.concat vtpm_path index
+         |> Uuidm.of_string
+         |> Option.get
+    with _ -> []
+
+  let state_path =
+    (* for easier compat with dir:// mode, but can be anything.
+       If we implement VDI state storage this could be a block device
+    *)
+    Xenops_sandbox.Chroot.Path.of_string ~relative:"tpm2-00.permall"
+
+  let restore ~xs ~domid ~vm_uuid state =
+    let path = Xenops_sandbox.Swtpm_guard.create ~domid ~vm_uuid state_path in
+    Unixext.write_string_to_file path state
+
+  let start_daemon dbg ~xs ~path ~args ~domid ~vm_uuid ~vtpm_uuid ~index () =
+    let state = Varstore_privileged_client.Client.vtpm_get_contents dbg vtpm_uuid in
+    restore ~xs ~domid ~vm_uuid state;
+    let vtpm_path = xs_path domid in
+    xs.Xs.write (Filename.concat vtpm_path @@ string_of_int index) (Uuidm.to_string vtpm_uuid);
+    D.start_daemon ~path ~args ~domid ()
+
+  let suspend ~xs ~domid ~vm_uuid =
+    D.stop ~xs domid ;
+    Xenops_sandbox.Swtpm_guard.read ~domid ~vm_uuid state_path
+
+  let stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid =
+    debug "About to stop vTPM (%s) for domain %d (%s)" (Uuidm.to_string vtpm_uuid) domid vm_uuid;
+    let contents = suspend ~xs ~domid ~vm_uuid in
+    Varstore_privileged_client.Client.vtpm_set_contents dbg vtpm_uuid contents ;
+    (* needed to save contents before wiping the chroot *)
+    Xenops_sandbox.Swtpm_guard.stop dbg ~domid ~vm_uuid
+
+end
 
 module PV_Vnc = struct
   module D = DaemonMgmt (struct
@@ -2843,7 +2889,11 @@ module Dm_Common = struct
         )
     in
     let stop_swptm () =
-      Swtpm.stop ~xs domid ;
+      let () =
+        Swtpm.vtpms_of_domid ~xs ~domid
+        |> List.iter @@ fun vtpm_uuid ->
+           Swtpm.stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid
+      in
       Xenops_sandbox.Swtpm_guard.stop dbg ~domid ~vm_uuid
     in
     let stop_vgpu () = Vgpu.stop ~xs domid in
@@ -4209,12 +4259,15 @@ module Dm = struct
   (* the following functions depend on the functions above that use the qemu
      backend Q *)
 
-  let start_swtpm ~xs task domid =
+  let start_swtpm ~xs task domid ~vtpm_uuid ~index =
     debug "Preparing to start swtpm-wrapper to provide a vTPM (domid=%d)" domid ;
+    (* TODO: move to xapi-globs *)
     let exec_path = "/usr/lib64/xen/bin/swtpm-wrapper" in
     let name = "swtpm" in
     let vm_uuid = Xenops_helpers.uuid_of_domid ~xs domid |> Uuidm.to_string in
 
+    (* TODO: based on vtpm uuid based on backend and then save back to xapi db on
+       migrate/shutdown/reboot *)
     let chroot, _socket_path =
       Xenops_sandbox.Swtpm_guard.start (Xenops_task.get_dbg task) ~vm_uuid
         ~domid ~paths:[]
@@ -4222,10 +4275,19 @@ module Dm = struct
     let tpm_root =
       Xenops_sandbox.Chroot.(absolute_path_outside chroot Path.root)
     in
-    let args = Fe_argv.Add.many [string_of_int domid; tpm_root] in
+    (* the uri here is relative to the chroot path, if chrooting is disabled then
+       swtpm-wrapper should modify the uri accordingly.
+       xenopsd needs to be in charge of choosing the scheme according to the backend
+    *)
+    let state_uri =
+      Filename.concat "file://"
+      @@ Xenops_sandbox.Chroot.chroot_path_inside Swtpm.state_path
+    in
+    let args = Fe_argv.Add.many [string_of_int domid; tpm_root; state_uri] in
     let args = Fe_argv.run args |> snd |> Fe_argv.argv in
     let timeout_seconds = !Xenopsd.swtpm_ready_timeout in
-    let execute = Swtpm.start_daemon in
+    let dbg = Xenops_task.get_dbg task in
+    let execute = Swtpm.start_daemon dbg ~xs ~vtpm_uuid ~vm_uuid ~index in
     let service =
       {Service.name; domid; exec_path; chroot; args; execute; timeout_seconds}
     in
@@ -4392,8 +4454,8 @@ module Dm = struct
     (* start swtpm-wrapper if appropriate and modify QEMU arguments as needed *)
     let tpmargs =
       match info.tpm with
-      | Some Vtpm ->
-          let tpm_socket_path = start_swtpm ~xs task domid in
+      | Some Vtpm vtpm_uuid ->
+          let tpm_socket_path = start_swtpm ~xs task domid ~vtpm_uuid ~index:0 in
           [
             "-chardev"
           ; Printf.sprintf "socket,id=chrtpm,path=%s" tpm_socket_path
@@ -4521,6 +4583,19 @@ module Dm = struct
     debug "Writing EFI variables to %s (domid=%d)" path domid ;
     Unixext.write_string_to_file path efivars ;
     debug "Wrote EFI variables to %s (domid=%d)" path domid
+
+  let suspend_vtpms (task : Xenops_task.task_handle) ~xs domid ~vm_uuid =
+    debug "Called Dm.suspend_vtpms (domid=%d)" domid ;
+    Swtpm.vtpms_of_domid ~xs ~domid
+    |> List.map @@ fun _vtpm_uuid ->
+    (* TODO: multiple vTPM support? *)
+    Swtpm.suspend ~xs ~domid ~vm_uuid
+
+  let restore_vtpm (task : Xenops_task.task_handle) ~xs ~contents domid =
+    debug "Called Dm.restore_vtpms (domid=%d)" domid ;
+    let vm_uuid = Uuidm.to_string (Xenops_helpers.uuid_of_domid ~xs domid) in
+    (* TODO: multiple vTPM support? *)
+    Swtpm.restore ~xs ~domid ~vm_uuid contents
 end
 
 (* Dm *)

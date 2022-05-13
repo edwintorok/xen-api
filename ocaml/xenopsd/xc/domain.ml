@@ -1391,6 +1391,13 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
                 debug "Read varstored record contents (domid=%d)" domid ;
                 Device.Dm.restore_varstored task ~xs ~efivars domid ;
                 process_header fd res
+            | Swtpm, len ->
+                debug "Read swtpm record header (domid=%d length=%Ld)" domid
+                  len ;
+                let contents = Io.read fd (Io.int_of_int64_exn len) in
+                debug "Read swtpm record contents (domid=%d)" domid ;
+                Device.Dm.restore_vtpm task ~xs ~contents domid ;
+                process_header fd res
             | End_of_image, _ ->
                 debug "Read suspend image footer" ;
                 res
@@ -1666,6 +1673,9 @@ let suspend_emu_manager ~(task : Xenops_task.task_handle) ~xc ~xs ~domain_type
                 let (_ : string) =
                   Device.Dm.suspend_varstored task ~xs domid ~vm_uuid
                 in
+                let (_: string list) =
+                  Device.Dm.suspend_vtpms task ~xs domid ~vm_uuid
+                in
                 ()
             ) ;
             send_done cnx ;
@@ -1742,6 +1752,24 @@ let write_varstored_record task ~xs domid main_fd =
   Io.write main_fd varstored_record ;
   return ()
 
+let forall f l =
+  let open Suspend_image.M in
+  fold (fun x () -> f x) l ()
+
+let write_vtpms_record task ~xs domid main_fd =
+  let open Suspend_image in
+  let open Suspend_image.M in
+  Device.Dm.suspend_vtpms task ~xs domid
+    ~vm_uuid:(Uuidm.to_string (Xenops_helpers.uuid_of_domid ~xs domid))
+  |> forall @@ fun swtpm_record  ->
+  let swtpm_rec_len = String.length swtpm_record in
+  debug "Writing swtpm record (domid=%d length=%d)" domid swtpm_rec_len ;
+  write_header main_fd (Swtpm, Int64.of_int swtpm_rec_len) >>= fun () ->
+  debug "Writing swtpm record contents (domid=%d)" domid ;
+  Io.write main_fd swtpm_record ;
+  return ()
+
+
 (* suspend register the callback function that will be call by linux_save and is
    in charge to suspend the domain when called. the whole domain context is
    saved to fd *)
@@ -1776,8 +1804,10 @@ let suspend (task : Xenops_task.task_handle) ~xc ~xs ~domain_type ~is_uefi ~dm
       ~domid ~uuid ~main_fd ~vgpu_fd ~flags ~progress_callback ~qemu_domid
       ~do_suspend_callback
     >>= fun () ->
-    ( if is_uefi then
-        write_varstored_record task ~xs domid main_fd
+    ( if is_uefi then begin
+      write_varstored_record task ~xs domid main_fd >>= fun () ->
+      write_vtpms_record task ~xs domid main_fd
+    end
     else
       return ()
     )
