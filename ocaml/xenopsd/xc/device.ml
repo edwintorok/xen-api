@@ -1328,7 +1328,7 @@ module Swtpm = struct
       domid vm_uuid ;
     let contents = suspend ~xs ~domid ~vm_uuid in
     debug "Storing vTPM state of %d bytes" (String.length contents);
-    Varstore_privileged_client.Client.vtpm_set_contents dbg vtpm_uuid (Base64.encode_string ~pad:false contents);
+    Varstore_privileged_client.Client.vtpm_set_contents dbg vtpm_uuid (Base64.encode_string contents);
     (* needed to save contents before wiping the chroot *)
     Xenops_sandbox.Swtpm_guard.stop dbg ~domid ~vm_uuid
 end
