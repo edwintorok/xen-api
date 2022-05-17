@@ -4465,6 +4465,7 @@ module Dm = struct
           ; "tpm-crb,tpmdev=tpm0"
           ]
       | None ->
+          D.debug "VM domid %d has no vTPM" domid;
           []
     in
 
