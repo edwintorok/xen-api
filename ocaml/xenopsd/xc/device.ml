@@ -1303,13 +1303,19 @@ module Swtpm = struct
 
   let restore ~xs ~domid ~vm_uuid state =
     let path = Xenops_sandbox.Swtpm_guard.create ~domid ~vm_uuid state_path in
+    debug "Restored vTPM for domid %d: %d bytes" domid (String.length state) ;
     Unixext.write_string_to_file path state
 
   let start_daemon dbg ~xs ~path ~args ~domid ~vm_uuid ~vtpm_uuid ~index () =
-    let state = Varstore_privileged_client.Client.vtpm_get_contents dbg vtpm_uuid in
-    restore ~xs ~domid ~vm_uuid state;
+    let state =
+      Varstore_privileged_client.Client.vtpm_get_contents dbg vtpm_uuid
+      |> Base64.decode_exn
+    in
+    restore ~xs ~domid ~vm_uuid state ;
     let vtpm_path = xs_path domid in
-    xs.Xs.write (Filename.concat vtpm_path @@ string_of_int index) (Uuidm.to_string vtpm_uuid);
+    xs.Xs.write
+      (Filename.concat vtpm_path @@ string_of_int index)
+      (Uuidm.to_string vtpm_uuid) ;
     D.start_daemon ~path ~args ~domid ()
 
   let suspend ~xs ~domid ~vm_uuid =
@@ -1317,12 +1323,14 @@ module Swtpm = struct
     Xenops_sandbox.Swtpm_guard.read ~domid ~vm_uuid state_path
 
   let stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid =
-    debug "About to stop vTPM (%s) for domain %d (%s)" (Uuidm.to_string vtpm_uuid) domid vm_uuid;
+    debug "About to stop vTPM (%s) for domain %d (%s)"
+      (Uuidm.to_string vtpm_uuid)
+      domid vm_uuid ;
     let contents = suspend ~xs ~domid ~vm_uuid in
-    Varstore_privileged_client.Client.vtpm_set_contents dbg vtpm_uuid contents ;
+    debug "Storing vTPM state of %d bytes" (String.length contents);
+    Varstore_privileged_client.Client.vtpm_set_contents dbg vtpm_uuid (Base64.encode_string ~pad:false contents);
     (* needed to save contents before wiping the chroot *)
     Xenops_sandbox.Swtpm_guard.stop dbg ~domid ~vm_uuid
-
 end
 
 module PV_Vnc = struct
@@ -4454,8 +4462,10 @@ module Dm = struct
     (* start swtpm-wrapper if appropriate and modify QEMU arguments as needed *)
     let tpmargs =
       match info.tpm with
-      | Some Vtpm vtpm_uuid ->
-          let tpm_socket_path = start_swtpm ~xs task domid ~vtpm_uuid ~index:0 in
+      | Some (Vtpm vtpm_uuid) ->
+          let tpm_socket_path =
+            start_swtpm ~xs task domid ~vtpm_uuid ~index:0
+          in
           [
             "-chardev"
           ; Printf.sprintf "socket,id=chrtpm,path=%s" tpm_socket_path
@@ -4465,7 +4475,7 @@ module Dm = struct
           ; "tpm-crb,tpmdev=tpm0"
           ]
       | None ->
-          D.debug "VM domid %d has no vTPM" domid;
+          D.debug "VM domid %d has no vTPM" domid ;
           []
     in
 
@@ -4589,8 +4599,8 @@ module Dm = struct
     debug "Called Dm.suspend_vtpms (domid=%d)" domid ;
     Swtpm.vtpms_of_domid ~xs ~domid
     |> List.map @@ fun _vtpm_uuid ->
-    (* TODO: multiple vTPM support? *)
-    Swtpm.suspend ~xs ~domid ~vm_uuid
+       (* TODO: multiple vTPM support? *)
+       Swtpm.suspend ~xs ~domid ~vm_uuid
 
   let restore_vtpm (task : Xenops_task.task_handle) ~xs ~contents domid =
     debug "Called Dm.restore_vtpms (domid=%d)" domid ;
