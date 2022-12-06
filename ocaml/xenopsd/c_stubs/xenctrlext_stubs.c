@@ -80,17 +80,8 @@ static void failwith_xc(xc_interface *xch)
         static char error_str[XC_MAX_ERROR_MSG_LEN + 6];
         int real_errno = -1;
         if (xch) {
-                const xc_error *error = xc_get_last_error(xch);
-                if (error->code == XC_ERROR_NONE) {
-                        real_errno = errno;
-                        snprintf(error_str, sizeof(error_str), "%d: %s", errno, strerror(errno));
-                } else {
-                        real_errno = error->code;
-                        snprintf(error_str, sizeof(error_str), "%d: %s: %s",
-                                 error->code,
-                                 xc_error_code_to_desc(error->code),
-                                 error->message);
-                }
+                real_errno = errno;
+                snprintf(error_str, sizeof(error_str), "%d: %s", errno, strerror(errno));
         } else {
                 snprintf(error_str, sizeof(error_str), "Unable to open XC interface");
         }
@@ -124,7 +115,9 @@ CAMLprim value stub_xenctrlext_get_runstate_info(value xch, value domid)
 	xc_runstate_info_t info;
 	int retval;
 
+	caml_enter_blocking_section();
 	retval = xc_get_runstate_info(_H(xch), _D(domid), &info);
+	caml_leave_blocking_section();
 	if (retval < 0)
 		failwith_xc(_H(xch));
 
@@ -159,7 +152,9 @@ CAMLprim value stub_xenctrlext_get_boot_cpufeatures(value xch)
 	uint32_t a, b, c, d, e, f, g, h;
 	int ret;
 
+	caml_enter_blocking_section();
 	ret = xc_get_boot_cpufeatures(_H(xch), &a, &b, &c, &d, &e, &f, &g, &h);
+	caml_leave_blocking_section();
 	if (ret < 0)
 	  failwith_xc(_H(xch));
 
@@ -196,7 +191,9 @@ CAMLprim value stub_xenctrlext_domain_get_acpi_s_state(value xch, value domid)
 	unsigned long v;
 	int ret;
 
+	caml_enter_blocking_section();
 	ret = xc_get_hvm_param(_H(xch), _D(domid), HVM_PARAM_ACPI_S_STATE, &v);
+	caml_leave_blocking_section();
 	if (ret != 0)
 		failwith_xc(_H(xch));
 
@@ -206,7 +203,9 @@ CAMLprim value stub_xenctrlext_domain_get_acpi_s_state(value xch, value domid)
 CAMLprim value stub_xenctrlext_domain_send_s3resume(value xch, value domid)
 {
 	CAMLparam2(xch, domid);
+	caml_enter_blocking_section();
 	xcext_domain_send_s3resume(_H(xch), _D(domid));
+	caml_leave_blocking_section();
 	CAMLreturn(Val_unit);
 }
 
@@ -215,7 +214,9 @@ CAMLprim value stub_xenctrlext_domain_set_timer_mode(value xch, value id, value 
 	CAMLparam3(xch, id, mode);
 	int ret;
 
+	caml_enter_blocking_section();
 	ret = xcext_domain_set_timer_mode(_H(xch), _D(id), Int_val(mode));
+	caml_leave_blocking_section();
 	if (ret < 0)
 		failwith_xc(_H(xch));
 	CAMLreturn(Val_unit);
@@ -243,7 +244,9 @@ CAMLprim value stub_xenctrlext_domain_set_target(value xch,
 {
 	CAMLparam3(xch, domid, target);
 
+	caml_enter_blocking_section();
 	int retval = xc_domain_set_target(_H(xch), _D(domid), _D(target));
+	caml_leave_blocking_section();
 	if (retval)
 		failwith_xc(_H(xch));
 	CAMLreturn(Val_unit);
@@ -321,7 +324,9 @@ CAMLprim value stub_xenctrlext_domain_update_channels(value xch, value domid,
 static int get_cpumap_len(value xch, value cpumap)
 {
 	int ml_len = Wosize_val(cpumap);
+	caml_enter_blocking_section();
 	int xc_len = xc_get_max_cpus(_H(xch));
+    caml_leave_blocking_section();
 
 	return (ml_len < xc_len ? ml_len : xc_len);
 }
@@ -334,7 +339,9 @@ CAMLprim value stub_xenctrlext_vcpu_setaffinity_soft(value xch, value domid,
 	xc_cpumap_t c_cpumap;
 	int retval;
 
+	caml_enter_blocking_section();
 	c_cpumap = xc_cpumap_alloc(_H(xch));
+    caml_leave_blocking_section();
 	if (c_cpumap == NULL)
 		failwith_xc(_H(xch));
 
@@ -342,11 +349,13 @@ CAMLprim value stub_xenctrlext_vcpu_setaffinity_soft(value xch, value domid,
 		if (Bool_val(Field(cpumap, i)))
 			c_cpumap[i/8] |= 1 << (i&7);
 	}
+	caml_enter_blocking_section();
 	retval = xc_vcpu_setaffinity(_H(xch), _D(domid),
 				     Int_val(vcpu),
 				     NULL, c_cpumap,
 				     XEN_VCPUAFFINITY_SOFT);
 	free(c_cpumap);
+    caml_leave_blocking_section();
 
 	if (retval < 0)
 		failwith_xc(_H(xch));
@@ -363,7 +372,9 @@ CAMLprim value stub_xenctrlext_numainfo(value xch)
         unsigned i, j;
         int retval;
 
+        caml_enter_blocking_section();
         retval = xc_numainfo(_H(xch), &max_nodes, NULL, NULL);
+        caml_leave_blocking_section();
         if (retval < 0)
             failwith_xc(_H(xch));
 
@@ -375,7 +386,9 @@ CAMLprim value stub_xenctrlext_numainfo(value xch)
             caml_raise_out_of_memory();
         }
 
+        caml_enter_blocking_section();
         retval = xc_numainfo(_H(xch), &max_nodes, meminfo, distance);
+        caml_leave_blocking_section();
         if (retval < 0) {
             free(meminfo);
             free(distance);
@@ -416,7 +429,9 @@ CAMLprim value stub_xenctrlext_cputopoinfo(value xch)
         unsigned max_cpus, i;
         int retval;
 
+        caml_enter_blocking_section();
         retval = xc_cputopoinfo(_H(xch), &max_cpus, NULL);
+        caml_leave_blocking_section();
         if (retval < 0)
             failwith_xc(_H(xch));
 
@@ -424,7 +439,9 @@ CAMLprim value stub_xenctrlext_cputopoinfo(value xch)
         if (!cputopo)
             caml_raise_out_of_memory();
 
+        caml_enter_blocking_section();
         retval = xc_cputopoinfo(_H(xch), &max_cpus, cputopo);
+        caml_leave_blocking_section();
         if (retval < 0) {
             free(cputopo);
             failwith_xc(_H(xch));
@@ -458,7 +475,9 @@ CAMLprim value stub_xenforeignmemory_open(value logger, value open_flags)
         // handle fails the ocaml GC will collect this abstract tag
         result = caml_alloc(1, Abstract_tag);
 
+        caml_enter_blocking_section();
         fmem = xenforeignmemory_open(log_handle, Int_val(open_flags));
+        caml_leave_blocking_section();
 
         if(fmem == NULL) {
                 caml_failwith("Error when opening foreign memory handle");
@@ -479,7 +498,9 @@ CAMLprim value stub_xenforeignmemory_close(value fmem)
                         "Error: cannot close NULL foreign memory handle");
         }
 
+        caml_enter_blocking_section();
         retval = xenforeignmemory_close(Xfm_val(fmem));
+        caml_leave_blocking_section();
 
         if(retval < 0) {
                 caml_failwith("Error when closing foreign memory handle");
@@ -536,9 +557,11 @@ CAMLprim value stub_xenforeignmemory_map(value fmem, value dom,
                 cell = Field(cell, 1);
         }
 
+        caml_enter_blocking_section();
         retval = xenforeignmemory_map
                 (Xfm_val(fmem), _D(dom), prot, pages_length, arr, NULL);
         the_errno = errno;
+        caml_leave_blocking_section();
 
         free(arr);
 
@@ -563,8 +586,10 @@ CAMLprim value stub_xenforeignmemory_unmap(value fmem, value mapping)
         // convert mapping to pages and addr
         pages = Caml_ba_array_val(mapping)->dim[0] / 4096;
 
+        caml_enter_blocking_section();
         retval = xenforeignmemory_unmap(Xfm_val(fmem),
                         Caml_ba_data_val(mapping), pages);
+        caml_leave_blocking_section();
         the_errno = errno;
 
         if(retval < 0) {

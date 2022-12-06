@@ -11,12 +11,14 @@
 #include <sys/ioctl.h>
 #include <linux/if_tun.h>
 #include <fcntl.h>
+#include <errno.h>
 
-
+#include <caml/alloc.h>
 #include <caml/mlvalues.h>
 #include <caml/fail.h>
 #include <caml/callback.h>
 #include <caml/memory.h>
+#include <caml/unixsupport.h>
 
 #define PATH_NET_TUN "/dev/net/tun"
 
@@ -43,18 +45,20 @@ CAMLprim value stub_tap_open(value ocaml_ifname)
 
     int fd = open(PATH_NET_TUN, O_RDWR);
     if (fd < 0) {
-        caml_failwith("open(" PATH_NET_TUN ") failed in " __FILE__);
+        uerror("open", caml_copy_string(PATH_NET_TUN));
     }
 
     if (ioctl(fd, TUNGETFEATURES, &features) == -1) {
+        int saved_errno = errno;
         close(fd);
-        caml_failwith("TUNGETFEATURES failed in " __FILE__);
+        unix_error(errno, "ioctl(TUNGETFEATURES)", caml_copy_string(PATH_NET_TUN));
     }
 
     ifr.ifr_flags = IFF_TAP | IFF_NO_PI | (features & IFF_ONE_QUEUE);
     if (ioctl(fd, TUNSETIFF, (void *) &ifr) != 0) {
+        int saved_errno = errno;
         close(fd);
-        caml_failwith("ioctl failed in " __FILE__);
+        unix_error(errno, "ioctl(TUNSETIFF)", caml_copy_string(PATH_NET_TUN));
     }
 
     fcntl(fd, F_SETFL, O_NONBLOCK);

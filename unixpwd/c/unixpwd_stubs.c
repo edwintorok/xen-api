@@ -20,6 +20,8 @@
 #include <caml/fail.h>
 #include <caml/callback.h>
 #include <caml/memory.h>
+#include <caml/threads.h>
+#include <caml/unixsupport.h>
 
 #include "unixpwd.h"
 
@@ -28,14 +30,18 @@ CAMLprim        value
 caml_unixpwd_getpwd(value caml_user)
 {
     CAMLparam1(caml_user);
-    const char     *user;
-    char           *passwd;
+    char     *user;
+    char     *passwd;
     CAMLlocal1(pw);
 
-    user = String_val(caml_user);
+    user = caml_stat_strdup(String_val(caml_user));
+    caml_enter_blocking_section();
     passwd = unixpwd_getpwd(user);
+    caml_leave_blocking_section();
+    caml_stat_free(user);
+
     if (passwd == NULL && errno != 0)
-        caml_failwith(strerror(errno));
+        uerror("getpwnam_r", caml_user);
     if (passwd == NULL)
         caml_failwith("unspecified error in caml_unixpwd_getpwd()");
 
@@ -48,14 +54,18 @@ CAMLprim        value
 caml_unixpwd_getspw(value caml_user)
 {
     CAMLparam1(caml_user);
-    const char     *user;
-    char           *passwd;
+    char     *user;
+    char     *passwd;
     CAMLlocal1(pw);
 
-    user = String_val(caml_user);
+    user = caml_stat_strdup(String_val(caml_user));
+    caml_enter_blocking_section();
     passwd = unixpwd_getspw(user);
+    caml_leave_blocking_section();
+    caml_stat_free(user);
+
     if (passwd == NULL && errno != 0)
-        caml_failwith(strerror(errno));
+        uerror("getspnam_r", caml_user);
     if (passwd == NULL)
         caml_failwith("unspecified error in caml_unixpwd_getspw()");
 
@@ -70,14 +80,18 @@ CAMLprim        value
 caml_unixpwd_get(value caml_user)
 {
     CAMLparam1(caml_user);
-    const char     *user;
-    char           *passwd;
+    char     *user;
+    char     *passwd;
     CAMLlocal1(pw);
 
-    user = String_val(caml_user);
+    user = caml_stat_strdup(String_val(caml_user));
+    caml_enter_blocking_section();
     passwd = unixpwd_get(user);
+    caml_leave_blocking_section();
+    caml_stat_free(user);
+
     if (passwd == NULL && errno != 0)
-        caml_failwith(strerror(errno));
+        uerror("unixpwd_get", caml_user);
     if (passwd == NULL)
         caml_failwith("unspecified error in caml_unixpwd_get()");
 
@@ -90,16 +104,20 @@ CAMLprim        value
 caml_unixpwd_setpwd(value caml_user, value caml_password)
 {
     CAMLparam2(caml_user, caml_password);
-    const char     *user;
-    char           *password;
-    int             rc;
+    char     *user;
+    char     *password;
+    int       rc;
 
-    user = String_val(caml_user);
+    user = caml_stat_strdup(String_val(caml_user));
     password = caml_stat_strdup(String_val(caml_password));
+    caml_enter_blocking_section();
     rc = unixpwd_setpwd(user, password);
+    caml_leave_blocking_section();
+    caml_stat_free(user);
     caml_stat_free(password);
+
     if (rc != 0)
-        caml_failwith(strerror(rc));
+        unix_error(rc, "unixpwd_setpwd", caml_user);
     CAMLreturn(Val_unit);
 }
 
@@ -107,16 +125,20 @@ CAMLprim        value
 caml_unixpwd_setspw(value caml_user, value caml_password)
 {
     CAMLparam2(caml_user, caml_password);
-    const char     *user;
-    char           *password;
-    int             rc;
+    char     *user;
+    char     *password;
+    int       rc;
 
-    user = String_val(caml_user);
+    user = caml_stat_strdup(String_val(caml_user));
     password = caml_stat_strdup(String_val(caml_password));
+    caml_enter_blocking_section();
     rc = unixpwd_setspw(user, password);
+    caml_leave_blocking_section();
+    caml_stat_free(user);
     caml_stat_free(password);
+
     if (rc != 0)
-        caml_failwith(strerror(rc));
+        uerror("unixpwd_setspw", caml_user);
     CAMLreturn(Val_unit);
 }
 
@@ -127,9 +149,11 @@ caml_unixpwd_unshadow(void)
     char           *passwords;
     CAMLlocal1(str);
 
+    caml_enter_blocking_section();
     passwords = unixpwd_unshadow();
+    caml_leave_blocking_section();
     if (passwords == NULL && errno != 0)
-        caml_failwith(strerror(errno));
+        uerror("unixpwd_unshadow", Nothing);
     if (passwords == NULL)
         caml_failwith("unspecified error in caml_unixpwd_unshadow()");
 

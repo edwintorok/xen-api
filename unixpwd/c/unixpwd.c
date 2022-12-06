@@ -91,6 +91,7 @@ unixpwd_setpwd(const char *user, char *password)
     struct stat     statbuf;
     int             rc;
     int             updated = 0;
+    FILE            *shadow;
 
     strncpy(tmp_name, TMP_PASSWD, sizeof tmp_name);
     tmp = mkstemp(tmp_name);
@@ -105,20 +106,28 @@ unixpwd_setpwd(const char *user, char *password)
         return rc;
     }
 
-    setpwent();
+    errno = 0;
+    shadow = fopen(ETC_SPASSWD, "r");
+    if (!shadow)
+        return errno;
     while (1) {
-        rc = getpwent_r(&pwd, buf, BUFLEN, &pw);
+        rc = fgetpwent_r(shadow, &pwd, buf, BUFLEN, &pw);
         if (rc != 0 || !pw)
             break;
         if (!strcmp(user, pw->pw_name)) {
             pw->pw_passwd = password;
             updated++;
         }
-        putpwent(pw, tmp_file);
+        rc = putpwent(pw, tmp_file);
+        if (rc != 0)
+            break;
     }
-    endpwent();
+    fclose(shadow);
+    shadow = NULL;
 
-    fclose(tmp_file);
+    /* ENOSPC might be indicated on fclose, have to test */
+    if (fclose(tmp_file) != 0 && !rc)
+        rc = errno;
     if (rc != ENOENT) {
         unlink(tmp_name);
         return rc;
@@ -215,7 +224,9 @@ unixpwd_unshadow(void)
 
     char           *buf;
     int             size,
-                    cur;
+                    cur,
+                    saved_errno;
+    FILE           *shadow;
 
     size = 1024;
     cur = 0;
@@ -224,12 +235,15 @@ unixpwd_unshadow(void)
         return NULL;
     }
 
-    setpwent();
+    shadow = fopen(ETC_SPASSWD, "r");
+    if (!shadow)
+        return NULL;
+
     while (1) {
         char            tmp[BUFLEN];
         int             written;
 
-        if (getpwent_r(&pwd, pwbuf, BUFLEN, &pw) != 0 || !pw)
+        if (fgetpwent_r(shadow, &pwd, pwbuf, BUFLEN, &pw) != 0 || !pw)
             break;
         getspnam_r(pw->pw_name, &spw, spbuf, BUFLEN, &sp);
 
@@ -240,22 +254,26 @@ unixpwd_unshadow(void)
                            pw->pw_gid,
                            pw->pw_gecos, pw->pw_dir, pw->pw_shell);
         if (written >= BUFLEN) {
-            endpwent();
+            fclose(shadow);
             free(buf);
+            errno = ERANGE;
             return NULL;
         }
         while (cur + written > size) {
             size = size << 1;
             buf = realloc(buf, size);
             if (!buf) {
-                endpwent();
+                saved_errno = errno;
+                fclose(shadow);
+                free(buf);
+                errno = saved_errno;
                 return NULL;
             }
         }
         strncpy(buf + cur, tmp, size - cur);
         cur += written;
     }
-    endpwent();
+    fclose(shadow);
 
     return buf;
 }

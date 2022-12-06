@@ -32,10 +32,7 @@
 #include <caml/fail.h>
 #include <caml/callback.h>
 #include <caml/bigarray.h>
-
-/* ocaml/ocaml/unixsupport.c */
-extern void uerror(char *cmdname, value cmdarg);
-#define Nothing ((value) 0)
+#include <caml/unixsupport.h>
 
 enum direct_copy_rc {
   OK                   = 0,
@@ -67,7 +64,7 @@ CAMLprim value stub_init(value in_fd, value out_fd)
   /* This is where we will keep the handle on return to OCaml. The
    * Abstract tag teaches OCaml's garbage collector not to mess with
    * it */
-  result = alloc(1, Abstract_tag);
+  result = caml_alloc(1, Abstract_tag);
 
   /* initialise handle */
   cpinfo = malloc(sizeof(struct direct_copy_handle));
@@ -86,10 +83,11 @@ CAMLprim value stub_init(value in_fd, value out_fd)
      we might get on setting the flag.
   */
   flags = fcntl(c_out_fd, F_GETFL, NULL);
-  if (flags > 0 && !(flags & O_DIRECT))
+  if (flags >= 0 && !(flags & O_DIRECT))
     fcntl(c_out_fd, F_SETFL, flags | O_DIRECT);
 #endif
 
+  /* TODO: OCaml 5? */
   Field(result, 0) = (uintptr_t)cpinfo;
   CAMLreturn(result);
 
@@ -137,7 +135,7 @@ CAMLprim value stub_direct_copy(value handle, value len){
    * values may be accessed, until it is reacquired. Also this
    * means other OCaml threads may do things while this is going
    * on so the caller must be careful. */
-  enter_blocking_section();
+  caml_enter_blocking_section();
 
   rc = TRIED_AND_FAILED;
   bytes = 0;
@@ -198,7 +196,7 @@ CAMLprim value stub_direct_copy(value handle, value len){
   rc = OK;
 fail:
 
-  leave_blocking_section();
+  caml_leave_blocking_section();
   /* Now that the OCaml runtime lock is reacquired, it is safe to
    * raise OCaml exceptions */
 
