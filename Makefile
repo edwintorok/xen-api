@@ -216,4 +216,8 @@ uninstall:
 		xapi-open-uri
 
 compile_flags.txt: Makefile
-	(ocamlc -config-var ocamlc_cflags; ocamlc -config-var ocamlc_cppflags; echo -I$(shell ocamlc -where)) | xargs -n1 echo >$@
+	(ocamlc -config-var ocamlc_cflags;\
+	ocamlc -config-var ocamlc_cppflags;\
+	echo -I$(shell ocamlc -where);\
+	echo -Wall -Wextra -Wstrict-prototypes -D_FORTIFY_SOURCE=2\
+	) | xargs -n1 echo >$@
