@@ -214,3 +214,6 @@ uninstall:
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
 		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
 		xapi-open-uri
+
+compile_flags.txt: Makefile
+	(ocamlc -config-var ocamlc_cflags; ocamlc -config-var ocamlc_cppflags; echo -I$(shell ocamlc -where)) | xargs -n1 echo >$@
