@@ -106,8 +106,7 @@ caml_unixpwd_setspw(value caml_user, value caml_password)
                             unixpwd_setspw);
 }
 
-CAMLprim        value
-caml_unixpwd_unshadow(void)
+CAMLprim value caml_unixpwd_unshadow(value _unused)
 {
     CAMLparam0();
     char           *passwords;
