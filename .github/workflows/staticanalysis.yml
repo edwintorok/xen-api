@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       package: "xapi-lintcstubs"
+      # for building .cmt, TODO: restructure so the C stubs don't need these
+      xapideps: "xentoollog xapi-stdext-pervasives lwt_ssl xenctrl io-page conf-pam conf-xxhash"
       XAPI_VERSION: "v0.0.0-${{ github.sha }}"
       # required for dune cache to work inside opam for now, otherwise it
       # gets EXDEV and considers it a cache miss
@@ -48,6 +50,7 @@ jobs:
         run: |
           opam update
           opam install --deps-only ${{ env.package }}
+          opam install ${{ env.xapideps }}
 
         # The checkout action performs a shallow, this triggers dune to set the
         # version to <hash>-dirty. Work around this dune behaviour and tag the
