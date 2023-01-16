@@ -12,7 +12,6 @@ depends: [
   # for building the .cmt files, TODO: restructure libs such that C stubs
   # have less deps
   "xapi-stdext-pervasives"
-  "xentoollog"
   "lwt_ssl"
   "xenctrl"
   "io-page"

@@ -6,7 +6,7 @@ JOBS = $(shell getconf _NPROCESSORS_ONLN)
 PROFILE=release
 OPTMANDIR ?= $(OPTDIR)/man/man1/
 
-.PHONY: build clean test test-analyze doc python format install uninstall
+.PHONY: build clean test test-analyze doc python format install uninstall lock monorepo-deps pool
 
 # if we have XAPI_VERSION set then set it in dune-project so we use that version number instead of the one obtained from git
 # this is typically used when we're not building from a git repo
@@ -228,3 +228,27 @@ compile_flags.txt: Makefile
 	echo -I$(shell ocamlc -where);\
 	echo -Wall -Wextra -Wstrict-prototypes -D_FORTIFY_SOURCE=2\
 	) | xargs -n1 echo >$@
+
+lock:
+	dune build xapi.opam.locked
+
+container_cli: scripts/monorepo-container/detect_container_cli.sh
+	$< >$@.tmp
+	chmod +x $@.tmp
+	mv $@.tmp $@
+
+pool: container_cli
+	dune build scripts/devpool/Containerfile --no-buffer
+	rm -f Containerfile && cp _build/default/scripts/devpool/Containerfile .
+	./container_cli build --security-opt=label=disable --build-arg GITDESCRIBE=$(shell git describe --dirty) -t cpd -f Containerfile .
+
+DOCKER_NETWORK=xapi-test-pool
+pool-run:
+	./container_cli network inspect $(DOCKER_NETWORK) || ./container_cli network create $(DOCKER_NETWORK)
+	./container_cli run -d --network=$(DOCKER_NETWORK) --rm -it -v /dev/log:/dev/log -v $(shell pwd)/run.sh:/home/opam/run.sh:z cpd sudo sh /home/opam/run.sh
+	./container_cli run --network=$(DOCKER_NETWORK) --rm -it -v /dev/log:/dev/log -v $(shell pwd)/run.sh:/home/opam/run.sh:z cpd sudo sh /home/opam/run.sh
+
+monorepo-pull: container_cli scripts/containers-pool-dev/Containerfile.tools xapi.opam.locked
+	dune build scripts/containers-pool-dev/Containerfile.tools
+	./container_cli build -t cpd-tools -f scripts/containers-pool-dev/Containerfile.tools scripts/containers-pool-dev
+	./container_cli run --rm -v ~/.opam/download-cache:/home/opam/.opam/download-cache:rw,z -v $(shell pwd):/host:rw,z cpd-tools sh -c 'cd /host && opam monorepo pull'

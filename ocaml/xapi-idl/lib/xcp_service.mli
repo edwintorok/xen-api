@@ -14,7 +14,7 @@
 
 val common_prefix : string
 
-val pidfile: string ref
+val pidfile : string ref
 
 type opt = string * Arg.spec * (unit -> string) * string
 
