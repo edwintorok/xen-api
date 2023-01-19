@@ -9,7 +9,6 @@
    xenstore
    xenstore.unix
    xenstore_transport
-   xenstore_transport.unix
    threads
    xapi-idl.xen
    rpclib.core
