@@ -34,30 +34,31 @@ module OfAssocList = Generic.MakeStateless (struct
   let tests =
     `QuickAndAutoDocumented
       [
-        ([], [Xen_motion; AD; Updates])
+        ([], [Pooling; Xen_motion; AD; Updates])
       ; ( [
-            ("restrict_xen_motion", "true")
+            ("restrict_pooling", "true")
+          ; ("restrict_xen_motion", "true")
           ; ("restrict_ad", "true")
           ; ("restrict_updates", "true")
           ]
         , []
         )
-      ; ([("restrict_xen_motion", "true")], [AD; Updates])
-      ; ([("restrict_xen_motion", "false")], [Xen_motion; AD; Updates])
+      ; ([("restrict_xen_motion", "true")], [Pooling; AD; Updates])
+      ; ([("restrict_xen_motion", "false")], [Pooling; Xen_motion; AD; Updates])
       ; ( [("restrict_xen_motion", "false"); ("restrict_dmc", "false")]
-        , [DMC; Xen_motion; AD; Updates]
+        , [Pooling; DMC; Xen_motion; AD; Updates]
         )
       ; ( [
             ("restrict_xen_motion", "false")
           ; ("restrict_ad", "true")
           ; ("restrict_dmc", "false")
           ]
-        , [DMC; Xen_motion; Updates]
+        , [Pooling; DMC; Xen_motion; Updates]
         )
       ; ( [("enable_xha", "true"); ("restrict_xen_motion", "true")]
-        , [HA; AD; Updates]
+        , [Pooling; HA; AD; Updates]
         )
-      ; ([("restrict_updates", "true")], [Xen_motion; AD])
+      ; ([("restrict_updates", "true")], [Pooling; Xen_motion; AD])
       ]
 end)
 
