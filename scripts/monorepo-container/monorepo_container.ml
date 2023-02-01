@@ -215,7 +215,7 @@ let with_writediscard_mount ~uniqueid:_ ~host_source ~target t =
       ~source:
         Fpath.(to_string host_source)
         (* rw here means that writes are permitted, but do not take effect on the host *)
-      ~target:(Fpath.(to_string target))
+      ~target:Fpath.(to_string target)
       ()
   in
   Dockerfile.with_mounts [mount]
@@ -276,7 +276,9 @@ let dune_workspace = Fpath.v "/home/opam/workspace"
 let monorepo_pull ~lockfile =
   let lockfile_dst = Fpath.(dune_workspace // base lockfile) in
   let digest = Digest.file Fpath.(to_string lockfile) |> Digest.to_hex in
-  let lockfile = Fpath.relativize ~root:Fpath.(v "../../") lockfile |> Option.get in
+  let lockfile =
+    Fpath.relativize ~root:Fpath.(v "../../") lockfile |> Option.get
+  in
   (* could use COPY, but that is based on timestamps,
      which won't work well with caching, a digest is more reliable *)
   with_writediscard_mount ~uniqueid:digest ~host_source:lockfile
