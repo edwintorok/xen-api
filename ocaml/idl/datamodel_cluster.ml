@@ -90,7 +90,7 @@ let create =
         ; pif_allows_unplug
         ; required_pif_is_unplugged
         ]
-      
+
     ()
 
 let destroy =
@@ -160,7 +160,7 @@ let pool_destroy =
     ~errs:
       Api_errors.
         [cluster_stack_in_use; clustering_disabled; cluster_host_is_last]
-      
+
     ()
 
 let pool_resync =

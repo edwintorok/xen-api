@@ -196,3 +196,6 @@ val log_package_levels : (string * level) list -> t -> t
 
 val to_string : t -> string
 (** [to_string config] returns a Yaml representation of [config]. *)
+
+val to_dict: t -> (string * string) list
+(** [to_dict config] returns a list of key-value pairs of [config] *)

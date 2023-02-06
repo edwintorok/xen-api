@@ -209,3 +209,6 @@ let to_string t =
      However systemd unit wants a config file with env vars, not yaml.
   *)
   t |> StringMap.bindings |> kv_string ~sep:"\n" to_env_key Filename.quote
+
+let to_dict t =
+  t |> StringMap.bindings
