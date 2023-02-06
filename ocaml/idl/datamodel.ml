@@ -7808,6 +7808,8 @@ let all_system =
   ; Datamodel_certificate.t
   ; Datamodel_diagnostics.t
   ; Datamodel_repository.t
+  ; Datamodel_nvram_store.t
+  ; Datamodel_nvram_store_member.t
   ]
 
 (* If the relation is one-to-many, the "many" nodes (one edge each) must come before the "one" node (many edges) *)
@@ -7888,6 +7890,7 @@ let all_relations =
   ; ((_network_sriov, "physical_PIF"), (_pif, "sriov_physical_PIF_of"))
   ; ((_network_sriov, "logical_PIF"), (_pif, "sriov_logical_PIF_of"))
   ; ((_certificate, "host"), (_host, "certificates"))
+  ; ((nvram_store_member, "nvram_store"), (nvram_store, "nvram_store_members"))
   ]
 
 let update_lifecycles =
@@ -8040,6 +8043,8 @@ let expose_get_all_messages_for =
   ; _certificate
   ; _repository
   ; _vtpm
+  ; nvram_store
+  ; nvram_store_member
   ]
 
 let no_task_id_for = [_task; (* _alert; *) _event]

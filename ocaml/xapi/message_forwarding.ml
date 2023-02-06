@@ -6405,6 +6405,22 @@ functor
         find_first_live other_hosts
     end
 
+    module NVRAM_store = Local.NVRAM_store
+
+    module NVRAM_store_member = struct
+      include Local.NVRAM_store_member
+
+      let set_joined ~__context ~self ~joined =
+        info "%s, self=%s, joined=%b" __FUNCTION__ (Ref.string_of self) joined ;
+        let local_fn ~__context =
+          Local.NVRAM_store_member.set_joined ~__context ~self ~joined
+        in
+        let host = Db.NVRAM_store_member.get_host ~__context ~self in
+        do_op_on ~local_fn ~__context ~host (fun session_id rpc ->
+            Client.NVRAM_store_member.set_joined ~rpc ~session_id ~self ~joined
+        )
+    end
+
     module Certificate = struct end
 
     module Repository = struct

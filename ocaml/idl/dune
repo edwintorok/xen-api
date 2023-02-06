@@ -6,6 +6,7 @@
     datamodel_pool datamodel_cluster datamodel_cluster_host dm_api escaping
     datamodel_values datamodel_schema datamodel_certificate
     datamodel_diagnostics datamodel_repository datamodel_lifecycle
+    datamodel_nvram_store datamodel_nvram_store_member
     datamodel_vtpm)
   (libraries
     ppx_sexp_conv.runtime-lib

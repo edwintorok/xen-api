@@ -2099,6 +2099,9 @@ let t =
         ; field ~qualifier:DynamicRO ~lifecycle:[] ~ty:Bool
             ~default_value:(Some (VBool false)) "https_only"
             "Reflects whether port 80 is open (false) or not (true)"
+        ; field ~qualifier:DynamicRO ~ty:(Ref nvram_store) "nvram_store"
+            "NVRAM storage server associated with this host" ~lifecycle:[]
+            ~default_value:(Some (VRef null_ref))
         ]
       )
     ()
