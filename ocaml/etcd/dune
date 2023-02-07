@@ -1,4 +1,5 @@
 (library
   (name xapi_etcd)
-  (libraries yaml fpath uri ipaddr)
+  (libraries fpath uri ipaddr fmt)
+  (preprocess (pps ppx_deriving_rpc))
 )
