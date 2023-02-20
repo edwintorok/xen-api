@@ -22,20 +22,29 @@ let xml_url () = "file:" ^ xml_path
 let known_present = ref false
 
 let ensure_queue_present () =
-  let t = get_ok @@ Message_switch_unix.Protocol_unix.Client.connect ~switch:!Xcp_client.switch_path () in
-  match Message_switch_unix.Protocol_unix.Client.list ~t ~prefix:!queue_name ~filter:`Alive () with
-  | Ok _ -> ()
-  | _ ->
-      D.warn "Cannot find v6 queue %s in message_switch" !queue_name;
-      raise (V6_error V6d_failure)
-
+  if !known_present then
+    ()
+  else
+    let t =
+      get_ok
+      @@ Message_switch_unix.Protocol_unix.Client.connect
+           ~switch:!Xcp_client.switch_path ()
+    in
+    match
+      Message_switch_unix.Protocol_unix.Client.list ~t ~prefix:!queue_name
+        ~filter:`Alive ()
+    with
+    | Ok lst when List.mem !queue_name lst ->
+        known_present := true
+    | _ ->
+        D.warn "Cannot find v6 queue %s in message_switch" !queue_name ;
+        raise (V6_error V6d_failure)
 
 let rpc call =
-  if !use_switch then begin
-    ensure_queue_present ();
+  if !use_switch then (
+    ensure_queue_present () ;
     json_switch_rpc !queue_name call
-  end
-  else
+  ) else
     xml_http_rpc ~srcstr:"xapi" ~dststr:"v6d" xml_url call
 
 module Client = V6_interface.RPC_API (Idl.Exn.GenClient (struct

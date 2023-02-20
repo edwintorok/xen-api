@@ -1354,6 +1354,8 @@ module Bridge = struct
                 [parent]
             | _, bond_iface :: _ ->
                 Linux_bonding.get_bond_slaves bond_iface
+            | [], [] when physical_ifaces = [] ->
+                [name]
             | [], [] ->
                 physical_ifaces
           )
