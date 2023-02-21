@@ -240,7 +240,7 @@ container_cli: scripts/monorepo-container/detect_container_cli.sh
 pool: container_cli
 	dune build scripts/devpool/Containerfile --no-buffer
 	rm -f Containerfile && cp _build/default/scripts/devpool/Containerfile .
-	./container_cli build --security-opt=label=disable --build-arg GITDESCRIBE=$(shell git describe --dirty) -t cpd -f Containerfile .
+	./container_cli build --build-arg GITDESCRIBE=$(shell git describe --dirty) -t cpd -f Containerfile .
 
 DOCKER_NETWORK=xapi-test-pool
 pool-run:
