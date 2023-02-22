@@ -25,6 +25,8 @@ let initial_of_store ~__context ~nvram_store =
      , Uri.of_string @@ member.nVRAM_store_member_peer_url
      )
 
+let https = false
+
 let create ~__context ~nvram_store ~host ~pIF =
   info "%s: host = %s; pif = %s" __FUNCTION__ (Ref.string_of host)
     (Ref.string_of pIF) ;
@@ -32,7 +34,7 @@ let create ~__context ~nvram_store ~host ~pIF =
   let uuid = Uuidx.(to_string (make ())) in
   (* TODO: proxy through 443 with another SNI/cert *)
   let peer_url =
-    Config.make_uri ~https:true (ipaddr_of_pif ~__context ~pIF) ~port:2380
+    Config.make_uri ~https (ipaddr_of_pif ~__context ~pIF) ~port:2380
   in
   let unique_name = unique_name_of ~__context ~host in
   let client_url =
