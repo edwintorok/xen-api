@@ -14,8 +14,9 @@ let ipaddr_of_pif ~__context ~pIF =
 let unique_name_of ~__context ~host =
   Config.Name (Db.Host.get_uuid ~__context ~self:host)
 
-let initial_of_store ~__context ~nvram_store =
-  Db.NVRAM_store_member.get_records_where ~__context
+let initial_of_store ~__context ~nvram_store ~host ~peer_url =
+  (unique_name_of ~__context ~host, peer_url) ::
+  (Db.NVRAM_store_member.get_records_where ~__context
     ~expr:
       Db_filter_types.(
         Eq (Literal (Ref.string_of nvram_store), Field "nvram_store")
@@ -23,7 +24,7 @@ let initial_of_store ~__context ~nvram_store =
   |> List.map @@ fun (_, member) ->
      ( unique_name_of ~__context ~host:member.API.nVRAM_store_member_host
      , Uri.of_string @@ member.nVRAM_store_member_peer_url
-     )
+     ))
 
 let https = false
 
@@ -42,13 +43,16 @@ let create ~__context ~nvram_store ~host ~pIF =
   in
   let advertise_client_url =
     Uri.with_port peer_url (Some 2379) in
+  let initial_cluster_list =
+    initial_of_store ~__context ~nvram_store ~host ~peer_url
+  in
   (* TODO: config and peer_url should be more dynamic, and should forward it
      through stunnel *)
   let config =
     Config.default
     |> Config.(add log_output [Stderr])
     |> Config.(add name unique_name)
-    |> Config.(add initial_cluster @@ initial_of_store ~__context ~nvram_store)
+    |> Config.(add initial_cluster initial_cluster_list)
     |> Config.(add listen_peer_urls [peer_url])
     |> Config.(add initial_advertise_peer_urls [peer_url])
     |> Config.(add listen_client_urls [client_url])
