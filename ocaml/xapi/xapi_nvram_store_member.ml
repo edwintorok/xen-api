@@ -46,6 +46,7 @@ let create ~__context ~nvram_store ~host ~pIF =
      through stunnel *)
   let config =
     Config.default
+    |> Config.(add log_output [Stderr])
     |> Config.(add name unique_name)
     |> Config.(add initial_cluster @@ initial_of_store ~__context ~nvram_store)
     |> Config.(add listen_peer_urls [peer_url])

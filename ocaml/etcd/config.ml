@@ -316,6 +316,17 @@ let string_of_level = function
 let log_package_levels =
   field Member_startup "log-package-levels" @@ kv_string Fun.id string_of_level
 
+type log_target = Stdout | Stderr | Default
+
+let string_of_log_target = function
+  | Stdout -> "stdout"
+  | Stderr -> "stderr"
+  | Default -> "default"
+
+let log_output =
+  field Member_startup "log-output" @@ fun lst ->
+  lst |> List.map string_of_log_target |> String.concat ","
+
 (** [force_new_cluster enable t] Force to create a new one member cluster.*)
 let force_new_cluster = field Bootstrap "force-new-cluster" bool
 

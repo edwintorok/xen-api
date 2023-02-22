@@ -207,6 +207,27 @@ val log_package_levels : (string * level) list field
     @param levels e.g. [etcmain, CRITICAL; etcdserver, DEBUG]
 *)
 
+
+type log_target =
+  | Stdout (** send log messages to standard output *)
+  | Stderr (** send log messages to standard error *)
+  | Default (** send log messages to journald when running under systemd *)
+
+val log_output : log_target list field
+(** [log_output] Specify where to write log output.
+
+  Note: the [Default] target is buggy under our version of systemd+journald:
+  when logging to the journal upon startup failure it only logs 1 line,
+  and journald furthermore loses that line when it forwards to rsyslog.
+  (it only works if StandardError is set to 'kmsg')
+
+  Setting [log_output] to [Stderr] is a lot more reliable, and prevents losing
+  log lines.
+
+  @param targets e.g. [Stderr].
+*)
+
+
 (** {2:Other configuration} *)
 
 val other : string -> string field
