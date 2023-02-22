@@ -38,7 +38,10 @@ let create ~__context ~nvram_store ~host ~pIF =
   let client_url =
     Db.NVRAM_store.get_client_url ~__context ~self:nvram_store |> Uri.of_string
   in
-  (* TODO: config and peer_url should be more dynamic *)
+  let advertise_client_url =
+    Uri.with_port peer_url (Some 2379) in
+  (* TODO: config and peer_url should be more dynamic, and should forward it
+     through stunnel *)
   let config =
     Config.default
     |> Config.(add name unique_name)
@@ -46,6 +49,7 @@ let create ~__context ~nvram_store ~host ~pIF =
     |> Config.(add listen_peer_urls [peer_url])
     |> Config.(add initial_advertise_peer_urls [peer_url])
     |> Config.(add listen_client_urls [client_url])
+    |> Config.(add advertise_client_urls [advertise_client_url])
     (* TODO: peer-transport-security *)
     |> Config.to_dict
   in
