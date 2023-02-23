@@ -28,6 +28,9 @@ let initial_of_store ~__context ~nvram_store ~host ~peer_url =
 
 let https = false
 
+let peer_port = 2380
+let client_port = 2379
+
 let create ~__context ~nvram_store ~host ~pIF =
   info "%s: host = %s; pif = %s" __FUNCTION__ (Ref.string_of host)
     (Ref.string_of pIF) ;
@@ -35,14 +38,14 @@ let create ~__context ~nvram_store ~host ~pIF =
   let uuid = Uuidx.(to_string (make ())) in
   (* TODO: proxy through 443 with another SNI/cert *)
   let peer_url =
-    Config.make_uri ~https (ipaddr_of_pif ~__context ~pIF) ~port:2380
+    Config.make_uri ~https (ipaddr_of_pif ~__context ~pIF) ~port:peer_port
   in
   let unique_name = unique_name_of ~__context ~host in
   let client_url =
     Db.NVRAM_store.get_client_url ~__context ~self:nvram_store |> Uri.of_string
   in
   let advertise_client_url =
-    Uri.with_port peer_url (Some 2379) in
+    Uri.with_port peer_url (Some client_port) in
   let initial_cluster_list =
     initial_of_store ~__context ~nvram_store ~host ~peer_url
   in
@@ -84,5 +87,11 @@ let set_joined ~__context ~self ~joined =
   let str = config |> Config.to_environment_file in
   debug "Writing configuration to %s: %s" etcd_conf str;
   Xapi_stdext_unix.Unixext.write_string_to_file etcd_conf str;
+  (* TODO: tunnel through 443 if possible *)
+
+  let () = [peer_port; client_port] |> List.iter @@ fun port ->
+    Helpers.call_script !Xapi_globs.firewall_port_config_script
+      ["open"; string_of_int port; "tcp"];
+  in
   Xapi_systemctl.restart ~wait_until_success:true "etcd";
   ()
