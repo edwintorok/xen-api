@@ -207,11 +207,10 @@ val log_package_levels : (string * level) list field
     @param levels e.g. [etcmain, CRITICAL; etcdserver, DEBUG]
 *)
 
-
 type log_target =
-  | Stdout (** send log messages to standard output *)
-  | Stderr (** send log messages to standard error *)
-  | Default (** send log messages to journald when running under systemd *)
+  | Stdout  (** send log messages to standard output *)
+  | Stderr  (** send log messages to standard error *)
+  | Default  (** send log messages to journald when running under systemd *)
 
 val log_output : log_target list field
 (** [log_output] Specify where to write log output.
@@ -226,7 +225,6 @@ val log_output : log_target list field
 
   @param targets e.g. [Stderr].
 *)
-
 
 (** {2:Other configuration} *)
 

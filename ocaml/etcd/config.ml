@@ -319,9 +319,12 @@ let log_package_levels =
 type log_target = Stdout | Stderr | Default
 
 let string_of_log_target = function
-  | Stdout -> "stdout"
-  | Stderr -> "stderr"
-  | Default -> "default"
+  | Stdout ->
+      "stdout"
+  | Stderr ->
+      "stderr"
+  | Default ->
+      "default"
 
 let log_output =
   field Member_startup "log-output" @@ fun lst ->
