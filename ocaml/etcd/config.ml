@@ -1,375 +1,126 @@
-type command = string list
+type command = string * string list
 
-module FieldKind = struct
-  type t =
-    | Bootstrap
-    | Member_command of command
-    | Member_startup
-    | Remove_first
-    | Fixed
+type live = command list
+type global = unit
+type local = unit
 
-  let pp_dump ppf = function
-    | Bootstrap ->
-        Fmt.string ppf "Bootstrap"
-    | Member_command cmd ->
-        Fmt.pf ppf "Member_command(%a)" Fmt.Dump.(list string) cmd
-    | Member_startup ->
-        Fmt.string ppf "Member_startup"
-    | Remove_first ->
-        Fmt.string ppf "Remove_first"
-    | Fixed ->
-        Fmt.string ppf "Fixed"
+module StringSet = Set.Make(String)
+module StringMap = Map.Make(String)
+
+let field_set fields =
+  fields |> List.to_seq |> StringSet.of_seq
+
+let transport_security kind =
+  let k f = Config_field.key (f ~kind) in
+  Config_field.Transport_security.
+  [ k cert_file
+  ; k key_file
+  ; k trusted_ca_file
+  ; k client_cert_auth
+  ; k cert_allowed_cn
+  ; k cert_allowed_hostname
+  ; k crl_file
+  ; k auto_tls
+  ]
+
+let global_fields =
+  let k = Config_field.key in
+  Config_field.
+  [ k snapshot_count
+  ; k max_snapshots
+  ; k quota_backend_bytes
+  ; k heartbeat_interval
+  ; k election_timeout
+  ; k initial_cluster_token
+  ; k strict_reconfig_check
+  ; k cipher_suites
+  ] @ (transport_security Peer) (* TODO: how about PSR/certificate rotation? *)
+  |> field_set
+
+let local_fields =
+  let k = Config_field.key in
+  Config_field.
+  [ k proxy
+  ; k name
+  ; k max_wals
+  ; k wal_dir
+  ; k data_dir
+  ; k listen_peer_urls
+  ; k initial_cluster_state
+  ; k force_new_cluster (* TODO: remove? *)
+  ; k listen_client_urls
+  ; k enable_v2
+  ; k enable_pprof
+  ; k debug
+  ; k log_package_levels
+  ; k log_output
+  ; k self_signed_cert_validity
+  ] @ (transport_security Client) |> field_set
+
+let live_fields =
+  let k = Config_field.key in
+  Config_field.
+  (* TODO: should be a function that given old/new determines commmands to run *)
+  [ k initial_cluster, []
+  ; k initial_advertise_peer_urls, []
+  ; k advertise_client_urls, []
+  ] |> List.to_seq |> StringMap.of_seq
+
+module Section = struct
+  type 'a t = command list * Config_file.t
+
+  type 'a kind = Global: global kind | Local: local kind | Live: live kind
+
+  let global = Global
+  let live = Live
+  let local = Local
+
+  let union_exn (live1, config1) (live2, config2) =
+    (live1 @ live2), Config_file.union_exn config1 config2
+
+  let of_field_value_exn (type a) (kind:a kind) field value : _ t =
+    let key = Config_field.key field in
+    let result =  Config_file.(add_exn field value empty) in
+    match kind with
+    | Live ->
+        (match StringMap.find_opt key live_fields with
+        | Some cmds -> cmds, result
+        | None ->
+            Fmt.invalid_arg "Key %S is not a live configuration field" key)
+    | Global ->
+        if not (StringSet.mem key global_fields) then
+          Fmt.invalid_arg "Key %S is not a global configuration field" key;
+        [], result
+    | Local ->
+        if not (StringSet.mem key local_fields) then
+          Fmt.invalid_arg "Key %S is not a local configuration field" key;
+        [], result
+
+  let to_dict _ (_, config) = Config_file.to_dict config
+
+  let of_dict kind dict =
+    dict |> List.fold_left (fun acc (key, value) ->
+      of_field_value_exn kind (Config_field.other key) value
+      |> union_exn acc
+    ) ([], Config_file.empty) |> Result.ok
+
+  (* TODO: separate delta type from regular section type? *)
+  let delta ~current:(_, current_config) ~desired:(_, desired_config) =
+    Config_file.delta ~current:current_config ~desired:desired_config
+
+  let apply_live ((cmds, _):live t) = cmds
 end
 
-module Field = struct
-  type t = {key: string; kind: FieldKind.t}
-
-  let compare a b = String.compare a.key b.key
-
-  let pp_dump =
-    Fmt.(
-      Dump.(
-        record
-          [
-            field "key" (fun t -> t.key) string
-          ; field "kind" (fun t -> t.kind) FieldKind.pp_dump
-          ]
-      )
-    )
-end
-
-module FieldMap = Map.Make (Field)
-
-type 'a field = Field.t * ('a -> string)
-
-type t = string FieldMap.t
-
-let to_dict t =
-  List.of_seq (t |> FieldMap.to_seq |> Seq.map @@ fun (k, v) -> (k.Field.key, v))
-
-let pp_dump =
-  Fmt.(Dump.(iter_bindings FieldMap.iter (any "config") Field.pp_dump string))
-
-let to_env_key_char = function
-  (* Latest etcd defines only the yaml names,
-     and the rule on how the env vars are constructed.
-     However systemd unit wants a config file with env vars, not yaml.
-  *)
-  | '-' ->
-      '_'
-  | c ->
-      Char.uppercase_ascii c
-
-let to_env_key k = "ETCD_" ^ (k |> String.map to_env_key_char)
-
-let string (s : string) = s
-
-let kv_string ?(sep = ",") key value kvlist =
-  kvlist
-  |> List.map (fun (k, v) -> Printf.sprintf "%s=%s" (key k) (value v))
-  |> String.concat sep
-  |> string
+type t =
+{ live: live Section.t (** Live configuration to change, or bootstrap configuration to start new cluster *)
+; global: global Section.t (** Configuration that all members in the cluster need to agree on. Usually it cannot be changed live. *)
+; local: local Section.t (** Configuration local to a member, that can be changed by simply restarting the member *)
+}
 
 let to_environment_file t =
-  (* Latest etcd defines only the yaml names,
-     and the rule on how the env vars are constructed.
-     However systemd unit wants a config file with env vars, not yaml.
-  *)
-  t |> to_dict |> kv_string ~sep:"\n" to_env_key Filename.quote
-
-module Update = struct
-  (** Configuration update actions *)
-
-  (** 'etcdctl member' arguments *)
-  type nonrec command = command
-
-  (** configuration update actions *)
-  type nonrec t = {
-      bootstrap: t
-          (** initial configuration only relevant during cluster bootstrap, can be subsequently ignored *)
-    ; member_commands: command list
-          (** configuration that can be changed through 'etcdctl member' *)
-    ; member_startup: t
-          (** configuration that takes effect after restarting a member *)
-    ; remove_first: t
-          (** have to remove and readd the member for the change to take effect *)
-    ; fixed: t
-          (** no documented way of changing. Entire cluster shutdown and start needed. *)
-  }
-
-  let pp_dump =
-    Fmt.Dump.(
-      record
-        [
-          field "bootstrap" (fun t -> t.bootstrap) pp_dump
-        ; field "member_commands"
-            (fun t -> t.member_commands)
-            (list @@ list string)
-        ; field "remove_first" (fun t -> t.remove_first) pp_dump
-        ; field "fixed" (fun t -> t.fixed) pp_dump
-        ]
-    )
-
-  let compute_action _ from target =
-    let from = Option.value ~default:"" from
-    and target = Option.value ~default:"" target in
-    if String.equal from target then
-      None (* no change *)
-    else
-      Some target
-
-  let filter kind = FieldMap.filter (fun field _ -> field.Field.kind = kind)
-
-  let diff ~from ~target =
-    let actions = FieldMap.merge compute_action from target in
-    let member_commands =
-      actions
-      |> FieldMap.filter_map @@ fun field target ->
-         match field.Field.kind with
-         | Member_command command ->
-             Some (command @ [target])
-         | _ ->
-             None
-    in
-    {
-      bootstrap= filter Bootstrap actions
-    ; member_commands= member_commands |> FieldMap.bindings |> List.map snd
-    ; member_startup= filter Member_startup actions
-    ; remove_first= filter Remove_first actions
-    ; fixed= filter Fixed actions
-    }
-end
-
-let diff = Update.diff
-
-type name = Name : string -> name
-
-let int = string_of_int
-
-let int64 = Int64.to_string
-
-let bool = string_of_bool
-
-let path p = p |> Fpath.to_string |> string
-
-let milliseconds seconds = seconds *. 1000. |> int_of_float |> int
-
-let url_list lst =
-  (* not a list at the Yaml level, but a comma-separated string *)
-  lst |> List.map Uri.to_string |> String.concat "," |> string
-
-let int_or_unlimited = function
-  | None ->
-      int 0
-  | Some 0 ->
-      invalid_arg "0 means unlimited, use None instead if you meant unlimited"
-  | Some i ->
-      int i
-
-module StringMap = Map.Make (String)
-
-let field kind key value_to_string : _ field =
-  (Field.{key; kind}, value_to_string)
-
-let proxy = field FieldKind.Remove_first "proxy" string
-
-let add (field, value_to_string) v t = FieldMap.add field (value_to_string v) t
-
-(** [default] is the default configuration that can be extended using the functions in this module. *)
-let default = FieldMap.empty |> add proxy "off"
-
-(* v2 only *)
-
-let name_yaml (Name n) = string n
-
-(** [name str t] Human-readable name for this member.*)
-let name = field Remove_first "name" name_yaml
-
-(** [data_dir dir t] Path to the data directory.*)
-let data_dir = field Member_startup "data-dir" path
-
-(** [wal_dir dir t] to the dedicated wal directory.*)
-let wal_dir = field Member_startup "wal-dir" path
-
-(** [snapshot_count n t] Number of committed transactions to trigger a snapshot to disk.*)
-let snapshot_count = field Fixed "snapshot-count" int
-
-(** [heartbeat_interval ms t] Time (in milliseconds) of a heartbeat interval.*)
-let heartbeat_interval = field Fixed "heartbeat-interval" milliseconds
-
-(** [election_timeout ms t] Time (in milliseconds) for an election to timeout.*)
-let election_timeout = field Fixed "election-timeout" milliseconds
-
-(** [quota_backend_bytes quota t] Raise alarms when backend size exceeds the given quota. 0 means use the default quota.*)
-let quota_backend_bytes = field Member_startup "quota-backend-bytes" int64
-
-let make_uri ~https ip ~port =
-  Uri.make
-    ~scheme:(if https then "https" else "http")
-    ~host:(Ipaddr.to_string ip) ~port ()
-
-(* https://etcd.io/docs/v3.5/op-guide/runtime-configuration/#update-advertise-peer-urls *)
-
-(** [listen_peer_urls urls t] List of comma separated URLs to listen on for peer traffic.*)
-let listen_peer_urls =
-  field (Member_command ["update"; "--peer-urls"]) "listen-peer-urls" url_list
-
-(** [listen_client_urls urls t] List of comma separated URLs to listen on for client traffic.*)
-let listen_client_urls = field Member_startup "listen-client-urls" url_list
-
-(** [max_snapshots n t] Maximum number of snapshot files to retain (0 is unlimited).*)
-let max_snapshots = field Fixed "max-snapshots" int_or_unlimited
-
-(** [max_wals n t] Maximum number of wal files to retain (0 is unlimited).*)
-let max_wals = field Fixed "max-wals" int_or_unlimited
-
-(** [advertise_peer_urls urls t] of this member's peer URLs to advertise to the rest of the cluster. *)
-let initial_advertise_peer_urls =
-  field Member_startup "initial-advertise-peer-urls" url_list
-
-(* see https://etcd.io/docs/v3.5/op-guide/runtime-configuration/#update-advertise-client-urls *)
-
-(** [advertise_client_urls urls t] List of this member's client URLs to advertise to the public.*)
-let advertise_client_urls =
-  field Member_startup "advertise-client-urls" url_list
-
-let string_of_name (Name n) = n
-
-(** [initial_cluster config t] Initial cluster configuration for bootstrapping.*)
-let initial_cluster =
-  field Bootstrap "initial-cluster" @@ kv_string string_of_name Uri.to_string
-
-(** [initial_cluster_token secret t] Initial cluster token for the etcd cluster during bootstrap.*)
-let initial_cluster_token = field Bootstrap "initial-cluster-token" string
-
-type initial_cluster_state = New | Existing
-
-let initial_cluster_state_yaml = function
-  | New ->
-      string "new"
-  | Existing ->
-      string "existing"
-
-(** [initial_cluster_state state t] Initial cluster state ([New] or [Existing]).*)
-let initial_cluster_state =
-  field Bootstrap "initial-cluster-state" initial_cluster_state_yaml
-
-(** [strict_reconfig_check strict t] Reject reconfiguration requests that would cause quorum loss.*)
-let strict_reconfig_check = field Fixed "strict-reconfig-check" bool
-
-(** [enable_v2 enable t] Accept etcd V2 client requests*)
-let enable_v2 = field Member_startup "enable-v2" bool
-
-(** [enable_pprof enable t] Enable runtime profiling data via HTTP server*)
-let enable_pprof = field Member_startup "enable-pprof" bool
-
-type transport_security = prefix:string -> FieldKind.t -> t -> t
-
-(** [transport_security ~cert_file ~key_file ~client_cert_auth ~trusted_ca_file ~auto_tls]
-
-  @param cert_file Path to the client server TLS cert file.
-  @param key_file Path to the client server TLS key file.
-  @param client_cert_auth Enable client cert authentication.
-  @param trusted_ca_file Path to the client server TLS trusted CA key file.
-  @param auto-tls Client TLS using generated certificates
-
-*)
-let transport_security ~cert_file ~key_file ~client_cert_auth ~trusted_ca_file
-    ~auto_tls ~prefix kind t =
-  let add_field unprefixed valuetype value =
-    add (field kind (prefix ^ "-" ^ unprefixed) valuetype) value
+  let config =
+    [t.live; t.global; t.local]
+    |> List.map snd |> List.map Config_file.to_environment_file
   in
-  t
-  |> add_field "cert_file" path cert_file
-  |> add_field "key-file" path key_file
-  |> add_field "client-cert-auth" bool client_cert_auth
-  |> add_field "trusted-ca-file" path trusted_ca_file
-  |> add_field "auto-tls" bool auto_tls
-
-(** [client_transport_security transport_security t] *)
-let client_transport_security ts = ts ~prefix:"client" FieldKind.Member_startup
-
-(** [peer_transport_security transport_security t] *)
-let peer_transport_security ts = ts ~prefix:"peer" FieldKind.Fixed
-
-(** [debug enable t] Enable debug-level logging for etcd.*)
-let debug = field Member_startup "debug" bool
-
-type level = CRITICAL | ERROR | WARNING | INFO | DEBUG
-
-let string_of_level = function
-  | CRITICAL ->
-      "CRITICAL"
-  | ERROR ->
-      "ERROR"
-  | WARNING ->
-      "WARNING"
-  | INFO ->
-      "INFO"
-  | DEBUG ->
-      "DEBUG"
-
-(** [log_package_levels package_levels t] Specify a particular log level for each etcd package.
-
-    @param levels e.g. [etcmain, CRITICAL; etcdserver, DEBUG]
-*)
-let log_package_levels =
-  field Member_startup "log-package-levels" @@ kv_string Fun.id string_of_level
-
-type log_target = Stdout | Stderr | Default
-
-let string_of_log_target = function
-  | Stdout ->
-      "stdout"
-  | Stderr ->
-      "stderr"
-  | Default ->
-      "default"
-
-let log_output =
-  field Member_startup "log-output" @@ fun lst ->
-  lst |> List.map string_of_log_target |> String.concat ","
-
-(** [force_new_cluster enable t] Force to create a new one member cluster.*)
-let force_new_cluster = field Bootstrap "force-new-cluster" bool
-
-let known_fields =
-  [
-    fst name
-  ; fst snapshot_count
-  ; fst max_snapshots
-  ; fst quota_backend_bytes
-  ; fst max_wals
-  ; fst wal_dir
-  ; fst data_dir
-  ; fst heartbeat_interval
-  ; fst election_timeout
-  ; fst initial_cluster
-  ; fst initial_cluster_token
-  ; fst initial_cluster_state
-  ; fst force_new_cluster
-  ; fst listen_peer_urls
-  ; fst initial_advertise_peer_urls
-  ; fst listen_client_urls
-  ; fst advertise_client_urls
-  ; fst strict_reconfig_check
-  ; fst enable_v2
-  ; fst enable_pprof
-    (* client_transport_security; and peer_transport_security are not overridable
-       this way *)
-  ; fst debug
-  ; fst log_package_levels
-  ]
-  |> List.to_seq
-  |> Seq.map (fun field -> (field.Field.key, field))
-  |> StringMap.of_seq
-
-let other key =
-  match StringMap.find_opt key known_fields with
-  | Some found ->
-      (found, string)
-  | None ->
-      field Fixed key string
-
-let of_dict dict =
-  dict |> List.fold_left (fun acc (k, v) -> add (other k) v acc) default
+  ("# Automatically generated configuration file. DO NOT EDIT, your changes WILL be overwritten!" :: config)
+  |> String.concat "\n\n"

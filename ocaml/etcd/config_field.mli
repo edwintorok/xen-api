@@ -1,6 +1,9 @@
 (** etcd configuration entry with value of type ['a] *)
 type 'a t
 
+val key: _ t -> string
+(** [key field] is the command line flag for [field]. *)
+
 val other : string -> string t
 (** [other key] is a custom [key], with string [value]. *)
 

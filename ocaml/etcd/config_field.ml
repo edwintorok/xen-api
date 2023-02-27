@@ -1,5 +1,8 @@
 type 'a t = {key: string; value_to_string_exn: 'a -> string}
 
+
+let key t = t.key
+
 let to_env_key_char = function
   | '-' ->
       '_'
