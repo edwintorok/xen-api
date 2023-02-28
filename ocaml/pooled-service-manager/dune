@@ -1,0 +1,6 @@
+(library
+ (name pooled_service_manager)
+ (libraries fmt logs uuidm rresult rpclib fpath xapi-stdext-unix astring)
+ (modules_without_implementation pooled_service service)
+ (package xapi)
+)
