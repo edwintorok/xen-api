@@ -1,13 +1,35 @@
-type 'a msg_result = ('a, `Msg of string) result
+type 'a msg_result = ('a, Rresult.R.msg) result
 (** a {!result} type compatible with {!Rresult.R}.
   On success it contains a type ['a], and on error a string error message
   wrapped with `Msg
 *)
 
-module type Service: sig
+type 'a msg_or_trap_result = ('a, [< Rresult.R.msg | Rresult.R.exn_trap])
+
+module type Service = sig
   (* TODO: another functor that provides a way to diff/split the config
     into local/global, live updatable and not parts and implement
     start/stop/reload efficiently and safely.
+  *)
+
+  (** A service that can be run on a pool of hosts.
+    Manages global, local and runtime reload of configuration,
+    starting/stopping services, and dependencies.
+
+
+    Conventions:
+    * functions that can raise exceptions should have `_exn` in their name
+
+    * it is an implementation error for a function without `_exn` to raise an
+    exception, although the Pooled Service Manager will try to handle and
+    recover as best as it can from this situation.
+
+    * functions that manipulate data structures should use result types instead of exceptions.
+
+    * functions that manipulate system state should use exceptions. There are
+    unavoidable errors outside of the application's control that we need to
+    handle anyway, and exceptions create a stacktrace that makes it easier to
+    debug them.
   *)
 
   val name: string
@@ -22,7 +44,7 @@ module type Service: sig
     val of_dict: (string * string) list -> t msg_result
     (** [of_dict dict] converts [dict] into a {!t} configuration.
       @returns [Ok t] when configuration is successfully converted
-      @returns [Error (`Msg s)] when the configuration is not valid
+      @returns [Error (`Msg reason)] when the configuration is not valid
     *)
   end
 
@@ -90,8 +112,46 @@ module type Service: sig
 
   val is_running_exn: Id.t -> bool
   (** [is_running_exn service] determines the status of [service].
-    @returns [true] if the [service] is running
+    @returns [true] if the [service] is running.
 
     @raises an exception if we cannot determine the state of the service
+  *)
+
+  val health_check_exn: Id.t -> string option
+  (** [health_check_exn service] returns a diagnostic message about [service].
+    It can use the service's own diagnostic tools to determine this.
+
+    @returns None if everything is running correctly
+    @returns (Some msg) if there is a problem with the running service
+
+    @raises an exception if there is an error communicating with the service
+  *)
+end
+
+(** A manager for a pooled service *)
+module Make(Svc: Service) : sig
+  val set_state: Uuidm.t -> Svc.Config.t option -> unit msg_or_trap_result
+  (** [set_state uuid config_opt] achieves the desired [config] state on member [uuid].
+    It does so in the least disruptive way possible, e.g. by first reloading
+    the configuration live if possible, and only then restarting the services.
+
+    @param config_opt where [None] means the desired state is stopped,
+      or [Some running] where the desired state is a service running with
+      [running] configuration
+
+    @returns Ok () on success
+    @returns Error (`Msg reason) if there as a failure, with a diagnostic message
+    @returns Error (`Exp_trap (exn, bt)) if there was an internal error processing the request
+  *)
+
+  val get_state: Uuidm.t -> check_health:bool -> Svc.Config.t option msg_or_trap_result
+  (** [get_state uuid] retrieves the configuration for instance [uuid].
+
+    @param check_health when false it only performs a basic 'is it running?' check
+
+    @returns Ok None if the service is stopped
+    @returns Ok (Some config) if the service is running with [config]
+    @returns Error (`Msg reason) if there as a failure, with a diagnostic message
+    @returns Error (`Exp_trap (exn, bt)) if there was an internal error processing the request
   *)
 end
