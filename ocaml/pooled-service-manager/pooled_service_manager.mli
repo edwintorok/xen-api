@@ -23,7 +23,9 @@ module Make (Svc : S) : sig
   *)
 
   val get_state :
-    Uuidm.t -> check_health:bool -> Svc.state msg_or_trap_result * Svc.Config.t msg_or_trap_result
+       Uuidm.t
+    -> check_health:bool
+    -> Svc.state msg_or_trap_result * Svc.Config.t msg_or_trap_result
   (** [get_state uuid ~check_health] retrieves the configuration for instance [uuid].
 
     @param check_health when false it only performs a basic 'is it running?' check

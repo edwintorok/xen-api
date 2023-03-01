@@ -6,7 +6,8 @@ type 'a msg_result = ('a, Rresult.R.msg) result
 
 type 'a msg_or_trap_result = ('a, [Rresult.R.msg | Rresult.R.exn_trap]) result
 
-type id = Uuidm.t (** service instance identifier *)
+(** service instance identifier *)
+type id = Uuidm.t
 
 module type S = sig
   (** A service that can be run on a pool of hosts.
@@ -29,8 +30,12 @@ module type S = sig
   debug them.
   *)
 
-  type state = Starting | Started | Stopping | Stopped
-  (** service runtime state, a subset of [systemd] service states *)
+  type state =
+    | Starting
+    | Started
+    | Stopping
+    | Stopped
+        (** service runtime state, a subset of [systemd] service states *)
 
   val name : string
   (** [name] is a human readable unique name for this service *)
@@ -102,7 +107,7 @@ module type S = sig
     @raises Invalid_argument if the [config] cannot be changed.
   *)
 
-  val get_state_exn: id -> state
+  val get_state_exn : id -> state
   (** [get_state_exn service] determines the status of [service].
 
     @returns Starting if the service is being started, but hasn't fully started yet

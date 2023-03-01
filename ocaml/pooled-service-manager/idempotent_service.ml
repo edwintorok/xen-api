@@ -1,37 +1,145 @@
 open Service
 
-type 'a trap_result = ('a, Rresult.R.exn_trap) result
+let ( let* ) = Result.bind
 
-type 'a msg_or_trap_result = ('a, [Rresult.R.msg | Rresult.R.exn_trap]) result
+let run_dir = ref (Fpath.v "/var/run/nonpersistent/pooled-service")
 
-let reword_error = Rresult.R.error_exn_trap_to_msg
+let get_run_dir_exn () =
+  let dir = !run_dir in
+  Xapi_stdext_unix.Unixext.mkdir_rec (Fpath.to_string dir) 0700 ;
+  dir
 
-let (let*) = Result.bind
+let state_path_exn id =
+  let dir = get_run_dir_exn () in
+  Fpath.(dir / Uuidm.to_string id)
 
-module Make(Svc: S) = struct
+(* TODO: add debug *)
+
+let write_dict id dict =
+  let path = state_path_exn id in
+  dict
+  |> Astring.String.Map.to_seq
+  |> Seq.map (fun (k, v) -> Printf.sprintf "%S=%S" k v)
+  |> List.of_seq
+  |> String.concat "\n"
+  |> Xapi_stdext_unix.Unixext.write_string_to_file ~perms:0o600
+       (Fpath.to_string path)
+
+let write_dict id dict = Rresult.R.trap_exn (fun () -> write_dict id dict) ()
+
+let pair k v = (k, v)
+
+let read_dict id =
+  let path = state_path_exn id in
+  Xapi_stdext_unix.Unixext.read_lines ~path:(Fpath.to_string path)
+  |> List.to_seq
+  |> Seq.map (fun line -> Scanf.sscanf line "%S=%S" pair)
+  |> Astring.String.Map.of_seq
+
+let remove_dict id =
+  let path = state_path_exn id in
+  Rresult.R.trap_exn Sys.remove (Fpath.to_string path)
+
+let read_dict = Rresult.R.trap_exn read_dict
+
+module Make (Svc : S) = struct
+  (* do not trust that Svc will trap all errors, trap them explicitly here *)
+  module Svc = Trap_exn_service.Make (Svc)
+
   let src = Logs.Src.create __MODULE__
-  include (val Logs.src_log src)
 
-  let trap_exn f id config =
-    let result = Rresult.R.trap_exn (fun () -> f id config) () in
-    let () =
-      result |> Result.iter_error @@ fun exn_trap ->
-      (* immediately log any exceptions, we may not get another chance.
-         Note that we may in the end recover from this
-       *)
-      debug (fun m -> m "Caught exception: %a" Rresult.R.pp_exn_trap exn_trap)
-    in
-    result
+  include (val Logs.src_log src)
 
   module Config = Svc.Config
 
-  let validate = trap_exn Svc.validate_exn
+  let validate = Svc.validate
 
-  let state id ~check_health =
-    (* TODO: load config from non-persistent *)
+  let fdebug id funct k =
+    debug (fun m -> k (fun fmt -> m ("%s(%a): " ^^ fmt) funct Uuidm.pp id))
 
-  let start id config =
-    let* () = validate id config in
-    (* TODO: check state *)
-    (* start if not already running, etc etc. *)
+  let get_running_config id =
+    let* running = Svc.is_running id ~check_health:false in
+    if running then
+      let* dict = read_dict id in
+      Config.of_dict dict |> Result.map Option.some
+    else
+      Ok None
+
+  let pp_config = Fmt.using Config.to_dict Astring.String.Map.dump_string_map
+
+  let name = Svc.name
+
+  let is_running = Svc.is_running
+
+  let start id desired =
+    let fdebug fmt = fdebug id __FUNCTION__ fmt in
+    (* validate config, if it fails then stop. *)
+    let dict = Config.to_dict desired in
+    let* () = validate id desired in
+    fdebug (fun m -> m "configuration validated") ;
+    match get_running_config id with
+    | Ok (Some current) when Config.equal current desired ->
+        fdebug (fun m -> m "instance already running, nothing to do") ;
+        Ok ()
+    | Ok (Some current) ->
+        fdebug (fun m ->
+            m "instance already running with different configuration. %a != %a"
+              pp_config current pp_config desired
+        ) ;
+        Error (`Running_with_other_config (Config.to_dict current))
+    | (Ok None | Error _) as r -> (
+        let () =
+          r
+          |> Result.iter_error @@ fun err ->
+             (* even if we cannot get the running configuration, attempt to start it *)
+             fdebug (fun m ->
+                 m "Cannot get running configuration: %a" pp_error err
+             )
+        in
+        fdebug (fun m -> m "instance not running, starting") ;
+        let* () = Svc.start id desired in
+        let* () = write_dict id dict in
+        let* running_config = get_running_config id in
+        match running_config with
+        | Some config when Config.equal config desired ->
+            fdebug (fun m -> m "started") ;
+            Ok ()
+        | Some config ->
+            fdebug (fun m ->
+                m "configuration mismatch: %a != %a" pp_config config pp_config
+                  desired
+            ) ;
+            Fmt.error_msg "instance %a started, but configuration doesn't match"
+              Uuidm.pp id
+        | None ->
+            fdebug (fun m -> m "instance not running") ;
+            Fmt.error_msg "instance %a started, but not running" Uuidm.pp id
+      )
+
+  let stop id config_opt =
+    let fdebug fmt = fdebug id __FUNCTION__ fmt in
+    match config_opt with
+    | None ->
+        fdebug (fun m -> m "force stop");
+        Svc.stop id None
+    | Some _ ->
+        fdebug (fun m -> m "graceful stop");
+        match get_running_config id with
+        | Ok config ->
+          Svc.stop id config
+        | Error e ->
+          fdebug (fun m -> m "failed to get running config, will force stop: %a" pp_error e);
+          Svc.stop id None
+
+  let stop id config =
+    let* () = stop id config in
+    let* () = remove_dict id in
+    let* running = Svc.is_running id ~check_health:false in
+    if running then
+      Fmt.error_msg "instance %a still running" Uuidm.pp id
+    else
+      Ok ()
+
+
+  let reload = Svc.reload
 end
