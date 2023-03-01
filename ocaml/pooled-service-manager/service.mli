@@ -60,7 +60,7 @@ module type S = sig
     if no additional validation can be performed.
   *)
 
-  val start: id -> Config.t -> unit
+  val start: id -> Config.t -> unit result
   (** [start id config] starts an instance of the service with [config] as configuration.
   *)
 
