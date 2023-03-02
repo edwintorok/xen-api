@@ -2,46 +2,6 @@ open Types
 
 let ( let* ) = Result.bind
 
-let run_dir = ref (Fpath.v "/var/run/nonpersistent/pooled-service")
-
-let get_run_dir_exn () =
-  let dir = !run_dir in
-  Xapi_stdext_unix.Unixext.mkdir_rec (Fpath.to_string dir) 0700 ;
-  dir
-
-let state_path_exn id =
-  let dir = get_run_dir_exn () in
-  Fpath.(dir / Uuidm.to_string id)
-
-(* TODO: add debug *)
-
-let write_dict id dict =
-  let path = state_path_exn id in
-  dict
-  |> Astring.String.Map.to_seq
-  |> Seq.map (fun (k, v) -> Printf.sprintf "%S=%S" k v)
-  |> List.of_seq
-  |> String.concat "\n"
-  |> Xapi_stdext_unix.Unixext.write_string_to_file ~perms:0o600
-       (Fpath.to_string path)
-
-let write_dict id dict = Rresult.R.trap_exn (fun () -> write_dict id dict) ()
-
-let pair k v = (k, v)
-
-let read_dict id =
-  let path = state_path_exn id in
-  Xapi_stdext_unix.Unixext.read_lines ~path:(Fpath.to_string path)
-  |> List.to_seq
-  |> Seq.map (fun line -> Scanf.sscanf line "%S=%S" pair)
-  |> Astring.String.Map.of_seq
-
-let remove_dict id =
-  let path = state_path_exn id in
-  Rresult.R.trap_exn Sys.remove (Fpath.to_string path)
-
-let read_dict = Rresult.R.trap_exn read_dict
-
 module Make (Svc : Service) = struct
   (* do not trust that Svc will trap all errors, trap them explicitly here *)
   module Svc = Trap_exn_service.Make (Svc)
@@ -60,8 +20,8 @@ module Make (Svc : Service) = struct
   let get_running_config id =
     let* running = Svc.is_running id ~check_health:false in
     if running then
-      let* dict = read_dict id in
-      Config.of_dict dict |> Result.map Option.some
+      () |> Rresult.R.trap_exn @@ fun () ->
+      Running_config.get_exn id (module Config)
     else
       Ok None
 
@@ -73,7 +33,6 @@ module Make (Svc : Service) = struct
 
   let start id desired =
     let fdebug fmt = fdebug id __FUNCTION__ fmt in
-    let dict = Config.to_dict desired in
     match get_running_config id with
     | Ok (Some current) when Config.equal current desired ->
         fdebug (fun m -> m "instance already running, nothing to do") ;
@@ -95,7 +54,7 @@ module Make (Svc : Service) = struct
         in
         fdebug (fun m -> m "instance not running, starting") ;
         let* () = Svc.start id desired in
-        let* () = write_dict id dict in
+        Running_config.set_exn id (module Config) (Some desired);
         let* running_config = get_running_config id in
         match running_config with
         | Some config when Config.equal config desired ->
@@ -133,7 +92,7 @@ module Make (Svc : Service) = struct
               Svc.stop id None
         )
     in
-    let* () = remove_dict id in
+    Running_config.set_exn id (module Config) None;
     let* running = Svc.is_running id ~check_health:false in
     if running then
       Fmt.error_msg "instance %a still running" Uuidm.pp id
