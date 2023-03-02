@@ -73,10 +73,7 @@ module Make (Svc : S) = struct
 
   let start id desired =
     let fdebug fmt = fdebug id __FUNCTION__ fmt in
-    (* validate config, if it fails then stop. *)
     let dict = Config.to_dict desired in
-    let* () = validate id desired in
-    fdebug (fun m -> m "configuration validated") ;
     match get_running_config id with
     | Ok (Some current) when Config.equal current desired ->
         fdebug (fun m -> m "instance already running, nothing to do") ;
@@ -118,18 +115,23 @@ module Make (Svc : S) = struct
 
   let stop id config_opt =
     let fdebug fmt = fdebug id __FUNCTION__ fmt in
-    let* () = match config_opt with
-    | None ->
-        fdebug (fun m -> m "force stop");
-        Svc.stop id None
-    | Some _ ->
-        fdebug (fun m -> m "graceful stop");
-        match get_running_config id with
-        | Ok config ->
-          Svc.stop id config
-        | Error e ->
-          fdebug (fun m -> m "failed to get running config, will force stop: %a" pp_error e);
+    let* () =
+      match config_opt with
+      | None ->
+          fdebug (fun m -> m "force stop") ;
           Svc.stop id None
+      | Some _ -> (
+          fdebug (fun m -> m "graceful stop") ;
+          match get_running_config id with
+          | Ok config ->
+              Svc.stop id config
+          | Error e ->
+              fdebug (fun m ->
+                  m "failed to get running config, will force stop: %a" pp_error
+                    e
+              ) ;
+              Svc.stop id None
+        )
     in
     let* () = remove_dict id in
     let* running = Svc.is_running id ~check_health:false in
@@ -139,7 +141,19 @@ module Make (Svc : S) = struct
       Ok ()
 
   let reload id config =
-    let* () = validate id config in
-    Svc.reload id config
-
+    let fdebug fmt = fdebug id __FUNCTION__ fmt in
+    match get_running_config id with
+    | Ok (Some running) when Config.equal running config ->
+        fdebug (fun m -> m "Already running with desired configuration") ;
+        Ok ()
+    | Ok (Some _) ->
+        fdebug (fun m -> m "Running configuration is different, reloading") ;
+        Svc.reload id config
+    | Ok None ->
+        fdebug (fun m -> m "Asked to reload, but not running. Starting") ;
+        Svc.start id config
+    | Error _ as err ->
+        fdebug (fun m -> m "Failed to get running configuration for reload") ;
+        (* caller will have to retry with stop + start *)
+        err
 end
