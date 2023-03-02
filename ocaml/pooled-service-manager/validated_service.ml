@@ -1,8 +1,8 @@
-open Service
+open Types
 
 let ( let* ) = Result.bind
 
-module Make (Svc : S) = struct
+module Make (Svc : Service) = struct
   let src = Logs.Src.create __MODULE__
 
   include (val Logs.src_log src)

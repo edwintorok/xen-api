@@ -2258,7 +2258,7 @@ module Dm_Common = struct
     let stop_swptm () =
       Option.iter
         (fun (Xenops_interface.Vm.Vtpm vtpm_uuid) ->
-          Service.Swtpm.stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid
+          Servicewtpm.stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid
         )
         vtpm ;
       Xenops_sandbox.Swtpm_guard.stop dbg ~domid ~vm_uuid
@@ -3724,7 +3724,7 @@ module Dm = struct
       match info.tpm with
       | Some (Vtpm vtpm_uuid) ->
           let tpm_socket_path =
-            Service.Swtpm.start ~xs task domid ~vtpm_uuid ~index:0
+            Servicewtpm.start ~xs task domid ~vtpm_uuid ~index:0
           in
           [
             "-chardev"
@@ -3861,7 +3861,7 @@ module Dm = struct
     debug "Called Dm.suspend_vtpms (domid=%d)" domid ;
     Option.map
       (fun (Xenops_interface.Vm.Vtpm _vtpm_uuid) ->
-        Service.Swtpm.suspend ~xs ~domid ~vm_uuid
+        Servicewtpm.suspend ~xs ~domid ~vm_uuid
       )
       vtpm
     |> Option.to_list
@@ -3870,7 +3870,7 @@ module Dm = struct
     debug "Called Dm.restore_vtpms (domid=%d)" domid ;
     let vm_uuid = Uuidx.to_string (Xenops_helpers.uuid_of_domid ~xs domid) in
     (* TODO: multiple vTPM support? *)
-    Service.Swtpm.restore ~domid ~vm_uuid contents
+    Servicewtpm.restore ~domid ~vm_uuid contents
 end
 
 (* Dm *)

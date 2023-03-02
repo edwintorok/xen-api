@@ -1,4 +1,6 @@
-(** a service instance *)
+(** Various types and module types used by services *)
+
+(** {1:Type aliases} *)
 
 (** unique identifier for service instance *)
 type id = Uuidm.t
@@ -46,24 +48,30 @@ val error_to_msg : ('a, error) result -> ('a, Rresult.R.msg) Result.t
 
 type ('a, 'e) result = ('a, ([> error] as 'e)) Result.t
 
-module type S = sig
-  module Config : sig
-    (** configuration for a service *)
-    type t
+(** {1:Configuration} *)
 
-    val to_dict : t -> kv
-    (** [to_dict config] converts [config] into a key-value map. *)
+module type Config = sig
+  (** configuration for a service *)
+  type t
 
-    val of_dict : kv -> (t, [> config_error]) result
-    (** [of_dict dict] converts [dict] into a {!t} configuration.
+  val to_dict : t -> kv
+  (** [to_dict config] converts [config] into a key-value map. *)
 
-      @returns [Ok t] when configuration is successfully converted
-      @returns [Error reason] when the configuration is not valid
-    *)
+  val of_dict : kv -> (t, [> config_error]) result
+  (** [of_dict dict] converts [dict] into a {!t} configuration.
 
-    val equal : t -> t -> bool
-    (** [equal a b] returns whether [a] and [b] are the same. *)
-  end
+    @returns [Ok t] when the configuration is successfully converted
+    @returns [Error reason] when the configuration is not valid
+  *)
+
+  val equal : t -> t -> bool
+  (** [equal a b] returns whether [a] and [b] are the same. *)
+end
+
+(** {1:Service} *)
+
+module type Service = sig
+  module Config: Config
 
   val name : string
   (** [name] is the name of this service. *)

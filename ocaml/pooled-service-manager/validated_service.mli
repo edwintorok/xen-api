@@ -1,3 +1,5 @@
+open Types
+
 (** A {!Service} that validates the configuration prior to performing [start] and [reload] actions.
 
   Although the configuration module should ensure that the configuration is
@@ -13,4 +15,4 @@
   is not valid ([stop] may need a valid configuration if the service is part of a
   pool to perform a graceful stop).
 *)
-module Make (Svc : Service.S) : Service.S with type Config.t = Svc.Config.t
+module Make (Svc : Service) : Service with type Config.t = Svc.Config.t

@@ -1,4 +1,4 @@
-open Service
+open Types
 
 let ( let* ) = Result.bind
 
@@ -42,7 +42,7 @@ let remove_dict id =
 
 let read_dict = Rresult.R.trap_exn read_dict
 
-module Make (Svc : S) = struct
+module Make (Svc : Service) = struct
   (* do not trust that Svc will trap all errors, trap them explicitly here *)
   module Svc = Trap_exn_service.Make (Svc)
 

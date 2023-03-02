@@ -1,3 +1,4 @@
+open Types
 val src : Logs.src
 (** [src] is a logging source. Can be used to enable/disable logging of
   exceptions/backtraces. *)
@@ -6,4 +7,4 @@ val src : Logs.src
   Logs all caught exceptions and backtraces at debug level, together with the
   input (uuid, config) to help debugging.
 *)
-module Make (Svc : Service.S) : Service.S with type Config.t = Svc.Config.t
+module Make (Svc : Service) : Service with type Config.t = Svc.Config.t

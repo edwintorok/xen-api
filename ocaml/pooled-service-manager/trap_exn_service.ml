@@ -1,10 +1,12 @@
+open Types
+
 (* do not allow exceptions (other than perhaps Out_of_memory) to escape. *)
 
 let src = Logs.Src.create __MODULE__
 
 include (val Logs.src_log src)
 
-module Make (Svc : Service.S) = struct
+module Make (Svc : Service) = struct
   let open_error e = Rresult.R.open_error_exn_trap (Result.error e)
 
   let trap_exn ~pp_value f v =

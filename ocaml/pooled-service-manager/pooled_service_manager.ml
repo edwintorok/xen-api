@@ -1,5 +1,5 @@
+open Types
 open Pooled_service
-open Service
 
 let run_dir = ref (Fpath.v "/var/run/nonpersistent/pooled-services")
 
