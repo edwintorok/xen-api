@@ -118,7 +118,7 @@ module Make (Svc : S) = struct
 
   let stop id config_opt =
     let fdebug fmt = fdebug id __FUNCTION__ fmt in
-    match config_opt with
+    let* () = match config_opt with
     | None ->
         fdebug (fun m -> m "force stop");
         Svc.stop id None
@@ -130,9 +130,7 @@ module Make (Svc : S) = struct
         | Error e ->
           fdebug (fun m -> m "failed to get running config, will force stop: %a" pp_error e);
           Svc.stop id None
-
-  let stop id config =
-    let* () = stop id config in
+    in
     let* () = remove_dict id in
     let* running = Svc.is_running id ~check_health:false in
     if running then
@@ -140,6 +138,8 @@ module Make (Svc : S) = struct
     else
       Ok ()
 
+  let reload id config =
+    let* () = validate id config in
+    Svc.reload id config
 
-  let reload = Svc.reload
 end
