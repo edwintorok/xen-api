@@ -1,5 +1,7 @@
 type error = [Rresult.R.msg | Rresult.R.exn_trap]
 
+let equal_error (a : [< error]) (b : [< error]) = a = b
+
 let open_error = function
   | Ok _ as r ->
       r

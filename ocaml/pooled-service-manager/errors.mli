@@ -1,5 +1,9 @@
 type error = [Rresult.R.msg | Rresult.R.exn_trap]
 
+val equal_error : ([< error] as 'a) -> 'a -> bool
+(** [equal_error a b] compares errors [a] and [b],
+  useful for Result.equal *)
+
 val open_error : ('a, error) result -> ('a, [> error]) result
 (** [open_error result] makes the [result] error compatible with other polymorphic errors *)
 

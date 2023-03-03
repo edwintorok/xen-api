@@ -12,7 +12,9 @@ let get_run_dir_exn () =
 
 let state_path_exn id =
   let dir = get_run_dir_exn () in
-  Fpath.(dir / Uuidm.to_string id)
+  (* Fpath ensures that [id] doesn't contain '/',
+     and protects against directory traversal *)
+  Fpath.(dir / id)
 
 let pair k v = (k, v)
 
