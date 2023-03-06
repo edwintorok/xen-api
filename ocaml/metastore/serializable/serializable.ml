@@ -1,14 +1,22 @@
-type 'a t = 'a Rpc.Types.typ * 'a
-
 module type S = sig
   type t
 
   val typ_of : t Rpc.Types.typ
 end
 
-let v typ_of value = (typ_of, value)
-
-let of_module (type a) (module T : S with type t = a) value = v T.typ_of value
+let using ~aname to_other from_other typ_of_other =
+  let open Rpc.Types in
+  let rpc_of v = v |> to_other |> Rpcmarshal.marshal typ_of_other
+  and of_rpc rpc =
+    rpc |> Rpcmarshal.unmarshal typ_of_other |> Result.map from_other
+  in
+  Abstract
+    {
+      aname
+    ; test_data= Rpc_genfake.gentest typ_of_other |> List.map from_other
+    ; rpc_of
+    ; of_rpc
+    }
 
 (* if we already have a way to convert a type to Rpc.t we can use that to dump
    it, but in a readable way, not by using Rpc.to_string *)
@@ -41,18 +49,15 @@ let rec dump_rpc ppf =
   | Null ->
       string ppf "null"
 
-let rpc_of (typ_of, t) = Rpcmarshal.marshal typ_of t
+let dump typ_of t = Fmt.using (Rpcmarshal.marshal typ_of) dump_rpc t
 
-let dump t = Fmt.using rpc_of dump_rpc t
-
-let serialize (typ_of, t) = t |> Rpcmarshal.marshal typ_of |> Jsonrpc.to_string
+let serialize typ_of t = t |> Rpcmarshal.marshal typ_of |> Jsonrpc.to_string
 
 let deserialize typ_of str =
   str
   |> Jsonrpc.of_string
   |> Rpcmarshal.unmarshal typ_of
   |> Rresult.R.open_error_msg
-  |> Result.map (v typ_of)
 
 module StringMap = Map.Make (String)
 
@@ -61,19 +66,8 @@ type 'a dict = (string * 'a) list [@@deriving rpcty]
 let stringmap_of_alist alist = alist |> List.to_seq |> StringMap.of_seq
 
 let typ_of_stringmap typ_of_el =
-  let open Rpc.Types in
-  let dict = typ_of_dict typ_of_el in
-  let rpc_of map = map |> StringMap.bindings |> Rpcmarshal.marshal dict in
-  let of_rpc rpc =
-    rpc |> Rpcmarshal.unmarshal dict |> Result.map stringmap_of_alist
-  in
-  Abstract
-    {
-      aname= "stringmap"
-    ; test_data= Rpc_genfake.gentest dict |> List.map stringmap_of_alist
-    ; rpc_of
-    ; of_rpc
-    }
+  using ~aname:"stringmap" StringMap.bindings stringmap_of_alist
+  @@ typ_of_dict typ_of_el
 
 let string_of_file =
   Rresult.R.trap_exn @@ fun path ->
@@ -87,4 +81,4 @@ let string_to_file path =
   @@ Xapi_stdext_unix.Unixext.write_string_to_file ~perms:0600
        (Fpath.to_string path)
 
-let to_file path t = t |> serialize |> string_to_file path
+let to_file typ_of path t = t |> serialize typ_of |> string_to_file path

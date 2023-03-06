@@ -56,7 +56,7 @@
 
 (library
   (name xapi_internal)
-  (wrapped false)
+  (implements xtypes) ; xtypes has wrapped false
   (modules (:standard \ xapi_main))
   (libraries
     angstrom

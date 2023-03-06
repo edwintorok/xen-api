@@ -1,5 +1,0 @@
-(library
-  (name vtasks_thread)
-  (libraries threads.posix rresult)
-  (implements vtasks)
-)

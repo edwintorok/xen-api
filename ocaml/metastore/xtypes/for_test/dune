@@ -1,0 +1,6 @@
+(library
+  (name xtypes_for_test)
+  (libraries threads.posix rresult uuidm)
+  (implements xtypes)
+  (preprocess (pps ppx_deriving_rpc))
+)

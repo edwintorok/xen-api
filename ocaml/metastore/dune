@@ -16,6 +16,11 @@
 ;   * keep dependencies explicit and minimal
 ;   (e.g. don't depend on the entirety of xapi), this makes it easier to test
 ;    the logic in isolation without having to initialize large parts of xapi
+;  Also eventually xapi's database might rely on this as backend, so
+;  avoiding cyclic dependencies early would be useful.
+;   cannot depend on the following modules:
+;      * xapi-database
+;      * xapi_internal
 ;
 ;   * minimal doesn't mean to reinvent the wheel when a good upstream library
 ;   exists
@@ -33,7 +38,9 @@
 ;
 ;     * use additional type variables to parametrize the implementation where
 ;     possible, but avoid "functors by hand" with excessive use of first class
-;     modules, or collections of functions in a record
+;     modules, or collections of functions in a record.
+;     The exception is the 'Serializable.t' type which is used everywhere
+;     and would require to functorize everything otherwise
 ;
 ;     * when different implementations are needed (e.g. product vs test), but
 ;     only a single implementation in a given executable then use Dune virtual

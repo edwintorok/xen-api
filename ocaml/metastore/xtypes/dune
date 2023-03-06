@@ -1,0 +1,17 @@
+; uses XAPI tasks when in XAPI and threads when in unit test, thus virtual
+; libraries: https://dune.readthedocs.io/en/stable/variants.html#virtual-library
+
+; TODO: how to use xapi tasks here without circular deps???
+; we need a Context.t and API.ref_task, and although the latter is available in
+; xapi-types, the former is not
+
+; we *could* make XAPI implement xtypes, but we cannot set wrapped on it...
+; not nice, but we have to make the virtual library unwrapped too
+
+(library
+  (name xtypes) ; simplified form of xapi types
+  (virtual_modules vtasks id)
+  (libraries serializable)
+  (package xapi)
+  (wrapped false) ; xapi and virtual library need to agree on wrapped
+)
