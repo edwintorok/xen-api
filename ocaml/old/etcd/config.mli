@@ -36,7 +36,7 @@ module Section: sig
     [kind] is used to check that the correct type of configuration is stored.
   *)
 
-  val delta: current:'a t -> desired:'a t -> 'a t
+  (* val delta: current:'a t -> desired:'a t -> 'a t*)
   (** [delta ~current ~desired] computes the needed changes to get from [current] to [desired].
     It is the caller's responsiblity to hold a lock
     (to prevent conflicting requests) and iterate until a fixed point is reached.

@@ -17,13 +17,12 @@ let recover use = Rresult.R.kignore_error ~use
 
 module Make (L : Lifecycle) = struct
   module Task = L.Task
+
   let ( let* ) = Result.bind
 
-  let task_await t =
-    Rresult.R.trap_exn L.Task.await_exn t
+  let task_await t = Rresult.R.trap_exn L.Task.await_exn t
 
-  let (let+) vtask f =
-    Result.bind (Result.bind vtask task_await) f
+  let ( let+ ) vtask f = Result.bind (Result.bind vtask task_await) f
 
   (* Identifiers *)
 
@@ -240,6 +239,5 @@ module Make (L : Lifecycle) = struct
         Fmt.error_msg "Instance not running"
     | Some conf ->
         let _, valid = ValidConfig.to_pair conf in
-        trap_exn2 L.health_check_exn id valid
-        |> Result.map Task.await_exn
+        trap_exn2 L.health_check_exn id valid |> Result.map Task.await_exn
 end

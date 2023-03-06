@@ -1,6 +1,7 @@
 open Types
 open Errors
-
+module Types = Types
+module Errors = Errors
 module MakeLocal
     (Conf : MemberConfig)
     (L : Lifecycle) (B : sig

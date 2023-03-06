@@ -1,0 +1,9 @@
+; using rpclib requires preprocessing with a ppx, so limit it to a separate
+; library for now
+
+(library
+  (name serializable)
+  (libraries rpclib.core rpclib.json xapi-stdext-unix fpath fmt)
+  (preprocess (pps ppx_deriving_rpc))
+  (package xapi)
+)

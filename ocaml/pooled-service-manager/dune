@@ -1,6 +1,59 @@
+; Conventions:
+;   * modules should have a small interface, to allow evolving the design
+;
+;   * modules should be composable, e.g. instead of adding dependency handling
+;    into a service module separate service lifecycle and dependency handling
+;    (dependency handling could be a wrapper exposing the same lifecycle
+;    interface, while doing dependency handling on top)
+;
+;   * all modules have fully documented interfaces
+;
+;   * the implementation should demand the minimal interface from the types it
+;   is using, e.g. a means of serializing/deserializing rather a specific kind
+;   of serialization (e.g. dictionaries which restricts types to a single level
+;   map)
+;
+;   * keep dependencies explicit and minimal
+;   (e.g. don't depend on the entirety of xapi), this makes it easier to test
+;    the logic in isolation without having to initialize large parts of xapi
+;
+;   * minimal doesn't mean to reinvent the wheel when a good upstream library
+;   exists
+;
+;   * if an internal library provides the needed implementation but has other
+;   issues, then a lightweight wrapper around it might be suitable (e.g.
+;   Unixext does contain a lot of useful functions for dealing with files)
+;
+;   * use Logs for logging, xapi-logs does register a logs reporter
+;
+;   * to avoid the proliferation of functors use the simplest of the following:
+;     * when a single implementation is needed in the entire project abstract
+;     it into a single module in a library that depends on the single
+;     implementation directly (e.g. 'rpclib' for serialization)
+;
+;     * use additional type variables to parametrize the implementation where
+;     possible, but avoid "functors by hand" with excessive use of first class
+;     modules, or collections of functions in a record
+;
+;     * when different implementations are needed (e.g. product vs test), but
+;     only a single implementation in a given executable then use Dune virtual
+;     libraries:
+;     https://dune.readthedocs.io/en/stable/variants.html#virtual-library
+;
+;     * when different implementations are needed in the same executable use a
+;     functor
+;
+;   * when a module needs different implementations in the same executable
+;     then use functors
+;
+;   * if the library is only going to be used by xapi (or its testcases) then
+;   use the 'xapi' opam package and do not create a new public package, and no
+;   need to add public_name to the libraries
+
 (library
  (name pooled_service_manager)
- (libraries fmt logs uuidm rresult rpclib fpath xapi-stdext-unix astring)
+ (libraries serializable fmt logs uuidm rresult rpclib fpath xapi-stdext-unix astring)
  (modules_without_implementation types)
  (package xapi)
 )
+

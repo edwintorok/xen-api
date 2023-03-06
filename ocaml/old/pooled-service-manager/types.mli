@@ -37,10 +37,12 @@ end
 (** identifier and configuration modules *)
 module type Common = sig
   module Id : Id
-  module Task: sig
-    type 'a t (** type of a task returning values of type ['a] *)
 
-    val await_exn: 'a t -> 'a
+  module Task : sig
+    (** type of a task returning values of type ['a] *)
+    type 'a t
+
+    val await_exn : 'a t -> 'a
     (** [await_exn task] wait until [task] completes.
         @raises an exception if the [task] has failed
      *)
@@ -95,19 +97,23 @@ module type Lifecycle = sig
   val start_exn : Id.t -> ValidConfig.t -> unit Task.t
   (** [start_exn id config] starts an instance of the service [id] with [config]
     on the current host.
+    It joins the instance to the pool if necessary.
     When this function returns the service must be ready to accept requests.
   *)
 
-  val reload_exn : Id.t -> current:ValidConfig.t -> next:ValidConfig.t -> unit Task.t
+  val reload_exn :
+    Id.t -> current:ValidConfig.t -> next:ValidConfig.t -> unit Task.t
   (** [reload_exn id ~current ~next] performs runtime reconfiguration on service [id]
     on the current host, if the service is running and reconfiguration is
     supported.
+      It will not cause pool membership changes.
       On a successful return the service must be running with the new configuration.
   *)
 
   val stop_exn : Id.t -> ValidConfig.t option -> unit Task.t
   (** [stop_exn id config_opt] stops the service instance [id] on the current host.
     On a successful return the service must not be running.
+    It makes the member leave the pool first if necessary.
 
     @params config_opt when None a force stop is performed, otherwise a
       graceful stop (which may require communication with other pool members,

@@ -1,6 +1,9 @@
 open Types
 open Errors
 
+module Types = Types
+module Errors = Errors
+
 let ( let* ) = Result.bind
 
 (* TODO: reload safetycheck on global... *)
@@ -64,6 +67,7 @@ module MakeGlobal
     end) =
 struct
   module Task = L.Task
+
   module Id = struct
     include Set.Make (L.Id)
 

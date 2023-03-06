@@ -105,8 +105,8 @@ module Section = struct
     ) ([], Config_file.empty) |> Result.ok
 
   (* TODO: separate delta type from regular section type? *)
-  let delta ~current:(_, current_config) ~desired:(_, desired_config) =
-    Config_file.delta ~current:current_config ~desired:desired_config
+  (* let delta ~current:(_, current_config) ~desired:(_, desired_config) =
+    Config_file.delta ~current:current_config ~desired:desired_config *)
 
   let apply_live ((cmds, _):live t) = cmds
 end

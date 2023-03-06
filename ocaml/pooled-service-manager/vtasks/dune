@@ -1,0 +1,8 @@
+; uses XAPI tasks when in XAPI and threads when in unit test, thus virtual
+; libraries: https://dune.readthedocs.io/en/stable/variants.html#virtual-library
+
+(library
+  (name vtasks)
+  (virtual_modules vtasks)
+  (package xapi)
+)
