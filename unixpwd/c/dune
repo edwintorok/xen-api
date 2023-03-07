@@ -4,6 +4,7 @@
     (names unixpwd unixpwd_stubs)
   )
   (name unixpwd_stubs)
+  (libraries unix)
   (wrapped false)
 )
 
