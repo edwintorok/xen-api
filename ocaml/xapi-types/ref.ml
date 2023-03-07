@@ -64,6 +64,8 @@ let compare (a : 'a t) (b : 'a t) =
   | Dummy _, _ -> -1 (* Dummy <= Real *)
   | Real _, Dummy _ -> 1
 
+let gcompare = compare (* already a total order *)
+
 let string_of = function
   | Real uuid ->
       ref_prefix ^ uuid

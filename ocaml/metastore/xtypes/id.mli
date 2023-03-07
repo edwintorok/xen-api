@@ -17,3 +17,6 @@ module Key : Map.OrderedType
 
 val key: 'a t -> Key.t
 (** [key id] a constructs {Key.t} suitable for use in Map and Set lookups. *)
+
+module Map: Map.S with type key = Key.t
+(** a map using unique identifiers as keys *)

@@ -19,33 +19,3 @@ let dump ppf t =
   [ field "id" id Id.dump
   ; field "config" config_serializable Serializable.T.dump
   ] ppf t
-
-module PolyMap = struct
-  module type Key = sig
-    type 'a t
-  end
-
-  module Make(K: Key) = struct
-    module type MapValue = sig
-      type a
-      type b
-      include Map.S with type key = a K.t
-      type map = b t
-      val t: map
-    end
-
-    type (!'a, !'b) t = (module MapValue with type a = 'a and type b = 'b)
-  end
-end
-
-module type MapS2 = sig
-  type a
-  type b
-  include Map.S with type key = (a, b) t
-end
-
-module MakeKey(S2: sig type a type b end) : Map.OrderedType with type t = (S2.a, S2.b) t = struct
-  type nonrec t = (S2.a, S2.b) t
-
-  let compare = compare
-end

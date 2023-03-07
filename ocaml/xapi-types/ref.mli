@@ -24,6 +24,11 @@ val compare : 'a t -> 'a t -> int
 (** [compare a b] returns [0] if [a] and [b] are equal, a negative integer if
     [a] is less than [b], and a positive integer if [a] is greater than [b]. *)
 
+val gcompare: _ t -> _ t -> int
+(** [gcompare a b] is a generic comparison of refs [a] and [b] even when they
+    are different types. This is suitable to be used for a {!Map.OrderedType}'s
+    compare implementation. *)
+
 val string_of : 'a t -> string
 
 val to_option : 'a t -> 'a t option
