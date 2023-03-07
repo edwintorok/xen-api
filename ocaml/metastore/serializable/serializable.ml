@@ -42,7 +42,7 @@ let dump typ_of t = Fmt.using (Rpcmarshal.marshal typ_of) dump_rpc t
 module T = struct
   type 'a t = 'a typ * 'a
 
-  let v typ t = typ, t
+  let v typ t = (typ, t)
 
   let dump ppf (typ_of, t) = dump typ_of ppf t
 end

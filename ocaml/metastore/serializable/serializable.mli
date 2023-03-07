@@ -1,14 +1,16 @@
 (** Helpers for serializing and deserializing data structures. *)
 
-type 'a typ = 'a Rpc.Types.typ (** shortened typename *)
+(** shortened typename *)
+type 'a typ = 'a Rpc.Types.typ
 
 module T : sig
-  type 'a t = 'a typ * 'a (** a value together with its serializer *)
+  (** a value together with its serializer *)
+  type 'a t = 'a typ * 'a
 
   val v : 'a typ -> 'a -> 'a t
   (** [v typ_of t] is a pair of [t] and its serializer [typ_of] *)
 
-  val dump: _ t Fmt.t
+  val dump : _ t Fmt.t
   (** [dump t] pretty prints a representation of [t] for troubleshooting *)
 end
 
@@ -21,8 +23,7 @@ module type S = sig
   (** description how to convert type to and from {!Rpc.t} *)
 end
 
-
-val using: aname:string -> ('a -> 'b) -> ('b -> 'a) -> 'b typ -> 'a typ
+val using : aname:string -> ('a -> 'b) -> ('b -> 'a) -> 'b typ -> 'a typ
 (** [using aname to_other of_other typ_of_other] is a {!typ} implemented by
     converting [v] to and from [typ_other] using [to_other] and [of_other].
     [aname] is the name given to the abstract type.
@@ -46,17 +47,14 @@ val serialize : 'a typ -> 'a -> string
   have an [[@default]] value.
 *)
 
-val deserialize :
-  'a typ -> string -> ('a, [> Rpcmarshal.err]) result
+val deserialize : 'a typ -> string -> ('a, [> Rpcmarshal.err]) result
 (** [deserialize typ_of str] deserializes [str] using [typ_of].
     If data is an incorrect format it returns an [Error] with an appropriate
     message, this shouldn't raise exceptions.
  *)
 
 val of_file :
-     'a typ
-  -> Fpath.t
-  -> ('a, [> Rpcmarshal.err | Rresult.R.exn_trap]) result
+  'a typ -> Fpath.t -> ('a, [> Rpcmarshal.err | Rresult.R.exn_trap]) result
 (** [of_file typ_of path] loads the contents of [path] as a (binary) string. *)
 
 val to_file : 'a typ -> Fpath.t -> 'a -> (unit, [> Rresult.R.exn_trap]) result
