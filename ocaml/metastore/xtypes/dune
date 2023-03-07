@@ -9,9 +9,9 @@
 ; not nice, but we have to make the virtual library unwrapped too
 
 (library
-  (name xtypes) ; simplified form of xapi types
-  (virtual_modules vtasks id)
-  (libraries serializable)
+  (name xtypes); avoid circular dep with xapi_internal, moved some types here
+  (virtual_modules vtasks)
+  (libraries serializable xapi-types)
   (package xapi)
   (wrapped false) ; xapi and virtual library need to agree on wrapped
 )

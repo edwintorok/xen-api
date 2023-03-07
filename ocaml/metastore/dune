@@ -13,7 +13,7 @@
 ;   of serialization (e.g. dictionaries which restricts types to a single level
 ;   map)
 ;
-;   * keep dependencies explicit and minimal
+;   * keep internal dependencies explicit and minimal
 ;   (e.g. don't depend on the entirety of xapi), this makes it easier to test
 ;    the logic in isolation without having to initialize large parts of xapi
 ;  Also eventually xapi's database might rely on this as backend, so
@@ -59,7 +59,7 @@
 
 (library
  (name pooled_service_manager)
- (libraries serializable fmt logs uuidm rresult rpclib fpath xapi-stdext-unix astring)
+ (libraries serializable fmt logs uuidm rresult rpclib fpath xapi-stdext-unix astring xtypes)
  (modules_without_implementation types)
  (package xapi)
 )

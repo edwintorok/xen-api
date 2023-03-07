@@ -3,7 +3,10 @@ type 'a t = (Rpc.t -> 'a) * Context.t * API.ref_task
 let v (typ_of: 'a Rpc.Types.typ) f : 'a t =
   let __context = Context.make __FUNCTION__ in
   let task = Context.get_task_id __context in
-  let r = () |> Rresult.R.trap_exn @@ fun () -> f () |> Rpcmarshal.marshal typ_of in
+  let execute =
+    Rresult.R.trap_exn @@ fun () ->
+    f () |> Rpcmarshal.marshal typ_of
+  in
   let ok rpc = TaskHelper.set_result ~__context (Some rpc) in
   let error (`Exn_trap (e, bt)) =
     (* copy backtrace into xapi-backtrace, TODO: xapi-backtrace should use
@@ -15,7 +18,7 @@ let v (typ_of: 'a Rpc.Types.typ) f : 'a t =
         Backtrace.is_important e;
     in
     TaskHelper.failed ~__context e in
-  Result.fold ~ok ~error r;
+  execute () |> Result.fold ~ok ~error;
   let of_rpc rpc =
     Rpcmarshal.unmarshal typ_of rpc
     |> function

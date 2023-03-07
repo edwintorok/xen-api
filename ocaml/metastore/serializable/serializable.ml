@@ -1,22 +1,10 @@
+type 'a typ = 'a Rpc.Types.typ
+
 module type S = sig
   type t
 
   val typ_of : t Rpc.Types.typ
 end
-
-let using ~aname to_other from_other typ_of_other =
-  let open Rpc.Types in
-  let rpc_of v = v |> to_other |> Rpcmarshal.marshal typ_of_other
-  and of_rpc rpc =
-    rpc |> Rpcmarshal.unmarshal typ_of_other |> Result.map from_other
-  in
-  Abstract
-    {
-      aname
-    ; test_data= Rpc_genfake.gentest typ_of_other |> List.map from_other
-    ; rpc_of
-    ; of_rpc
-    }
 
 (* if we already have a way to convert a type to Rpc.t we can use that to dump
    it, but in a readable way, not by using Rpc.to_string *)
@@ -50,6 +38,28 @@ let rec dump_rpc ppf =
       string ppf "null"
 
 let dump typ_of t = Fmt.using (Rpcmarshal.marshal typ_of) dump_rpc t
+
+module T = struct
+  type 'a t = 'a typ * 'a
+
+  let v typ t = typ, t
+
+  let dump ppf (typ_of, t) = dump typ_of ppf t
+end
+
+let using ~aname to_other from_other typ_of_other =
+  let open Rpc.Types in
+  let rpc_of v = v |> to_other |> Rpcmarshal.marshal typ_of_other
+  and of_rpc rpc =
+    rpc |> Rpcmarshal.unmarshal typ_of_other |> Result.map from_other
+  in
+  Abstract
+    {
+      aname
+    ; test_data= Rpc_genfake.gentest typ_of_other |> List.map from_other
+    ; rpc_of
+    ; of_rpc
+    }
 
 let serialize typ_of t = t |> Rpcmarshal.marshal typ_of |> Jsonrpc.to_string
 

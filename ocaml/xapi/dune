@@ -59,6 +59,7 @@
   (implements xtypes) ; xtypes has wrapped false
   (modules (:standard \ xapi_main))
   (libraries
+    xtypes
     angstrom
     astring
     cstruct

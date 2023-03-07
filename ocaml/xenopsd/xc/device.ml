@@ -1884,7 +1884,7 @@ module Vusb = struct
                   driver= "usb-host"
                 ; device= USB {USB.id; params= Some {bus; hostbus; hostport}}
                 }
-              
+
           )
         in
         qmp_send_cmd domid cmd |> ignore
@@ -2258,7 +2258,7 @@ module Dm_Common = struct
     let stop_swptm () =
       Option.iter
         (fun (Xenops_interface.Vm.Vtpm vtpm_uuid) ->
-          Servicewtpm.stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid
+          Service.Swtpm.stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid
         )
         vtpm ;
       Xenops_sandbox.Swtpm_guard.stop dbg ~domid ~vm_uuid
@@ -3048,7 +3048,7 @@ module Backend = struct
                         ; medium_filename= path
                         ; medium_format= Some "raw"
                         }
-                      
+
                     in
 
                     let cmd = Qmp.(Blockdev_change_medium medium) in
@@ -3116,7 +3116,7 @@ module Backend = struct
                       driver= VCPU.Driver.(string_of QEMU32_I386_CPU)
                     ; device= VCPU {VCPU.id; socket_id; core_id; thread_id}
                     }
-                  
+
               )
             |> ignore
         | false ->
@@ -3503,7 +3503,7 @@ module Backend = struct
                   common.argv @ misc @ disks' @ pv_device pv_device_addr @ none
               ; fd_map= common.fd_map
               }
-            
+
         | _, fds, argv ->
             Dm_Common.
               {
@@ -3511,7 +3511,7 @@ module Backend = struct
                   common.argv @ misc @ disks' @ pv_device pv_device_addr @ argv
               ; fd_map= common.fd_map @ fds
               }
-            
+
 
       let after_suspend_image ~xs ~qemu_domid ~vtpm domid =
         (* device model not needed anymore after suspend image has been created *)
@@ -3724,7 +3724,7 @@ module Dm = struct
       match info.tpm with
       | Some (Vtpm vtpm_uuid) ->
           let tpm_socket_path =
-            Servicewtpm.start ~xs task domid ~vtpm_uuid ~index:0
+            Service.Swtpm.start ~xs task domid ~vtpm_uuid ~index:0
           in
           [
             "-chardev"
@@ -3861,7 +3861,7 @@ module Dm = struct
     debug "Called Dm.suspend_vtpms (domid=%d)" domid ;
     Option.map
       (fun (Xenops_interface.Vm.Vtpm _vtpm_uuid) ->
-        Servicewtpm.suspend ~xs ~domid ~vm_uuid
+        Service.Swtpm.suspend ~xs ~domid ~vm_uuid
       )
       vtpm
     |> Option.to_list
@@ -3870,7 +3870,7 @@ module Dm = struct
     debug "Called Dm.restore_vtpms (domid=%d)" domid ;
     let vm_uuid = Uuidx.to_string (Xenops_helpers.uuid_of_domid ~xs domid) in
     (* TODO: multiple vTPM support? *)
-    Servicewtpm.restore ~domid ~vm_uuid contents
+    Service.Swtpm.restore ~domid ~vm_uuid contents
 end
 
 (* Dm *)
