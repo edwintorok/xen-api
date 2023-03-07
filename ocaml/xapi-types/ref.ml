@@ -57,10 +57,12 @@ let compare (a : 'a t) (b : 'a t) =
       String.compare a b
   | Null, Null ->
       0
-  | Null, _ | Other _, _ | Dummy _, _ ->
-      -1
-  | Real _, _ ->
-      1
+  | Null, _ -> -1 (* Null <= Other <= Dummy <= Real *)
+  | _, Null -> 1
+  | Other _, _ -> -1 (* Other <= Dummy <= Real *)
+  | _, Other _ -> 1
+  | Dummy _, _ -> -1 (* Dummy <= Real *)
+  | Real _, Dummy _ -> 1
 
 let string_of = function
   | Real uuid ->
