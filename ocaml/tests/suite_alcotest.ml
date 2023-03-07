@@ -6,6 +6,7 @@ let () =
   Alcotest.run "Base suite"
     ([
        ("Test_valid_ref_list", Test_valid_ref_list.test)
+     ; ("Test_ref", Test_ref.test)
      ; ("Test_sdn_controller", Test_sdn_controller.test)
      ; ("Test_pci_helpers", Test_pci_helpers.test)
      ; ("Test_vdi_allowed_operations", Test_vdi_allowed_operations.test)
