@@ -46,7 +46,9 @@ let is_real = function Real _ -> true | _ -> false
 
 let is_dummy = function Dummy _ -> true | _ -> false
 
-let compare (a : 'a t) (b : 'a t) =
+(* compare refs of different types *)
+
+let gcompare a b =
   match (a, b) with
   | Real a, Real b ->
       String.compare a b
@@ -64,7 +66,9 @@ let compare (a : 'a t) (b : 'a t) =
   | Dummy _, _ -> -1 (* Dummy <= Real *)
   | Real _, Dummy _ -> 1
 
-let gcompare = compare (* already a total order *)
+(* compare only refs of the same type *)
+
+let compare (a : 'a t) (b : 'a t) = gcompare a b
 
 let string_of = function
   | Real uuid ->

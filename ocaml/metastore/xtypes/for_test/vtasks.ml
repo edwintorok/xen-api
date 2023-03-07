@@ -20,9 +20,18 @@ type 'a t = {
            release/reacquire the mutex while doing Thread.join *)
 }
 
-let v _of_rpc f =
+type task = Rpc.t
+
+type context = unit
+
+let v ~__context:_ typ_of f =
+  let call () =
+    f () |> Rpcmarshal.unmarshal typ_of
+    |> Rresult.R.failwith_error_msg
+  in
   let thread result =
-    Rresult.R.trap_exn f () |> Option.some |> Atomic.set result
+    Rresult.R.trap_exn call ()
+    |> Option.some |> Atomic.set result
   in
   let result = Atomic.make None in
   {thread= create thread result; result}
