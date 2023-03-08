@@ -58,7 +58,7 @@
 ;   need to add public_name to the libraries
 
 (library
- (name pooled_service_manager)
+ (name xapi_metastore)
  (libraries serializable fmt logs uuidm rresult rpclib fpath xapi-stdext-unix astring xtypes)
  (modules_without_implementation types)
  (package xapi)
