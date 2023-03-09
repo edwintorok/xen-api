@@ -6,7 +6,7 @@ let compare a b = Id.compare a.id b.id
 
 let id t = t.id
 
-let config t = t.config
+let config t = Serializable.T.v t.typ_of_config t.config
 
 let config_serializable t = Serializable.T.v t.typ_of_config t.config
 

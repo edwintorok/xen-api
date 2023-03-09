@@ -8,7 +8,7 @@ type ('a, 'b) t
 val v : 'a Serializable.typ -> 'b Id.t -> 'a -> ('a, 'b) t
 (** [v typ_of id config] is a unique instance [id] with configuration [config]. *)
 
-val config : ('a, 'b) t -> 'a
+val config : ('a, 'b) t -> 'a Serializable.T.t
 (** [config t] is the configuration of [t] *)
 
 val id : ('a, 'b) t -> 'b Id.t
