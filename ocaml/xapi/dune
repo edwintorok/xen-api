@@ -169,3 +169,5 @@
   )
 )
 
+
+(documentation (package xapi))

@@ -1,0 +1,24 @@
+; Conventions:
+;
+;   *  cannot depend on 'xapi-database' or 'xapi_internal': we may want to use the
+;   metastore as a backend for XAPI's database in the future
+;
+;   * all modules have fully documented interfaces
+;
+;   * use Logs for logging, xapi-logs does register an appropriate log reporter
+;
+;   * libraries that are only used by executables and tests have no
+;   'public_name', and are part of the 'xapi' package
+;
+;   * should not be part of xapi-types because xapi-client also depends on that
+
+(library
+  (name xapi_metastore)
+  (package xapi)
+  (libraries forkexec uuidm fmt rresult ipaddr uri fpath)
+  (preprocess (pps ppx_deriving_rpc))
+)
+
+(documentation
+  (package xapi)
+)

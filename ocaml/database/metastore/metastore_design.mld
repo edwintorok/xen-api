@@ -1,0 +1,280 @@
+{0 XAPI metadata storage design}
+
+{1 Purpose}
+
+The initial purpose of the XAPI metadata storage is to provide robust storage
+for [vTPM] devices.
+XAPI itself is not suitable for this because by default its database is not
+crash-proof (it is purely in-memory, unless the redo-log is enabled),
+and making it crash-proof (redo-log) requires shared storage which may not be
+easily available everywhere.
+Also it should be more acceptable to add upstream support in [swtpm] for a well established
+protocol (e.g. [etcd]) than a custom one used only by XAPI without well defined
+consistency guarantees.
+
+For scalability and robustness more than one metadata storage node may be used,
+running either on member local storage, or using shared storage as needed and
+available.
+
+However in the future the UEFI NVRAM storage should also use this as a backend,
+and eventually the entire XAPI database may use this metastore as a backend
+(at least when the redolog is enabled).
+
+It would also simplify integrating any other daemon that needs to run on many
+hosts in the cluster but does not provide its own configuration manager
+compatible with XAPI (e.g. `corosync`, where `pacemaker`'s decision making on
+configuration, membership management, and fencing is inconsistent with XAPI's
+model): they can talk to etcd directly (with suitable ACLs in place).
+
+{1 Build and module organization}
+
+{2 Opam package}
+
+We have several opam packages in the XAPI monorepo, however the following
+guidelines can be used to determine which library should go where:
+
+{ul
+{- executables installed in Dom0 need to be part of a package
+  - multiple executables {b can} be part of the same package
+}
+{- libraries used outside of the monorepo (e.g. XAPI client) need to have a package
+  - although a single package {b can} contain multiple libraries if subpackages
+    are used in public_name with '.'
+}
+{- all dependencies of public libraries must themselves be public libraries}
+{- libraries used only by executables (or shared by executables only) should be
+  private libraries
+}
+}
+
+The metadata store is {b only} used by XAPI (anything else that needs the
+metadata store should talk to the metadata store using its native protocol and
+just query XAPI for the local URL), so therefore it should be part of the XAPI
+package.
+
+Note that the current layout of opam packages and public libraries is not ideal
+(we have too many of them). Ideally it should be simplified to have only the
+following as public:
+
+- separate processes may want to have a separate package if they already do
+(e.g. xenopsd)
+- clients for XAPI's external and internal API have to be public libraries
+- libraries shared between several public libraries need to be themselves
+  public, but preferably they can be added as a sub-package into an existing library.
+- clients for other services, e.g. [forkexecd]
+
+{2 Dune library}
+
+The metadata store should be a library, and we may eventually want to make
+XAPI's database use it.
+To avoid circular dependencies and startup ordering problems this library
+should be linkable from the [xapi_database] library, which is an internal
+library. Therefore this should be an internal library too.
+
+To detect cyclic dependencies early on add a dependency from [xapi_database]
+to [xapi_metastore]
+
+{2 Unique identifiers}
+
+The database module uses strings, XAPI uses {!module:Ref}.
+However we don't necessarily want to introduce a dependency on [xapi-types],
+since that one is quite slow to build due to having to regenerate whenever the
+IDL/API changes.
+And putting the metastore in [xapi-types] isn't right either, because that is
+used by the XAPI client (in fact that library should be changed to be a
+subpackage of the xapi client).
+
+Use {!module:Uuidm} for unique identifiers, that is the correct type to use
+anyway (eventually we may change the DB to support them natively, for now XAPI
+will convert to and from string as needed).
+
+{2 Licensing}
+
+The metastore will be a core part of XAPI, providing a core piece of
+functionality, and should thus be under the same license as XAPI itself.
+
+{2 Configuration}
+
+{3 Storage}
+
+The configuration must not be stored in the XAPI database, to prevent cyclic
+startup dependency.
+In the [xapi_metastore] library the configuration storage should be abstract
+(i.e. configuration should be supplied by the user of the library, where it is
+stored is not the library's concern).
+
+Then in XAPI we should have a {!module:Xapi_metastore_config} module that
+stores the configuration. The {!module:Localdb} is already used to store
+configuration about the database itself (e.g. {!val:Constants.redo_log_enabled})
+
+{3 Contents}
+
+Depends on the metastore backend, currently [etcd].
+Conceptually the following kind of configuration is stored:
+
+{ul
+ {- configuration global to the entire pool (called "cluster" in [etcd]) that
+      cannot be changed safely while the pool is running:
+
+    - various timeout values
+    - quotas
+
+ }
+ {- configuration local to a member, changing these usually requires no
+ coordination:
+
+    - the local port that clients connect on
+    - the local ip:port on which the member listens on, which may be different to
+      the ip:port advertised to other members (e.g. if [stunnel] or another
+      proxy is used)
+    - the local TLS certificate used (as long as the existing CA configured on
+      other members already trusts it)
+
+ }
+ {- configuration about membership:
+
+    - advertised member ip:port used for communication between metastore nodes
+    - a list of all other metastore nodes for bootstrapping purposes
+    - TLS CA configuration for member to member communication
+ }
+}
+
+Note that the number of metastore cluster members do not necessarily have to match the
+number of XAPI members: some XAPI members may run a simple etcd client only
+that connects to some of the other nodes.
+
+Some of this configuration is stored by etcd itself through a two-phase update
+protocol (these can be managed via [etcdctl member] commands), but others
+require management by XAPI: e.g. changing the advertised URL may also require a
+local member restart if the local listen port is also changed.
+And changing TLS configuration will require a rolling restart managed by XAPI.
+
+For changing some of the other values creating a new etcd cluster and
+transfering data over might be the most robust way, {b and} would also allow us
+to support upgrades easily. Although live clients will need to be carefully
+redirected from one node to the other, while the other is running in mirror
+mode.
+
+It is important that the "live" configuration is read from the live metastore
+cluster and diffed against the live configuration, and {b not} XAPI's notion of
+what that configuration should be.
+Although if the cluster is not live at the moment then a bootstrap
+configuration will need to be supplied.
+But note that this configuration may only be used for bootstrapping by [etcd],
+and even if present and changed in a config file, and doing a cold start of the
+cluster it will use the configuration stored in etcd itself and ignore the
+configuration stored in its configuration file.
+And there may be no way to change some of this configuration, short of force
+overwriting the cluster configuration or creating a brand new cluster.
+
+{3 Type representation}
+
+The end result is an [EnvironmentFile] with several lines consisting of key-value pairs.
+Keys cannot be duplicates, so a map (or Hashtable if using {!val:Hashtbl.replace}) would be a natural representation.
+An immutable representation is preferred to make manipulation easier.
+
+The configuration has to be changed at runtime for adding and removing pool
+members, thus some form of configuration "diffing" will be required.
+
+Although the values will eventually be strings, each key usually has a well
+defined type (an integer, a URL, etc.), so a typed representation would be
+ideal.
+
+We also need to be able to serialize and deserialize the configuration, and to
+allow the admin to override almost arbitrary fields "other-config" style
+(i.e. with key-value pairs where both are strings).
+
+Arbitrary changes to fields are not supported, there are only a very small
+number of fields (related to pool membership) that can be changed at runtime,
+everything else requires either a local or global restart of the metadata
+service.
+
+A few possibilities:
+ - store as a {!type:string Map.Make(String).t} internally, but don't expose
+   this type outside the configuration module and have typed field constructors
+   or field definitions. This was my initial implementation attempt.
+
+ - use the {!module:Hmap} module which allows heterogeneous maps with values of
+   different types, where a given key ensures that the returned values is
+   always of the same type (the type is encoded in the key, but the type parameter can
+   be hidden as well)
+
+ - use an OCaml record type, and a PPX to generate serializers/deserializers.
+   And then perform the "diffing" on this serialized type representation.
+   XAPI uses {!module:Rpclib} and its associated ppx [@@deriving rpcty], so
+   that seems like a natural choice.
+   It supports overriding keys with {!val:Rpc.struct_extend}
+
+The internal implementation should not be exposed, and we should avoid
+"leaking" the choice through the abstractiony,
+e.g. when using a record providing a "field"
+value for each field may not be feasible, but providing a [set_field_foo] API
+would be.
+
+Although going the record route we need to duplicate fields in many places:
+- in record field
+- in the [make] constructor
+- in field getters
+- in field setters
+
+Whereas treating the field as a first class type, and having generic
+set/get APIs (like with lenses) reduced the amount of duplication,
+and makes the code clearer and more concise.
+
+Although expressing constraints (such as requiring certain fields to be
+present) becomes more difficult.
+
+{4 Result types}
+
+We follow the {!Rresult} convention of defining an [result] type in the module,
+however we use the [`Msg of string] convention that {!Rresult} and
+{!Rpcmarshal} uses (no custom error type).
+
+To ensure some consistency we declare an open variant [[>`Msg of string]]
+constraint on the error type, this saves us from having to write
+[('a, [> error]) result] on each function signature,
+and it also saves us from having to define the [open_error] helper to transform
+a [('a, error) result] into an [('a, [> error]) result] which is needed when
+composing with different error results (e.g. the one from {!Rresult.exn_trap}).
+
+{3 Configuration diffing}
+
+This should return a {!type:Xapi_metastore.Config.LiveDiff.t},
+which could be queried on whether each individual field has changed.
+Internally it could be a record containing [option]al values as fields,
+to take advantage of the special handling that {!module:Rpclib} has for
+automatically omitting or accepting missing fields that are optional.
+
+The other configuration (local, global) should have a diff, but it may just be
+a boolean telling you whether it changed (which then would require a reload,
+etc).
+
+At a high-level XAPI would only issue a reload or set-state call, and it is
+metastore internally that needs to figure out "how" to reload.
+
+Thus we may not need to expose the "diff" as such in types, just actions to be
+taken when the configuration changes, all encapsulated in the config module.
+
+The best way to integrate this with systemd seems to be to provide a reload
+action implemented by a small XAPI binary (or doing the reload in XAPI itself,
+and issuing the service restart then).
+
+It might make development, debugging and testing easier if the reload was its
+own independent binary though.
+
+{3 Performing a reload}
+
+@see <https://github.com/systemd/systemd/commit/d611cfa748aaf600832160132774074e808c82c7>
+systemd bugfix
+
+We could use [ExecReload=] feature of systemd units, but for that to work
+reliably we'd need systemd v243+ which CentOS 7 wouldn't necessarily have.
+
+It is better to let XAPI handle the reload, because then we're sure about the
+behaviour we are getting on a failed reload (depending on how the reload
+failed, we'd prefer to let the existing process run and report the failure to
+change the configuration to the caller).
+
+{1 API reference}
+
+{!modules: Xapi_metastore.Config Xapi_metastore.Id}
