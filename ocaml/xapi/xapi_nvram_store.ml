@@ -1,10 +1,12 @@
-open Xapi_etcd
+(* open Xapi_etcd
 
 module D = Debug.Make (struct let name = __MODULE__ end)
 
-open D
+open D *)
 
 let create ~__context ~network =
+  ignore __context; ignore network;
+  (*
   info "%s: network = %s" __FUNCTION__ (Ref.string_of network) ;
   let ref = Ref.make () in
   let uuid = Uuidx.(to_string (make ())) in
@@ -26,7 +28,12 @@ let create ~__context ~network =
     ~current_operations:[] ~backend:`etcd ~client_url:(Uri.to_string client_url)
     ~config ~other_config:[] ;
   ref
+  *)
+  failwith "TODO"
 
 let destroy ~__context ~self =
+  ignore __context; ignore self;
+  failwith "TODO"
+  (*
   info "%s, self=%s" __FUNCTION__ (Ref.string_of self) ;
-  Db.NVRAM_store.destroy ~__context ~self
+  Db.NVRAM_store.destroy ~__context ~self *)

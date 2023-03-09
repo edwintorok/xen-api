@@ -1,9 +1,10 @@
-open Xapi_etcd
+(* open Xapi_etcd
 
 module D = Debug.Make (struct let name = __MODULE__ end)
 
-open D
+open D *)
 
+(*
 let ipaddr_of_pif ~__context ~pIF =
   (* TODO: convert to XAPI error *)
   Xapi_pif_helpers.get_primary_address ~__context ~pif:pIF
@@ -30,8 +31,11 @@ let https = false
 
 let peer_port = 2380
 let client_port = 2379
-
+*)
 let create ~__context ~nvram_store ~host ~pIF =
+  ignore __context; ignore nvram_store; ignore host; ignore pIF;
+  failwith "TODO"
+  (*
   info "%s: host = %s; pif = %s" __FUNCTION__ (Ref.string_of host)
     (Ref.string_of pIF) ;
   let ref = Ref.make () in
@@ -67,15 +71,21 @@ let create ~__context ~nvram_store ~host ~pIF =
     ~config ~current_operations:[] ~other_config:[]
     ~peer_url:(Uri.to_string peer_url) ~nvram_store ~host ~pIF ~joined:false ;
   ref
+  *)
 
 let destroy ~__context ~self =
-  info "%s: self=%s" __FUNCTION__ (Ref.string_of self) ;
-  Db.NVRAM_store_member.destroy ~__context ~self
+  ignore __context; ignore self;
+  failwith "TODO"
+  (* info "%s: self=%s" __FUNCTION__ (Ref.string_of self) ;
+  Db.NVRAM_store_member.destroy ~__context ~self *)
 
 (* TODO: xapi.conf/resources *)
 let etcd_conf = "/etc/etcd/etcd.conf"
 
 let set_joined ~__context ~self ~joined =
+  ignore __context; ignore self; ignore joined;
+  failwith "TODO"
+  (*
   info "%s: self=%s, joined=%b" __FUNCTION__ (Ref.string_of self) joined ;
   (* call etcdctl member add/remove, write out config, start/stop etcd *)
   (* compare current with next config, ask Config for the update list and
@@ -95,3 +105,4 @@ let set_joined ~__context ~self ~joined =
   in
   Xapi_systemctl.restart ~wait_until_success:true "etcd";
   ()
+  *)
