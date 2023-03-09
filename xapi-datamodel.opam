@@ -17,7 +17,6 @@ depends: [
   "rpclib"
   "base-threads"
   "xapi-consts"
-  "xapi-schema"
   "xapi-stdext-date"
   "xapi-stdext-std"
   "xapi-stdext-unix"
