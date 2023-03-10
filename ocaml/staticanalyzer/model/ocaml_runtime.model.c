@@ -68,6 +68,10 @@
 int __VERIFIER_nondet_int(void);
 #define STUB __attribute__((goblint_stub))
 
+caml_domain_state mainstate;
+/* avoid a lot of NULL deref alerts */
+caml_domain_state *Caml_state = &mainstate;
+
 /* CIL runs after preprocessing so cannot see or evaluate macros,
  * i.e. we cannot directly check whether a function contains calls to CAMLparam or not.
  * However we can that it contains the preabmle from __VERIFIER_camlparam0,
@@ -188,8 +192,6 @@ STUB static void __caml_maybe_run_finalizer(void)
 
 STUB static void __caml_move(value arg, volatile value *dest)
 {
-    __VERIFIER_camlparam0(); /* ensure it is not dead code */
-    __VERIFIER_camlparam1(arg);
     if ( !Is_block(arg) )
         return;
     if ( arg == a_custom_op.v )
@@ -272,10 +274,12 @@ STUB value caml_alloc(mlsize_t wosize, tag_t tag)
     value p = caml_alloc_shr(wosize, tag);
     if ( tag < No_scan_tag )
     {
-        for ( i = 0; i < wosize; i++ )
-            Field(p, i) = Val_unit;
+        /* FIXME: raises an error in goblint: ikinds int and unsigned int are
+         * not compatible
+         for ( i = 0; i < wosize; i++ )
+            Field(p, i) = Val_unit; */
     }
-    return Val_hp(p);
+    return p;
 }
 
 #if OCAML_VERSION < 50000

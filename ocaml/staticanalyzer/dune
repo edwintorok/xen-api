@@ -5,6 +5,8 @@
   (package xapi-lintcstubs)
 )
 
+(cram (deps %{bin:lintcstubs} (package xapi-lintcstubs) model/ocaml_runtime.model.c))
+
 ; TODO: copy $(ocamlc -where) to a destpatch,
 ; then run on caml/misc.h or all files this:
 ; perl -I$(opam var lib)/perl5 ~/goblint-cil/lib/perl5/patcher
