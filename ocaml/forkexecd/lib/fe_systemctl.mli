@@ -22,6 +22,34 @@ type status = {
 (** key -> value map *)
 type 'a string_map = 'a Map.Make(String).t
 
+val set_properties :
+     ?env:string string_map
+  -> ?properties:(string * string list) list
+  -> service:string
+  -> unit
+  -> unit
+(** [set_properties ?env ?properties ~service ()] sets properties on systemd
+      [service].
+
+  @param env Environment variables to set
+
+  @param properties systemd service properties to override.
+    [Some value] overrides the property.
+    [None] removes any override for the property, setting back to default
+
+  @param service the systemd service to change. Changes take effect on next
+  restart.
+
+*)
+
+val start_templated : template:string -> instance:string -> unit
+(** [start_templated ~template ~instance] starts [template@instance.service]
+  instance of the [template@.service] systemd template unit.
+
+  @param template the [template@.service] name
+  @param instance parameter for template, available as %i and %I for substitution
+*)
+
 val start_transient :
      ?env:string string_map
   -> ?properties:(string * string list) list
@@ -53,3 +81,7 @@ val stop : service:string -> status
 val exists : service:string -> bool
 (** [exists ~service] checks whether [service] still exists in systemd.
  * Note: stopped transient services get cleaned up and this will return false *)
+
+(**/**)
+
+val set_test : unit -> unit
