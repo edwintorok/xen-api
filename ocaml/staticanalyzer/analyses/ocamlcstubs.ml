@@ -166,6 +166,42 @@ let ocaml_value_derefs_of_exp exp =
   let (_ : exp) = visitCilExpr visitor exp in
   !values
 
+let ocaml_params_globals = lazy (
+  let param0, param1 = ref None, ref None in
+  Cil.iterGlobals !Cilfacade.current_file (function
+    | GFun (g, _) ->
+      (match g.svar.vname with
+      | "__VERIFIER_camlparam0" ->
+        param0 := Some g
+      | "__VERIFIER_camlparam1" ->
+        param1 := Some g
+      | _ -> ())
+    | _ -> ()
+  );
+  match !param0, !param1 with
+    | Some p0, Some p1 -> p0, p1
+    | _ -> failwith "Missing __VERIFIER_ocaml_param{0,1} in runtime.model.c"
+)
+
+let d_varinfo () (v: varinfo) =
+  Pretty.dprintf "%s" v.vname
+
+let error_CAMLparam = Messages.Category.(Behavior (Undefined UseAfterFree))
+
+let assert_begins_with_CAMLparam0 f =
+  let p0, _ = Lazy.force ocaml_params_globals in
+  let preamble = List.take (List.length p0.slocals) f.slocals in
+  if not (List.equal CilType.Varinfo.equal preamble f.slocals) then begin
+    (* TODO: relax this if the value is not actually used or we don't call
+       functions that may call the GC... *)
+    if tracing () then
+      tracel "preamble: %a, expected: %a" Pretty.(d_list "varinfo" d_varinfo) preamble
+        Pretty.(d_list "varinfo" d_varinfo) f.slocals;
+    Messages.error ~category:error_CAMLparam
+      "Missing CAMLparam call in function containing 'value' typed parameters/locals: the garbage collector may move these, and they must be registered: preamble: %a, expected: %a" Pretty.(d_list "varinfo" d_varinfo) preamble
+        Pretty.(d_list "varinfo" d_varinfo) f.slocals;
+  end
+
 class init_visitor ask (acc : Lval.CilLval.t list ref) =
   object
     inherit nopCilVisitor
@@ -194,6 +230,38 @@ let rec function_ptrs_of_init acc = function
   | CompoundInit (_, lst) ->
       lst |> List.map snd |> List.fold_left function_ptrs_of_init acc
 
+module VS = Set.Make(CilType.Varinfo)
+
+let is_ocaml_value varinfo =
+  is_ocaml_value_type varinfo.vtype
+
+(** [value_parameters_variables f] is the set of local variables and parameters
+    of type 'value' *)
+let value_parameters_variables (f: fundec) =
+  Seq.(append
+    (f.sformals |> List.to_seq)
+    (f.slocals |> List.to_seq)
+  )
+  |> Seq.filter is_ocaml_value
+  |> VS.of_seq
+
+module Rules = struct
+
+  (* see https://v2.ocaml.org/manual/intfc.html#ss:c-simple-gc-harmony *)
+
+  let gc_rule_1 (f: fundec) =
+    let values = value_parameters_variables f in
+    (*  "A function that has parameters or local variables of type value" *)
+    let has_values = not @@ VS.is_empty values in
+    (* must begin with a call to one of the CAMLparam macros *)
+    if has_values then begin
+      assert_begins_with_CAMLparam0 f;
+      (* TODO: assert all value types are registered with the GC once! *)
+    end
+
+end
+
+
 module Spec : Analyses.MCPSpec = struct
   let name () = "ocamlcstubs"
 
@@ -206,7 +274,8 @@ module Spec : Analyses.MCPSpec = struct
 
   include Analyses.IdentitySpec
 
-  let body ctx _f =
+  let body ctx (f: fundec) =
+    Rules.gc_rule_1 f;
     (* TODO: set ctx bool that we're inside cstub, to avoid false positives on
        runtime inline functions *)
     ctx.local

@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * Contains a simplified model of C code that is originally under the following license:
  */
 /**************************************************************************/
@@ -68,6 +68,23 @@
 int __VERIFIER_nondet_int(void);
 #define STUB __attribute__((goblint_stub))
 
+/* CIL runs after preprocessing so cannot see or evaluate macros,
+ * i.e. we cannot directly check whether a function contains calls to CAMLparam or not.
+ * However we can that it contains the preabmle from __VERIFIER_camlparam0,
+ * and then extract the name of the caml_frame and local root from camlparam1,
+ * and check that all values are registered as local roots.
+ * */
+STUB void __VERIFIER_camlparam0(void)
+{
+    CAMLparam0();
+    CAMLreturn0;
+}
+
+STUB void __VERIFIER_camlparam1(value x)
+{
+    CAMLparam1(x);
+    CAMLreturn0;
+}
 STUB void caml_failed_assert(char *msg, char *os, int n)
 {
     /* always fail assertion when called by CAMLassert */
@@ -171,6 +188,8 @@ STUB static void __caml_maybe_run_finalizer(void)
 
 STUB static void __caml_move(value arg, volatile value *dest)
 {
+    __VERIFIER_camlparam0(); /* ensure it is not dead code */
+    __VERIFIER_camlparam1(arg);
     if ( !Is_block(arg) )
         return;
     if ( arg == a_custom_op.v )

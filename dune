@@ -89,7 +89,6 @@
         (run ocaml/staticanalyzer/lintcstubs.exe -o xapi.sarif --disable warn.info
             --disable warn.unsound --disable warn.imprecise
             --disable warn.deadcode
-            --disable warn.behavior
             --set ana.activated "[\"ocamlcstubs\",\"escape\"]"
             --sarif -I %{ocaml_where}
             -I ocaml/auth -I ctypes -I unixpwd/c
