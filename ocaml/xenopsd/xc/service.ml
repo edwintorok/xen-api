@@ -567,7 +567,7 @@ module SystemdDaemonMgmt (D : DAEMONPIDPATH) = struct
     let service = Compat.syslog_key ~domid in
     let properties =
       let remove_key path = ("ExecStopPost", ["-/usr/bin/xenstore-rm"; path]) in
-      let remove_file path = ("ExecStopPost", ["-/bin/rm";"-f"; path]) in
+      let remove_file path = ("ExecStopPost", ["-/bin/rm"; "-f"; path]) in
       match D.pid_location with
       | Xenstore get_path ->
           let key_path = get_path domid in
