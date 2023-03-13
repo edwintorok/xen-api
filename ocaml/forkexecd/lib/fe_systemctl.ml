@@ -118,7 +118,7 @@ let start_transient ?(env = default_env) ?(properties = []) ~service cmd args =
 
 let unit_path () =
   if !test_mode then
-    let home = Sys.getenv_opt "HOME" |> Option.value ~default:"root" in
+    let home = Sys.getenv_opt "HOME" |> Option.value ~default:"/root" in
     Filename.concat home ".config/systemd/user"
   else
     "/etc/systemd/system"
