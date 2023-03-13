@@ -82,7 +82,8 @@ let build_properties env base properties =
   "[Service]"
   :: (List.concat [environment env; base; properties]
      |> List.map (fun (k, v) ->
-            k ^ "=" ^ (List.map systemd_quote v |> String.concat " ")
+            String.concat ""
+              [k; "="; List.map systemd_quote v |> String.concat " "]
         )
      )
 
