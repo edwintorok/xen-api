@@ -5,7 +5,7 @@
     (:standard \ test_daemon_manager test_vdi_cbt test_event test_clustering
       test_cluster_host test_cluster test_pusb test_network_sriov
       test_vm_placement test_vm_helpers test_repository test_repository_helpers
-      test_ordered
+      test_ordered test_metastore_properties
       test_livepatch test_rpm test_updateinfo test_storage_smapiv1_wrapper test_storage_quicktest))
   (libraries
     alcotest
@@ -107,7 +107,14 @@
 (name test_ordered)
 (package xapi)
 (modules test_ordered)
-(libraries xapi_internal crowbar))
+(libraries crowbar fmt uuidm xapi-types xapi_metastore))
+
+(test
+(name test_metastore_properties)
+(package xapi)
+(modules test_metastore_properties)
+ (preprocess (pps ppx_deriving_rpc))
+(libraries xapi_metastore crowbar rpclib.core rresult))
 
 (rule
   (alias runtest)
