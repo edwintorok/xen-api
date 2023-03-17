@@ -53,7 +53,7 @@
 )
 
 (executable
-  (modes byte exe)
+  (modes exe)
   (name block_device_io)
   (public_name block_device_io)
   (package xapi)
@@ -70,6 +70,7 @@
 
 (executable
   (name database_server_main)
+  (modes exe)
   (modules database_server_main)
   (libraries
     dune-build-info
