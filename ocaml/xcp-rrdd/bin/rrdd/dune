@@ -35,7 +35,7 @@
 )
 
 (executable
-  (modes byte exe)
+  (modes exe)
   (name xcp_rrdd)
   (public_name xcp-rrdd)
   (package xapi-rrdd)

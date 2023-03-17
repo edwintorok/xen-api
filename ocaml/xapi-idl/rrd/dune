@@ -45,6 +45,7 @@
 (executable
  (name rrd_cli)
  (modules rrd_cli)
+ (modes exe)
  (libraries
    cmdliner
    dune-build-info

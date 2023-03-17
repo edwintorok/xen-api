@@ -24,7 +24,7 @@
 )
 
 (executable
-  (modes byte exe)
+  (modes exe)
   (name gencert)
   (public_name gencert)
   (package xapi)
