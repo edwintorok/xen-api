@@ -13,7 +13,6 @@ depends: [
   "ocaml"
   "dune" {build & >= "3.7"}
   "astring"
-  "httpsvr"
   "ocaml-migrate-parsetree"
   "ppx_deriving_rpc"
   "rpclib"

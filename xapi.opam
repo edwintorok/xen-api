@@ -22,7 +22,6 @@ depends: [
   "domain-name"
   "ezxenstore"
   "fmt" {with-test}
-  "httpsvr"
   "ipaddr"
   "mirage-crypto" {with-test}
   "mirage-crypto-pk"
