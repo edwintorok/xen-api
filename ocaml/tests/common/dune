@@ -6,7 +6,7 @@
   (libraries
     alcotest
     fmt
-    http-svr
+    httpsvr
     rpclib.core
     rpclib.json
     rpclib.xml

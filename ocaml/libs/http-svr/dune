@@ -1,6 +1,6 @@
 (library
   (name httpsvr)
-  (public_name http-svr)
+  (modes best)
   (wrapped false)
   (modules (:standard \ http_test radix_tree_test test_client test_server))
   (preprocess (pps ppx_deriving_rpc))
@@ -36,7 +36,7 @@
   (modules http_test)
   (libraries
     dune-build-info
-    http-svr
+    httpsvr
     ounit2
   )
 )
@@ -44,10 +44,10 @@
 (test
   (name radix_tree_test)
   (modules radix_tree_test)
-  (package http-svr)
+  (package xapi)
   (libraries
     dune-build-info
-    http-svr
+    httpsvr
   )
 )
 
@@ -57,7 +57,7 @@
   (modules test_client)
   (libraries
     dune-build-info
-    http-svr
+    httpsvr
     ounit2
     safe-resources
     stunnel
@@ -73,7 +73,7 @@
   (modules test_server)
   (libraries
     dune-build-info
-    http-svr
+    httpsvr
     ounit2
     safe-resources
     threads.posix
@@ -84,7 +84,7 @@
 
 (rule
   (alias runtest)
-  (package http-svr)
+  (package xapi)
   (deps
     (:x http_test.exe)
   )
@@ -93,7 +93,7 @@
 
 (rule
   (alias runtest)
-  (package http-svr)
+  (package xapi)
   (deps
     test_client.exe
     test_server.exe

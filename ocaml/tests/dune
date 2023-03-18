@@ -14,7 +14,7 @@
     cstruct
     dune-build-info
     fmt
-    http-svr
+    httpsvr
     ipaddr
     mirage-crypto
     pam
