@@ -60,7 +60,6 @@ depends: [
   "xapi-types"
   "xapi-idl"
   "xapi-inventory"
-  "xml-light2"
   "yojson"
 ]
 depexts: [

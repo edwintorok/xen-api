@@ -30,7 +30,7 @@
     xapi-stdext-threads
     xapi-stdext-unix
     xenctrl
-    xml-light2
+    xmllight2
   )
   (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
 )
