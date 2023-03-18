@@ -3,7 +3,7 @@
   (name daily_license_check)
   (modules daily_license_check)
   (libraries
-    http-svr
+    httpsvr
     xapi-consts
     xapi-client
     xapi-types
@@ -20,7 +20,7 @@
   (libraries
     daily_license_check
     dune-build-info
-    http-svr
+    httpsvr
     xapi-client
     xapi-types
     xapi-stdext-date

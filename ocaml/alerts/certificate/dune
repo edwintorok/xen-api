@@ -20,7 +20,7 @@
   (libraries
     certificate_check
     dune-build-info
-    http-svr
+    httpsvr
     xapi-client
     xapi-types
     xapi-stdext-pervasives

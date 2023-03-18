@@ -34,7 +34,7 @@
     safe-resources
     stunnel
     threads.posix
-    http-svr
+    httpsvr
     uuid
     xapi-backtrace
     xapi-datamodel
@@ -75,7 +75,7 @@
   (modules database_server_main)
   (libraries
     dune-build-info
-    http-svr
+    httpsvr
     threads.posix
     xapi_database
     xapi-stdext-threads
@@ -90,7 +90,7 @@
   (libraries
     alcotest
     dune-build-info
-    http-svr
+    httpsvr
     ppx_sexp_conv.runtime-lib
     rpclib.xml
     sexplib
