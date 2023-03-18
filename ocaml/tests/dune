@@ -46,7 +46,7 @@
     xapi-types
     xapi-stdext-pervasives
     xenopsd
-    xml-light2
+    xmllight2
   )
   (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
   (deps
@@ -86,10 +86,10 @@
     xapi-test-utils
     xapi-types
     xapi-stdext-threads
-    xml-light2
+    xmllight2
     yojson
   )
-  (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
+  (preprocess (per_module ((pps ppx_deriving_rpc) Test_cluster_host)))
 )
 (test
 (name test_storage_smapiv1_wrapper)

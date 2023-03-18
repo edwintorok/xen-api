@@ -1,6 +1,6 @@
 (library
   (name xmllight2)
-  (public_name xml-light2)
+  (modes best)
   (modules xml)
   (wrapped false)
   (libraries
@@ -14,7 +14,7 @@
   (name xmlpp)
   (modules xmlpp)
   (libraries
-    xml-light2
+    xmllight2
   )
 )
 
