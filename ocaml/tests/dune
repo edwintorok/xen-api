@@ -95,26 +95,26 @@
 (name test_storage_smapiv1_wrapper)
 (package xapi)
 (modules test_storage_smapiv1_wrapper)
-(libraries alcotest xapi_internal fmt))
+(libraries alcotest xapi_internal fmt xapi-idl.storage.interface xapi-idl.storage.interface.types))
 
 (test
 (name test_storage_quicktest)
 (package xapi)
 (modules test_storage_quicktest)
-(libraries xapi_internal crowbar))
+(libraries xapi_internal crowbar xapi-idl.storage.interface.types))
 
 (test
 (name test_ordered)
 (package xapi)
 (modules test_ordered)
-(libraries xapi_internal crowbar))
+(libraries crowbar fmt uuidm xapi-types xapi_metastore))
 
 (test
 (name test_metastore_properties)
 (package xapi)
 (modules test_metastore_properties)
  (preprocess (pps ppx_deriving_rpc))
-(libraries xapi_metastore crowbar))
+(libraries xapi_metastore crowbar rpclib.core rresult))
 
 (rule
   (alias runtest)
