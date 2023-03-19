@@ -14,7 +14,7 @@
   (package xapi)
   (libraries forkexec (re_export fmt) fpath ipaddr rresult uri uuidm rpclib.core
              (re_export result) rpclib.json)
-  (preprocess (pps ppx_deriving_rpc))
+  (preprocess (per_module (pps ppx_deriving_rpc) Serialization))
 )
 
 (documentation
