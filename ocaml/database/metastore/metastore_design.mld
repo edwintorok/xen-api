@@ -93,6 +93,10 @@ extensively uses [rpclib] and its [ppx] deriver, so this library will use that t
 
 (Other possibilities: [sexplib] which is used by xapi too, or [ppx_fields_conv])
 
+It is possible to do ppx preprocessing per module instead of the entire library
+by using
+[(preprocess (per_module ((pps ppx_deriving_rpc) Module1 ... ModuleN)))].
+
 {2 Generated documentation}
 
 Documentation needs to be part of a package, according to the above that will
