@@ -15,16 +15,52 @@ module U = Unix
 module R = Rpc
 module B = Backtrace
 open Core
-open Async
 open Xapi_storage_script_types
 
-module Plugin_client = Xapi_storage.Plugin.Plugin (Rpc_async.GenClient ())
+module Plugin_client = Xapi_storage.Plugin.Plugin (Rpc_lwt.GenClient ())
 
-module Volume_client = Xapi_storage.Control.Volume (Rpc_async.GenClient ())
+module Volume_client = Xapi_storage.Control.Volume (Rpc_lwt.GenClient ())
 
-module Sr_client = Xapi_storage.Control.Sr (Rpc_async.GenClient ())
+module Sr_client = Xapi_storage.Control.Sr (Rpc_lwt.GenClient ())
 
-module Datapath_client = Xapi_storage.Data.Datapath (Rpc_async.GenClient ())
+module Datapath_client = Xapi_storage.Data.Datapath (Rpc_lwt.GenClient ())
+
+open Lwt.Infix
+let (>>|) v f = Lwt.map f v
+let return = Lwt.return
+module Deferred = struct
+  type +'a t = 'a Lwt.t
+  module Result = Lwt_result
+end
+
+module Monitor = struct
+  let try_with ?extract_exn:_ f =
+    Lwt.try_bind f Lwt_result.return Lwt_result.fail
+end
+
+module Unix = Caml_unix
+module Sys = struct
+  let is_file ~follow_symlinks path =
+    Lwt.try_bind
+    (fun () ->
+      (if follow_symlinks then Lwt_unix.LargeFile.stat else Lwt_unix.LargeFile.lstat)
+      path
+    )
+    (function s ->
+      match s.Unix.LargeFile.st_kind with
+      | Unix.S_REG -> return `Yes
+      | _ -> return `No
+    )
+    (function
+    | Unix.Unix_error (Unix.ENOENT, _, _) -> return `No
+    | Unix.Unix_error ((Unix.EACCES | Unix.ELOOP), _, _) -> return `Unknown
+    | e -> Lwt.fail e
+    )
+
+  let readdir path =
+    path |> Lwt_unix.files_of_directory |> Lwt_stream.to_list >>| Array.of_list
+
+end
 
 let ( >>>= ) = Deferred.Result.( >>= )
 
@@ -58,8 +94,8 @@ let missing_uri () =
 (* fork_exec_rpc either raises a Fork_exec_error exception or
    returns a successful RPC response *)
 let return_rpc typ result =
-  (* Operator to unwrap the wrapped async return type of ocaml-rpc's Rpc_async *)
-  let ( >*= ) a b = a |> Rpc_async.T.get >>= b in
+  (* Operator to unwrap the wrapped async return type of ocaml-rpc's Rpc_lwt *)
+  let ( >*= ) a b = a |> Rpc_lwt.T.get >>= b in
   Monitor.try_with ~extract_exn:true (fun () ->
       (* We need to delay the evaluation of [result] until now, because
          when fork_exec_rpc is called by GenClient.declare, it
@@ -96,29 +132,18 @@ let return_plugin_rpc result = return_rpc Xapi_storage.Common.typ_of_exnt result
 
 let return_data_rpc result = return_rpc Xapi_storage.Common.typ_of_exnt result
 
-let use_syslog = ref false
-
 let log level fmt =
-  Printf.ksprintf
-    (fun s ->
-      if !use_syslog then
-        (* FIXME: this is synchronous and will block other I/O.
-         * This should use Log_extended.Syslog, but that brings in Core's Syslog module
-         * which conflicts with ours *)
-        Syslog.log Syslog.Daemon level s
-      else
-        let w = Lazy.force Writer.stderr in
-        Writer.write w s ; Writer.newline w
-    )
-    fmt
+  (* this is not how logs is meant to be used, but least invasive without
+     changing return type *)
+  Printf.ksprintf (fun s -> Logs.msg level @@ fun m -> m "%s" s) fmt
 
-let debug fmt = log Syslog.Debug fmt
+let debug fmt = log Logs.Debug fmt
 
-let info fmt = log Syslog.Info fmt
+let info fmt = log Logs.Info fmt
 
-let warn fmt = log Syslog.Warning fmt
+let warn fmt = log Logs.Warning fmt
 
-let error fmt = log Syslog.Err fmt
+let error fmt = log Logs.Error fmt
 
 let pvs_version = "3.0"
 
@@ -143,7 +168,7 @@ end) : sig
   (** Module for making the inputs and outputs compatible with the old PVS
       version of the storage scripts. *)
 
-  type device_config = (Core.String.t, string) Core.List.Assoc.t
+  type device_config = (string, string) List.Assoc.t
 
   val compat_out_volume : compat_out
   (** Add the missing [sharable] field to the Dict in [rpc], to ensure the
@@ -170,7 +195,7 @@ end) : sig
   (** Compatiblity for the old PVS version of SR.attach, which had signature
       [uri -> sr (=string)] *)
 end = struct
-  type device_config = (Core.String.t, string) Core.List.Assoc.t
+  type device_config = (string, string) List.Assoc.t
 
   let with_pvs_version f rpc =
     match !V.version with
@@ -271,7 +296,7 @@ let check_plugin_version_compatible query_result =
     return (Error (Storage_interface.Errors.No_storage_plugin_for_sr msg))
 
 module RRD = struct
-  open Message_switch_async.Protocol_async
+  open Message_switch_lwt.Protocol_lwt
 
   let ( >>|= ) m f =
     m >>= function
@@ -293,7 +318,7 @@ module RRD = struct
     switch_rpc !Rrd_interface.queue_name Jsonrpc.string_of_call
       Jsonrpc.response_of_string
 
-  module Client = Rrd_interface.RPC_API (Rpc_async.GenClient ())
+  module Client = Rrd_interface.RPC_API (Rpc_lwt.GenClient ())
 end
 
 let _nonpersistent = "NONPERSISTENT"
@@ -313,11 +338,11 @@ let is_executable path =
   | `No | `Unknown ->
       return (Error (`missing path))
   | `Yes -> (
-      Unix.access path [`Exec] >>= function
-      | Error exn ->
+      Lwt.try_bind (fun () -> Lwt_unix.access path [Unix.X_OK])
+        Lwt_result.return
+        (fun exn ->
           return (Error (`not_executable (path, exn)))
-      | Ok () ->
-          return (Ok ())
+        )
     )
 
 module Script = struct
@@ -340,7 +365,7 @@ module Script = struct
       let cached_script_name =
         let ( >>?= ) = Option.( >>= ) in
         Hashtbl.find name_mapping script_dir >>?= fun mapping ->
-        Core.String.Caseless.Map.find mapping script_name
+        String.Caseless.Map.find mapping script_name
       in
       let script_name = Option.value cached_script_name ~default:script_name in
       let path = Filename.concat script_dir script_name in
@@ -659,14 +684,14 @@ module Datapath_plugins = struct
     | None ->
         false
     | Some (_script_dir, query_result) ->
-        List.mem query_result.Xapi_storage.Plugin.features feature
-          ~equal:String.equal
+        List.mem ~equal:String.equal query_result.Xapi_storage.Plugin.features feature
+
 end
 
 let vdi_of_volume x =
   let find key ~default ~of_string =
     match
-      List.Assoc.find x.Xapi_storage.Control.keys key ~equal:String.equal
+      List.Assoc.find ~equal:String.equal x.Xapi_storage.Control.keys key
     with
     | None ->
         default
@@ -747,7 +772,7 @@ let choose_datapath ?(persistent = true) domain response =
 let bind ~volume_script_dir =
   (* Each plugin has its own version, see the call to listen
      where `process` is partially applied. *)
-  let module S = Storage_interface.StorageAPI (Rpc_async.GenServer ()) in
+  let module S = Storage_interface.StorageAPI (Rpc_lwt.GenServer ()) in
   let version = ref None in
   let volume_rpc = fork_exec_rpc ~script_dir:volume_script_dir in
   let module Compat = Compat (struct let version = version end) in
@@ -806,8 +831,8 @@ let bind ~volume_script_dir =
     stat ~dbg ~sr ~vdi >>= fun response ->
     (* If we have a clone-on-boot volume then use that instead *)
     ( match
-        List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-          ~equal:String.equal
+        List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
       with
     | None ->
         return (Ok response)
@@ -818,7 +843,7 @@ let bind ~volume_script_dir =
     choose_datapath domain response >>= fun (rpc, _datapath, uri, domain) ->
     return_data_rpc (fun () -> Datapath_client.attach rpc dbg uri domain)
   in
-  let wrap th = Rpc_async.T.put th in
+  let wrap th = Rpc_lwt.T.put th in
   (* the actual API call for this plugin, sharing same version ref across all calls *)
   let query_impl dbg =
     let th =
@@ -880,7 +905,7 @@ let bind ~volume_script_dir =
       (* If we have the ability to clone a disk then we can provide
          clone on boot. *)
       let features =
-        if List.mem features "VDI_CLONE" ~equal:String.equal then
+        if List.mem ~equal:String.equal features "VDI_CLONE" then
           "VDI_RESET_ON_BOOT/2" :: features
         else
           features
@@ -940,7 +965,7 @@ let bind ~volume_script_dir =
                 in
                 RRD.Client.Plugin.Local.register RRD.rpc uid Rrd.Five_Seconds
                   Rrd_interface.V2
-                |> Rpc_async.T.get
+                |> Rpc_lwt.T.get
                 >>= function
                 | Ok _ ->
                     loop (uid :: acc) datasources
@@ -984,7 +1009,7 @@ let bind ~volume_script_dir =
                         uid
                     in
                     RRD.Client.Plugin.Local.deregister RRD.rpc uid
-                    |> Rpc_async.T.get
+                    |> Rpc_lwt.T.get
                     >>= function
                     | Ok _ ->
                         loop datasources
@@ -1013,8 +1038,8 @@ let bind ~volume_script_dir =
       response
       |> List.map ~f:(fun probe_result ->
              let uuid =
-               List.Assoc.find probe_result.Xapi_storage.Control.configuration
-                 ~equal:String.equal "sr_uuid"
+               List.Assoc.find ~equal:String.equal probe_result.Xapi_storage.Control.configuration
+                 "sr_uuid"
              in
              let open Deferred.Or_error in
              let smapiv2_probe ?sr_info () =
@@ -1130,15 +1155,15 @@ let bind ~volume_script_dir =
              List.fold
                ~f:(fun set x ->
                  match
-                   List.Assoc.find x.Xapi_storage.Control.keys
-                     _clone_on_boot_key ~equal:String.equal
+                   List.Assoc.find ~equal:String.equal x.Xapi_storage.Control.keys
+                     _clone_on_boot_key
                  with
                  | None ->
                      set
                  | Some transient ->
                      Set.add set transient
                )
-               ~init:Core.String.Set.empty response
+               ~init:String.Set.empty response
            in
            let response =
              List.filter
@@ -1173,8 +1198,8 @@ let bind ~volume_script_dir =
      stat ~dbg ~sr ~vdi >>>= fun response ->
      (* Destroy any clone-on-boot volume that might exist *)
      ( match
-         List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-           ~equal:String.equal
+         List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
        with
      | None ->
          return (Ok ())
@@ -1319,8 +1344,8 @@ let bind ~volume_script_dir =
      stat ~dbg ~sr ~vdi >>>= fun response ->
      (* If we have a clone-on-boot volume then use that instead *)
      ( match
-         List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-           ~equal:String.equal
+         List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
        with
      | None ->
          return (Ok response)
@@ -1353,8 +1378,8 @@ let bind ~volume_script_dir =
      (* Discover the URIs using Volume.stat *)
      stat ~dbg ~sr ~vdi >>>= fun response ->
      ( match
-         List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-           ~equal:String.equal
+         List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
        with
      | None ->
          return (Ok response)
@@ -1375,8 +1400,8 @@ let bind ~volume_script_dir =
      (* Discover the URIs using Volume.stat *)
      stat ~dbg ~sr ~vdi >>>= fun response ->
      ( match
-         List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-           ~equal:String.equal
+         List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
        with
      | None ->
          return (Ok response)
@@ -1433,8 +1458,8 @@ let bind ~volume_script_dir =
        (* We create a non-persistent disk here with Volume.clone, and store
           the name of the cloned disk in the metadata of the original. *)
        ( match
-           List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-             ~equal:String.equal
+           List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
          with
        | None ->
            Deferred.Result.return ()
@@ -1463,8 +1488,8 @@ let bind ~volume_script_dir =
        return_data_rpc (fun () -> Datapath_client.close rpc dbg uri)
      else
        match
-         List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-           ~equal:String.equal
+         List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
        with
        | None ->
            Deferred.Result.return ()
@@ -1488,8 +1513,8 @@ let bind ~volume_script_dir =
      (* Discover the URIs using Volume.stat *)
      stat ~dbg ~sr ~vdi >>>= fun response ->
      ( match
-         List.Assoc.find response.Xapi_storage.Control.keys _clone_on_boot_key
-           ~equal:String.equal
+         List.Assoc.find ~equal:String.equal response.Xapi_storage.Control.keys _clone_on_boot_key
+
        with
      | None ->
          return (Ok response)
@@ -1549,7 +1574,7 @@ let bind ~volume_script_dir =
   S.DATA.MIRROR.receive_cancel (u "DATA.MIRROR.receive_cancel") ;
   S.SR.update_snapshot_info_src (u "SR.update_snapshot_info_src") ;
   S.DATA.MIRROR.stop (u "DATA.MIRROR.stop") ;
-  Rpc_async.server S.implementation
+  Rpc_lwt.server S.implementation
 
 let process_smapiv2_requests server txt =
   let request = Jsonrpc.call_of_string txt in
@@ -1575,7 +1600,7 @@ let rec diff a b =
   | [] ->
       []
   | a :: aa ->
-      if List.mem b a ~equal:String.( = ) then diff aa b else a :: diff aa b
+      if List.mem ~equal:String.equal b a ~equal:String.( = ) then diff aa b else a :: diff aa b
 
 let watch_volume_plugins ~volume_root ~switch_path ~pipe =
   let create volume_plugin_name =
@@ -1681,10 +1706,10 @@ let self_test_plugin ~root_dir plugin =
     debug "RPC: %s" r ;
     return (Jsonrpc.response_of_string r)
   in
-  let module Test = Storage_interface.StorageAPI (Rpc_async.GenClient ()) in
+  let module Test = Storage_interface.StorageAPI (Rpc_lwt.GenClient ()) in
   let dbg = "debug" in
   Monitor.try_with (fun () ->
-      let open Rpc_async.ErrM in
+      let open Rpc_lwt.ErrM in
       Test.Query.query rpc dbg
       >>= (fun query_result ->
             Test.Query.diagnostics rpc dbg >>= fun _msg ->
@@ -1725,14 +1750,14 @@ let self_test_plugin ~root_dir plugin =
             Test.VDI.destroy rpc dbg sr vdi_info.vdi >>= fun () ->
             Test.SR.stat rpc dbg sr >>= fun _sr_info ->
             Test.SR.scan rpc dbg sr >>= fun _sr_list ->
-            if List.mem query_result.features "SR_PROBE" ~equal:String.equal
+            if List.mem ~equal:String.equal query_result.features "SR_PROBE"
             then
               Test.SR.probe rpc dbg plugin device_config [] >>= fun _result ->
               return ()
             else
               return ()
           )
-      |> Rpc_async.T.get
+      |> Rpc_lwt.T.get
   )
   >>= function
   | Ok x ->
@@ -1847,7 +1872,12 @@ let _ =
     ~doc:description ~resources ~options () ;
   if !Xcp_service.daemon then (
     Xcp_service.maybe_daemonize () ;
-    use_syslog := true ;
+    Logs_syslog_unix.unix_reporter
+      ~framing:(`Count) ()
+    |>
+    Logs.on_error ~pp:Format.pp_print_string
+    ~use:failwith
+    |> Logs.set_reporter;
     info "Daemonisation successful."
   ) ;
   let (_ : unit Deferred.t) =

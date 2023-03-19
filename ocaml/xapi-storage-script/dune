@@ -1,21 +1,21 @@
 (executable
   (name main)
   (libraries
-    async
-    async_inotify
-    async_kernel
-    async_unix
     base
     base.caml
     core
-    core_kernel
+    core_unix
     dune-build-info
-    message-switch-async
+    lwt
+    logs-syslog.unix
+    logs.lwt
+    logs
+    message-switch-lwt
     message-switch-unix
     result
     rpclib.core
     rpclib.json
-    rpclib-async
+    rpclib-lwt
     sexplib
     sexplib0
     uri
