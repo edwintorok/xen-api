@@ -255,6 +255,25 @@ let gen_client highapi =
        ]
     )
 
+let gen_client_interface highapi =
+  List.iter (List.iter print)
+    (between [""]
+       [
+         [
+           "open API"
+         ; "module type RPC = sig val rpc: Rpc.t -> Rpc.t end"
+         ; "module type IO = sig type 'a t val bind : 'a t -> ('a -> 'b t) -> \
+            'b t val return : 'a -> 'a t end"
+         ; "module type AsyncQualifier = sig val async_qualifier : string end"
+         ]
+       ; O.Signature.strings_of (Gen_client.gen_signature highapi)
+       ; [
+           "module Id : IO with type 'a t = 'a"
+         ; "module Client : module type of ClientF(Id)"
+         ]
+       ]
+    )
+
 let add_set_enums types =
   List.concat
     (List.map
@@ -382,7 +401,6 @@ let gen_client_types highapi =
        ; gen_non_record_type all_types
        ; gen_record_type ~with_module:true highapi
            (toposort_types highapi all_types)
-       ; O.Signature.strings_of (Gen_client.gen_signature highapi)
        ]
     )
 
@@ -442,3 +460,4 @@ let gen_db_actions highapi =
     )
 
 let gen_rbac highapi = print (Gen_rbac.gen_permissions_of_static_roles highapi)
+

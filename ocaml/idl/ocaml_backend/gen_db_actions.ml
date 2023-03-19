@@ -620,10 +620,12 @@ let db_defaults api : O.Signature.t =
       O.Signature.name= OU.ocaml_of_obj_name obj.DT.name
     ; elements=
         List.map (fun x -> O.Signature.Val (operation obj x)) obj.messages
+    ; args = []
     }
   in
   {
     O.Signature.name= _db_defaults
   ; elements=
       List.map (fun x -> O.Signature.Module (obj x)) (Dm_api.objects_of_api api)
+  ; args = []
   }

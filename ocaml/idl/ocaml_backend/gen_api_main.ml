@@ -73,7 +73,7 @@ let _ =
     [
       ( "-mode"
       , Arg.Symbol
-          ( ["client"; "server"; "api"; "db"; "actions"; "sql"; "rbac"; "test"]
+          ( ["client"; "client_interface"; "server"; "api"; "db"; "actions"; "sql"; "rbac"; "test"]
           , fun x -> mode := Some x
           )
       , "Choose which file to output"
@@ -112,6 +112,8 @@ let _ =
       Printf.eprintf "Must select an output type with -mode\n"
   | Some "client" ->
       Gen_api.gen_client api
+  | Some "client_interface" ->
+      Gen_api.gen_client_interface api
   | Some "api" ->
       Gen_api.gen_client_types api
   | Some "server" ->

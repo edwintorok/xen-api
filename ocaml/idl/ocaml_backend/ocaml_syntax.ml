@@ -165,7 +165,7 @@ end
 module Signature = struct
   type e = Val of Val.t | Module of t | Type of Type.t
 
-  and t = {name: string; elements: e list}
+  and t = {name: string; elements: e list; args: string list}
 
   let rec items_of ?(toplevel = true) x =
     let e = function
@@ -177,10 +177,13 @@ module Signature = struct
           [Type.item_of x]
     in
     [
-      ( if toplevel then
+      ( if toplevel && x.args = [] then
           Line ("module type " ^ x.name ^ " = sig")
       else
-        Line ("module " ^ x.name ^ " : sig")
+        let args =String.concat " "
+                (List.map (fun x -> "(" ^ x ^ ")") x.args)
+        in
+        Line ("module " ^ x.name ^ args ^ " : sig")
       )
     ; Indent (List.concat (List.map e x.elements))
     ; Line "end"
@@ -195,7 +198,17 @@ module Signature = struct
       | Module.Module x ->
           Module (of_module x)
     in
-    {name= x.Module.name; elements= List.map e x.Module.elements}
+    {name= x.Module.name; elements= List.map e x.Module.elements; args = x.args}
+
+  let rec non_empty_submodules (x: t) : t =
+    let rec non_empty = function
+      | Val _ as v -> Some v
+      | Type _ as t -> Some t
+      | Module m ->
+         if m.elements = [] then None
+         else Some (Module (non_empty_submodules m))
+    in
+    {x with elements = List.filter_map non_empty x.elements}
 
   let strings_of x = List.map string_of_item (items_of x)
 end

@@ -272,7 +272,51 @@ let gen_module api : O.Module.t =
       )
     ()
 
+let rec wrap_functor_type wrapper (x: O.Signature.t) : O.Signature.t =
+  let wrap_last params =
+    match wrapper with
+    | None -> params
+    | Some functor_arg ->
+      let wrap_rpc = function
+        | O.Named ("rpc" as r, _params) ->
+            O.Named(r, Printf.sprintf "(Rpc.call -> Rpc.response %s.t)" functor_arg)
+        | other -> other
+      in
+      match List.rev params with
+      | O.Anon (opt, last) :: rest ->
+          (O.Anon (opt, Printf.sprintf "%s %s.t" last functor_arg)
+          :: List.map wrap_rpc rest) |> List.rev
+      | other -> other
+  in
+  let make_val name params =
+    O.Signature.Val O.Val.{name; params=List.map (fun t -> O.Anon(None, t)) params}
+  in
+  let wrap = function
+    | O.Signature.Type _ as t -> Some t
+    | O.Signature.Val v  ->
+        Some (O.Signature.Val O.Val.{v with params = wrap_last v.params})
+    | O.Signature.Module O.Signature.{name = "AsyncF"; elements; _} ->
+        Some (
+          O.Signature.Module
+          ({name="Async"; args=[]; elements} |> wrap_functor_type (Some "X"))
+      )
+    | O.Signature.Module m ->
+        let wrapper = match x.args with
+        | ["X : IO"] -> Some "X"
+        | _ -> wrapper
+        in
+        Some (O.Signature.Module (wrap_functor_type wrapper m))
+  in
+  let elements = if x.name = "ClientF" then
+    List.rev_append
+    [make_val "(>>=)" ["'a X.t"; "('a -> 'b X.t)"; "'b X.t"]
+    ;make_val "return" ["'a"; "'a X.t"]
+    ]
+    x.elements
+  else x.elements in
+  {x with elements = List.filter_map wrap elements}
+
 let gen_signature api : O.Signature.t =
-  (* Ensure the 'API' signature (the client's PoV matches the client implementation) *)
-  let x = O.Signature.of_module (gen_module api) in
-  {x with O.Signature.name= signature_name}
+  api |> gen_module |> O.Signature.of_module |>
+  O.Signature.non_empty_submodules
+  |> wrap_functor_type None
