@@ -48,7 +48,6 @@
     xenopsd
     xmllight2
   )
-  (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
   (deps
     (source_tree test_data)
   )
@@ -89,7 +88,7 @@
     xmllight2
     yojson
   )
-  (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
+  (preprocess (per_module ((pps ppx_deriving_rpc) Test_cluster_host)))
 )
 (test
 (name test_storage_smapiv1_wrapper)
