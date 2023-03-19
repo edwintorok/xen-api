@@ -7,6 +7,7 @@ export FE_TEST=1
 
 SOCKET=${XDG_RUNTIME_DIR}/xapi/forker/main
 
+ulimit -n 1024
 ../src/fe_main.exe &
 MAIN=$!
 cleanup () {
