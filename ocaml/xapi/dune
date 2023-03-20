@@ -71,7 +71,7 @@
     gencertlib
     gzip
     hex
-    http-svr
+    httpsvr
     ipaddr
     message-switch-core
     message-switch-unix

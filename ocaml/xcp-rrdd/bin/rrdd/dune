@@ -7,7 +7,7 @@
     dune-build-info
     ezxenstore
     gzip
-    http-svr
+    httpsvr
     inotify
     mtime
     mtime.clock.os
@@ -46,7 +46,7 @@
     ezxenstore.core
     ezxenstore.watch
     forkexec
-    http-svr
+    httpsvr
     inotify
     rpclib.core
     rpclib.json

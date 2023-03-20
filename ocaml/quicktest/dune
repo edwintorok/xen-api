@@ -9,7 +9,7 @@
     dune-build-info
     fmt
     forkexec
-    http-svr
+    httpsvr
     mtime
     mtime.clock.os
     result
