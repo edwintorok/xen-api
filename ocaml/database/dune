@@ -21,7 +21,6 @@
 
 (library
   (name xapi_database)
-  (public_name xapi-database)
   (modules
     (:standard \ database_server_main db_cache_test db_names db_exn
       block_device_io string_marshall_helper string_unmarshall_helper schema
@@ -60,7 +59,7 @@
   (modules block_device_io)
   (libraries
     dune-build-info
-    xapi-database
+    xapi_database
     xapi-log
     xapi-stdext-pervasives
     xapi-stdext-unix
@@ -75,7 +74,7 @@
     dune-build-info
     http-svr
     threads.posix
-    xapi-database
+    xapi_database
     xapi-stdext-threads
     xapi-stdext-unix
   )
@@ -83,7 +82,7 @@
 
 (tests
   (names unit_test_marshall db_cache_test)
-  (package xapi-database)
+  (package xapi)
   (modules db_cache_test unit_test_marshall)
   (libraries
     alcotest
@@ -93,14 +92,14 @@
     rpclib.xml
     sexplib
     sexplib0
-    xapi-database
+    xapi_database
     xml-light2
   )
 )
 
 (test
   (name unit_test_sql)
-  (package xapi-database)
+  (package xapi)
   (modules unit_test_sql)
   (deps
     sql_msg_example.txt
@@ -108,7 +107,7 @@
   (libraries
     alcotest
     dune-build-info
-    xapi-database
+    xapi_database
     xml-light2
   )
 )
@@ -118,6 +117,6 @@
   (deps
     (:x database_server_main.exe)
   )
-  (package xapi-database)
+  (package xapi)
   (action (run %{x} --master db.xml --test))
 )
