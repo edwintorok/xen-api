@@ -107,7 +107,7 @@
 (name test_ordered)
 (package xapi)
 (modules test_ordered)
-(libraries xapi_internal crowbar uuidm xapi-types fmt))
+(libraries xapi_internal crowbar uuidm xapi-types fmt xapi_metastore))
 
 (rule
   (alias runtest)
