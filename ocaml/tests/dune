@@ -95,19 +95,19 @@
 (name test_storage_smapiv1_wrapper)
 (package xapi)
 (modules test_storage_smapiv1_wrapper)
-(libraries alcotest xapi_internal fmt))
+(libraries alcotest xapi_internal fmt xapi-idl.storage.interface xapi-idl.storage.interface.types))
 
 (test
 (name test_storage_quicktest)
 (package xapi)
 (modules test_storage_quicktest)
-(libraries xapi_internal crowbar))
+(libraries xapi_internal crowbar xapi-idl.storage.interface.types))
 
 (test
 (name test_ref)
 (package xapi)
 (modules test_ref)
-(libraries xapi_internal crowbar))
+(libraries xapi_internal crowbar uuidm xapi-types fmt))
 
 (rule
   (alias runtest)

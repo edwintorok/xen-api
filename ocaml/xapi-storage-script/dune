@@ -9,6 +9,8 @@
     base.caml
     core
     core_kernel
+    core_unix
+    core_unix.time_unix
     dune-build-info
     message-switch-async
     message-switch-unix
