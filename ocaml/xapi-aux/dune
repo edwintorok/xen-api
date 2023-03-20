@@ -14,7 +14,6 @@
     xapi-log
     xapi-stdext-threads
     xapi-stdext-unix
-    xapi-types
     xmllight2
   )
   (wrapped false)
