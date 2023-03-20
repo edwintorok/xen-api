@@ -13,7 +13,6 @@ depends: [
   "dune"
   "dune-build-info"
   "astring"
-  "http-svr"
   "inotify"
   "io-page"
   "mtime"

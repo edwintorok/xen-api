@@ -5,7 +5,7 @@
   (package xapi)
   (libraries
     dune-build-info
-    http-svr
+    httpsvr
     xapi-client
     xapi-types
   )

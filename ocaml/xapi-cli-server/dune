@@ -4,7 +4,7 @@
   (libraries
     astring
     base64
-    http-svr
+    httpsvr
     rpclib.core
     rpclib.xml
     re
