@@ -22,7 +22,6 @@ depends: [
   "domain-name"
   "ezxenstore"
   "fmt" {with-test}
-  "gzip"
   "http-svr"
   "ipaddr"
   "mirage-crypto" {with-test}
@@ -65,7 +64,6 @@ depends: [
   "xapi-inventory"
   "xml-light2"
   "yojson"
-  "zstd"
 ]
 depexts: [
   ["hwdata" "libxxhash-dev" "libxxhash0"] {os-distribution = "debian"}
