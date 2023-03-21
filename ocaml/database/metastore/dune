@@ -13,6 +13,7 @@
   (modes best)
   (package xapi)
   (libraries astring base64 forkexec (re_export fmt) fpath ipaddr rresult
+             mtime
              (re_export uri) uuidm rpclib.core
              (re_export result) rpclib.json xapi-stdext-unix)
   (preprocess (per_module ((pps ppx_deriving_rpc) Serialization Config_field Config)))
