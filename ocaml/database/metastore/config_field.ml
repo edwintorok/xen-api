@@ -37,6 +37,7 @@ type initial_cluster_state = New | Existing [@@deriving rpcty]
 
 type log_output = Stdout | Stderr | Default [@@deriving rpcty]
 
+(* list of log levels accepted by etcd *)
 type level = CRITICAL | ERROR | WARNING | INFO | DEBUG [@@deriving rpcty]
 
 module StringMap = Map.Make (String)
