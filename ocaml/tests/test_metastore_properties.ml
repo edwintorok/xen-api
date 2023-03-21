@@ -16,7 +16,7 @@ let char = corner_cases Crowbar.char ['\x00'; '\xff']
 
 let all_str = String.init 255 Char.chr
 
-let string = corner_cases Crowbar.bytes [all_str]
+let string = corner_cases Crowbar.bytes [""; all_str]
 
 let float =
   corner_cases Crowbar.float
