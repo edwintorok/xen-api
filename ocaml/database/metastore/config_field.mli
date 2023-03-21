@@ -43,7 +43,7 @@ type milliseconds = private int64
 val typ_of_milliseconds : milliseconds Rpc.Types.typ
 (** [typ_of_milliseconds] serializes the same as an [int64] *)
 
-val milliseconds : float -> (milliseconds, _) result
+val milliseconds : Mtime.Span.t -> (milliseconds, _) result
 (** [milliseconds seconds] is [seconds] converted to [milliseconds] and
       rounded to nearest integer.
 

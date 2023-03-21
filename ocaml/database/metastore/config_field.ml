@@ -16,7 +16,8 @@ let positive_or_unlimited = function None -> Ok 0L | Some i64 -> positive i64
 
 type milliseconds = int64 [@@deriving rpcty]
 
-let milliseconds f = f *. 1000. |> Float.round |> Int64.of_float |> positive
+let milliseconds t =
+  t |> Mtime.Span.to_ms |> Float.round |> Int64.of_float |> positive
 
 type uri = Uri.t
 
