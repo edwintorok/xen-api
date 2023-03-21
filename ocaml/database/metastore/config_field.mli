@@ -4,7 +4,7 @@
  *)
 
 (** a [result] type with errors having [`Msg of string] type *)
-type nonrec ('a, 'b) result = ('a, ([> `Msg of string] as 'b)) result
+type ('a, 'b) result = ('a, ([> `Msg of string] as 'b)) Result.t
 
 val ( let+ ) : ('a, 'b) result -> ('a -> ('c, 'b) result) -> ('c, 'b) result
 (** [let+ ok = opt in ...] executes the body when [opt] is [Some ok] with [ok] in scope.

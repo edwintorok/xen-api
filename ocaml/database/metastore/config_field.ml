@@ -1,4 +1,4 @@
-type nonrec ('a, 'b) result = ('a, ([> `Msg of string] as 'b)) result
+type ('a, 'b) result = ('a, ([> `Msg of string] as 'b)) Result.t
 
 let ( let+ ) = Result.bind
 
