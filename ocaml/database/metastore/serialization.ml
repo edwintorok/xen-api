@@ -47,7 +47,7 @@ and dump_rpc_record ppf =
   (* Do not use Fmt.Dump here, we want more control over separators.
      This is similar to [Fmt.Dump.{record,field}], except we already have a
      list of fields to print.
-   *)
+  *)
   let open Fmt in
   let pp_pair = pair ~sep:(any " =@ ") string dump_rpc |> box ~indent:1 in
   braces (hovbox (iter_bindings ~sep:semi iter_alist pp_pair)) ppf
