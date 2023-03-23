@@ -100,18 +100,18 @@ let string_to_file_exn path str =
      expected to survive a crash (provided that the OS and disk controllers and
      disks work correctly).
   *)
-  Xapi_stdext_unix.Unixext.write_string_to_file ~perms:0o600 (Fpath.to_string path) str
+  Xapi_stdext_unix.Unixext.write_string_to_file ~perms:0o600
+    (Fpath.to_string path) str
 
 let string_of_file_exn path =
   path |> Fpath.to_string |> Xapi_stdext_unix.Unixext.string_of_file
 
 (* https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap03.html#tag_03_282 *)
 let is_posix_filename_char = function
-  | 'A'.. 'Z'
-  | 'a' .. 'z'
-  | '0' .. '9'
-  | '.' | '_' | '-' -> true
-  | _ -> false
+  | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '.' | '_' | '-' ->
+      true
+  | _ ->
+      false
 
 let max_filename_component = 255
 (* on Linux *)
@@ -121,23 +121,31 @@ let max_filename_length = 4096
 let max_path_component =
   String.init max_filename_component @@ fun i ->
   let c = Char.chr i in
-  if is_posix_filename_char c then c
-  else '_'
+  if is_posix_filename_char c then
+    c
+  else
+    '_'
 
 let max_path =
-    List.init (max_filename_length / max_filename_component) (fun _ -> Fpath.v max_path_component )
-    |> List.fold_left (fun acc e -> Fpath.(acc // e))
-    (Fpath.v @@ String.sub max_path_component 0 @@ max_filename_length mod max_filename_component)
+  List.init (max_filename_length / max_filename_component) (fun _ ->
+      Fpath.v max_path_component
+  )
+  |> List.fold_left
+       (fun acc e -> Fpath.(acc // e))
+       (Fpath.v
+       @@ String.sub max_path_component 0
+       @@ (max_filename_length mod max_filename_component)
+       )
 
 let typ_of_path =
   let test_data =
-    [ Fpath.v "/"
+    [
+      Fpath.v "/"
     ; Fpath.v "a/b"
     ; Fpath.v "a/b.ext"
     ; Fpath.v max_path_component
     ; max_path
     ]
   in
-  using ~aname:"path" Fpath.to_string Fpath.v
-    ~test_data
+  using ~aname:"path" Fpath.to_string Fpath.v ~test_data
     Rpc.Types.string.Rpc.Types.ty

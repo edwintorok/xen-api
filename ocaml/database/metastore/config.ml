@@ -19,7 +19,7 @@ module V1 = struct
   module Live = struct
     type t = {
         advertise_client_urls: F.uri list
-    ; initial_advertise_peer_urls: F.uri list
+      ; initial_advertise_peer_urls: F.uri list
     }
     [@@deriving rpcty]
   end
@@ -54,13 +54,9 @@ end
 
 (* we will have more fields here when we support pools *)
 
-type v1 =
-  { live: V1.Live.t
-  ; local: V1.Local.t
-  } [@@deriving rpcty]
+type v1 = {live: V1.Live.t; local: V1.Local.t} [@@deriving rpcty]
 
-type t = V1 of v1
-[@@deriving rpcty]
+type t = V1 of v1 [@@deriving rpcty]
 
 (** key-value representation matching etcd.
 
@@ -69,9 +65,7 @@ type t = V1 of v1
 *)
 type main = t
 
-module Live = struct
-  include V1.Live
-end
+module Live = struct include V1.Live end
 
 module Local = struct
   include V1.Local
@@ -157,7 +151,6 @@ module Dict = struct
       in
       {listen_peer_urls; listen_tls}
 
-
     type listen_client_tls = {
         cert_file: F.path option
       ; key_file: F.path option
@@ -206,7 +199,7 @@ module Dict = struct
     let make (v1 : V1.Local.t) : t =
       {
         config= v1.config
-      ; peer = listen_peer v1.peer
+      ; peer= listen_peer v1.peer
       ; client= listen_client v1.client
       }
   end
@@ -218,15 +211,14 @@ module Dict = struct
   let to_env_key_char = function
     | '-' ->
         '_'
-    | ('a'..'z' | 'A'..'Z' | '0'..'9' | '_' as c) ->
+    | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_') as c ->
         Char.uppercase_ascii c
     | c ->
         Fmt.invalid_arg "Unexpected character in config field name: %C" c
 
   let to_env_key k =
     try "ETCD_" ^ (k |> String.map to_env_key_char)
-    with Invalid_argument msg ->
-      invalid_arg (Printf.sprintf "%s: %s" msg k)
+    with Invalid_argument msg -> invalid_arg (Printf.sprintf "%s: %s" msg k)
 
   let rec to_environment = function
     | Rpc.Int i64 ->
@@ -257,19 +249,20 @@ module Dict = struct
         d
         |> List.to_seq
         |> Seq.flat_map (function
-          | _, (Rpc.Dict _ as nested) -> rpc_to_dict nested
-          |(k, v) -> Seq.return (to_env_key k, to_environment v)
-          )
+             | _, (Rpc.Dict _ as nested) ->
+                 rpc_to_dict nested
+             | k, v ->
+                 Seq.return (to_env_key k, to_environment v)
+             )
     | _ ->
         assert false
 
   let to_dict t =
-    t |> Rpcmarshal.marshal typ_of |> rpc_to_dict
-    |> StringMap.of_seq
+    t |> Rpcmarshal.marshal typ_of |> rpc_to_dict |> StringMap.of_seq
 
   let make : main -> t = function
     | V1 t ->
-        {live = t.live; local = Local.make t.local }
+        {live= t.live; local= Local.make t.local}
 end
 
 let name t =
@@ -301,9 +294,10 @@ let gen_test () =
      representing the structure of the type, which can be used to compute a
      digest *)
   let schema =
-    Rpc_genfake.genall 0 "schema" typ_of |>
-      List.to_seq |> Seq.map @@ Rpcmarshal.marshal typ_of
+    Rpc_genfake.genall 0 "schema" typ_of
+    |> List.to_seq
+    |> Seq.map @@ Rpcmarshal.marshal typ_of
     |> List.of_seq
-  in let schema_digest = Rpc.Enum schema |> Rpc.to_string |> Digest.string
   in
-  schema_digest, Rpc_genfake.genall 4 __MODULE__ typ_of
+  let schema_digest = Rpc.Enum schema |> Rpc.to_string |> Digest.string in
+  (schema_digest, Rpc_genfake.genall 4 __MODULE__ typ_of)

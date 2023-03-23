@@ -58,16 +58,16 @@ val typ_of_stringmap : 'a Rpc.Types.typ -> 'a Map.Make(String).t Rpc.Types.typ
 (** [typ_of_stringmap elt_typ_of] is a serializer for string maps using
     [elt_typ_of] for values. *)
 
-val typ_of_path: Fpath.t Rpc.Types.typ
+val typ_of_path : Fpath.t Rpc.Types.typ
 (** [typ_of_path] is a serializer for filenames *)
 
-val string_to_file_exn: Fpath.t -> string -> unit
+val string_to_file_exn : Fpath.t -> string -> unit
 (** [string_to_file_exn path str] persists [str] in the file at [path].
 
   @raises Unix.Unix_error if saving fails
 *)
 
-val string_of_file_exn: Fpath.t -> string
+val string_of_file_exn : Fpath.t -> string
 (** [string_of_file_exn path] loads the entire file [path] as a string.
 
   @raises Unix.Unix_error if reading fails
