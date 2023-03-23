@@ -125,8 +125,7 @@ let start_transient ?(env = default_env) ?(properties = []) ~service cmd args =
 
 let unit_path () =
   if !test_mode then
-    let home = Sys.getenv_opt "HOME" |> Option.value ~default:"/root" in
-    Filename.concat home ".config/systemd/user"
+    Filename.concat (home ()) ".config/systemd/user"
   else
     "/etc/systemd/system"
 
@@ -181,7 +180,7 @@ let stop ~service =
   ( if status.exec_main_status <> 0 then
       try action ~service "reset-failed" with _ -> ()
   ) ;
-  let destination = Filename.concat run_path (service ^ ".service") in
+  let destination = Filename.concat (run_path ()) (service ^ ".service") in
   Xapi_stdext_unix.Unixext.unlink_safe destination ;
   let dropin = drop_in_path service in
   Xapi_stdext_unix.Unixext.unlink_safe dropin ;
@@ -218,4 +217,6 @@ let start_transient ?env ?properties ~service cmd args =
     ) ;
     raise e
 
-let set_test () = test_mode := true
+let set_test () =
+  test_mode := true ;
+  Xapi_stdext_unix.Unixext.mkdir_rec (run_path ()) 0o700
