@@ -53,56 +53,30 @@ let etcdctl = ref "/usr/bin/etcdctl"
 
 module StringMap = Map.Make (String)
 
-let kill_after pid =
-  Thread.delay 0.5 ;
-  try Unix.kill pid Sys.sigterm with Unix.Unix_error (Unix.ESRCH, _, _) -> ()
-
-let read_line ch =
-  match input_line ch with
-  | line ->
-      Some (line, ch)
-  | exception End_of_file ->
-      None
-
-let read_all ch = Seq.unfold read_line ch |> List.of_seq |> String.concat "\n"
-
 (* easier to debug when starting directly, without systemd, because we get the
    output directly *)
 let test_start_stop_direct config () =
+  Fe_systemctl.set_test () ;
   Logs.debug (fun m -> m "Starting with config %a" Config.dump config) ;
-  Helpers.with_temp_file "etcd_config" ".conf" @@ fun (conf, _) ->
-  let conf = Fpath.v conf in
-  let env =
-    Array.of_list
-      (config
-      |> Config.to_dict
-      |> StringMap.bindings
-      |> List.rev_map @@ fun (k, v) -> Printf.sprintf "%s=%s" k v
-      )
+  let env = config |> Config.to_dict in
+  let dump =
+    Fmt.Dump.iter_bindings StringMap.iter Fmt.(any "map") Fmt.string Fmt.string
   in
-  Logs.debug (fun m -> m "environment: %a" Fmt.Dump.(array string) env) ;
-  config |> Config.serialize |> Serialization.string_to_file_exn conf ;
-  (* TODO: use forkexec helpers or bos here? *)
-  let cmd, args = (!etcd, []) in
-  let stdout, stdin, stderr =
-    Unix.open_process_full (Filename.quote_command cmd args) env
-  in
-  let pid = Unix.process_full_pid (stdout, stdin, stderr) in
-  let t = Thread.create kill_after pid in
-  Fun.protect ~finally:(fun () -> Thread.join t) @@ fun () ->
-  Logs.debug (fun m -> m "stdout: %s" @@ read_all stdout) ;
-  Logs.debug (fun m -> m "stderr: %s" @@ read_all stderr) ;
-  match Unix.close_process_full (stdout, stdin, stderr) with
-  | Unix.WEXITED 0 ->
-      Logs.debug (fun m -> m "terminated OK")
-  | Unix.WSIGNALED n when n = Sys.sigterm ->
-      Logs.debug (fun m -> m "terminated")
-  | Unix.WEXITED n ->
-      Fmt.failwith "exited with code %d" n
-  | Unix.WSTOPPED n ->
-      Fmt.failwith "stopped by signal %d" n
-  | Unix.WSIGNALED n ->
-      Fmt.failwith "killed by signal %d" n
+  Logs.debug (fun m -> m "environment: %a" dump env) ;
+  let uuid = Uuidx.make_uuid_urnd () |> Uuidx.to_string in
+  let service = Printf.sprintf "etcd-test-%s" uuid in
+  let properties = [("Type", ["notify"])] in
+  Fe_systemctl.start_transient ~env ~properties ~service !etcd [] ;
+  ( if not (Fe_systemctl.is_active ~service) then
+      let (_ : int) =
+        Sys.command
+        @@ Printf.sprintf "systemctl status --user --lines=1000 %s" service
+      in
+      Alcotest.failf "Service %s is not running" service
+  ) ;
+  let _status = Fe_systemctl.stop ~service in
+  if Fe_systemctl.is_active ~service then
+    Alcotest.failf "Service %s is still running" service
 
 let tests () =
   Logs.set_reporter (Logs_fmt.reporter ()) ;
