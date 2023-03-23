@@ -20,6 +20,10 @@ val dump : 'a Rpc.Types.typ -> 'a Fmt.t
   information.
 *)
 
+val lowercase : 'a Rpc.Types.typ -> 'a Rpc.Types.typ
+(** [lowercase typ] is [typ] serialization with strings converted to lowercase
+    when serializing, and capitalized when deserializing *)
+
 val using :
      aname:string
   -> ('a -> 'b)
