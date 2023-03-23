@@ -43,7 +43,13 @@ let action ?(args = []) ~service action =
 let default_env =
   StringMap.singleton "PATH" @@ String.concat ":" Forkhelpers.default_path
 
-let run_path = "/run/systemd/system/"
+let home () = Sys.getenv_opt "HOME" |> Option.value ~default:"/root"
+
+let run_path () =
+  if !test_mode then
+    Filename.concat (home ()) ".config/systemd/user"
+  else
+    "/run/systemd/system"
 
 (* see https://www.freedesktop.org/software/systemd/man/systemd.syntax.html#Quoting
    Neither [Filename.quote] or [String.escaped] would produce correct results
@@ -90,7 +96,7 @@ let build_properties env base properties =
 let start_transient ?(env = default_env) ?(properties = []) ~service cmd args =
   let syslog_key = service in
   let service = syslog_key ^ ".service" in
-  let destination = Filename.concat run_path service in
+  let destination = Filename.concat (run_path ()) service in
   build_properties env
     [
       ("SyslogIdentifier", [syslog_key])
