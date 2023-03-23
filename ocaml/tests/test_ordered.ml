@@ -100,6 +100,6 @@ end
 
 let () =
   let module M = Make (R) in
-  M.add_tests "Ref" R.gen;
-  let module M = Make(Xapi_metastore.Id) in
+  M.add_tests "Ref" R.gen ;
+  let module M = Make (Xapi_metastore.Id) in
   M.add_tests "Id" uuidm
