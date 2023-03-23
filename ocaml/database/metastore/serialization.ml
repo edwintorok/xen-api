@@ -54,6 +54,23 @@ and dump_rpc_record ppf =
 
 let dump typ_of t = Fmt.using (Rpcmarshal.marshal typ_of) dump_rpc t
 
+let lowercase typ =
+  let test_data = Rpc_genfake.gentest typ in
+  let to_other = function
+    | Rpc.String s ->
+        Rpc.String (String.lowercase_ascii s)
+    | r ->
+        r
+  and from_other = function
+    | Rpc.String s ->
+        Rpc.String (String.capitalize_ascii s)
+    | r ->
+        r
+  in
+  let rpc_of v = v |> Rpcmarshal.marshal typ |> to_other
+  and of_rpc rpc = rpc |> from_other |> Rpcmarshal.unmarshal typ in
+  Rpc.Types.Abstract {aname= "lowercase"; test_data; rpc_of; of_rpc}
+
 let using ~aname to_other from_other ?test_data typ_of_other =
   let open Rpc.Types in
   let rpc_of v = v |> to_other |> Rpcmarshal.marshal typ_of_other
