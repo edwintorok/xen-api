@@ -1,5 +1,6 @@
 #!/bin/sh
 
+export OCAMLRUNPARAM=b
 # Use user-writable directories
 export TMPDIR=${TMPDIR:-/tmp}
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-$TMPDIR}
