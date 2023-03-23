@@ -10,7 +10,6 @@
 
 (library
   (name xapi_metastore)
-  (public_name xapi-database.metastore)
   (modes best)
   (libraries
     (re_export fmt)
