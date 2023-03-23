@@ -188,16 +188,23 @@ let stop ~service =
   status
 
 let is_active ~service =
+  let args = ["is-active"; "--quiet"; service] in
+  (* for systemctl --user to work it needs env vars *)
+  let env, args =
+    if !test_mode then
+      (Some (Unix.environment ()), "--user" :: args)
+    else
+      (None, args)
+  in
   let status =
-    Forkhelpers.safe_close_and_exec None None None [] systemctl
-      ["is-active"; "--quiet"; service]
+    Forkhelpers.safe_close_and_exec ?env None None None [] systemctl args
     |> Forkhelpers.waitpid
     |> snd
   in
   Unix.WEXITED 0 = status
 
 let exists ~service =
-  Sys.file_exists (Filename.concat run_path (service ^ ".service"))
+  Sys.file_exists (Filename.concat (run_path ()) (service ^ ".service"))
 
 let start_transient ?env ?properties ~service cmd args =
   if exists ~service then
