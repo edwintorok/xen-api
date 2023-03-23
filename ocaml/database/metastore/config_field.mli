@@ -81,7 +81,7 @@ val typ_of_log_output : log_output Rpc.Types.typ
 (** [typ_of_log_output] serializes as [stdout], [stderr], and [default] *)
 
 (** logging level *)
-type level = CRITICAL | ERROR | WARNING | INFO | DEBUG
+type level = FATAL | PANIC | ERROR | WARN | INFO | DEBUG
 
 val typ_of_level : level Rpc.Types.typ
 (** [typ_of_level] serializes the same as the variant names *)

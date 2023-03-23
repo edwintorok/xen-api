@@ -37,10 +37,15 @@ let typ_of_path = Serialization.typ_of_path
 
 type initial_cluster_state = New | Existing [@@deriving rpcty]
 
+let typ_of_initial_cluster_state =
+  Serialization.lowercase typ_of_initial_cluster_state
+
 type log_output = Stdout | Stderr | Default [@@deriving rpcty]
 
+let typ_of_log_output = Serialization.lowercase typ_of_log_output
+
 (* list of log levels accepted by etcd *)
-type level = CRITICAL | ERROR | WARNING | INFO | DEBUG [@@deriving rpcty]
+type level = FATAL | PANIC | ERROR | WARN | INFO | DEBUG [@@deriving rpcty]
 
 module StringMap = Map.Make (String)
 
