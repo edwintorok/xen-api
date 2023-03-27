@@ -20,13 +20,17 @@
     forkexec
     fpath
     ipaddr
+    logs
     mtime
+    mtime.clock.os
     rpclib.core
     rpclib.json
     rresult
     uuidm
     xapi-stdext-unix
+    threads.posix
   )
+  (modules_without_implementation types)
   (preprocess (per_module ((pps ppx_deriving_rpc) Serialization Config_field Config)))
 )
 

@@ -352,6 +352,91 @@ versions of the data structure (generated test data is committed into
 repository, and as the data structure evolves that old data should still be
 deserializable)
 
+{1 Service interface}
+
+There are several layers at which a "service" needs to be made available:
+* locally on each host
+    * as a high-level XAPI object
+    * as a low-level systemd service
+* in a pool
+
+It is useful to define and manage these in a systematic way with a well-defined
+interface, instead of a too implementation specific way
+(and eventually migrate the existing implementations to use these too).
+
+We define a  {!Xapi_metastore.Stateful_service} and
+{!Xapi_metastore.Metastore_service}, where the latter is an implementation of
+the former.
+
+At a high level we only want a [set]/[get] state API, and internally the
+service needs to perform all operations necessary to reach the desired
+configuration (start/stop, reconfigure, reload, join/leave nodes).
+
+At a lower level we need to be more granular, and this ensures that each
+service implementation thinks about these separate steps (and that we can
+identify failures in a particular step).
+
+@see https://github.com/ClusterLabs/OCF-spec/blob/main/ra/1.1/resource-agent-api.md Open Cluster Framework Resource Agent API 1.1
+
+The interface is inspired by OCF 1.1 (since that is a service spec for a distributed service, and not a local one, like systemd),
+we require the mandatory operations that OCF would require, but in a typed form
+in OCaml, not with shell scripts.
+
+{2 Types}
+
+We could use:
+* polymorphic variants for actions
+* extensible variants for actions
+* functors for actions
+* objects
+
+Objects are seldomly used in OCaml, so lets avoid it (although it might provide
+the more natural way to define actions that have default implementations and
+overrides).
+
+Variants might work, if the service implementations all have a wildcard match
+that call a `default_impl` that recursively calls the service again to
+implement the various actions.
+
+Functors would work as well if we have a basic set of required actions,
+and then a [DefaultActions] functor to supply the missing ones,
+and then override any that we want to implement as custom.
+However all of these have the problem on how to implement an optional action
+that calls multiple other optional actions.
+Overriding just the inner action won't cause the outer action to call the
+correct function when functors are used due to the order of
+declarations/overrides.
+This is important because a higher-level implementation of [start] may want to
+call [validate] prior to executing the action, and [monitor] afterwards.
+
+Variants ensure that it is very obvious what we've broken down the
+high-level action into.
+It also allows composing more complicated actions out of primitive actions,
+whilst allowing an implementation to replace a composite action with a
+different one for robustness / performance purposes.
+(e.g. [reload] can be implemented by restarting the service, but there are
+lighter weight approaches)
+Infinite recursion has to be avoided though (e.g. two optional actionals
+mutually implemented via each-other), and the only way to ensure that is if we
+make the 'fallback' implementation only ever call the mandatory set of actions.
+Which means we might as well use functors, especially that the implementation
+of these actions can become quite long, and having them in a module of their
+own would make the code more readable.
+
+However  variants allow polymorphism and more flexibility in using and
+composing the code (functors cannot add a type variable to a type that is not
+declared to have one to begin with in the interface, whereas an ['a] for a
+parametrized variant can itself by replaced by a ['b foo] type.
+It does make it more awkward to define actions that return values, such as the
+[monitor] action which checks the state of the application, and may want to
+return more detailed diagnostics.
+Therefore we should declare the configuration type in the functor input module
+type as having one type variable (which should be generic enough to accomodate
+multiple type variables if tuples are used, e.g. type 'a t = ('b, 'c) x  constraint 'a = 'b * 'c)
+
+To avoid having to repeat the type signature in the implementation
+we put module signatures containing only types into {!module:Types}.
+
 {1 API reference}
 
 {!modules: Xapi_metastore.Id}
