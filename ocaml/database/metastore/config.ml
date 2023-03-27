@@ -300,4 +300,4 @@ let gen_test () =
     |> List.of_seq
   in
   let schema_digest = Rpc.Enum schema |> Rpc.to_string |> Digest.string in
-  (schema_digest, Rpc_genfake.genall 4 __MODULE__ typ_of)
+  (schema_digest, Rpc_genfake.genall 3 __MODULE__ typ_of)

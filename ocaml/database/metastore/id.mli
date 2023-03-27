@@ -19,6 +19,9 @@
 
 include Map.OrderedType with type t = Uuidm.t
 
+val to_string : t -> string
+(** [to_string t] is {!Uuidm.to_string} *)
+
 (** A {!module:Map} with {!t} identifiers as keys *)
 module Map : sig
   include Map.S with type key = Uuidm.t

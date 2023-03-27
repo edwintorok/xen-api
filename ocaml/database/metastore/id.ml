@@ -16,6 +16,8 @@ type t = Uuidm.t
 
 let compare = Uuidm.compare
 
+let to_string t = Uuidm.to_string t
+
 module Map = struct
   include Map.Make (Uuidm)
 
