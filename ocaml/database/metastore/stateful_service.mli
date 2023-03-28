@@ -4,6 +4,9 @@
 
 open Types
 
+val  run_path: Fpath.t ref
+(** [run_path] is the path used to store service runtime state. *)
+
 (** Fallback(Basic) implements all [OptionalAction] actions using [Basic] actions, or as no-ops.
 
   Recommended usage:
@@ -20,7 +23,7 @@ open Types
     }]
 
  *)
-module Fallback(A: Action): FullAction with type 'a config = 'a A.config
+module Fallback(A: Action): FullAction with type config = A.config
 
 (** Make(Actions) creates a service that can [execute] the specified action. *)
-module Make(A: FullAction) : Service with type 'a config = 'a A.config
+module Make(A: FullAction) : Service with type config = A.config

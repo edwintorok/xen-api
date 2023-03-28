@@ -70,11 +70,52 @@ module Backoff = struct
     end
 end
 
-module Make(A: FullAction) = struct
-  type 'a config = 'a A.config
-  type diagnostic = A.diagnostic
+let run_path = ref @@ Fpath.v "/var/run/nonpersistent/xapi"
 
+module Make(A: FullAction) = struct
+  type config = A.config
+  let typ_of_config = A.typ_of_config
+
+  type diagnostic = A.diagnostic
+  let typ_of_diagnostic = A.typ_of_diagnostic
+
+  let dump_config = Serialization.dump A.typ_of_config
+  let dump_diagnostic = Serialization.dump A.typ_of_diagnostic
+  let dump_metadata = Serialization.dump A.typ_of_metadata
+
+  (* Configuration state management.
+     State has to be stored on disk to survive XAPI restarts.
+   *)
+  let path_of_id id =
+    Fpath.(!run_path / Id.to_string id)
+
+  let load_config id =
+    let+ contents =
+        id |> path_of_id
+      |> Rresult.R.trap_exn Serialization.string_of_file_exn
+    in
+    Serialization.deserialize typ_of_config contents
+
+  let save_config id config =
+    config |> Serialization.serialize typ_of_config
+    |> Serialization.string_to_file_exn (path_of_id id)
+
+  let save_config = trap_exn2 save_config
+
+  (* get_state calls monitor, there is no additional validation that we could
+     perform here in general (unit tests *can* perform additional validations
+     where they carefully control concurrency)
+  *)
   let get_state = trap_exn2 A.monitor_exn
+
+  let get_state id level =
+    let+ state = get_state id level in
+    match state with
+    | None -> Ok None
+    | Some state ->
+      (* config is loaded only when state was successfully queried. *)
+      let+ config = load_config id in
+      Ok (Some (state, config))
 
   (* low-level implementations *)
 
@@ -84,6 +125,102 @@ module Make(A: FullAction) = struct
   let stop id = trap_exn2 A.stop_exn id
   let reload id = trap_exn2 A.reload_exn id
   let validate id = trap_exn2 A.validate_exn id
+
+  let is_known_same state config_opt =
+    match state with
+    | Ok c when Option.equal A.equal_config c config_opt ->
+        true
+    | Error _ | Ok _ ->
+        (* an error is considered to be an unknown state, and thus we cannot
+           say it is known equal to any other desired configuration *)
+        false
+
+  (* idempotent set_state with no validation *)
+  let set_state id ~force config_opt =
+    let fdebug = fdebug id __FUNCTION__ in
+    (* always retrieve state, but don't fail if we can't, this is useful for
+       low-level shutdown *)
+    match get_state id Readonly, config_opt with
+    | Ok None, None ->
+        fdebug (fun m -> m "Service already stopped: no operation");
+        Ok ()
+    | Ok (Some (_, running_config)), Some config when A.equal_config running_config config ->
+        fdebug (fun m -> m "Service state matches desired state: no operation");
+        Ok ()
+    | _, None when force -> stop id None
+    | Ok (Some (_, running_config)), None -> stop id @@ Some running_config
+    | Error e, _ ->
+        warn (fun m -> m "%s: asked to change state gracefully, but cannot retrieve current state" (Id.to_string id));
+        (* only way out would be to retry with a force stop, but make that the
+           caller's choice *)
+        Error e
+    | Ok None, Some config ->
+        fdebug (fun m -> m "Service not running, starting");
+        start id config
+    | Ok (Some (_, old)), Some next ->
+        reload id (old, next)
+    end
+
+  (* add precondition validation *)
+  let set_state id ~backoff =
+    let fdebug = fdebug id __FUNCTION__ in
+    function
+    | None ->
+        (* no input, nothing to validate *)
+        set_state id ~backoff None
+    | Some config as config_opt ->
+      let+ () = validate id (config, Readonly) in
+      fdebug (fun m -> m "Configuration validated");
+      set_state id ~backoff config_opt
+
+  (* add post-condition validation on successful returns *)
+  let set_state id ~backoff config_opt =
+    let fdebug = fdebug id __FUNCTION__ in
+    let+ () = set_state id ~backoff config_opt in
+    let+ state = get_state id Readonly in
+    match config_opt, state with
+    | None, None ->
+        fdebug (fun m -> m "Service stopped as requested");
+        Ok ()
+    | Some _, Some _ ->
+        fdebug (fun m -> m "Service running as requested");
+        Ok ()
+    | None, Some _ ->
+        warn (fun m -> m "%s: Asked to stop, but still running" @@ Id.to_string id);
+        Fmt.error_msg "Asked to stop but still running"
+    | Some _, None ->
+        (* could be a bug in start too, it must only return when service is
+           running, but of course the service may crash again *)
+        warn (fun m -> m "%s: Asked to start, but not running. Did it crash?" @@ Id.to_string id);
+        Fmt.error_msg "Asked to start, but not running"
+
+  (* add retries with backoff *)
+  let set_state id config_opt =
+    let fdebug = fdebug id __FUNCTION__ in
+    let rec loop ~backoff =
+      let config, perform_backoff = backoff in
+      match set_state id ~backoff config_opt with
+      | Ok () as ok -> ok
+      | Error e ->
+          fdebug (fun m -> m "Service state change failed, attempting to backoff: %a" pp_error e);
+          match perform_backoff config with
+          | None ->
+              warn (fun m -> m "Backoff gave up (timeout)");
+              Fmt.error_msg "Service state change timed out"
+          | Some config ->
+              loop ~backoff:(config, perform_backoff)
+    in
+    loop
+
+  (* save and load old state *)
+
+  (* try to restore old state upon failure.
+     this requires get_state to return old state, and for set_state to save new
+     state upon success, but what to do about intermediate states?
+     Since we only use this for restore so reading it once at beginning should
+     be fine
+   *)
+
 
   (* higher-level implementations that perform additional validation *)
   let stop id config_opt =

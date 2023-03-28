@@ -382,6 +382,36 @@ The interface is inspired by OCF 1.1 (since that is a service spec for a distrib
 we require the mandatory operations that OCF would require, but in a typed form
 in OCaml, not with shell scripts.
 
+{2 Desired state}
+
+The desired state of a service can be:
+- stopped
+- running with a given configuration
+
+However achieving that can have different levels of error handling,
+e.g. a running service can be stopped gracefully or killed.
+Similarly a running service can be live reloaded, stopped and started, or force
+stopped and started.
+
+During normal operation we want to perform the minimally invasive operation,
+and graceful stops where possible and raise a failure to a higher level
+function if we cannot.
+
+However having force stops is useful (e.g. if XAPI has no metadata storage
+configured then it'll have to do a forced stop).
+
+The difference between a forced and graceful stop is that a graceful stop may
+supply a configuration, but a force stop may not always even have a
+configuration anymore (perhaps we failed to read it).
+
+We can also attempt to join/leave the node on start/stop, but that is best left
+to a completely separate operation, because it is typically only done on host
+clean shutdown/reboot (to preserve as much of quorum as possible), and we do
+NOT want to make the node leave just due to a local upgrade (although from a
+quorum point of view it might be helpful, it may not necessarily increase
+robustness, e.g. if we're left with a 2-node cluster when starting from a
+3-node cluster).
+
 {2 Types}
 
 We could use:
@@ -433,6 +463,9 @@ return more detailed diagnostics.
 Therefore we should declare the configuration type in the functor input module
 type as having one type variable (which should be generic enough to accomodate
 multiple type variables if tuples are used, e.g. type 'a t = ('b, 'c) x  constraint 'a = 'b * 'c)
+However this means we need to pass a typ_of or pretty printer for ['a] to all
+functions that deal with ['a config] which adds unnecessary complexity.
+For now we use just a fixed config type.
 
 To avoid having to repeat the type signature in the implementation
 we put module signatures containing only types into {!module:Types}.

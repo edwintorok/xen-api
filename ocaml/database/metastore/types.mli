@@ -21,23 +21,29 @@ type level =
 
 (** Actions that can be performed on a service. All actions must be idempotent. *)
 module type Action = sig
-  type 'a config (** configuration type of the service *)
+  type config (** configuration type of the service *)
 
-  val equal_config: 'a config -> 'a config -> bool
+  val typ_of_config: config Rpc.Types.typ
+
+  val equal_config: config -> config -> bool
   (** [equal_config a b] compares 2 configurations for equality. *)
 
   type metadata (** metadata about the service *)
 
+  val typ_of_metadata: metadata Rpc.Types.typ
+
   type diagnostic (** diagnostic data about a running service *)
 
-  val start_exn: (_ config, unit) action
+  val typ_of_diagnostic: diagnostic Rpc.Types.typ
+
+  val start_exn: (config, unit) action
   (** [start_exn id config] starts an instance of the service with the specified configuration.
 
         Upon return the service must be immediately ready to service requests:
           any network ports / sockets must be bound and ready to accept connections.
     *)
 
-  val stop_exn: (_ config option, unit) action
+  val stop_exn: (config option, unit) action
   (** [stop_exn id config_opt] ensure the instance is not running.
 
       @param config_opt when [None] a forced stop should be performed,
@@ -67,9 +73,9 @@ end
     All actions must be idempotent.
  *)
 module type OptionalAction = sig
-  type 'a config (** configuration type of the service *)
+  type config (** configuration type of the service *)
 
-  val validate_exn: (_ config * level, unit) action
+  val validate_exn: (config * level, unit) action
   (** [validate_exn id (config, level)] checks that the [config] is valid for [id].
 
     @param level
@@ -82,25 +88,29 @@ module type OptionalAction = sig
     }
    *)
 
-  val reload_exn: (_ config, unit) action
-  (** [reload_exn id config] ensures the service is running with the new configuration *)
+  val reload_exn: (config * config, unit) action
+  (** [reload_exn id (old,new)] ensures the service is running with the new configuration *)
 end
 
 (** Mandatory and optional actions for a service *)
 module type FullAction = sig
   include Action
-  include OptionalAction with type 'a config := 'a config
+  include OptionalAction with type config := config
 end
 
 (** result type for service actions *)
 type ('a, 'e) result = ('a, [> error] as 'e) Result.t
 
 module type Service = sig
-  type 'a config (** service configuration *)
+  type config (** service configuration *)
+
+  val typ_of_config: config Rpc.Types.typ
 
   type diagnostic  (** diagnostic information about a service *)
 
-  val get_state: Id.t -> level -> (diagnostic option, _) result
+  val typ_of_diagnostic: diagnostic Rpc.Types.typ
+
+  val get_state: Id.t -> level -> ((diagnostic * config) option, _) result
   (** [get_state instance level] retrieves the current state of the instance [id].
       The detail of checking is specified by [level], see {!type:level}.
 
@@ -109,19 +119,23 @@ module type Service = sig
     @returns [Error err] if we failed to determine status
    *)
 
-  val set_state: Id.t -> 'a config option -> (unit, _) result
-  (** [set_state id desired_config] changes the state of instance [id] to
-  [desired_config] on the current host.
+  val set_state: Id.t -> backoff:('a * 'a -> 'a option) -> force:bool -> config option -> (unit, _) result
+  (** [set_state id ~backoff ~force desired_config] changes the state of instance [id] to
+  [desired_config].
 
-    It will attempt to perform minimally disruptive changes:
+    It will attempt to perform minimally disruptive changes, unless [force] is
+    specified:
       * invalid configurations will be rejected early where possible
       * configuration will be reloaded through runtime reconfiguration where
         possible
       * service will be stopped and started as needed
       * service stop will be forced if a regular stop fails
 
+    @param backoff is the backoff configuration for internal retries
+    @param force immediately shut down the existing instance if changes would be needed
     @param desired_config when None the instance will be stopped
-    @param desired_config when [Some config] the instance will be reloaded or
+    @param desired_config when None the instance will be stopped
+    @param desired_config when [Some (config, true)] the instance will be reloaded or
       started to match [config]
 
     @returns [Ok ()] when successful
