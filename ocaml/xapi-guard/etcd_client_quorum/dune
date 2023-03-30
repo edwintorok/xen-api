@@ -1,0 +1,35 @@
+; rpc.proto from https://raw.githubusercontent.com/etcd-io/etcd/release-3.5/api/etcdserverpb/rpc.proto
+; with 'additional_bindings' entries removed and google.api.http entries removed
+
+(rule
+  (targets
+    etcd_rpc_types.ml etcd_rpc_yojson.ml etcd_rpc_pp.ml
+    etcd_rpc_types.mli etcd_rpc_yojson.mli etcd_rpc_pp.mli
+  )
+  (deps etcd_rpc.proto)
+  (action
+    (progn
+      (run ocaml-protoc -yojson -pp -ml_out ./ %{deps})
+      (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g etcd_rpc_yojson.ml etcd_rpc_yojson.mli)
+    )))
+
+(rule
+  (targets
+    kv_types.ml kv_yojson.ml kv_pp.ml
+    kv_types.mli kv_yojson.mli kv_pp.mli
+  )
+  (deps kv.proto)
+  (action
+    (progn
+     (run ocaml-protoc -yojson -pp -ml_out ./ %{deps})
+     (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g kv_yojson.ml kv_yojson.mli)
+    )))
+
+(executable
+ (name main)
+ (package varstored-guard)
+ (public_name xapi-ecc)
+ (libraries cohttp cohttp-lwt-unix yojson lwt.unix systemd lwt uri logs
+            logs.fmt
+            cohttp-lwt ocaml-protoc-yojson conduit-lwt-unix)
+)
