@@ -159,24 +159,23 @@ module Make(A: FullAction) = struct
         start id config
     | Ok (Some (_, old)), Some next ->
         reload id (old, next)
-    end
 
   (* add precondition validation *)
-  let set_state id ~backoff =
+  let set_state id ~force =
     let fdebug = fdebug id __FUNCTION__ in
     function
     | None ->
         (* no input, nothing to validate *)
-        set_state id ~backoff None
+        set_state id ~force None
     | Some config as config_opt ->
       let+ () = validate id (config, Readonly) in
       fdebug (fun m -> m "Configuration validated");
-      set_state id ~backoff config_opt
+      set_state id ~force config_opt
 
   (* add post-condition validation on successful returns *)
-  let set_state id ~backoff config_opt =
+  let set_state id ~force config_opt =
     let fdebug = fdebug id __FUNCTION__ in
-    let+ () = set_state id ~backoff config_opt in
+    let+ () = set_state id ~force config_opt in
     let+ state = get_state id Readonly in
     match config_opt, state with
     | None, None ->
@@ -193,6 +192,11 @@ module Make(A: FullAction) = struct
            running, but of course the service may crash again *)
         warn (fun m -> m "%s: Asked to start, but not running. Did it crash?" @@ Id.to_string id);
         Fmt.error_msg "Asked to start, but not running"
+
+  (* add recovery: try setting back old state if we fail to change it *)
+  let set_state id ~force config_opt =
+    let fdebug = fdebug id __FUNCTION__ in
+
 
   (* add retries with backoff *)
   let set_state id config_opt =
