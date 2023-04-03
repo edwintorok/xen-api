@@ -54,9 +54,6 @@ module Make(B: KVBackend) = struct
         ctx, `TCP (`Port port)
     in
     let ctx = Net.init ~ctx () in
-
-    However the one below returns still too early:
-      before Lwt_unix.listen got called.
     *)
     let domain = match sockaddr with
     | Unix.ADDR_UNIX _ -> Unix.PF_UNIX
