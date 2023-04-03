@@ -57,6 +57,7 @@ let v3_kv_deleterange (deleterange : delete_range_request ) =
   ; deleted = List.length prev |> Int64.of_int
   }
 
+(*
 let listen mode =
   let open Cohttp_lwt_unix in
 
@@ -88,6 +89,7 @@ let listen mode =
   in
   Server.create ~mode (Server.make ~callback ())
 
+
 let mode_of_fd fd : Conduit_lwt_unix.server =
   `TCP (`Socket (Lwt_unix.of_unix_file_descr fd))
 
@@ -100,6 +102,44 @@ let server =
     Lwt_list.map_p listen
   in
   Lwt.return_unit
+*)
+
+
+let server =
+  let etcd_service =
+    let make_rpc name decode f encode =
+      let unary buffer =
+        (* TODO: can we reuse encoders/decoders? *)
+        let encoder = Pbrt.Encoder.create () in
+        let+ reply = buffer |> Pbrt.Decoder.of_string |> decode |> f in
+        encode reply encoder;
+        (* TODO: handle exceptions *)
+        Grpc.Status.(v OK), Some (Pbrt.Encoder.to_string encoder)
+      in
+      Grpc_lwt.Server.Service.(add_rpc ~name ~rpc:(Unary unary))
+    in
+    let open Etcd_rpc_pb in
+    (* TODO: ocaml-protoc could generate these from the 'service' annotations in .proto? for now by hand *)
+    Grpc_lwt.Server.Service.(
+      v ()
+      |> make_rpc "Range" decode_range_request v3_kv_range encode_range_response
+      |> make_rpc "Put" decode_put_request v3_kv_put encode_put_response
+      |> make_rpc "DeleteRange" decode_delete_range_request v3_kv_deleterange encode_delete_range_response
+      |> handle_request
+      )
+  in
+  let grpc_server =
+    Grpc_lwt.Server.(v () |> add_service ~name:"etcdserverpb.KV" ~service:etcd_service)
+  in
+  let listen_address = Unix.(ADDR_INET (inet_addr_loopback, 12380)) in
+  let h2_server =
+    H2_lwt_unix.Server.create_connection_handler ?config:None
+    ~request_handler:(fun _ reqd -> Grpc_lwt.Server.handle_request grpc_server reqd)
+    ~error_handler:(fun _ ?request:_ _ _ -> failwith "TODO: error") in
+  let* _server = Lwt_io.establish_server_with_client_socket listen_address h2_server in
+  (* forever *)
+  Lwt.wait () |> fst
+
 
 let () =
   Logs.set_reporter @@ Logs_fmt.reporter ();

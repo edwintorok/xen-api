@@ -5,11 +5,12 @@
   (targets
     etcd_rpc_types.ml etcd_rpc_yojson.ml etcd_rpc_pp.ml
     etcd_rpc_types.mli etcd_rpc_yojson.mli etcd_rpc_pp.mli
+    etcd_rpc_pb.ml etcd_rpc_pb.mli
   )
   (deps etcd_rpc.proto)
   (action
     (progn
-      (run ocaml-protoc -yojson -pp -ml_out ./ %{deps})
+      (run ocaml-protoc -binary -yojson -pp -ml_out ./ %{deps})
       (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g etcd_rpc_yojson.ml etcd_rpc_yojson.mli)
     )))
 
@@ -17,11 +18,12 @@
   (targets
     kv_types.ml kv_yojson.ml kv_pp.ml
     kv_types.mli kv_yojson.mli kv_pp.mli
+    kv_pb.ml kv_pb.mli
   )
   (deps kv.proto)
   (action
     (progn
-     (run ocaml-protoc -yojson -pp -ml_out ./ %{deps})
+     (run ocaml-protoc -binary -yojson -pp -ml_out ./ %{deps})
      (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g kv_yojson.ml kv_yojson.mli)
     )))
 
@@ -31,5 +33,7 @@
  (public_name xapi-ecc)
  (libraries cohttp cohttp-lwt-unix yojson lwt.unix systemd lwt uri logs
             logs.fmt
+            grpc grpc-lwt h2-lwt-unix h2
+            ocaml-protoc
             cohttp-lwt ocaml-protoc-yojson conduit-lwt-unix)
 )
