@@ -45,6 +45,36 @@ module Make(B: KVBackend) = struct
       | _ ->
         Server.respond_error ~status:`Method_not_allowed ~body:"Method_not_allowed" ()
 
+  let make_100_continue ~callback () =
+    let callback conn req body =
+      let h = Cohttp.Request.headers req in
+      if Cohttp.Request.meth req = `POST
+      && Cohttp.Header.get h "Expect" = Some "100-continue" then begin
+        Logs.debug (fun m -> m "got 100-continue");
+        let woken = ref false in
+        let wait_continue, wakener = Lwt.wait () in
+        let requires_body = Lwt_stream.from_direct @@ fun () ->
+          Logs.debug (fun m -> m "waking");
+          woken := true;
+          Lwt.wakeup_later wakener (Response.make ~flush:true ~status:`Continue (), Cohttp_lwt.Body.empty);
+          None
+        in
+        let body = body |> Cohttp_lwt.Body.to_stream in
+        let body = Lwt_stream.append requires_body body |> Cohttp_lwt.Body.of_stream in
+        Lwt.async (fun () ->
+          let+ (response, body) = callback conn req body in
+            if not !woken then
+              Lwt.wakeup_later wakener (response, body);
+        );
+        wait_continue
+      end
+      else begin
+        Logs.debug (fun m -> m "no 100-continue");
+        callback conn req body
+      end
+    in
+    Server.make ~callback ()
+
   let listen sockaddr =
     (*
     We could do the following, but it doesn't provide a way to let us know when
@@ -68,7 +98,7 @@ module Make(B: KVBackend) = struct
     Lwt_unix.listen socket 128;
     let mode = `TCP (`Socket socket) in
     let stop, do_stop = Lwt.wait () in
-    Server.create ~stop ~mode (Server.make ~callback ()), do_stop
+    Server.create ~stop ~mode (make_100_continue ~callback ()), do_stop
 
   let shutdown (finished, do_stop) =
     Lwt.wakeup do_stop ();
