@@ -20,7 +20,10 @@ module Make(B: KVBackend) = struct
             (* TODO: handle exceptions *)
             Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body ()
           in
-          StringMap.add rpc.http_name handler acc
+          (* deprecated, but old etcd versions have only this *)
+          let name2 = "/v3alpha" ^ (String.sub rpc.http_name 3 (String.length rpc.http_name - 3)) in
+          acc |> StringMap.add rpc.http_name handler
+          |> StringMap.add name2 handler
       ) StringMap.empty
 
   open Cohttp_lwt_unix
@@ -29,11 +32,12 @@ module Make(B: KVBackend) = struct
     Logs.debug (fun m -> m "Received request: %a" Cohttp.Request.pp_hum req);
     match Cohttp.Request.meth req with
     | `POST ->
-        let* json = json_of_body body in
         let uri = req |> Cohttp.Request.uri in
         let uri_path = uri |> Uri.path in
         (match StringMap.find_opt uri_path service_map with
-        | Some handler -> handler json
+        | Some handler ->
+            let* json = json_of_body body in
+            handler json
         | None ->
           Logs.info (fun m -> m "Handler for path %s not found" uri_path);
           (* TODO: what is right response here? *)
