@@ -2,13 +2,15 @@ open Lwt.Syntax
 
 module M1 = Make_grpc.Make(Memory_backend)
 module M2 = Make_json.Make(Memory_backend)
+module B2 = Make_json.Make(Disk_backend)
 
-module M = M2
+module M = B2
 
 let () =
   (* TODO: use the Lwt reporter from xapi-logs *)
   Logs.set_reporter @@ Logs_fmt.reporter ();
-  Logs.set_level ~all:true (Some Logs.Debug);
+  Logs.set_level ~all:true (Some Logs.Info);
+  (* Logs.set_level ~all:true (Some Logs.Debug); *)
   (* default would be 500% overhead, 120% here matches the value used for
      [space_overhead], and is what oxenstored uses. *)
   Gc.set { (Gc.get ()) with Gc.max_overhead = 120 };

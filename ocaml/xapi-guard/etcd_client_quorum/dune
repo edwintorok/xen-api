@@ -39,5 +39,7 @@
             logs.fmt
             grpc grpc-lwt h2-lwt-unix h2 fmt
             ocaml-protoc
+            fpath
+            base64
             cohttp-lwt ocaml-protoc-yojson conduit-lwt-unix)
 )
