@@ -6,18 +6,21 @@
 
 open Etcd_rpc_types
 
+type status = Status.t
+
 (** Etcd KV proto implementation, the function names here match the 'service
     KV' definitions in the .proto file *)
 module type KVBackend = sig
-  val range: range_request -> range_response Lwt.t
+  val range : range_request -> (range_response, status) Lwt_result.t
   (** [range range_request] gets the keys in the range from the key-value store *)
 
-  val put: put_request -> put_response Lwt.t
+  val put : put_request -> (put_response, status) Lwt_result.t
   (** [put put_request] puts the given key into the key-value store.
       Increments the revision of the key-value store.
    *)
 
-  val delete_range: delete_range_request -> delete_range_response Lwt.t
+  val delete_range :
+    delete_range_request -> (delete_range_response, status) Lwt_result.t
   (** [delete_range delete_range_request] deletes the given range from the
       key-value store.
       A delete request increments the revision of the key-value store.
@@ -27,10 +30,10 @@ end
 module type S = sig
   type t
 
-  val listen: Unix.sockaddr -> t Lwt.t
+  val listen : Unix.sockaddr -> t Lwt.t
   (** [listen addr] listens on the specified [addr]. *)
 
-  val shutdown: t -> unit Lwt.t
+  val shutdown : t -> unit Lwt.t
   (** [shutdown t] shuts down the listening socket in [t].
       It returns when the shutdown has completed
    *)

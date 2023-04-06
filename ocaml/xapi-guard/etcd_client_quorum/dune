@@ -30,6 +30,19 @@
      (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g kv_yojson.ml kv_yojson.mli)
     )))
 
+(rule
+  (targets
+    code_types.ml code_yojson.ml code_pp.ml
+    code_types.mli code_yojson.mli code_pp.mli
+    code_pb.ml code_pb.mli
+  )
+  (deps code.proto)
+  (action
+    (progn
+     (run ocaml-protoc -binary -yojson -pp -ml_out ./ %{deps})
+     (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g code_yojson.ml code_yojson.mli)
+    )))
+
 (executable
  (name main)
  (package varstored-guard)
@@ -43,4 +56,5 @@
             fpath
             base64
             cohttp-lwt ocaml-protoc-yojson conduit-lwt-unix)
+   (preprocess (per_module ((pps ppx_deriving_yojson) status)))
 )
