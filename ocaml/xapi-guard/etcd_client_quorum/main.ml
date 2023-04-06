@@ -3,8 +3,10 @@ open Lwt.Syntax
 module M1 = Make_grpc.Make(Memory_backend)
 module M2 = Make_json.Make(Memory_backend)
 module B2 = Make_json.Make(Disk_backend)
+module E = Make_json.Make(Etcd_backend_grpc)
+module EJ = Make_json.Make(Etcd_backend_json)
 
-module M = B2
+module M = EJ
 
 let () =
   (* TODO: use the Lwt reporter from xapi-logs *)

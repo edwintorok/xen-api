@@ -37,7 +37,8 @@
  (modules_without_implementation etcd_service_types)
  (libraries cohttp cohttp-lwt-unix yojson lwt.unix systemd lwt uri logs
             logs.fmt
-            grpc grpc-lwt h2-lwt-unix h2 fmt
+            grpc grpc-lwt h2-lwt-unix h2 fmt h2-lwt gluten-lwt
+            conduit
             ocaml-protoc
             fpath
             base64
