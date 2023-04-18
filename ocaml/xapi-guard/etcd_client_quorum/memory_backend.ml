@@ -1,21 +1,26 @@
 open Etcd_rpc_types
 open Kv_types
 
-let keys = Hashtbl.create 7
+type t  =
+  { keys: (string, key_value) Hashtbl.t
+  ; mutable revisions: int
+  }
 
-let revisions = ref 0
+let init () = { keys = Hashtbl.create 7; revisions = 0 }
 
-let make_response_header () =
-  let revision = !revisions |> Int64.of_int in
+let cleanup t = Hashtbl.reset t.keys; Lwt.return_unit
+
+let make_response_header conn =
+  let revision = conn.revisions |> Int64.of_int in
   Some (Etcd_rpc_types.default_response_header ~revision ())
 
 (* an in-memory backend for benchmarking *)
-let put (put : put_request) =
+let put t (put : put_request) =
   (* TODO: check that there are no other fields set that we do not support *)
-  let prev = Hashtbl.find_opt keys put.key in
-  incr revisions ;
-  let now = !revisions |> Int64.of_int in
-  Hashtbl.replace keys put.key
+  let prev = Hashtbl.find_opt t.keys put.key in
+  t.revisions <- t.revisions + 1;
+  let now = t.revisions |> Int64.of_int in
+  Hashtbl.replace t.keys put.key
     {
       key= put.key
     ; value= put.value
@@ -28,28 +33,28 @@ let put (put : put_request) =
     } ;
   Lwt_result.return
     {
-      header= make_response_header ()
+      header= make_response_header t
     ; prev_kv= (if put.prev_kv then prev else None)
     }
 
-let range (range : range_request) =
+let range t (range : range_request) =
   (* TODO: check that there are no other fields set that we do not support *)
-  let kvs = Hashtbl.find_all keys range.key in
+  let kvs = Hashtbl.find_all t.keys range.key in
   Lwt_result.return
     {
-      header= make_response_header ()
+      header= make_response_header t
     ; kvs
     ; more= false
     ; count= List.length kvs |> Int64.of_int
     }
 
-let delete_range (deleterange : delete_range_request) =
+let delete_range t (deleterange : delete_range_request) =
   (* TODO: check that there are no other fields set that we do not support *)
-  let prev = Hashtbl.find_all keys deleterange.key in
-  Hashtbl.remove keys deleterange.key ;
+  let prev = Hashtbl.find_all t.keys deleterange.key in
+  Hashtbl.remove t.keys deleterange.key ;
   Lwt_result.return
     {
-      header= make_response_header ()
+      header= make_response_header t
     ; prev_kvs= (if deleterange.prev_kv then prev else [])
     ; deleted= List.length prev |> Int64.of_int
     }

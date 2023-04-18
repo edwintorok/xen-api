@@ -22,7 +22,13 @@ let pool sockaddr =
   Lwt_pool.create 1 ~validate ~check ~dispose:H2_lwt_unix.Client.shutdown
   @@ fun () -> connect sockaddr
 
-let persistent_conn = pool (Unix.ADDR_INET (Unix.inet_addr_loopback, 2379))
+type t =
+  { pool: H2_lwt_unix.Client.t Lwt_pool.t }
+
+let init () = { pool = pool (Unix.ADDR_INET (Unix.inet_addr_loopback, 2379)) }
+
+let cleanup t =
+  Lwt_pool.clear t.pool
 
 let service = "etcdserverpb.KV"
 
@@ -30,7 +36,7 @@ let of_grpc_status gstatus =
   let code = gstatus |> Grpc.Status.code |> Grpc.Status.int_of_code |> Status.code_of_int in
   Status.{code; message = Grpc.Status.message gstatus}
 
-let proxy rpc_desc request =
+let proxy rpc_desc t request =
   let open Etcd_service in
   let f response_opt_lwt =
     let* (response_opt : string option) = response_opt_lwt in
@@ -45,7 +51,7 @@ let proxy rpc_desc request =
   in
   (* TODO: reuse encoder *)
   let encoder = Pbrt.Encoder.create () in
-  Lwt_pool.use persistent_conn @@ fun conn ->
+  Lwt_pool.use t.pool @@ fun conn ->
   rpc_desc.encode_grpc_request request encoder ;
   let handler =
     encoder |> Pbrt.Encoder.to_string |> Grpc_lwt.Client.Rpc.unary ~f

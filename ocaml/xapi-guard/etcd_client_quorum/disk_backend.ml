@@ -15,10 +15,15 @@ let alphabet = Base64.uri_safe_alphabet (* filename safe alphabet *)
 let path_of_key key =
   Fpath.(db_path / Base64.encode_exn ~pad:false ~alphabet key)
 
-let revisions = ref 0 (* TODO: this has to be persistent too *)
+(* TODO: needs to be persistent *)
+type t =
+{ mutable revisions: int }
 
-let make_response_header () =
-  let revision = !revisions |> Int64.of_int in
+let init () = {revisions = 0}
+let cleanup _ = Lwt.return_unit
+
+let make_response_header t =
+  let revision = t.revisions |> Int64.of_int in
   Some (Etcd_rpc_types.default_response_header ~revision ())
 
 let with_fd path flags perm f =
@@ -78,7 +83,7 @@ let read_path key path =
       )
 
 (* an in-memory backend for benchmarking *)
-let put (put : put_request) =
+let put t (put : put_request) =
   let path = path_of_key put.key in
   (* TODO: check that there are no other fields set that we do not support *)
   let* prev_kv =
@@ -89,22 +94,22 @@ let put (put : put_request) =
   in
   let* () = created in
   let* () = write_atomic path put.value in
-  incr revisions ;
-  Lwt_result.return {header= make_response_header (); prev_kv}
+  t.revisions <- t.revisions + 1;
+  Lwt_result.return {header= make_response_header t; prev_kv}
 
-let range (range : range_request) =
+let range t (range : range_request) =
   (* TODO: check that there are no other fields set that we do not support *)
   let* kvopt = range.key |> path_of_key |> read_path range.key in
   let kvs = Option.to_list kvopt in
   Lwt_result.return
     {
-      header= make_response_header ()
+      header= make_response_header t
     ; kvs
     ; more= false
     ; count= List.length kvs |> Int64.of_int
     }
 
-let delete_range (deleterange : delete_range_request) =
+let delete_range t (deleterange : delete_range_request) =
   (* TODO: check that there are no other fields set that we do not support *)
   let path = path_of_key deleterange.key in
   let* prev_kv =
@@ -117,7 +122,7 @@ let delete_range (deleterange : delete_range_request) =
   let* () = path |> Fpath.to_string |> Lwt_unix.unlink in
   Lwt_result.return
     {
-      header= make_response_header ()
+      header= make_response_header t
     ; prev_kvs= Option.to_list prev_kv
     ; deleted= (if exists then 1L else 0L)
     }

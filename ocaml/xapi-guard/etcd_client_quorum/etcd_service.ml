@@ -110,8 +110,10 @@ let make (module B : Etcd_service_types.KVBackend) =
   (* TODO: we will need to patch ocaml-protoc to handle 'bytes' as base64 for
      JSON, by default it is not implemented! *)
   (* matches entries in etcd's rpc.proto [service KV] *)
+  let conn = B.init () in
+  Lwt_gc.finalise B.cleanup conn;
   [
-    make_rpc B.range range
-  ; make_rpc B.put put
-  ; make_rpc B.delete_range delete_range
+    make_rpc (B.range conn) range
+  ; make_rpc (B.put conn) put
+  ; make_rpc (B.delete_range conn) delete_range
   ]
