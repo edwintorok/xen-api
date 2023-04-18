@@ -3,6 +3,8 @@ open Lwt.Syntax
 
 let db_path = Fpath.v "/var/tmp/x-kvstorage"
 
+let name = __MODULE__
+
 let created =
   Lwt.catch
     (fun () -> Lwt_unix.mkdir (Fpath.to_string db_path) 0o700)

@@ -55,6 +55,13 @@
             ocaml-protoc
             fpath
             base64
+            qcheck-lin.lin
+            qcheck-lin.thread
+            threads.posix
+            qcheck-core
+            qcheck-core.runner
             cohttp-lwt ocaml-protoc-yojson conduit-lwt-unix)
    (preprocess (per_module ((pps ppx_deriving_yojson) status)))
 )
+
+(vendored_dirs etcdsh cohttp qcheck-lin)

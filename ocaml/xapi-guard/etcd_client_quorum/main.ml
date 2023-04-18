@@ -22,27 +22,32 @@ let () =
     fun e ->
       Logs.err (fun m -> m "Asynchronous exception encountered: %a" Fmt.exn e)
 
-let server =
-  let port = 12380 in
-  Logs.debug (fun m -> m "About to listen on port %d" port) ;
-  let* server = M.listen (Unix.ADDR_INET (Unix.inet_addr_loopback, port)) in
-  Logs.info (fun m -> m "Server listening on port %d" port) ;
+let run_server () =
+  let server =
+    let port = 12380 in
+    Logs.debug (fun m -> m "About to listen on port %d" port) ;
+    let* server = M.listen (Unix.ADDR_INET (Unix.inet_addr_loopback, port)) in
+    Logs.info (fun m -> m "Server listening on port %d" port) ;
 
-  let finished, wake_finished = Lwt.wait () in
-  let shutdown () =
-    Logs.info (fun m -> m "Signal received, shutting down") ;
-    let+ () = M.shutdown server in
-    Logs.info (fun m -> m "Shutdown complete")
+    let finished, wake_finished = Lwt.wait () in
+    let shutdown () =
+      Logs.info (fun m -> m "Signal received, shutting down") ;
+      let+ () = M.shutdown server in
+      Logs.info (fun m -> m "Shutdown complete")
+    in
+    let on_signal _ =
+      Lwt.on_success (shutdown ()) (Lwt.wakeup_later wake_finished)
+    in
+    let (_ : Lwt_unix.signal_handler_id) =
+      Lwt_unix.on_signal Sys.sigterm on_signal
+    in
+    let (_ : Lwt_unix.signal_handler_id) =
+      Lwt_unix.on_signal Sys.sigint on_signal
+    in
+    finished
   in
-  let on_signal _ =
-    Lwt.on_success (shutdown ()) (Lwt.wakeup_later wake_finished)
-  in
-  let (_ : Lwt_unix.signal_handler_id) =
-    Lwt_unix.on_signal Sys.sigterm on_signal
-  in
-  let (_ : Lwt_unix.signal_handler_id) =
-    Lwt_unix.on_signal Sys.sigint on_signal
-  in
-  finished
+  Lwt_main.run server
 
-let () = Lwt_main.run server
+let () =
+  (* run_server *)
+  Etcd_spec_tests.run ()

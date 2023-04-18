@@ -18,6 +18,9 @@ type status = Status.t
 module type KVBackend = sig
   type t (** key value backend connection *)
 
+  val name: string
+  (** the backend's name *)
+
   val init: unit -> t
   (** [init ())] initializes a connection a key-value backend.
       Any state needed for the connection can be stored in the return value,

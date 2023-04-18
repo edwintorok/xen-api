@@ -1,5 +1,7 @@
 open Lwt.Syntax
 
+let name = __MODULE__
+
 let connect sockaddr =
   let domain =
     match sockaddr with

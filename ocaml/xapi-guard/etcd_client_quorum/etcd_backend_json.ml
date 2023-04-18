@@ -2,6 +2,8 @@ open Lwt.Syntax
 
 type t = { cache: Cohttp_lwt_unix.Connection_cache.t }
 
+let name = __MODULE__
+
 let init () = { cache = Cohttp_lwt_unix.Connection_cache.create () }
 
 let cleanup _ =

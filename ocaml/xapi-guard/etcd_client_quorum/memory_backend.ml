@@ -6,6 +6,8 @@ type t  =
   ; mutable revisions: int
   }
 
+let name = __MODULE__
+
 let init () = { keys = Hashtbl.create 7; revisions = 0 }
 
 let cleanup t = Hashtbl.reset t.keys; Lwt.return_unit

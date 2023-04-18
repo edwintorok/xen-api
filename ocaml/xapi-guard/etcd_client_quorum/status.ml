@@ -18,6 +18,8 @@ type t =
   ; message: string option
   }
 
+let equal = (=) (* only have primitive types, default equality works *)
+
 module JSON = struct
   type t =
     { code: int
