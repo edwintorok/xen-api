@@ -60,6 +60,9 @@
             threads.posix
             qcheck-core
             qcheck-core.runner
+            qcheck-stm.stm
+            qcheck-stm.sequential
+            qcheck-stm.thread
             cohttp-lwt ocaml-protoc-yojson conduit-lwt-unix)
    (preprocess (per_module ((pps ppx_deriving_yojson) status)))
 )
