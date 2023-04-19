@@ -106,7 +106,7 @@ let make_rpc f rpc =
   in
   RPC (rpc, f)
 
-let make (module B : Etcd_service_types.KVBackend) =
+let make (module B : Etcd_service_types.KVBackendLwt) =
   (* TODO: we will need to patch ocaml-protoc to handle 'bytes' as base64 for
      JSON, by default it is not implemented! *)
   (* matches entries in etcd's rpc.proto [service KV] *)

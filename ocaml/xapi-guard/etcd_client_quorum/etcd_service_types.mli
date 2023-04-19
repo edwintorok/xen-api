@@ -17,6 +17,8 @@ type status = Status.t
 *)
 module type KVBackend = sig
   type t (** key value backend connection *)
+  
+  type +'a io (** IO monad used by backend, if any *)
 
   val name: string
   (** the backend's name *)
@@ -27,25 +29,33 @@ module type KVBackend = sig
       instead of using global values.
    *)
 
-  val cleanup: t -> unit Lwt.t
+  val cleanup: t -> unit io
   (** [cleanup conn] releases any resources used by [conn].
       Using [conn] after [cleanup] has been called is a programming error.
    *)
 
-  val range : t -> range_request -> (range_response, status) Lwt_result.t
+  val range : t -> range_request -> (range_response, status) result io
   (** [range conn range_request] gets the keys in the range from the key-value store *)
 
-  val put : t -> put_request -> (put_response, status) Lwt_result.t
+  val put : t -> put_request -> (put_response, status) result io
   (** [put conn put_request] puts the given key into the key-value store.
       Increments the revision of the key-value store.
    *)
 
   val delete_range :
-    t -> delete_range_request -> (delete_range_response, status) Lwt_result.t
+    t -> delete_range_request -> (delete_range_response, status) result io
   (** [delete_range conn delete_range_request] deletes the given range from the
       key-value store.
       A delete request increments the revision of the key-value store.
     *)
+end
+
+module type KVBackendLwt = sig
+  include KVBackend with type 'a io = 'a Lwt.t
+end
+
+module type KVBackendDirect = sig
+  include KVBackend with type 'a io = 'a
 end
 
 module type S = sig

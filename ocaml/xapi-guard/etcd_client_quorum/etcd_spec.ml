@@ -25,25 +25,29 @@ let (_ : Thread.t) =
   let forever, _ = Lwt.wait () in
   () |> Thread.create @@ fun () -> Lwt_main.run forever
 
-let () = at_exit (fun () ->
-    Printf.eprintf "called: %d\n" !called;
-    flush stderr;
-)
+module MakeDirect(B: KVBackendLwt) : KVBackendDirect = struct
+  type 'a io = 'a
+  type t = B.t
+  let name = B.name ^ " (run_in_main)"
+  let init = B.init
+  let cleanup = lwt B.cleanup
+  let range = lwt2 B.range
+  let  put = lwt2 B.put
+  let delete_range = lwt2 B.delete_range
+end
 
-module Make(B: KVBackend) : Spec  = struct
-  open Lwt.Infix
+module Make(B: KVBackendDirect) : Spec  = struct
   type t = B.t
   let init = B.init
 
   (* delete everything... *)
-  let cleanup = lwt @@ fun t ->
-    B.delete_range t Etcd_rpc_types.{
+  let cleanup = fun t ->
+    (* TODO: check result *)
+    let (_:_ result) = B.delete_range t Etcd_rpc_types.{
       key = "\x00";
       range_end = "";
       prev_kv = false
-    }
-    |> lwt_of_result
-    >>= fun _ ->
+    } in
     B.cleanup t
 
   let api =
@@ -93,8 +97,8 @@ module Make(B: KVBackend) : Spec  = struct
     let delete_range_request =
       gen delete_range_request_arb (Fmt.to_to_string pp_delete_range_request)
     in
-    [ val_ "range" (lwt2 B.range) (t @-> range_request @-> ret pp_range_response)
-    ; val_ "put" (lwt2 B.put) (t @-> put_request @-> ret pp_put_response)
-    ; val_ "delete_range" (lwt2 B.delete_range) (t @-> delete_range_request @-> ret pp_delete_range_response)
+    [ val_ "range" B.range (t @-> range_request @-> ret pp_range_response)
+    ; val_ "put" B.put (t @-> put_request @-> ret pp_put_response)
+    ; val_ "delete_range" B.delete_range (t @-> delete_range_request @-> ret pp_delete_range_response)
     ]
 end

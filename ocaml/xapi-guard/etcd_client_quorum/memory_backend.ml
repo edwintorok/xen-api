@@ -1,6 +1,7 @@
 open Etcd_rpc_types
 open Kv_types
 
+type 'a io = 'a
 type t  =
   { keys: (string, key_value) Hashtbl.t
   ; mutable revisions: int
@@ -10,7 +11,7 @@ let name = __MODULE__
 
 let init () = { keys = Hashtbl.create 7; revisions = 0 }
 
-let cleanup t = Hashtbl.reset t.keys; Lwt.return_unit
+let cleanup t = Hashtbl.reset t.keys
 
 let make_response_header conn =
   let revision = conn.revisions |> Int64.of_int in
@@ -33,8 +34,7 @@ let put t (put : put_request) =
     ; version= 1L
     ; lease= 0L
     } ;
-  Lwt_result.return
-    {
+  Result.ok {
       header= make_response_header t
     ; prev_kv= (if put.prev_kv then prev else None)
     }
@@ -42,7 +42,7 @@ let put t (put : put_request) =
 let range t (range : range_request) =
   (* TODO: check that there are no other fields set that we do not support *)
   let kvs = Hashtbl.find_all t.keys range.key in
-  Lwt_result.return
+  Result.ok
     {
       header= make_response_header t
     ; kvs
@@ -54,7 +54,7 @@ let delete_range t (deleterange : delete_range_request) =
   (* TODO: check that there are no other fields set that we do not support *)
   let prev = Hashtbl.find_all t.keys deleterange.key in
   Hashtbl.remove t.keys deleterange.key ;
-  Lwt_result.return
+  Result.ok
     {
       header= make_response_header t
     ; prev_kvs= (if deleterange.prev_kv then prev else [])

@@ -5,7 +5,7 @@ let grpc_status_of_code code =
   code |> Status.int_of_code |> Grpc.Status.code_of_int
   |> Option.value ~default:Grpc.Status.Unknown
 
-module Make (B : KVBackend) = struct
+module Make (B : KVBackendLwt) = struct
   type t = Lwt_io.server
 
   let init = Grpc_lwt.Server.Service.v ()

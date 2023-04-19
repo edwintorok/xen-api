@@ -8,10 +8,19 @@
             "type": "shell",
             "command": "make test",
             "problemMatcher": "$ocamlc",
+            "group": "build",
+            "label": "make"
+        },
+        {
+            "type": "dune",
+            "problemMatcher": [
+                "$ocamlc"
+            ],
             "group": {
                 "kind": "build",
                 "isDefault": true
-            }
+            },
+            "label": "dune: build /ocaml/xapi-guard/etcd_client_quorum/dune"
         }
     ]
 }

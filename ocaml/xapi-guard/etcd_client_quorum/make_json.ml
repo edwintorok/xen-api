@@ -1,7 +1,7 @@
 open Etcd_service_types
 open Lwt.Syntax
 
-module Make (B : KVBackend) = struct
+module Make (B : KVBackendLwt) = struct
   type t = unit Lwt.t * unit Lwt.u
 
   module StringMap = Map.Make (String)

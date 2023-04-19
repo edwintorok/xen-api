@@ -1,5 +1,6 @@
 open Lwt.Syntax
 
+type 'a io = 'a Lwt.t
 let name = __MODULE__
 
 let connect sockaddr =

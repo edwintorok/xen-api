@@ -1,6 +1,18 @@
 open Lwt.Syntax
-module M1 = Make_grpc.Make (Memory_backend)
-module M2 = Make_json.Make (Memory_backend)
+module Direct2Lwt(B: Etcd_service_types.KVBackendDirect)  : Etcd_service_types.KVBackendLwt = struct
+  type 'a io = 'a Lwt.t
+  type t = B.t
+  let name = B.name ^ " (direct2lwt)"
+  let init = B.init
+  let cleanup = Lwt.wrap1 B.cleanup
+  
+  let range = Lwt.wrap2 B.range
+  let put = Lwt.wrap2 B.put
+  let delete_range = Lwt.wrap2 B.delete_range
+end
+
+module M1 = Make_grpc.Make (Direct2Lwt(Memory_backend))
+module M2 = Make_json.Make (Direct2Lwt(Memory_backend))
 module B2 = Make_json.Make (Disk_backend)
 module E = Make_json.Make (Etcd_backend_grpc)
 module EJ = Make_json.Make (Etcd_backend_json)

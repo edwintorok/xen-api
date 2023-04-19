@@ -1,5 +1,7 @@
 open Lwt.Syntax
 
+type 'a io = 'a Lwt.t
+
 (* Cohttp_lwt_unix.Connection_cache.t is part of upcoming Cohttp 6.x,
    for now no cache
 
