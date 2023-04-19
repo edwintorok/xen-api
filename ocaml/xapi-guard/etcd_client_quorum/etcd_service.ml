@@ -111,7 +111,7 @@ let make (module B : Etcd_service_types.KVBackend) =
      JSON, by default it is not implemented! *)
   (* matches entries in etcd's rpc.proto [service KV] *)
   let conn = B.init () in
-  Lwt_gc.finalise B.cleanup conn;
+  (* Lwt_gc.finalise B.cleanup conn; *)
   [
     make_rpc (B.range conn) range
   ; make_rpc (B.put conn) put

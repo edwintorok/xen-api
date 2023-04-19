@@ -1,18 +1,24 @@
 open Lwt.Syntax
 
-type t = { cache: Cohttp_lwt_unix.Connection_cache.t }
+(* Cohttp_lwt_unix.Connection_cache.t is part of upcoming Cohttp 6.x,
+   for now no cache
+
+  type t = { cache: Cohttp_lwt_unix.Connection_cache.t }
+let init () = { cache = Cohttp_lwt_unix.Connection_cache.create () }
+ *)
+
+type t = unit
+
 
 let name = __MODULE__
 
-let init () = { cache = Cohttp_lwt_unix.Connection_cache.create () }
+let init () = ()
 
-let cleanup _ =
-  (* there is no cleanup function for the connection cache *)
-  Lwt.return_unit
+let cleanup _ = Lwt.return_unit
 
 let local_uri = Uri.of_string "http://localhost:2379"
 
-let proxy rpc_desc t request =
+let proxy rpc_desc () request =
   let open Etcd_service in
   let body =
     request
@@ -21,7 +27,7 @@ let proxy rpc_desc t request =
     |> Cohttp_lwt.Body.of_string
   in
   let* r, body =
-    Cohttp_lwt_unix.Connection_cache.call t.cache ~body `POST local_uri
+    Cohttp_lwt_unix.Client.call ~body `POST local_uri
   in
   match Cohttp.Response.status r with
   | `OK ->

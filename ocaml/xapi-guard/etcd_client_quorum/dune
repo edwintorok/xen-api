@@ -11,7 +11,7 @@
   (action
     (progn
       (run ocaml-protoc -binary -yojson -pp -ml_out ./ %{deps})
-      (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g etcd_rpc_yojson.ml etcd_rpc_yojson.mli)
+      (run sed -ibak s/Yojson.Basic.json/Yojson.Basic.t/g etcd_rpc_yojson.ml etcd_rpc_yojson.mli)
     )))
 
 ; ocaml-protoc-plugin would be better for the gRPC parts (it can parse service
@@ -27,7 +27,7 @@
   (action
     (progn
      (run ocaml-protoc -binary -yojson -pp -ml_out ./ %{deps})
-     (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g kv_yojson.ml kv_yojson.mli)
+     (run sed -ibak s/Yojson.Basic.json/Yojson.Basic.t/g kv_yojson.ml kv_yojson.mli)
     )))
 
 (rule
@@ -40,7 +40,7 @@
   (action
     (progn
      (run ocaml-protoc -binary -yojson -pp -ml_out ./ %{deps})
-     (run sed -i s/Yojson.Basic.json/Yojson.Basic.t/g code_yojson.ml code_yojson.mli)
+     (run sed -ibak s/Yojson.Basic.json/Yojson.Basic.t/g code_yojson.ml code_yojson.mli)
     )))
 
 (executable
@@ -48,7 +48,7 @@
  (package varstored-guard)
  (public_name xapi-ecc)
  (modules_without_implementation etcd_service_types)
- (libraries cohttp cohttp-lwt-unix yojson lwt.unix systemd lwt uri logs
+ (libraries cohttp cohttp-lwt-unix yojson lwt.unix lwt uri logs
             logs.fmt
             grpc grpc-lwt h2-lwt-unix h2 fmt h2-lwt gluten-lwt
             conduit
