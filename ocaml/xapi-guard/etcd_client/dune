@@ -1,0 +1,77 @@
+; rpc.proto from https://raw.githubusercontent.com/etcd-io/etcd/release-3.5/api/etcdserverpb/rpc.proto
+
+; with 'additional_bindings' entries removed and google.api.http entries removed
+; ocaml-protoc doesn't understand these
+; unfortunately dune doesn't have pattern rules so have to copy paste these 2 rules
+
+(subdir etcd/api/etcdserverpb
+  (rule
+    (deps ../../../rpc.proto)
+    (action (with-stdout-to rpc.proto (run sed
+      -e "/additional_bindings/{N;N;N;d;}"
+      -e /gogo.proto/d
+      -e /auth.proto/d
+      -e /annotations.proto/d
+      -e "/Auth/,/^}/d"
+      %{deps})))
+  )
+)
+
+(subdir etcd/api/mvccpb
+  (rule
+    (deps ../../../kv.proto)
+    (action (with-stdout-to kv.proto (run sed
+      -e "/additional_bindings/{N;N;N;d;}"
+      -e /gogo.proto/d
+      -e /auth.proto/d
+      -e /annotations.proto/d
+      %{deps})))
+  )
+)
+
+(rule
+  (targets
+    rpc_types.ml rpc_yojson.ml rpc_pp.ml
+    rpc_types.mli rpc_yojson.mli rpc_pp.mli
+    rpc_pb.ml rpc_pb.mli
+  )
+  (deps (:rpc etcd/api/etcdserverpb/rpc.proto) etcd/api/mvccpb/kv.proto)
+  (action
+    (progn
+      (run ocaml-protoc -binary -yojson -pp -I etcd/api/mvccpb -ml_out ./ %{rpc})
+      (run sed -ibak s/Yojson.Basic.json/Yojson.Basic.t/g rpc_yojson.ml rpc_yojson.mli)
+    )))
+
+; ocaml-protoc-plugin would be better for the gRPC parts (it can parse service
+; definitions),
+; but it doesn't support JSON encoding
+(rule
+  (targets
+    kv_types.ml kv_yojson.ml kv_pp.ml
+    kv_types.mli kv_yojson.mli kv_pp.mli
+    kv_pb.ml kv_pb.mli
+  )
+  (deps etcd/api/mvccpb/kv.proto)
+  (action
+    (progn
+     (run ocaml-protoc -binary -yojson -pp -ml_out ./ %{deps})
+     (run sed -ibak s/Yojson.Basic.json/Yojson.Basic.t/g kv_yojson.ml kv_yojson.mli)
+    )))
+
+(library
+  (name xapi_etcd_client_proto)
+  (modules rpc_types kv_types)
+  (wrapped false)
+)
+
+(library
+  (name xapi_etcd_client_proto_json)
+  (modules rpc_yojson kv_yojson)
+  (libraries ocaml-protoc-yojson yojson (re_export xapi_etcd_client_proto))
+)
+
+(library
+  (name xapi_etcd_client_proto_grpc)
+  (modules rpc_pb kv_pb kv_pp rpc_pp)
+  (libraries grpc (re_export xapi_etcd_client_proto) pbrt)
+)
