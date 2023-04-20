@@ -17,6 +17,7 @@ let created =
 let alphabet = Base64.uri_safe_alphabet (* filename safe alphabet *)
 
 let path_of_key key =
+  let key = Bytes.unsafe_to_string key in
   Fpath.(db_path / Base64.encode_exn ~pad:false ~alphabet key)
 
 (* TODO: needs to be persistent *)
@@ -59,8 +60,8 @@ let write_atomic path contents =
   let* () =
     with_fd filename [Unix.O_CREAT; Unix.O_WRONLY; Unix.O_EXCL] 0o700
     @@ fun fd ->
-    let expected = String.length contents in
-    let* written = Lwt_unix.write_string fd contents 0 expected in
+    let expected = Bytes.length contents in
+    let* written = Lwt_unix.write fd contents 0 expected in
     (* this should match because Lwt should internally retry on EINTR *)
     if written <> expected then (
       (* TODO: use Lwt version of logger *)
@@ -80,7 +81,7 @@ let read_path key path =
       Lwt_io.with_file ~mode:Lwt_io.Input pathstr @@ fun ic ->
       let+ value = Lwt_io.read ic in
       (* TODO: we should store and retrieve the other fields too *)
-      Kv_types.default_key_value ~key ~value () |> Option.some
+      Kv_types.default_key_value ~key ~value:(Bytes.of_string value) () |> Option.some
     )
     (function
       | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return_none | e -> Lwt.fail e

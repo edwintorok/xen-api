@@ -3,7 +3,8 @@ open Kv_types
 
 type 'a io = 'a
 type t  =
-  { keys: (string, key_value) Hashtbl.t
+  (* TODO: bytes is unsafe as key if mutated.. *)
+  { keys: (bytes, key_value) Hashtbl.t
   ; mutable revisions: int
   }
 
@@ -52,8 +53,17 @@ let range t (range : range_request) =
 
 let delete_range t (deleterange : delete_range_request) =
   (* TODO: check that there are no other fields set that we do not support *)
-  let prev = Hashtbl.find_all t.keys deleterange.key in
-  Hashtbl.remove t.keys deleterange.key ;
+  let is_all = Bytes.length deleterange.key = 0 && Bytes.unsafe_to_string deleterange.range_end = "\x00" in
+  let prev =
+    if is_all then
+      t.keys |> Hashtbl.to_seq |> Seq.map snd |> List.of_seq
+    else
+     Hashtbl.find_all t.keys deleterange.key
+  in
+  if is_all then
+    Hashtbl.reset t.keys
+  else
+    Hashtbl.remove t.keys deleterange.key ;
   Result.ok
     {
       header= make_response_header t

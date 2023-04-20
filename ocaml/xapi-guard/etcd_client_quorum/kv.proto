@@ -11,7 +11,7 @@ option (gogoproto.goproto_enum_prefix_all) = false;
 
 message KeyValue {
   // key is the key in bytes. An empty key is not allowed.
-  string key = 1;
+  bytes key = 1;
   // create_revision is the revision of last creation on this key.
   int64 create_revision = 2;
   // mod_revision is the revision of last modification on this key.
@@ -21,7 +21,7 @@ message KeyValue {
   // increases its version.
   int64 version = 4;
   // value is the value held by the key, in bytes.
-  string value = 5;
+  bytes value = 5;
   // lease is the ID of the lease that attached to key.
   // When the attached lease expires, the key will be deleted.
   // If lease is 0, then no lease is attached to the key.

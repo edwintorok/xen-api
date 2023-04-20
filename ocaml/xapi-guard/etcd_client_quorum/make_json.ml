@@ -31,7 +31,9 @@ module Make (B : KVBackendLwt) = struct
              in
              respond_json ~status json
            in
-           (* deprecated, but old etcd versions have only this *)
+           (* deprecated, but old etcd versions have only this,
+              new etcds don't have it at all?
+               *)
            let name2 =
              "/v3alpha"
              ^ String.sub rpc.http_name 3 (String.length rpc.http_name - 3)

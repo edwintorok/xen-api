@@ -13,7 +13,35 @@ let test_stm (module B: KVBackendDirect) =
   ; T2.agree_test_conc ~count:100 ~name:(B.name ^ " STM thread")
   ]
 
+let test_stm_seq (module B: KVBackendLwt) =
+  (* no need to use run_in_main: we only have 1 thread here *)
+
+  let lwt f x = Lwt_main.run (f x)
+  in
+  let lwt2 f x y = Lwt_main.run (f x y)
+  in
+  let module LwtSeq = struct
+    type 'a io = 'a
+    type t = B.t
+    let name = B.name ^ " (STM lwtseq)"
+    let init = B.init
+    let cleanup = lwt B.cleanup
+    let range = lwt2 B.range
+    let put = lwt2 B.put
+    let delete_range = lwt2 B.delete_range
+  end
+  in
+  let module Spec = Etcd_spec.MakeSTM(LwtSeq) in
+  let module T = STM_sequential.Make(Spec) in
+  T.agree_test ~count:100 ~name:LwtSeq.name
+
 let run () =
-  QCheck_base_runner.run_tests_main
-  @@
-  test (module Memory_backend) :: test_stm (module Memory_backend)
+  Alcotest.run __MODULE__
+  [ "qcheck", 
+    List.map
+    QCheck_alcotest.to_alcotest
+    @@
+    test (module Memory_backend) ::
+    test_stm_seq (module Etcd_backend_json) ::
+    test_stm (module Memory_backend)
+  ]

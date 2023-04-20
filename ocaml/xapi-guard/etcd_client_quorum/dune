@@ -53,13 +53,14 @@
             grpc grpc-lwt h2-lwt-unix h2 fmt h2-lwt gluten-lwt
             conduit
             ocaml-protoc
+            alcotest
             fpath
             base64
             qcheck-lin.lin
             qcheck-lin.thread
             threads.posix
             qcheck-core
-            qcheck-core.runner
+            qcheck-alcotest
             qcheck-stm.stm
             qcheck-stm.sequential
             qcheck-stm.thread
