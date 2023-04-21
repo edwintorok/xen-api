@@ -6,6 +6,9 @@
    qcheck-stm.thread
    threads.posix
    qcheck-core.runner
+   xapi_blobstore_client
+   lwt
+   lwt.unix
   )
   (action (run %{test} --verbose))
 )

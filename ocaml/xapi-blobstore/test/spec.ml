@@ -146,6 +146,27 @@ module MakeLin(KV: KVDirect) : Lin.Spec = struct
     ]
 end
 
+(* TODO: make the tests one below take an io monad? *)
+module MakeDirect(KV: Types.S with type 'a io = 'a Lwt.t) : KVDirect with type t = KV.t = struct
+  type t = KV.t
+  type 'a io = 'a
+  
+  let name = KV.name ^ " (run_in_main)"
+  
+  let lwt f x = Lwt_preemptive.run_in_main (fun () -> f x)
+  let lwt2 f x y = Lwt_preemptive.run_in_main (fun () -> f x y)
+  let lwt3 f x y z = Lwt_preemptive.run_in_main (fun () -> f x y z)
+  
+  let connect = lwt KV.connect
+  let disconnect = lwt KV.disconnect
+  
+  let get = lwt2 KV.get
+  let put = lwt3 KV.put
+  let delete = lwt2 KV.delete
+  let list = lwt KV.list
+  
+end
+
 let tests (module KV:KVDirect) ~count =
   let module SpecSTM = MakeSTM(KV) in
   let module KV_seq = STM_sequential.Make(SpecSTM) in

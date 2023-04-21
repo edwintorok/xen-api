@@ -1,0 +1,13 @@
+(library
+ (name xapi_blobstore_client)
+ (libraries
+  xapi_blobstore_core
+  xen_api_client_lwt
+  xapi-client
+  xapi-types
+  rpclib.core
+  lwt
+  cohttp-lwt-unix
+  cohttp
+  cohttp-lwt
+  uri))
