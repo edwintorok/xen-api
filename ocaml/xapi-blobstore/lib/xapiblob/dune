@@ -5,6 +5,7 @@
   xen_api_client_lwt
   xapi-client
   xapi-types
+  xapi-consts
   rpclib.core
   lwt
   cohttp-lwt-unix

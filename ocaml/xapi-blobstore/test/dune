@@ -1,14 +1,22 @@
-(test
+(executable
   (name xapi_blobstore_test)
   (libraries
    xapi_blobstore_core qcheck-core qcheck-lin.lin qcheck-stm.stm qcheck-stm.sequential
    qcheck-lin.thread
    qcheck-stm.thread
-   threads.posix
    qcheck-core.runner
+   threads.posix
    xapi_blobstore_client
    lwt
    lwt.unix
+   (select spec_concurrent.ml from
+   (qcheck-stm.domain qcheck-lin.domain -> spec_concurrent.domain.ml)
+   ( -> spec_concurrent.thread.ml)
+   )
   )
-  (action (run %{test} --verbose))
+)
+
+(rule
+ (alias runtest)
+ (action (run ./xapi_blobstore_test.exe --verbose))
 )

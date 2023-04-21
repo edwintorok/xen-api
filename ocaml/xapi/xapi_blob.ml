@@ -126,6 +126,16 @@ exception Unknown_blob
 
 exception No_storage
 
+let atomic_rename tmp_path fname =
+  let dir_path = Filename.dirname fname in
+  Unix.rename tmp_path fname;
+  (* see Unixext.atomic_write_to_file *)
+  (* sync parent directory to make sure the file is persisted *)
+  let dir_fd = Unix.openfile dir_path [Unix.O_RDONLY] 0 in
+  Xapi_stdext_pervasives.finally (fun () -> Unix.fsync dir_fd) (fun () -> Unix.close dir_fd)
+
+let counter = Atomic.make 0
+
 let handler (req : Http.Request.t) s _ =
   let query = req.Http.Request.query in
   req.Http.Request.close <- true ;
@@ -189,10 +199,12 @@ let handler (req : Http.Request.t) s _ =
           with _ -> Http_svr.headers s (Http.http_404_missing ())
         )
         | Http.Put ->
-            let ofd =
-              Unix.openfile path
-                [Unix.O_WRONLY; Unix.O_TRUNC; Unix.O_SYNC; Unix.O_CREAT]
-                0o600
+            (* generate a guaranteed to be unique name,
+               even across process restarts or concurrent access *)
+            let path_tmp = Filename.temp_file
+              ~temp_dir:(Filename.dirname path)
+              (Filename.basename path)
+              (Atomic.fetch_and_add counter 1 |> string_of_int)
             in
             let limit =
               match req.Http.Request.content_length with
@@ -201,14 +213,27 @@ let handler (req : Http.Request.t) s _ =
               | None ->
                   failwith "Need content length"
             in
+            let ofd =
+              Unix.openfile path_tmp
+                [Unix.O_WRONLY; Unix.O_EXCL; Unix.O_SYNC; Unix.O_CREAT]
+                0o600
+            in
             let size =
-              Xapi_stdext_pervasives.Pervasiveext.finally
+              match Xapi_stdext_pervasives.Pervasiveext.finally
                 (fun () ->
                   Http_svr.headers s
                     (Http.http_200_ok () @ ["Access-Control-Allow-Origin: *"]) ;
                   Xapi_stdext_unix.Unixext.copy_file ~limit s ofd
                 )
                 (fun () -> Unix.close ofd)
+              with
+              | size ->
+                atomic_rename path_tmp path;
+                size
+              | exception e ->
+                  Xapi_backtrace.is_important e;
+                  Xapi_stdext_unix.Unixext.unlink_safe path_tmp;
+                  raise e
             in
             Db.Blob.set_size ~__context ~self ~value:size ;
             Db.Blob.set_last_updated ~__context ~self
