@@ -1,0 +1,4 @@
+(library
+  (name xapi_blobstore_core)
+  (modules_without_implementation types)
+)
