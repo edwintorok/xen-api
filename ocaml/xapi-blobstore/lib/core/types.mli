@@ -8,13 +8,15 @@
 *)
 
 module type BoundedString = sig
-  type t (** the type for a string with a maximum length. May be stored encoded in a backend specific way. *)
-  
-  val max_length: int
+  (** the type for a string with a maximum length. May be stored encoded in a backend specific way. *)
+  type t
+
+  val max_length : int
   (** [max_length] is the maximum length of [t], inclusive. *)
+
   (*@ ensures max_length > 0 *)
-  
-  val of_string_exn: string -> t
+
+  val of_string_exn : string -> t
   (** [of_string_exn s] creates a {!type:t} value, performing any encoding as necessary.
       
   It may contain arbitrary byte values.
@@ -23,11 +25,12 @@ module type BoundedString = sig
       
   @raises Invalid_argument if [s] is longer than {!val:max_length}
   *)
+
   (*@ t = of_string_exn s
       checks (String.length s < max_length)
   *)
-  
-  val to_string: t -> string
+
+  val to_string : t -> string
   (** [to_string t] returns [t] as a string, performing any decoding as necessary. *)
   (*@ forall s. String.length s <= max_length -> String.equal s (s |> of_string_exn |> to_string) *)
 end
@@ -52,19 +55,22 @@ end
   instance with its own independent limit counting.
 *)
 module type S = sig
-  module Key: BoundedString (** Keys that are valid to be stored in the backend *)
+  (** Keys that are valid to be stored in the backend *)
+  module Key : BoundedString
 
-  module Value: BoundedString (** Values that are valid to be stored in the backend *)
-  
-  val max_keys: int
+  (** Values that are valid to be stored in the backend *)
+  module Value : BoundedString
+
+  val max_keys : int
   (** [max_keys] is the maximum number of keys in the backend, inclusive.
       
     This may be temporarily exceeded when executing concurrent {!val:put} calls,
     however when all {!val:put} calls finish the number of keys will be <= max_keys.
   *)
+
   (*@ ensures max_keys > 0 *)
-  
-  val max_data: int
+
+  val max_data : int
   (** [max_data] is the total maximum amount of data in the backend, inclusive.
 
     This may be temporarily exceeded when executing concurrent {!val:put} calls,
@@ -74,22 +80,24 @@ module type S = sig
     [String.length (Key.to_string k) + String.length (Value.to_string v)].
     If this would be too much for the backend (e.g. due to encoding or other overheads) then it should lower [max_data] accordingly.
   *)
+
   (*@ ensures max_data > 0 *)
-  
+
   (*@ function kv_length(k: Key.t) (v: Value.t) = String.length (Key.to_string k) + String.length (Value.to_string v) *)
-  
+
   (** the type used by monadic IO.
     It may implicitly contain a result monad *)
   type +'a io
 
   val name : string
   (** backend name *)
-  
-  type config
-  (** key-value store configuration *)
 
-  type t
+  (** key-value store configuration *)
+  type config
+
   (** connection to the key-value store *)
+  type t
+
   (*@
     ephemeral
     mutable model keys: Key.t set
@@ -116,6 +124,7 @@ module type S = sig
       It is an error to use [t] after [disconnect] has been called.
       In particular if [disconnect] fails it mustn't be called again.
   *)
+
   (*@ consumes t *)
 
   val get : t -> Key.t -> Value.t option io
@@ -125,6 +134,7 @@ module type S = sig
       @param key the {!type:Key.t} to look up.
       @return [Some value] if [key] is present with [value], otherwise [None]
   *)
+
   (*@ r = get t k
       pure
       ensures r = t.view k *)
@@ -137,6 +147,7 @@ module type S = sig
     @param value the {!type:Value.t} to set
     @return a resolved [io] promise when the key has been set
   *)
+
   (*@
     put t key value
     requires Set.fold (fun k acc -> kv_length k (view k) + acc) keys (kv_length key value) <= max_data
@@ -154,6 +165,7 @@ module type S = sig
     @param key the {!type:Key.t} to delete
     @return a resolved [io] promise when the key has been deleted
   *)
+
   (*@
     delete t key
     modifies t

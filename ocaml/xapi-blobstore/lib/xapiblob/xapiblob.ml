@@ -4,10 +4,11 @@ open Lwt.Syntax
 
 module Key : sig
   include Types.BoundedString
-  val to_raw: t -> string
+
+  val to_raw : t -> string
   (** [raw t] is the encoded string *)
-  
-  val of_raw: string -> t
+
+  val of_raw : string -> t
   (** [of_raw t] builds [t] from an encoded string *)
 end = struct
   type t = string
@@ -15,26 +16,29 @@ end = struct
   let max_length = 1024
 
   let alphabet = Base64.uri_safe_alphabet
+
   let of_string_exn s =
     let n = String.length s in
     if n > max_length then
-      Fmt.invalid_arg "Key too long: %d > %d" n max_length;
+      Fmt.invalid_arg "Key too long: %d > %d" n max_length ;
     Base64.encode_exn ~pad:true ~alphabet s
-    
+
   let to_string s = Base64.decode_exn ~pad:true ~alphabet s
-  
+
   let to_raw t = t
+
   let of_raw t = t
 end
 
-module Value = BoundedString.Make(struct let max_length = 128*1024 end)
+module Value = BoundedString.Make (struct let max_length = 128 * 1024 end)
 
 let max_keys = 256
-let max_data = 256*1024
+
+let max_data = 256 * 1024
 
 type +'a io = 'a Lwt.t
 
-type config = { vm: Uuidm.t; target: Uri.t; uname: string; pwd: string }
+type config = {vm: Uuidm.t; target: Uri.t; uname: string; pwd: string}
 
 type t = {
     session_id: API.ref_session
@@ -54,12 +58,12 @@ let call t f = f ~rpc:t.rpc ~session_id:t.session_id
 let connect config =
   let rpc = make_json ~timeout:5.0 (Uri.to_string config.target) in
   let* session_id =
-    Session.login_with_password ~rpc ~uname:config.uname ~pwd:config.pwd ~version
-      ~originator:name
+    Session.login_with_password ~rpc ~uname:config.uname ~pwd:config.pwd
+      ~version ~originator:name
   in
-  let t = {rpc; session_id; vm= Ref.null; conf = config } in
+  let t = {rpc; session_id; vm= Ref.null; conf= config} in
   let+ vm = call t VM.get_by_uuid ~uuid:(Uuidm.to_string config.vm) in
-  { t with vm }
+  {t with vm}
 
 let disconnect t = Session.logout ~rpc:t.rpc ~session_id:t.session_id
 
@@ -77,7 +81,9 @@ let lookup t k =
   | None ->
       Lwt.return_none
   | Some blobref ->
-      let* response, body = Cohttp_lwt_unix.Client.get (blob_uri t.conf blobref) in
+      let* response, body =
+        Cohttp_lwt_unix.Client.get (blob_uri t.conf blobref)
+      in
       let* body = Cohttp_lwt.Body.to_string body in
       if Cohttp.Response.status response = `OK then
         Lwt.return_some (blobref, Value.of_string_exn body)
@@ -119,7 +125,9 @@ let put t k v =
         Lwt.return (blobref, Some prev)
   in
   let body = Cohttp_lwt.Body.of_string (Value.to_string v) in
-  let* response, body = Cohttp_lwt_unix.Client.put ~body (blob_uri t.conf blobref) in
+  let* response, body =
+    Cohttp_lwt_unix.Client.put ~body (blob_uri t.conf blobref)
+  in
   let* body = Cohttp_lwt.Body.to_string body in
   if Cohttp.Response.status response = `OK then
     Lwt.return_unit
