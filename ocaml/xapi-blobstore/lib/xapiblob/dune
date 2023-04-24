@@ -7,8 +7,11 @@
   xapi-types
   xapi-consts
   rpclib.core
+  fmt
   lwt
   cohttp-lwt-unix
   cohttp
   cohttp-lwt
+  base64
+  uuidm
   uri))

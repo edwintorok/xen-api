@@ -7,6 +7,7 @@
    qcheck-core.runner
    threads.posix
    xapi_blobstore_client
+   fmt
    lwt
    lwt.unix
    (select spec_concurrent.ml from
