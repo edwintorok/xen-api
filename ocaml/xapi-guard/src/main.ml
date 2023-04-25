@@ -77,13 +77,13 @@ let safe_unlink path =
 let rpc = Xen_api_lwt_unix.make "file:///var/lib/xcp/xapi"
 
 let cache =
-  SessionCache.create ~rpc ~login:Varstored_interface.login
-    ~logout:Varstored_interface.logout
+  Xen_api_lwt_unix.SessionCache.create ~uname:"root" ~pwd:"" ~version:Varstored_interface.version ~originator:Varstored_interface.originator
+  ~target:`Local ()
 
 let () =
   Lwt_switch.add_hook (Some Varstored_interface.shutdown) (fun () ->
       D.debug "Cleaning up cache at exit" ;
-      SessionCache.destroy cache
+      Xen_api_lwt_unix.SessionCache.destroy cache
   )
 
 let listen_for_vm {Persistent.vm_uuid; path; gid} =
