@@ -14,6 +14,7 @@
 
 open Xen_api
 open Lwt
+open Lwt.Syntax
 
 module Lwt_unix_IO = struct
   type 'a t = 'a Lwt.t
@@ -160,3 +161,79 @@ let make_json ?(timeout = 30.) uri call =
 
 module Client = Client.ClientF (Lwt)
 include Client
+
+module SessionCache = struct
+  type session = {session_id: API.ref_session; mutable valid: bool}
+
+  type t = {
+      session_pool: session Lwt_pool.t
+    ; rpc: Rpc.call -> Rpc.response Lwt.t
+  }
+
+  type target = [`Local | `IP of string | `RPC of Rpc.call -> Rpc.response Lwt.t]
+
+  let make_rpc ?timeout target =
+    let of_uri = make_json ?timeout in
+    match target with
+    | `Local ->
+        Uri.make ~scheme:"http+unix" ~host:"/var/lib/xcp/xapi" ~path:"/jsonrpc"
+          ()
+        |> Uri.to_string
+        |> of_uri
+    | `IP ip ->
+        Printf.sprintf "https://%s/jsonrpc" ip |> of_uri
+    | `RPC rpc ->
+        rpc
+
+  let create ?timeout ~target ~uname ~pwd ~version ~originator () =
+    let rpc = make_rpc ?timeout target in
+    let acquire () =
+      let+ session_id =
+        Session.login_with_password ~rpc ~uname ~pwd ~version ~originator
+      in
+      {session_id; valid= true}
+    in
+    let dispose t =
+      if t.valid then
+        Lwt.catch
+          (fun () -> Session.logout ~rpc ~session_id:t.session_id)
+          (function
+            | Api_errors.Server_error (code, _)
+              when code = Api_errors.session_invalid ->
+                (* ignore logout failures on invalid sessions: these may have been GCed *)
+                Lwt.return_unit
+            | e ->
+                Lwt.fail e
+            )
+      else
+        Lwt.return_unit
+    in
+    let check t is_ok = is_ok t.valid in
+    let validate t = Lwt.return t.valid in
+    let session_pool = Lwt_pool.create 1 ~validate ~dispose ~check acquire in
+    (* Try acquiring one session to give error messages early *)
+    {rpc; session_pool}
+
+  let with_session t f =
+    let rec retry n =
+      (* we want to use the same session for multiple API calls concurrently *)
+      let* session = Lwt_pool.use t.session_pool Lwt.return in
+      Lwt.catch
+        (fun () -> f ~rpc:t.rpc ~session_id:session.session_id)
+        (function
+          | Api_errors.Server_error (code, _) as e
+            when code = Api_errors.session_invalid ->
+              session.valid <- false ;
+              (* the [check] function above will cause Lwt_pool to dispose of this *)
+              if n > 0 then
+                retry (n - 1)
+              else
+                Lwt.fail e
+          | e ->
+              Lwt.fail e
+          )
+    in
+    retry 1
+
+  let destroy t = Lwt_pool.clear t.session_pool
+end

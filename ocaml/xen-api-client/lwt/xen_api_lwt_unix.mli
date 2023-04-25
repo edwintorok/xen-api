@@ -29,3 +29,44 @@ module Lwt_unix_IO : sig
 
   val open_connection : Uri.t -> (ic * oc, exn) Xen_api.result Lwt.t
 end
+
+module SessionCache : sig
+  (** a session cache for a specific user *)
+  type t
+
+  type target = [`Local | `IP of string | `RPC of (Rpc.call -> Rpc.response Lwt.t)]
+
+  val create :
+       ?timeout:float
+    -> target:[< target]
+    -> uname:string
+    -> pwd:string
+    -> version:string
+    -> originator:string
+    -> unit
+    -> t
+  (** [create ?timeout ~target_ip ~uname ~pwd ~version ~originator ()] is a session cache for the specified [uname] user.
+      
+    A session is retrieved and an RPC function is constructed for the given [target] host
+    using the latest protocol (currently JSON).
+  
+    @param timeout timeout for API calls in seconds
+    @param target XAPI endpoint, [`Local] to use the UNIX domain socket, or [`IP host] otherwise
+    @param uname XAPI user name
+    @param pwd password for [uname]
+    @param version client application version
+    @param originator client application user agent
+  *)
+
+  val with_session :
+       t
+    -> (   rpc:(Rpc.call -> Rpc.response Lwt.t)
+        -> session_id:API.ref_session
+        -> 'a Lwt.t
+       )
+    -> 'a Lwt.t
+  (** [with_session t f] calls [f ~rpc ~session_id] with a valid logged in session and an [rpc] function to use. *)
+
+  val destroy : t -> unit Lwt.t
+  (** [destroy t] logs out all sessions from the cache *)
+end
