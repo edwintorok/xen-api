@@ -128,12 +128,11 @@ let exn_to_string = function
   | e ->
       Printexc.to_string e
 
-let do_it uri string =
-  let uri = Uri.of_string uri in
+let do_it ?meth uri string =
   let connection = M.make uri in
   Lwt.finalize
     (fun () ->
-      M.rpc connection string >>= fun result ->
+      M.rpc ?meth connection string >>= fun result ->
       match result with
       | Ok x ->
           return x
@@ -149,6 +148,7 @@ let do_it uri string =
 
 let make ?(timeout = 30.) uri call =
   let string = Xmlrpc.string_of_call call in
+  let uri = Uri.of_string uri in
   do_it uri string >>= fun result ->
   Lwt.return (Xmlrpc.response_of_string result)
 
@@ -156,8 +156,14 @@ let make ?(timeout = 30.) uri call =
 
 let make_json ?(timeout = 30.) uri call =
   let string = Jsonrpc.string_of_call call in
+  let uri = Uri.of_string uri in
   do_it uri string >>= fun result ->
   Lwt.return (Jsonrpc.response_of_string result)
+
+let uri_local_json = Uri.make ~scheme:"http+unix" ~host:"/var/lib/xcp/xapi" ~path:"/jsonrpc" ()
+
+(* TODO: https *)
+let uri_ip_json ip = Uri.make ~scheme:"http" ~host:ip ~path:"/jsonrpc" ()
 
 module Client = Client.ClientF (Lwt)
 include Client
@@ -167,24 +173,13 @@ module SessionCache = struct
 
   type t = {
       session_pool: session Lwt_pool.t
-    ; rpc: Rpc.call -> Rpc.response Lwt.t
+    ; mutable rpc: Rpc.call -> Rpc.response Lwt.t
+    ; timeout: float option
   }
 
-  type target = [`Local | `IP of string | `RPC of Rpc.call -> Rpc.response Lwt.t]
-
   let make_rpc ?timeout target =
-    let of_uri = make_json ?timeout in
-    match target with
-    | `Local ->
-        Uri.make ~scheme:"http+unix" ~host:"/var/lib/xcp/xapi" ~path:"/jsonrpc"
-          ()
-        |> Uri.to_string
-        |> of_uri
-    | `IP ip ->
-        Printf.sprintf "https://%s/jsonrpc" ip |> of_uri
-    | `RPC rpc ->
-        rpc
-
+    make_json ?timeout @@ Uri.to_string target
+  
   let create ?timeout ~target ~uname ~pwd ~version ~originator () =
     let rpc = make_rpc ?timeout target in
     let acquire () =
@@ -212,7 +207,7 @@ module SessionCache = struct
     let validate t = Lwt.return t.valid in
     let session_pool = Lwt_pool.create 1 ~validate ~dispose ~check acquire in
     (* Try acquiring one session to give error messages early *)
-    {rpc; session_pool}
+    {rpc; session_pool; timeout}
 
   let with_session t f =
     let rec retry n =
@@ -229,11 +224,17 @@ module SessionCache = struct
                 retry (n - 1)
               else
                 Lwt.fail e
+          | Api_errors.Server_error (code, [master]) as e when code = Api_errors.host_is_slave ->
+              (* can happen with HA *)
+              t.rpc <- make_rpc ?timeout:t.timeout @@ uri_ip_json master;
+              if n > 0 then
+                retry (n-1)
+              else Lwt.fail e
           | e ->
               Lwt.fail e
           )
     in
-    retry 1
+    retry 2
 
   let destroy t = Lwt_pool.clear t.session_pool
 end

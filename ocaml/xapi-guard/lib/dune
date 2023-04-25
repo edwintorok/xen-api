@@ -5,6 +5,7 @@
   cohttp
   cohttp-lwt
   cohttp-lwt-unix
+  conduit-lwt
   conduit-lwt-unix
   inotify.lwt
   inotify

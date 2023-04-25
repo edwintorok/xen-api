@@ -10,6 +10,8 @@
    fmt
    lwt
    lwt.unix
+   alcotest-lwt
+   alcotest
    (select spec_concurrent.ml from
    (qcheck-stm.domain qcheck-lin.domain -> spec_concurrent.domain.ml)
    ( -> spec_concurrent.thread.ml)

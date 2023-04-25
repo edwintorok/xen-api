@@ -40,12 +40,7 @@ type +'a io = 'a Lwt.t
 
 type config = {vm: Uuidm.t; target: Uri.t; uname: string; pwd: string}
 
-type t = {
-    session_id: API.ref_session
-  ; rpc: Rpc.call -> Rpc.response Lwt.t
-  ; vm: API.ref_VM
-  ; conf: config
-}
+type t = {cache: Xen_api_lwt_unix.SessionCache.t; uri: Uri.t; vm: API.ref_VM}
 
 (* TODO: on cohttp 6.x we can also use a Cohttp_lwt_unix.Connection_cache.t here *)
 
@@ -53,27 +48,56 @@ let name = __MODULE__
 
 let version = "0.1" (* TODO: from dune-build-info *)
 
-let call t f = f ~rpc:t.rpc ~session_id:t.session_id
+let call t f = Xen_api_lwt_unix.SessionCache.with_session t.cache f
 
 let connect config =
-  let rpc = make_json ~timeout:5.0 (Uri.to_string config.target) in
-  let* session_id =
-    Session.login_with_password ~rpc ~uname:config.uname ~pwd:config.pwd
-      ~version ~originator:name
+  let cache =
+    Xen_api_lwt_unix.SessionCache.create ~target:config.target
+      ~uname:config.uname ~pwd:config.pwd ~version ~originator:name ()
   in
-  let t = {rpc; session_id; vm= Ref.null; conf= config} in
-  let+ vm = call t VM.get_by_uuid ~uuid:(Uuidm.to_string config.vm) in
+  let t = {cache; vm= Ref.null; uri= config.target} in
+  let+ vm = call t @@ VM.get_by_uuid ~uuid:(Uuidm.to_string config.vm) in
   {t with vm}
 
-let disconnect t = Session.logout ~rpc:t.rpc ~session_id:t.session_id
+let disconnect t = Xen_api_lwt_unix.SessionCache.destroy t.cache
 
-let blob_uri t (blob_ref : API.ref_blob) =
-  let uri = Uri.with_path t.target "get_blob" in
-  Uri.with_query' uri [("ref", Ref.string_of blob_ref)]
+let with_blob_uri t (blob_ref : API.ref_blob) f =
+  Xen_api_lwt_unix.SessionCache.with_session t.cache
+  @@ fun ~rpc:_ ~session_id ->
+  let uri = Uri.with_path t.uri "/blob" in
+  let uri =
+    Uri.with_query' uri
+      [
+        ("ref", Ref.string_of blob_ref); ("session_id", Ref.string_of session_id)
+      ]
+  in
+  f uri
 
 let list t =
   let+ blobs = call t @@ VM.get_blobs ~self:t.vm in
   List.of_seq (blobs |> List.to_seq |> Seq.map @@ fun (key, _) -> Key.of_raw key)
+
+let resolver =
+  let rewrite svc uri =
+    match (Uri.scheme uri, Uri.host uri) with
+    | Some "http+unix", Some socket_path ->
+        Lwt.return (`Unix_domain_socket socket_path)
+    | _ ->
+        Resolver_lwt_unix.system_resolver svc uri
+  in
+  let service = function
+    | "http+unix" ->
+        Lwt.return_some Resolver.{name= "http"; port= 0; tls= false}
+    | s ->
+        Resolver_lwt_unix.system_service s
+  in
+  Resolver_lwt.init ~service ~rewrites:[("", rewrite)] ()
+
+let ssl_client_verify = Conduit_lwt_unix_ssl.Client.{hostname= false; ip= true}
+
+let ctx =
+  let+ ctx = Conduit_lwt_unix.init ~ssl_client_verify () in
+  Cohttp_lwt_unix.Client.custom_ctx ~ctx ~resolver ()
 
 let lookup t k =
   let* blobs = call t @@ VM.get_blobs ~self:t.vm in
@@ -81,8 +105,10 @@ let lookup t k =
   | None ->
       Lwt.return_none
   | Some blobref ->
+      let* ctx = ctx in
+      (* TODO: this will need a resolver for the special http+unix Uri *)
       let* response, body =
-        Cohttp_lwt_unix.Client.get (blob_uri t.conf blobref)
+        with_blob_uri t blobref @@ Cohttp_lwt_unix.Client.get ~ctx
       in
       let* body = Cohttp_lwt.Body.to_string body in
       if Cohttp.Response.status response = `OK then
@@ -125,8 +151,9 @@ let put t k v =
         Lwt.return (blobref, Some prev)
   in
   let body = Cohttp_lwt.Body.of_string (Value.to_string v) in
+  let* ctx = ctx in
   let* response, body =
-    Cohttp_lwt_unix.Client.put ~body (blob_uri t.conf blobref)
+    with_blob_uri t blobref @@ Cohttp_lwt_unix.Client.put ~chunked:false ~ctx ~body
   in
   let* body = Cohttp_lwt.Body.to_string body in
   if Cohttp.Response.status response = `OK then

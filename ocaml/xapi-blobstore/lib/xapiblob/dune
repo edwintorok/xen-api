@@ -11,6 +11,9 @@
   lwt
   cohttp-lwt-unix
   cohttp
+  conduit
+  conduit-lwt
+  conduit-lwt-unix
   cohttp-lwt
   base64
   uuidm

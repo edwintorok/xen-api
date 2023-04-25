@@ -1,0 +1,17 @@
+(test
+  (name smoketests)
+  (libraries
+    astring
+   xapi_blobstore_core
+   xapi_blobstore_client
+   fmt
+   lwt
+   lwt.unix
+   alcotest-lwt
+   alcotest
+   uri
+   uuidm
+   xen-api-client-lwt
+  )
+  (action (run %{test} --verbose))
+)

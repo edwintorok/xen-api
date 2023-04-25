@@ -20,6 +20,19 @@ val make_json : ?timeout:float -> string -> Rpc.call -> Rpc.response Lwt.t
 (** [make ?timeout uri] returns an 'rpc' function which can be
     passed to Client.* functions *)
 
+val uri_local_json: Uri.t
+(** [uri_local_json] is the Uri of the local Unix domain socket using the JSON protocol.
+    Should be passed to [make_json].
+
+    There is no standard for Unix sockets with HTTP protocol, so the Uri uses the non-standard 'http+unix' scheme
+    with the Unix domain socket encoded into the hostname part of the Uri.
+    make_json knows how to handle that, if you intend to use this Uri with other HTTP libraries you'll likely need to write a custom resolver.
+*)
+
+val uri_ip_json : string -> Uri.t
+(** [uri_ip_json ip] is an Uri to connect to [ip] using the preferred protocols. Currently this is 'https://' using JSONRPC.
+    Should be passed to [make_json]. *)
+
 include module type of Client.ClientF (Lwt)
 
 module Lwt_unix_IO : sig
@@ -34,11 +47,9 @@ module SessionCache : sig
   (** a session cache for a specific user *)
   type t
 
-  type target = [`Local | `IP of string | `RPC of (Rpc.call -> Rpc.response Lwt.t)]
-
   val create :
        ?timeout:float
-    -> target:[< target]
+    -> target:Uri.t
     -> uname:string
     -> pwd:string
     -> version:string
