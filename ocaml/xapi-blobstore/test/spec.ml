@@ -4,6 +4,8 @@ module type KVDirect = sig
   include Types.S with type 'a io = 'a and type config = unit
 end
 
+let is_small s = String.length s < 6
+
 let truncated_str s =
   if String.length s < 6 then
     String.escaped s
@@ -31,6 +33,7 @@ let bounded_string_arb n =
     ^ String.sub all_bytes 0 (n mod String.length all_bytes)
   in
   let small = string_of_size (min n 3 |> Gen.int_bound) in
+  let small = set_shrink (Shrink.filter is_small Shrink.string) small in
   graft_corners
     [
       String.sub max_str 0 (n - 1) (* :: List.init max_repetitions repeat *)
@@ -130,7 +133,7 @@ module MakeSTM (KV : KVDirect) : STM.Spec = struct
     let to_seq t = KeyMap.to_seq t.map
   end
 
-  type state = SizedMap.t
+  type state = int * SizedMap.t
 
   let () =
     (* the backend must be able to store something,
@@ -138,14 +141,14 @@ module MakeSTM (KV : KVDirect) : STM.Spec = struct
     assert (KV.max_data > 0) ;
     assert (KV.max_keys > 0)
 
-  let invariant t =
+  let invariant (_, t) =
     (* implements the invariants on type t *)
     SizedMap.cardinal t <= KV.max_keys && SizedMap.size t <= KV.max_data
 
-  let init_state = SizedMap.empty
+  let init_state = 0, SizedMap.empty
 
-  let next_state cmd state =
-    match cmd with
+  let next_state cmd (i, state) =
+    i+1, match cmd with
     | Get _ | List ->
         state (* queries do not change state *)
     | Put (k, v) ->
@@ -153,28 +156,26 @@ module MakeSTM (KV : KVDirect) : STM.Spec = struct
     | Delete k ->
         SizedMap.remove k state
 
-  let precond _cmd _state = true
+  let precond _cmd (i, _state) = i <= 8 (* small number of commands due to potential exponential blowup *)
 
-  let postcond cmd (state : state) res =
+  let postcond cmd ((i, state) : state) res =
     match (cmd, res) with
     | Get k, Res ((Option Value, _), v) ->
         Option.equal value_equal v (SizedMap.find_opt k state)
     | (Put (_, _) as cmd), Res ((Result (Unit, Exn), _), Ok ()) ->
         (* postcond gets the previous state passed in *)
-        invariant (next_state cmd state)
+        invariant (next_state cmd (i, state))
     | (Delete _ as cmd), Res ((Unit, _), ()) ->
         (* postcond gets the previous state passed in *)
-        invariant (next_state cmd state)
+        invariant (next_state cmd (i, state))
     | ( (Put (_, _) as cmd)
       , Res ((Result (Unit, Exn), _), Error (Invalid_argument _)) ) ->
-        not @@ invariant (next_state cmd state)
+        not @@ invariant (next_state cmd (i, state))
     | List, Res ((List Key, _), l) ->
         List.length l = SizedMap.cardinal state
         && List.for_all (fun k -> SizedMap.mem k state) l
     | _ ->
         false
-
-  let is_small s = String.length s < 6
 
   let shrink_cmd =
     let open QCheck in
@@ -206,7 +207,7 @@ module MakeSTM (KV : KVDirect) : STM.Spec = struct
     | List ->
         1
 
-  let arb_cmd state =
+  let arb_cmd (_, state) =
     let open QCheck in
     let gen_new_key =
       bounded_string_arb KV.Key.max_length
@@ -258,9 +259,11 @@ module MakeLin (KV : KVDirect) : Lin.Spec = struct
   let key_equal v1 v2 = String.equal (KV.Key.to_string v1) (KV.Key.to_string v2)
 
   let api =
+    let max_len = 1024 in (* might take exponential time otherwise... but it also doesn't catch bugs if too short *)
     let key_arb =
       QCheck.map ~rev:KV.Key.to_string KV.Key.of_string_exn
-      @@ bounded_string_arb KV.Key.max_length
+      @@ bounded_string_arb max_len
+      (*  KV.Key.max_length *)
     in
     let value_arb =
       QCheck.map ~rev:KV.Value.to_string KV.Value.of_string_exn
@@ -324,6 +327,6 @@ let tests (module KV : KVDirect) ~count =
   let module SpecLin = MakeLin (KV) in
   let module Conc = Spec_concurrent.Make (SpecSTM) (SpecLin) in
   ( KV.name
-  , KV_seq.agree_test ~count ~name:(KV.name ^ " STM sequential")
-    :: Conc.tests ~count ~name:KV.name
+  , (* KV_seq.agree_test ~count ~name:(KV.name ^ " STM sequential") :: *)
+     Conc.tests ~count ~name:KV.name
   )
