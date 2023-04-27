@@ -16,6 +16,7 @@
    (qcheck-stm.domain qcheck-lin.domain -> spec_concurrent.domain.ml)
    ( -> spec_concurrent.thread.ml)
    )
+   pbrt
   )
 )
 

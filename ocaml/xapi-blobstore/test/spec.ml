@@ -24,22 +24,69 @@ let graft_corners corners arb =
 
 let repeat n = List.init n (fun _ -> all_bytes) |> String.concat ""
 
-let bounded_string_arb n =
+let string_64k =
+  let b = Buffer.create 2 in
+  Array.init 65536 @@ fun i ->
+   Buffer.clear b;
+   if i < 256 then
+     Buffer.add_uint8 b i
+   else
+     Buffer.add_uint16_ne b i;
+   Buffer.contents b
+   
+let gen_string_64k = QCheck.Gen.oneofa string_64k
+
+let bounded_string_arb =
+  (* QCheck.Shrink.string is very slow: first converts to list of chars.
+     In our case bugs come from 3 sources:
+      * the byte values (e.g. ASCII vs non-ascii)
+      * the length of the string (whether it hits various limits or not)
+      * the uniqueness of the string (e.g. duplicate inserts)
+      
+    So map back the string to the integer that generated it and let QCheck shrink an integer,
+    which is done efficiently through depth limited binary search.
+    
+    To further speed up shrinking and generating we pregenerate 256 + 65536 + 2*n strings.
+  *)
+  let buf = Buffer.create 128 in
+  fun f n ->
+    let large = Array.init (2*n) @@ fun i ->
+      if i mod 2 = 0 then begin
+        Buffer.clear buf;
+        Buffer.add_int32_ne buf (Int32.of_int i);
+        f buf i;
+        Buffer.contents buf
+      end
+      else
+        String.make i 'a'        
+    in
+    let get_large idx = large.(idx) in
+    let shrink s =
+      let open QCheck in
+      if String.length s < 4 then
+        Shrink.string s
+      else
+        let idx = String.get_int32_ne s 0 |> Int32.to_int in
+        Iter.map get_large (Shrink.int idx)
+    in
+    QCheck.(make
+      ~print:truncated_str
+      ~small:String.length
+      ~shrink
+      @@ Gen.oneof
+       [ gen_string_64k
+       ; Gen.oneofa large
+       ]
+    )
+let bounded_string_arb =
   assert (n > 0) ;
-  let open QCheck in
   let max_repetitions = n / String.length all_bytes in
   let max_str =
     repeat max_repetitions
     ^ String.sub all_bytes 0 (n mod String.length all_bytes)
   in
-  let small = string_of_size (min n 3 |> Gen.int_bound) in
-  let small = set_shrink (Shrink.filter is_small Shrink.string) small in
-  graft_corners
-    [
-      String.sub max_str 0 (n - 1) (* :: List.init max_repetitions repeat *)
-    ; max_str
-    ]
-    small
+  bounded_string_arb @@ fun buf i ->
+  Buffer.add_substring buf max_str 0 i
 
 module MakeSTM (KV : KVDirect) : STM.Spec = struct
   let key_to_string' v = v |> KV.Key.to_string |> truncated_str
