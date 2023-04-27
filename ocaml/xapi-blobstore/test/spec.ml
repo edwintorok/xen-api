@@ -36,6 +36,16 @@ let string_64k =
    
 let gen_string_64k = QCheck.Gen.oneofa string_64k
 
+(** [pow2_sizes_of n] generates a sequence of increasing sizes in power of 2 steps,
+   ending with [n] inclusive. *)
+let pow2_sizes_of n =
+  0 |> Seq.unfold @@ fun i ->
+  if i < 0 then None
+  else
+  let next = min (1 lsl i) n in
+  if next = n then Some (next, -1)
+  else Some (next, i + 1)
+
 let bounded_string_arb =
   (* QCheck.Shrink.string is very slow: first converts to list of chars.
      In our case bugs come from 3 sources:
@@ -49,16 +59,18 @@ let bounded_string_arb =
     To further speed up shrinking and generating we pregenerate 256 + 65536 + 2*n strings.
   *)
   let buf = Buffer.create 128 in
-  fun f n ->
-    let large = Array.init (2*n) @@ fun i ->
-      if i mod 2 = 0 then begin
+  fun n f ->
+    let large = Array.of_seq (n |> pow2_sizes_of |> Seq.concat_map @@ fun i ->
+      let s =
         Buffer.clear buf;
         Buffer.add_int32_ne buf (Int32.of_int i);
-        f buf i;
+        f buf (i lsr 1);
         Buffer.contents buf
-      end
-      else
-        String.make i 'a'        
+      in
+      List.to_seq
+       [ String.make i 'a'
+       ; s
+       ])
     in
     let get_large idx = large.(idx) in
     let shrink s =
@@ -78,14 +90,14 @@ let bounded_string_arb =
        ; Gen.oneofa large
        ]
     )
-let bounded_string_arb =
+let bounded_string_arb n =
   assert (n > 0) ;
   let max_repetitions = n / String.length all_bytes in
   let max_str =
     repeat max_repetitions
     ^ String.sub all_bytes 0 (n mod String.length all_bytes)
   in
-  bounded_string_arb @@ fun buf i ->
+  bounded_string_arb n @@ fun buf i ->
   Buffer.add_substring buf max_str 0 i
 
 module MakeSTM (KV : KVDirect) : STM.Spec = struct
@@ -224,23 +236,34 @@ module MakeSTM (KV : KVDirect) : STM.Spec = struct
     | _ ->
         false
 
+  let key_arb =
+    QCheck.map ~rev:KV.Key.to_string KV.Key.of_string_exn
+    @@ bounded_string_arb KV.Key.max_length
+  
+  let shrink_key = key_arb.QCheck.shrink |> Option.get
+
+  let val_arb =
+    QCheck.map ~rev:KV.Value.to_string KV.Value.of_string_exn
+    @@ bounded_string_arb KV.Value.max_length
+  
+  let shrink_val = val_arb.QCheck.shrink |> Option.get
+
   let shrink_cmd =
     let open QCheck in
-    let open KV in
     function
     | Get k ->
         Iter.map
-          (fun k -> Get (Key.of_string_exn k))
-          Shrink.(filter is_small string @@ Key.to_string k)
+          (fun k -> Get k)
+          @@ shrink_key k
     | Put (k, v) ->
         Iter.map2
-          (fun k v -> Put (Key.of_string_exn k, Value.of_string_exn v))
-          Shrink.(filter is_small string @@ Key.to_string k)
-          Shrink.(filter is_small string @@ Value.to_string v)
+          (fun k v -> Put (k, v))
+          (shrink_key k)
+          (shrink_val v)
     | Delete k ->
         Iter.map
-          (fun k -> Delete (Key.of_string_exn k))
-          Shrink.(filter is_small string @@ Key.to_string k)
+          (fun k -> Delete k)
+          (shrink_key k)
     | List ->
         Iter.empty
 
@@ -256,16 +279,8 @@ module MakeSTM (KV : KVDirect) : STM.Spec = struct
 
   let arb_cmd (_, state) =
     let open QCheck in
-    let gen_new_key =
-      bounded_string_arb KV.Key.max_length
-      |> QCheck.gen
-      |> Gen.map KV.Key.of_string_exn
-    in
-    let value =
-      bounded_string_arb KV.Value.max_length
-      |> QCheck.gen
-      |> Gen.map KV.Value.of_string_exn
-    in
+    let gen_new_key = gen key_arb in
+    let value = gen val_arb in
     let key =
       if SizedMap.is_empty state then
         gen_new_key
@@ -306,11 +321,9 @@ module MakeLin (KV : KVDirect) : Lin.Spec = struct
   let key_equal v1 v2 = String.equal (KV.Key.to_string v1) (KV.Key.to_string v2)
 
   let api =
-    let max_len = 1024 in (* might take exponential time otherwise... but it also doesn't catch bugs if too short *)
     let key_arb =
       QCheck.map ~rev:KV.Key.to_string KV.Key.of_string_exn
-      @@ bounded_string_arb max_len
-      (*  KV.Key.max_length *)
+      @@ bounded_string_arb KV.Key.max_length
     in
     let value_arb =
       QCheck.map ~rev:KV.Value.to_string KV.Value.of_string_exn
