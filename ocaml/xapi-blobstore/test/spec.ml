@@ -24,81 +24,63 @@ let graft_corners corners arb =
 
 let repeat n = List.init n (fun _ -> all_bytes) |> String.concat ""
 
-let string_64k =
-  let b = Buffer.create 2 in
-  Array.init 65536 @@ fun i ->
-   Buffer.clear b;
-   if i < 256 then
-     Buffer.add_uint8 b i
-   else
-     Buffer.add_uint16_ne b i;
-   Buffer.contents b
-   
-let gen_string_64k = QCheck.Gen.oneofa string_64k
+let shrink_string_length str =
+  let open QCheck in
+  str |> String.length |> Shrink.int |>
+  QCheck.Iter.map (String.sub str 0)
 
-(** [pow2_sizes_of n] generates a sequence of increasing sizes in power of 2 steps,
-   ending with [n] inclusive. *)
-let pow2_sizes_of n =
-  0 |> Seq.unfold @@ fun i ->
-  if i < 0 then None
-  else
-  let next = min (1 lsl i) n in
-  if next = n then Some (next, -1)
-  else Some (next, i + 1)
+let shrink_all_chars str yield =
+  (* shrinking each char individually would yield too many possibilities
+     on long strings if shrinking doesn't reproduce the bug anymore.
+     Instead shrink all chars at once, with a single result.
+     It will eventually converge on 'aa...a'.
+  *)
+  let next = String.make (String.length str) 'a' in
+  (* avoid infinite iteration: stop when target reached *)
+  if not (String.equal next str) then
+    yield next
+  
+let shrink_string str yield =
+  shrink_string_length str yield;
+  shrink_all_chars str yield
 
-let bounded_string_arb =
+let bounded_string_arb n =
   (* QCheck.Shrink.string is very slow: first converts to list of chars.
      In our case bugs come from 3 sources:
       * the byte values (e.g. ASCII vs non-ascii)
       * the length of the string (whether it hits various limits or not)
       * the uniqueness of the string (e.g. duplicate inserts)
-      
-    So map back the string to the integer that generated it and let QCheck shrink an integer,
-    which is done efficiently through depth limited binary search.
-    
-    To further speed up shrinking and generating we pregenerate 256 + 65536 + 2*n strings.
+   
+    Generate a small fully random string of fixed size, and concatenate it with a random length substring of a static string.
+    Shrinking will take care of producing smaller and more readable results as needed,
+    even below the fixed size
   *)
-  let buf = Buffer.create 128 in
-  fun n f ->
-    let large = Array.of_seq (n |> pow2_sizes_of |> Seq.concat_map @@ fun i ->
-      let s =
-        Buffer.clear buf;
-        Buffer.add_int32_ne buf (Int32.of_int i);
-        f buf (i lsr 1);
-        Buffer.contents buf
-      in
-      List.to_seq
-       [ String.make i 'a'
-       ; s
-       ])
-    in
-    let get_large idx = large.(idx) in
-    let shrink s =
-      let open QCheck in
-      if String.length s < 4 then
-        Shrink.string s
-      else
-        let idx = String.get_int32_ne s 0 |> Int32.to_int in
-        Iter.map get_large (Shrink.int idx)
-    in
-    QCheck.(make
-      ~print:truncated_str
-      ~small:String.length
-      ~shrink
-      @@ Gen.oneof
-       [ gen_string_64k
-       ; Gen.oneofa large
-       ]
-    )
-let bounded_string_arb n =
+
   assert (n > 0) ;
-  let max_repetitions = n / String.length all_bytes in
-  let max_str =
-    repeat max_repetitions
-    ^ String.sub all_bytes 0 (n mod String.length all_bytes)
+  
+  let n = n - 4 in
+  let long = ref [] in
+  let () = if n > 0 then
+  (* pregenerate all the long strings by running the shrinker on a static string *)
+    let max_repetitions = n / String.length all_bytes in
+    let max_str =
+      repeat max_repetitions
+      ^ String.sub all_bytes 0 (n mod String.length all_bytes)
+    in
+    shrink_string_length max_str (fun s -> long := s :: !long)
   in
-  bounded_string_arb n @@ fun buf i ->
-  Buffer.add_substring buf max_str 0 i
+  let gen_long = QCheck.Gen.oneofa @@ Array.of_list !long in
+  let gen_string =
+    let open QCheck.Gen in
+    let* small = string_size @@ return 4 in
+    let+ long = gen_long in
+    small ^ long
+  in
+  QCheck.(make
+    ~print:truncated_str
+    ~small:String.length
+    ~shrink:shrink_string
+    gen_string)
 
 module MakeSTM (KV : KVDirect) : STM.Spec = struct
   let key_to_string' v = v |> KV.Key.to_string |> truncated_str
@@ -337,7 +319,7 @@ module MakeLin (KV : KVDirect) : Lin.Spec = struct
     in
     [
       val_ "GET" KV.get (t @-> key () @-> returning @@ option @@ value ())
-    ; val_ "PUT" KV.put (t @-> key () @-> value () @-> returning unit)
+    ; val_ "PUT" KV.put (t @-> key () @-> value () @-> returning_or_exc unit)
     ; val_ "DELETE" KV.delete (t @-> key () @-> returning unit)
     ; val_ "LIST" KV.list (t @-> returning @@ list @@ key ())
     ]
