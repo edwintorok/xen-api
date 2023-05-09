@@ -116,7 +116,7 @@ module Make (KV : Types.KVLwt) = struct
   let test_case name speed f =
     let f switch () =
       (* needed such that logs go to correct output file between tests *)
-      Lwt_switch.add_hook (Some switch) Lwt_io.flush_all;
+      Lwt_switch.add_hook (Some switch) Lwt_io.flush_all ;
       f switch ()
     in
     Alcotest_lwt.test_case name speed f
