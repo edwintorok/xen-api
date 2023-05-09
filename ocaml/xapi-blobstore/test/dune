@@ -1,4 +1,4 @@
-(test
+(executable
  (name xapi_blobstore_test)
  (libraries
    xapi_blobstore_core
@@ -17,5 +17,10 @@
     (qcheck-stm.thread qcheck-lin.thread -> spec_concurrent.thread.ml)
    )
  )
- (package xapi)
+)
+
+(rule
+  (alias runtest)
+  (package xapi)
+  (action (run ./xapi_blobstore_test.exe))
 )

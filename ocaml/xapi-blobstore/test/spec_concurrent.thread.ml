@@ -4,7 +4,7 @@ module Make (S : STM.Spec) (L : Lin.Spec) = struct
 
   let tests ~count ~name =
     [
-     S_domain.agree_test_conc ~count ~name:(name ^ "(STM)")
-     ; L_domain.lin_test ~count ~name:(name ^ " (Lin)");
-     ]
+      S_domain.agree_test_conc ~count ~name:(name ^ "(STM)")
+    ; L_domain.lin_test ~count ~name:(name ^ " (Lin)")
+    ]
 end

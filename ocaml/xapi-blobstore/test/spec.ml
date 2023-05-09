@@ -1,104 +1,109 @@
 open Xapi_blobstore_core
 
-module MakeQC (KV : Types.S) = struct
-  let is_small s = String.length s < 6
+let is_small s = String.length s < 6
 
-  (** [truncated_str s] prints first 6 characters of [s], escaped if necessary.
+(** [truncated_str s] prints first 6 characters of [s], escaped if necessary.
       Longer strings are truncated with an ellipsis and full length printed.
 
       This is useful to get a quick overview of the input without making test results unreadable in quickcheck.
   *)
-  let truncated_str s =
-    if String.length s < 6 then
-      String.escaped s
-    else
-      Printf.sprintf "%s…(len:%d)"
-        (String.sub s 0 6 |> String.escaped)
-        (String.length s)
+let truncated_str s =
+  if String.length s < 6 then
+    String.escaped s
+  else
+    Printf.sprintf "%s…(len:%d)"
+      (String.sub s 0 6 |> String.escaped)
+      (String.length s)
 
-  let all_bytes = String.init 256 Char.chr
+let all_bytes = String.init 256 Char.chr
 
-  (** [repeat n] repeats [all_bytes] string [n] times.
+(** [repeat n] repeats [all_bytes] string [n] times.
       Useful to exercise bugs related to char values (e.g. \0 or non-ASCII, invalid UTF-8, etc.),
       and bugs related to string length (e.g. reaching Key or Value limits).
   *)
-  let repeat n = List.init n (fun _ -> all_bytes) |> String.concat ""
+let repeat n = List.init n (fun _ -> all_bytes) |> String.concat ""
 
-  (** [shrink_string_length s] is a QCheck shrinker that iterates on substrings of [s].
+(** [shrink_string_length s] is a QCheck shrinker that iterates on substrings of [s].
       The substrings of [s] are a depth-limited binary search to find a smaller counter-example.
       (it reuses {!val:QCheck.Shrink.int} which already does this depth limited binary search)
   *)
-  let shrink_string_length str =
-    let open QCheck in
-    str |> String.length |> Shrink.int |> QCheck.Iter.map (String.sub str 0)
+let shrink_string_length str =
+  let open QCheck in
+  str |> String.length |> Shrink.int |> QCheck.Iter.map (String.sub str 0)
 
-  (** [shrink_all-chars str] shrinks [str] by pretending all characters are 'a'.
-      
+(** [shrink_all-chars str] shrinks [str] by pretending all characters are 'a'.
+
   In this case shrinking refers to something more humanly readable: the length stays the same.
   Shrinking each char individually would yield too many possibilities
   on long strings if shrinking doesn't reproduce the bug anymore.
   Instead shrink all chars at once, with a single result.
   It will eventually converge on 'aa...a' anyway in our case.
 *)
-  let shrink_all_chars str yield =
-    let next = String.make (String.length str) 'a' in
-    (* avoid infinite iteration: stop when target reached *)
-    if not (String.equal next str) then
-      yield next
+let shrink_all_chars str yield =
+  let next = String.make (String.length str) 'a' in
+  (* avoid infinite iteration: stop when target reached *)
+  if not (String.equal next str) then
+    yield next
 
-  (** [shrink_string str] shrinks a string by first attempting to shrink its length and then its contents,
+(** [shrink_string str] shrinks a string by first attempting to shrink its length and then its contents,
       but more efficiently than {!val:QCheck.Shrink.string} would do which starts by always converting the string to a list of characters.
        *)
-  let shrink_string str yield =
-    shrink_string_length str yield ;
-    shrink_all_chars str yield
+let shrink_string str yield =
+  shrink_string_length str yield ;
+  shrink_all_chars str yield
 
-  (** [bounded_string_arb n] is a {!type:QCheck.arbitary} for strings of maximum length [n].
-    
+(** [bounded_string_arb n] is a {!type:QCheck.arbitary} for strings of maximum length [n].
+
     This can be used to generate inputs for testcases and shrink counter-examples.
 *)
-  let bounded_string_arb n =
-    (* QCheck.Shrink.string is very slow: first converts to list of chars.
-        In our case bugs come from 3 sources:
-         * the byte values (e.g. ASCII vs non-ascii)
-         * the length of the string (whether it hits various limits or not)
-         * the uniqueness of the string (e.g. duplicate inserts)
+let bounded_string_arb n =
+  (* QCheck.Shrink.string is very slow: first converts to list of chars.
+      In our case bugs come from 3 sources:
+       * the byte values (e.g. ASCII vs non-ascii)
+       * the length of the string (whether it hits various limits or not)
+       * the uniqueness of the string (e.g. duplicate inserts)
 
-       Generate a small fully random string of fixed size, and concatenate it with a random length substring of a static string.
-       Shrinking will take care of producing smaller and more readable results as needed,
-       even below the fixed size
-    *)
-    assert (n > 0) ;
+     Generate a small fully random string of fixed size, and concatenate it with a random length substring of a static string.
+     Shrinking will take care of producing smaller and more readable results as needed,
+     even below the fixed size
+  *)
+  assert (n > 0) ;
 
-    let n = n - 4 in
-    let long = ref [] in
-    let () =
-      if n > 0 then
-        (* pregenerate all the long strings by running the shrinker on a static string *)
-        let max_repetitions = n / String.length all_bytes in
-        let max_str =
-          repeat max_repetitions
-          ^ String.sub all_bytes 0 (n mod String.length all_bytes)
-        in
-        shrink_string_length max_str (fun s -> long := s :: !long)
-    in
-    (* the generator will need to index into the static "list" many times,
-       so using an array is more efficient here, we're not using array for its mutability.
-    *)
-    let gen_long = QCheck.Gen.oneofa @@ Array.of_list !long in
-    let gen_string =
-      let open QCheck.Gen in
-      let* small = string_size @@ return 4 in
-      let+ long = gen_long in
-      small ^ long
-    in
-    QCheck.(
-      make ~print:truncated_str ~small:String.length ~shrink:shrink_string
-        gen_string
-    )
+  let n = n - 4 in
+  let long = ref [] in
+  let () =
+    if n > 0 then
+      (* pregenerate all the long strings by running the shrinker on a static string *)
+      let max_repetitions = n / String.length all_bytes in
+      let max_str =
+        repeat max_repetitions
+        ^ String.sub all_bytes 0 (n mod String.length all_bytes)
+      in
+      shrink_string_length max_str (fun s -> long := s :: !long)
+  in
+  (* the generator will need to index into the static "list" many times,
+     so using an array is more efficient here, we're not using array for its mutability.
+  *)
+  let gen_long = QCheck.Gen.oneofa @@ Array.of_list !long in
+  let gen_string =
+    let open QCheck.Gen in
+    let* small = string_size @@ return 4 in
+    let+ long = gen_long in
+    small ^ long
+  in
+  QCheck.(
+    make ~print:truncated_str ~small:String.length ~shrink:shrink_string
+      gen_string
+  )
+
+module type Config = sig
+  type config
+
+  val make_test_config : unit -> config
 end
 
-module MakeSTM (KV : Types.KVDirect) : STM.Spec = struct
+module MakeSTM (KV : Types.KVDirect) (C : Config with type config = KV.config) :
+  STM.Spec = struct
   let key_to_string' v = v |> KV.Key.to_string |> truncated_str
 
   let value_to_string' v = v |> KV.Value.to_string |> truncated_str
@@ -116,7 +121,7 @@ module MakeSTM (KV : Types.KVDirect) : STM.Spec = struct
 
   type sut = KV.t
 
-  let init_sut = KV.connect
+  let init_sut () = KV.connect @@ C.make_test_config ()
 
   let cleanup = KV.disconnect
 
@@ -200,7 +205,8 @@ module MakeSTM (KV : Types.KVDirect) : STM.Spec = struct
 
   let invariant (_, t) =
     (* implements the invariants on type t *)
-    SizedMap.cardinal t <= KV.max_key_count && SizedMap.size t <= KV.max_data_size
+    SizedMap.cardinal t <= KV.max_key_count
+    && SizedMap.size t <= KV.max_data_size
 
   let init_state = (0, SizedMap.empty)
 
@@ -296,12 +302,13 @@ module MakeSTM (KV : Types.KVDirect) : STM.Spec = struct
          ]
 end
 
-module MakeLin (KV : KVDirect) : Lin.Spec = struct
+module MakeLin (KV : Types.KVDirect) (C : Config with type config = KV.config) :
+  Lin.Spec = struct
   open Lin
 
   type t = KV.t
 
-  let init = KV.connect
+  let init () = KV.connect @@ C.make_test_config ()
 
   let cleanup = KV.disconnect
 
@@ -338,6 +345,7 @@ module MakeLin (KV : KVDirect) : Lin.Spec = struct
 end
 
 (* TODO: make the tests one below take an io monad? *)
+(*
 module MakeDirect
     (KV : Types.S with type 'a io = 'a Lwt.t and type config = unit) :
   KVDirect with type t = KV.t = struct
@@ -374,11 +382,18 @@ module MakeDirect
 
   let list = lwt KV.list
 end
+*)
 
-let tests (module KV : KVDirect) ~count =
-  let module SpecSTM = MakeSTM (KV) in
+let tests (type config) ~count
+    ((module KV : Types.KVDirect with type config = config), make_test_config) =
+  let module Config = struct
+    type config = KV.config
+
+    let make_test_config = make_test_config
+  end in
+  let module SpecSTM = MakeSTM (KV) (Config) in
   let module KV_seq = STM_sequential.Make (SpecSTM) in
-  let module SpecLin = MakeLin (KV) in
+  let module SpecLin = MakeLin (KV) (Config) in
   let module Conc = Spec_concurrent.Make (SpecSTM) (SpecLin) in
   ( KV.name
   , (* KV_seq.agree_test ~count ~name:(KV.name ^ " STM sequential") :: *)
