@@ -63,7 +63,9 @@ module Make (KV : Types.KVLwt) = struct
     let* () =
       info (fun m -> m "Retrieving %d values concurrently" max_vm_per_host)
     in
-    let* _ = List.init max_vm_per_host (fun _ -> key) |> Lwt_list.map_p (KV.get t) in
+    let* _ =
+      List.init max_vm_per_host (fun _ -> key) |> Lwt_list.map_p (KV.get t)
+    in
     KV.disconnect t
 
   let value =
@@ -76,15 +78,25 @@ module Make (KV : Types.KVLwt) = struct
   let test_put_get_kv config key testval () =
     let* t = KV.connect config in
     let* actual = KV.get t key in
-    let* () = debug (fun m -> m "GET(%s) = %a" KV.Key.(to_string key) Fmt.(option pp_value) actual) in
+    let* () =
+      debug (fun m ->
+          m "GET(%s) = %a" KV.Key.(to_string key) Fmt.(option pp_value) actual
+      )
+    in
     Alcotest.(
       check' (option value) ~expected:None ~actual
         ~msg:"expect key to be absent"
     ) ;
     let* () = KV.put t key testval in
-    let* () = debug (fun m -> m "PUT(%s) = %a" KV.Key.(to_string key) pp_value testval) in
+    let* () =
+      debug (fun m -> m "PUT(%s) = %a" KV.Key.(to_string key) pp_value testval)
+    in
     let* actual = KV.get t key in
-    let+ () = debug (fun m -> m "GET(%s) = %a" KV.Key.(to_string key) Fmt.(option pp_value) actual) in
+    let+ () =
+      debug (fun m ->
+          m "GET(%s) = %a" KV.Key.(to_string key) Fmt.(option pp_value) actual
+      )
+    in
     Alcotest.(
       check' (option value) ~expected:(Some testval) ~actual
         ~msg:"expect key to be present"
@@ -155,8 +167,31 @@ let lwt_reporter () =
   {Logs.report}
 
 let tests =
-  let module M = Make (Direct2Lwt (Safe_table)) in
-  [M.tests Fun.id]
+  let make_direct (type config)
+      (module M : Types.KVDirect with type config = config)
+      (make_test_config : unit -> config) =
+    ((module M : Types.KVDirect with type config = config), make_test_config)
+  in
+  let direct_modules = [make_direct (module Safe_table) Fun.id] in
+  let make_smoketest (type config)
+      ((module SUT : Types.KVDirect with type config = config), make_test_config)
+      =
+    let module M = Make (Direct2Lwt (SUT)) in
+    M.tests make_test_config
+  in
+  let make_qtests sut =
+    let name, qtests = Spec.tests ~count:10 sut in
+    ( name
+    , qtests
+      |> List.map @@ fun qtest ->
+         let name, speed, f =
+           qtest |> QCheck_alcotest.to_alcotest ~verbose:true
+         in
+         Alcotest_lwt.test_case_sync name speed f
+    )
+  in
+  direct_modules
+  |> List.concat_map @@ fun sut -> [make_smoketest sut; make_qtests sut]
 
 let () =
   Logs.set_reporter @@ lwt_reporter () ;

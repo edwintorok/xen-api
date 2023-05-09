@@ -22,7 +22,7 @@ let name = __MODULE__
 
 let pp_config _ () = ()
 
-let connect () = {m= Mutex.create (); tbl = Hashtbl.create 7; size = 0}
+let connect () = {m= Mutex.create (); tbl= Hashtbl.create 7; size= 0}
 
 let disconnect _ = ()
 
@@ -44,7 +44,8 @@ let put t k v =
   let old_size = Option.fold ~none:0 ~some:(kv_length k) old in
   let next = t.size + delta - old_size in
   if next > max_data_size then
-    Fmt.invalid_arg "max_data_size exceeded: %d + %d > %d" t.size delta max_data_size ;
+    Fmt.invalid_arg "max_data_size exceeded: %d + %d > %d" t.size delta
+      max_data_size ;
   Hashtbl.replace tbl k v ;
   t.size <- next
 
