@@ -195,12 +195,12 @@ module MakeSTM (KV : Types.KVDirect) : STM.Spec = struct
   let () =
     (* the backend must be able to store something,
        this implements the 2 'ensures' constraints from Types.mli *)
-    assert (KV.max_data > 0) ;
-    assert (KV.max_keys > 0)
+    assert (KV.max_data_size > 0) ;
+    assert (KV.max_key_count > 0)
 
   let invariant (_, t) =
     (* implements the invariants on type t *)
-    SizedMap.cardinal t <= KV.max_keys && SizedMap.size t <= KV.max_data
+    SizedMap.cardinal t <= KV.max_key_count && SizedMap.size t <= KV.max_data_size
 
   let init_state = (0, SizedMap.empty)
 
@@ -347,9 +347,9 @@ module MakeDirect
 
   type config = KV.config
 
-  let max_keys = KV.max_keys
+  let max_key_count = KV.max_key_count
 
-  let max_data = KV.max_data
+  let max_data_size = KV.max_data_size
 
   module Key = KV.Key
   module Value = KV.Value
