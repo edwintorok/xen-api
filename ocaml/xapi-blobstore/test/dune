@@ -9,6 +9,7 @@
    logs.fmt
    logs.lwt
    uuidm
+   qcheck-alcotest
    qcheck-stm.stm
    qcheck-stm.sequential
    qcheck-lin.lin
