@@ -79,7 +79,8 @@ let safe_unlink path =
 
 let cache =
   Xen_api_lwt_unix.(
-    SessionCache.create_uri ~uname:"root" ~pwd:""
+    SessionCache.create_uri ~switch:Varstored_interface.shutdown
+      ~uname:"root" ~pwd:""
       ~version:Xapi_version.version
       ~originator:Varstored_interface.originator ~target:uri_local_json ()
   )
