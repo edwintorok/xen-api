@@ -178,8 +178,8 @@ module SessionCache = struct
     ; timeout: float option
   }
 
-  let make_rpc ?timeout target =
-    let uri = Uri.with_path target "/jsonrpc" in
+  let make_rpc ?timeout destination =
+    let uri = Uri.with_path destination "/jsonrpc" in
     make_json ?timeout @@ Uri.to_string @@ uri
 
   let create_rpc ?timeout rpc ~uname ~pwd ~version ~originator () =
