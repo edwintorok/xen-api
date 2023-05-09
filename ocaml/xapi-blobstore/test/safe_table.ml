@@ -12,9 +12,9 @@ module Value = Bounded_string.Make (struct let max_length = 128 * 1024 end)
 
 type config = unit
 
-let max_keys = 128
+let max_key_count = 128
 
-let max_data = 256 * 1024
+let max_data_size = 256 * 1024
 
 type t = {m: Mutex.t; tbl: (Key.t, Value.t) Hashtbl.t; mutable size: int}
 
@@ -38,13 +38,13 @@ let kv_length k v =
 let put t k v =
   with_mutex t @@ fun tbl ->
   let old = Hashtbl.find_opt tbl k in
-  if Option.is_none old && Hashtbl.length tbl >= max_keys then
+  if Option.is_none old && Hashtbl.length tbl >= max_key_count then
     Fmt.invalid_arg "Too many keys" ;
   let delta = kv_length k v in
   let old_size = Option.fold ~none:0 ~some:(kv_length k) old in
   let next = t.size + delta - old_size in
-  if next > max_data then
-    Fmt.invalid_arg "max_data exceeded: %d + %d > %d" t.size delta max_data ;
+  if next > max_data_size then
+    Fmt.invalid_arg "max_data_size exceeded: %d + %d > %d" t.size delta max_data_size ;
   Hashtbl.replace tbl k v ;
   t.size <- next
 

@@ -18,9 +18,9 @@ module Direct2Lwt (D : Types.KVDirect) :
 
   let name = D.name ^ " (direct2lwt)"
 
-  let max_data = D.max_data
+  let max_data_size = D.max_data_size
 
-  let max_keys = D.max_keys
+  let max_key_count = D.max_key_count
 
   let pp_config = D.pp_config
 

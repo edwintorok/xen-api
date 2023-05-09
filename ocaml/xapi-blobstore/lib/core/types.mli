@@ -31,8 +31,8 @@ module type BoundedString = sig
         mutable model view: Key.t -> Value.t option
         invariant forall k: Key.t. not (Set.mem k keys) -> view k = None
         invariant forall k: Key.t. view k = None -> not (Set.mem k keys)
-        invariant Set.cardinal keys <= max_keys
-        invariant Set.fold (fun k acc -> kv_length k (view k) + acc) keys 0 <= max_data
+        invariant Set.cardinal keys <= max_key_count
+        invariant Set.fold (fun k acc -> kv_length k (view k) + acc) keys 0 <= max_data_size
     *)
   
     val max_length : int
@@ -99,8 +99,8 @@ end
   Backends impose various limits:
     * on key length, see {!val:Key.max_length}
     * on value lengths, see {!val:Value.max_length}
-    * on numbers of keys stored in the backend, see {!val:max_keys}
-    * on total amount of data stored in the backend, see {!val:max_data}
+    * on numbers of keys stored in the backend, see {!val:max_key_count}
+    * on total amount of data stored in the backend, see {!val:max_data_size}
 
   However they  must accept any bytes values [0, 255] as a key or a value.
   If needed the backend should perform its own encoding and decoding,
@@ -120,25 +120,25 @@ module type S = sig
   (** Values that are valid to be stored in the backend *)
   module Value : BoundedString
 
-  val max_keys : int
-  (** [max_keys] is the maximum number of keys in the backend, inclusive.
+  val max_key_count : int
+  (** [max_key_count] is the maximum number of keys in the backend, inclusive.
 
     This may be temporarily exceeded when executing concurrent {!val:put} calls,
-    however when all {!val:put} calls finish the number of keys will be <= max_keys.
+    however when all {!val:put} calls finish the number of keys will be <= max_key_count.
   *)
-  (*@ ensures max_keys > 0 *)
+  (*@ ensures max_key_count > 0 *)
 
-  val max_data : int
-  (** [max_data] is the total maximum amount of data in the backend, inclusive.
+  val max_data_size : int
+  (** [max_data_size] is the total maximum amount of data in the backend, inclusive.
 
     This may be temporarily exceeded when executing concurrent {!val:put} calls,
-    however when all {!val:put} calls finish the number of keys will be <= max_data.
+    however when all {!val:put} calls finish the number of keys will be <= max_data_size.
 
     The amount of data stored for a key-value pair is defined as:
     [String.length (Key.to_string k) + String.length (Value.to_string v)].
-    If this would be too much for the backend (e.g. due to encoding or other overheads) then it should lower [max_data] accordingly.
+    If this would be too much for the backend (e.g. due to encoding or other overheads) then it should lower [max_data_size] accordingly.
   *)
-  (*@ ensures max_data > 0 *)
+  (*@ ensures max_data_size > 0 *)
 
   (*@ function kv_length(k: Key.t) (v: Value.t) = String.length (Key.to_string k) + String.length (Value.to_string v) *)
 
@@ -163,7 +163,7 @@ module type S = sig
   *)
   (*@
     put t key value
-    requires Set.fold (fun k acc -> kv_length k (view k) + acc) keys (kv_length key value) <= max_data
+    requires Set.fold (fun k acc -> kv_length k (view k) + acc) keys (kv_length key value) <= max_data_size
     modifies t
     ensures get t key = Some value
     ensures t.keys = Set.add key (old t.keys)
@@ -195,7 +195,7 @@ module type S = sig
   *)
   (*@ l = list t
       pure
-      ensures List.length l <= max_keys
+      ensures List.length l <= max_key_count
       ensures Set.of_list l = keys
   *)
 end
