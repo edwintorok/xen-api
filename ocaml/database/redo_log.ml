@@ -38,10 +38,10 @@ let get_static_device reason =
   match vdis with [] -> None | hd :: _ -> hd.Static_vdis_list.path
 
 (* Make sure we have plenty of room for the database *)
-let minimum_vdi_size =
+let minimum_vdi_size, recommended_vdi_size =
   let ( ** ) = Int64.mul in
   let mib = 1024L ** 1024L in
-  256L ** mib
+  256L ** mib, 4096L ** mib
 
 let redo_log_sm_config = [("type", "raw")]
 
