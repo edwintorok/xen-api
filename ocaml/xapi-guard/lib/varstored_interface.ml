@@ -99,53 +99,83 @@ let serve_forever_lwt_callback rpc_fn path _ req body =
       in
       Cohttp_lwt_unix.Server.respond_string ~status:`Method_not_allowed ~body ()
 
-let serve_forever_lwt_callback_vtpm backend _path _ req body =
+(* The TPM has 3 kinds of states *)
+type state = {
+    permall: string  (** permanent storage *)
+  ; savestate: string  (** for ACPI S3 *)
+  ; volatilestate: string  (** for snapshot/migration/etc. *)
+}
+
+let deserialize t =
+  match String.split_on_char ' ' t with
+  | [permall] ->
+      (* backwards compat with reading tpm2-00.permall *)
+      {permall; savestate= ""; volatilestate= ""}
+  | [permall; savestate; volatilestate] ->
+      {permall; savestate; volatilestate}
+  | splits ->
+      Fmt.failwith "Invalid state: too many splits %d" (List.length splits)
+
+let serialize t =
+  (* it is assumed that swtpm has already base64 encoded this *)
+  String.concat " " [t.permall; t.savestate; t.volatilestate]
+
+let lookup_key key t =
+  match key with
+  | "/tpm2-00.permall" ->
+      t.permall
+  | "/tpm2-00.savestate" ->
+      t.savestate
+  | "/tpm2-00.volatilestate" ->
+      t.volatilestate
+  | s ->
+      Fmt.invalid_arg "Unknown TPM state key: %s" s
+
+let update_key key state t =
+  match key with
+  | "/tpm2-00.permall" ->
+      {t with permall= state}
+  | "/tpm2-00.savestate" ->
+      {t with savestate= state}
+  | "/tpm2-00.volatilestate" ->
+      {t with volatilestate= state}
+  | s ->
+      Fmt.invalid_arg "Unknown TPM state key: %s" s
+
+let serve_forever_lwt_callback_vtpm ~cache mutex vtpm _path _ req body =
   let uri = Cohttp.Request.uri req in
-  let module VB = VTPM_backend in
+  (* in case the connection is interrupted/etc. we may still have pending operations,
+     so use a per vTPM mutex to ensure we really only have 1 pending operation at a time for a vTPM
+  *)
+  Lwt_mutex.with_lock mutex @@ fun () ->
   (* TODO: some logging *)
   match (Cohttp.Request.meth req, Uri.path uri) with
-  | `GET, "/" ->
-      (* swtpm doesn't have to use this, it is added for completeness/debugging purposes *)
-      let* keys = VB.list backend in
-      let body =
-        `Tuple (keys |> List.map @@ fun k -> `String (VB.Key.to_string k))
-        |> Yojson.Safe.to_string
-      in
+  | `GET, key when key <> "/" ->
+      let* contents = with_xapi ~cache @@ VTPM.get_contents ~self:vtpm in
+      let body = contents |> deserialize |> lookup_key key in
       let headers =
-        Cohttp.Header.of_list [("Content-Type", "application/json")]
+        Cohttp.Header.of_list [("Content-Type", "application/octet-stream")]
       in
       Cohttp_lwt_unix.Server.respond_string ~headers ~status:`OK ~body ()
-  | `GET, key -> (
-      let* value_opt = VB.get backend (VB.Key.of_string_exn key) in
-      match value_opt with
-      | None ->
-          Cohttp_lwt_unix.Server.respond_not_found ~uri ()
-      | Some value ->
-          let headers =
-            Cohttp.Header.of_list [("Content-Type", "application/octet-stream")]
-          in
-          Cohttp_lwt_unix.Server.respond_string ~headers ~status:`OK
-            ~body:(VB.Value.to_string value) ()
-    )
   | `PUT, key when key <> "/" ->
       let* body = Cohttp_lwt.Body.to_string body in
-      let* () =
-        VTPM_backend.put backend (VB.Key.of_string_exn key)
-          (VB.Value.of_string_exn body)
+      let* contents = with_xapi ~cache @@ VTPM.get_contents ~self:vtpm in
+      let contents =
+        contents |> deserialize |> update_key key body |> serialize
       in
+      let* () = with_xapi ~cache @@ VTPM.set_contents ~self:vtpm ~contents in
       Cohttp_lwt_unix.Server.respond ~status:`No_content
         ~body:Cohttp_lwt.Body.empty ()
   | `DELETE, key when key <> "/" ->
-      let* () = VB.delete backend (VB.Key.of_string_exn key) in
+      let* contents = with_xapi ~cache @@ VTPM.get_contents ~self:vtpm in
+      let contents =
+        contents |> deserialize |> update_key key "" |> serialize
+      in
+      let* () = with_xapi ~cache @@ VTPM.set_contents ~self:vtpm ~contents in
       Cohttp_lwt_unix.Server.respond ~status:`No_content
         ~body:Cohttp_lwt.Body.empty ()
   | _, _ ->
-      let body =
-        "Not allowed"
-        |> Rpc.rpc_of_string
-        |> Rpc.failure
-        |> Xmlrpc.string_of_response
-      in
+      let body = "Not allowed" in
       Cohttp_lwt_unix.Server.respond_string ~status:`Method_not_allowed ~body ()
 
 (* Create a restricted RPC function and socket for a specific VM *)
@@ -185,5 +215,9 @@ let make_server_rpcfn ~cache path vm_uuid =
 
 (* TODO: spawn this through the varstore interface *)
 let make_server_vtpm_rest ~cache path vtpm_uuid =
-  let* backend = VTPM_backend.(connect {cache; vtpm_uuid}) in
-  serve_forever_lwt_callback_vtpm backend path |> serve_forever_lwt path
+  let* vtpm =
+    with_xapi ~cache @@ VTPM.get_by_uuid ~uuid:(Uuidm.to_string vtpm_uuid)
+  in
+  let mutex = Lwt_mutex.create () in
+  serve_forever_lwt_callback_vtpm ~cache mutex vtpm path
+  |> serve_forever_lwt path
