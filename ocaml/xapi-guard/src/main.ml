@@ -140,6 +140,8 @@ let depriv_destroy dbg gid path =
       D.debug "[%s] stopped server for gid %d and removed socket" dbg gid ;
       Lwt.return_unit
 
+(* TODO: these 2 APIs need to be updated to go through the generic interface *)
+
 let vtpm_set_contents dbg vtpm_uuid contents =
   let open Xen_api_lwt_unix in
   let open Lwt.Syntax in
