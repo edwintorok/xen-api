@@ -101,39 +101,38 @@ let serve_forever_lwt_callback rpc_fn path _ req body =
 
 module StringMap = Map.Make(String)
 
-(* this is not efficient if we have lots of keys,
-   but using a map on the XAPI API would just move the inefficiency to the XAPI DB instead
-*)
+(* The TPM has 3 kinds of states *)
+type state =
+  { permall: string (** permanent storage *)
+  ; savestate: string (** for ACPI S3 *)
+  ; volatilestate: string (** for snapshot/migration/etc. *)
+  }
 
 let deserialize t =
-    match t |> Yojson.Safe.from_string with
-    | `Assoc alist ->
-        StringMap.of_seq
-          (alist
-          |> List.to_seq
-          |> Seq.map @@ fun (k, v) ->
-             ( k |> Base64.decode_exn
-             , v
-               |> Yojson.Safe.Util.to_string
-               |> Base64.decode_exn
-             )
-          )
-    | _ ->
-        invalid_arg "malformed JSON"
+  match String.split_on_char ' ' t with
+  | [ permall ] ->
+      (* backwards compat with reading tpm2-00.permall *)
+      { permall; savestate = ""; volatilestate = ""}
+  | [permall;savestate;volatilestate] -> {permall;savestate;volatilestate}
+  | splits -> Fmt.failwith "Invalid state: too many splits %d" (List.length splits)
 
 let serialize t =
-    let alist =
-        List.of_seq
-          (t
-          |> StringMap.to_seq
-          |> Seq.map @@ fun (k, v) ->
-             (* we pass it through XAPI APIs, had to encode *)
-             ( k |> Base64.encode_string
-             , `String (v |> Base64.encode_string)
-             )
-          )
-      in
-       `Assoc alist |> Yojson.Safe.to_string
+  (* it is assumed that swtpm has already base64 encoded this *)
+  String.concat " " [t.permall; t.savestate; t.volatilestate]
+
+let lookup_key key t =
+  match key with
+  | "tpm2-00.permall" -> t.permall
+  | "tpm2-00.savestate" -> t.savestate
+  | "tpm2-00.volatilestate" -> t.volatilestate
+  | s -> Fmt.invalid_arg "Unknown TPM state key: %s" s
+
+let update_key key state t =
+  match key with
+  | "tpm2-00.permall" -> {t with permall = state }
+  | "tpm2-00.savestate" -> {t with savestate = state }
+  | "tpm2-00.volatilestate" -> { t  with volatilestate = state }
+  | s -> Fmt.invalid_arg "Unknown TPM state key: %s" s
 
 let serve_forever_lwt_callback_vtpm ~cache mutex vtpm _path _ req body =
   let uri = Cohttp.Request.uri req in
@@ -143,31 +142,27 @@ let serve_forever_lwt_callback_vtpm ~cache mutex vtpm _path _ req body =
   Lwt_mutex.with_lock mutex @@ fun () ->
   (* TODO: some logging *)
   match (Cohttp.Request.meth req, Uri.path uri) with
-  | `GET, key -> (
+  | `GET, key when key <> "/" -> (
       let* contents = with_xapi ~cache @@ VTPM.get_contents ~self:vtpm in
-      let map = deserialize contents in
-      match StringMap.find_opt key map with
-      | None ->
-          Cohttp_lwt_unix.Server.respond_not_found ~uri ()
-      | Some body ->
-          let headers =
-            Cohttp.Header.of_list [("Content-Type", "application/octet-stream")]
-          in
-          Cohttp_lwt_unix.Server.respond_string ~headers ~status:`OK
-            ~body ()
+      let body = contents |> deserialize |> lookup_key key in
+      let headers =
+        Cohttp.Header.of_list [("Content-Type", "application/octet-stream")]
+      in
+      Cohttp_lwt_unix.Server.respond_string ~headers ~status:`OK
+        ~body ()
     )
 
   | `PUT, key when key <> "/" ->
       let* body = Cohttp_lwt.Body.to_string body in
       let* contents = with_xapi ~cache @@ VTPM.get_contents ~self:vtpm in
-      let contents = contents |> deserialize |> StringMap.add key body |> serialize in
+      let contents = contents |> deserialize |> update_key key body |> serialize in
       let* () = with_xapi ~cache @@ VTPM.set_contents ~self:vtpm ~contents in
       Cohttp_lwt_unix.Server.respond ~status:`No_content
         ~body:Cohttp_lwt.Body.empty ()
 
   | `DELETE, key when key <> "/" ->
       let* contents = with_xapi ~cache @@ VTPM.get_contents ~self:vtpm in
-      let contents = contents |> deserialize |> StringMap.remove key |> serialize in
+      let contents = contents |> deserialize |> update_key key "" |> serialize in
       let* () = with_xapi ~cache @@ VTPM.set_contents ~self:vtpm ~contents in
       Cohttp_lwt_unix.Server.respond ~status:`No_content
         ~body:Cohttp_lwt.Body.empty ()
