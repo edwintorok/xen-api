@@ -1278,7 +1278,7 @@ let consume_qemu_record fd limit domid uuid =
 
 let restore_common (task : Xenops_task.task_handle) ~xc ~xs
     ~(dm : Device.Profile.t) ~domain_type ~store_port ~store_domid:_
-    ~console_port ~console_domid:_ ~no_incr_generationid:_ ~vcpus:_ ~extras
+    ~console_port ~console_domid:_ ~no_incr_generationid:_ ~vcpus:_ ~extras ~vtpm
     manager_path domid main_fd vgpu_fd =
   let module DD = Debug.Make (struct let name = "mig64" end) in
   let open DD in
@@ -1405,7 +1405,7 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
                 debug "Read swtpm record header (domid=%d length=%Ld)" domid len ;
                 let contents = Io.read fd (Io.int_of_int64_exn len) in
                 debug "Read swtpm record contents (domid=%d)" domid ;
-                Device.Dm.restore_vtpm task ~xs ~contents domid ;
+                Device.Dm.restore_vtpm task ~xs ~contents ~vtpm domid ;
                 process_header fd res
             | End_of_image, _ ->
                 debug "Read suspend image footer" ;
@@ -1539,7 +1539,7 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
 
 let restore (task : Xenops_task.task_handle) ~xc ~xs ~dm ~store_domid
     ~console_domid ~no_incr_generationid ~timeoffset ~extras info ~manager_path
-    domid fd vgpu_fd =
+    ~vtpm domid fd vgpu_fd =
   let static_max_kib = info.memory_max in
   let target_kib = info.memory_target in
   let vcpus = info.vcpus in
@@ -1584,7 +1584,7 @@ let restore (task : Xenops_task.task_handle) ~xc ~xs ~dm ~store_domid
   in
   let store_mfn, console_mfn =
     restore_common task ~xc ~xs ~dm ~domain_type ~store_port ~store_domid
-      ~console_port ~console_domid ~no_incr_generationid ~vcpus ~extras
+      ~console_port ~console_domid ~no_incr_generationid ~vcpus ~extras ~vtpm
       manager_path domid fd vgpu_fd
   in
   let local_stuff = console_keys console_port console_mfn in
