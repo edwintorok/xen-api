@@ -705,7 +705,7 @@ module Swtpm = struct
        xenopsd needs to be in charge of choosing the scheme according to the backend
     *)
     let state_uri =
-      (* HACK for testing, should be a unix socket and http+unix *) "http://localhost:7000"
+      (* HACK for testing, should be a unix socket and unix+http *) "http://localhost:7000"
     in
     let args = Fe_argv.Add.many [string_of_int domid; tpm_root; state_uri] in
     let args = Fe_argv.run args |> snd |> Fe_argv.argv in
