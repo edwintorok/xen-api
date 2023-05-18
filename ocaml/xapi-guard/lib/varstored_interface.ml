@@ -99,8 +99,6 @@ let serve_forever_lwt_callback rpc_fn path _ req body =
       in
       Cohttp_lwt_unix.Server.respond_string ~status:`Method_not_allowed ~body ()
 
-module StringMap = Map.Make(String)
-
 (* The TPM has 3 kinds of states *)
 type state =
   { permall: string (** permanent storage *)
@@ -122,16 +120,16 @@ let serialize t =
 
 let lookup_key key t =
   match key with
-  | "tpm2-00.permall" -> t.permall
-  | "tpm2-00.savestate" -> t.savestate
-  | "tpm2-00.volatilestate" -> t.volatilestate
+  | "/tpm2-00.permall" -> t.permall
+  | "/tpm2-00.savestate" -> t.savestate
+  | "/tpm2-00.volatilestate" -> t.volatilestate
   | s -> Fmt.invalid_arg "Unknown TPM state key: %s" s
 
 let update_key key state t =
   match key with
-  | "tpm2-00.permall" -> {t with permall = state }
-  | "tpm2-00.savestate" -> {t with savestate = state }
-  | "tpm2-00.volatilestate" -> { t  with volatilestate = state }
+  | "/tpm2-00.permall" -> {t with permall = state }
+  | "/tpm2-00.savestate" -> {t with savestate = state }
+  | "/tpm2-00.volatilestate" -> { t  with volatilestate = state }
   | s -> Fmt.invalid_arg "Unknown TPM state key: %s" s
 
 let serve_forever_lwt_callback_vtpm ~cache mutex vtpm _path _ req body =
