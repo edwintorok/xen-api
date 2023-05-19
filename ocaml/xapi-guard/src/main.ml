@@ -98,7 +98,7 @@ let listen_for_vm {Persistent.vm_uuid; path; gid} =
   let* vm = with_xapi ~cache @@ Xen_api_lwt_unix.VM.get_by_uuid ~uuid:vm_uuid_str in
   let* vTPMs = with_xapi ~cache @@ Xen_api_lwt_unix.VM.get_VTPMs ~self:vm in
   let* stop_server2 =
-    if vTPMs <> [] && Astring.String.is_infix ~affix:"/swtpm/" path then
+    if vTPMs <> [] && Astring.String.is_infix ~affix:"/swtpm" path then
       let* uuid = with_xapi ~cache @@ Xen_api_lwt_unix.VTPM.get_uuid
       ~self:(List.hd vTPMs) in
       make_server_vtpm_rest ~cache "" (Uuidm.of_string uuid |> Option.get)

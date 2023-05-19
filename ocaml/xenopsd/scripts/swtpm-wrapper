@@ -73,6 +73,7 @@ def make_socket(fname):
     return sock
 
 def check_state_needs_init(fname):
+    print("Checking TPM state %s" % fname)
 
     if not os.path.exists(fname):
         return True
@@ -115,14 +116,20 @@ def main(argv):
     tpm_state_scheme = parsed.scheme
     tpm_state_file = parsed.path.lstrip('/')
     tpm_file = os.path.join(tpm_dir, tpm_state_file)
+    needs_upload = False
 
     if (tpm_state_scheme == "dir"):
         tpm_uri = tpm_dir
+        tpm_state = tpm_uri
     elif (tpm_state_scheme == "file"):
         tpm_uri = tpm_state_scheme + "://" + tpm_file
+        tpm_state = tpm_uri
     elif (tpm_state_scheme == "http" or tpm_state_scheme == "unix+http"):
         tpm_uri = tpm_state
-        tpm_file = None
+        needs_upload = True
+        tpm_state = tpm_dir
+        os.makedirs(tpm_state, exist_ok=True)
+        tpm_file = os.path.join(tpm_dir, "tpm2-00.permall")
     else:
         sys.exit("Unknown state scheme  %s\n" % tpm_state_scheme)
 
@@ -130,12 +137,21 @@ def main(argv):
     tpm_env["LD_LIBRARY_PATH"] = "/usr/lib:"
 
     # TODO: xapi should tell us whether the state is empty
-    # for now this will only work if the TPM state exists already
-    if tpm_file and check_state_needs_init(tpm_file):
-        # Initial manufacture
+    if check_state_needs_init(tpm_file):
+        print('Initial manufacture')
         tpm_exe = '/usr/bin/swtpm_setup'
-        tpm_args = ["swtpm_setup", "--tpm2", "--tpm-state", tpm_uri, "--createek", "--create-ek-cert", "--create-platform-cert", "--lock-nvram", "--not-overwrite"]
+        tpm_args = ["swtpm_setup", "--tpm2", "--tpm-state", tpm_state, "--createek", "--create-ek-cert", "--create-platform-cert", "--lock-nvram", "--not-overwrite"]
         subprocess.check_call(tpm_args, executable=tpm_exe, env=tpm_env)
+        if needs_upload:
+          tpm_file_b64 = tpm_file + ".b64"
+          with open(tpm_file, 'rb') as binary:
+             with open(tpm_file_b64, "w") as encoded:
+               subprocess.check_call(["base64", "-w0"], stdin=binary, stdout=encoded)
+          os.rename(tpm_file_b64, tpm_file)
+	  # name must not contain .b64
+          subprocess.check_call(["curl", tpm_uri, "--fail", "--upload-file", tpm_file]) 
+          os.unlink(tpm_file)
+          print("Uploaded initial TPM to %s" % tpm_uri)
 
     tpm_exe = '/usr/bin/swtpm'
     uid = pwd.getpwnam('swtpm_base').pw_uid + domid
@@ -189,13 +205,13 @@ def main(argv):
                "--tpm2",
                "--tpmstate", state_param,
                "--ctrl", "type=unixio,fd=%i" % sock.fileno(),
-               "--log", "level=1",
+               "--log", "level=99",
                "--pid", "file=%s" % swtpm_pid,
                "-t"] + tpm_args
 
     swtpm = subprocess.Popen(tpm_args,executable=tpm_exe, preexec_fn=prepare_exec(),
                              pass_fds=(sock.fileno(),), env=tpm_env,
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print("Exec: %s %s" % (tpm_exe, " ".join(tpm_args)))
 
     sys.stdout.flush()
