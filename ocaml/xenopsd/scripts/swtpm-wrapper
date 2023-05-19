@@ -58,7 +58,8 @@ def prepare_exec():
     limit = 256 * 1024
     setrlimit(RLIMIT_FSIZE, (limit, limit))
 
-    flags = CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWNET
+    flags = CLONE_NEWNS | CLONE_NEWIPC
+    # | CLONE_NEWNET
     unshare(flags)
 
     sys.stdout.flush()
@@ -207,6 +208,7 @@ def main(argv):
                "--ctrl", "type=unixio,fd=%i" % sock.fileno(),
                "--log", "level=99",
                "--pid", "file=%s" % swtpm_pid,
+	       "--seccomp","action=none",# TODO: due to curl syscalls
                "-t"] + tpm_args
 
     swtpm = subprocess.Popen(tpm_args,executable=tpm_exe, preexec_fn=prepare_exec(),
