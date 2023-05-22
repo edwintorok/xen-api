@@ -531,6 +531,7 @@ module Vgpu = struct
 end
 
 module SystemdDaemonMgmt (D : DAEMONPIDPATH) = struct
+  let name = D.name
   (* backward compat: for daemons running during an update *)
   module Compat = DaemonMgmt (D)
 
@@ -684,6 +685,11 @@ module Swtpm = struct
     ) else
       debug "vTPM state for domid %d is empty: not restoring" domid
 
+  let check_state_needs_init task vtpm_uuid =
+    let dbg = Xenops_task.get_dbg task in
+    let contents = Varstore_privileged_client.Client.vtpm_get_contents dbg vtpm_uuid in
+    String.length contents = 0
+
   let start ~xs ~vtpm_uuid ~index task domid =
     debug "Preparing to start swtpm-wrapper to provide a vTPM (domid=%d)" domid ;
     let name = "swtpm" in
@@ -707,7 +713,11 @@ module Swtpm = struct
     let state_uri =
       (* HACK for testing, should be a unix socket and unix+http *) "http://localhost:7000"
     in
-    let args = Fe_argv.Add.many [string_of_int domid; tpm_root; state_uri] in
+    (* fetch it here instead of swtpm-wrapper: better error reporting,
+     swtpm-wrapper runs as a service and getting the exact error back is
+     difficult. *)
+    let needs_init = check_state_needs_init task vtpm_uuid in
+    let args = Fe_argv.Add.many [string_of_int domid; tpm_root; state_uri; string_of_bool needs_init] in
     let args = Fe_argv.run args |> snd |> Fe_argv.argv in
     let timeout_seconds = !Xenopsd.swtpm_ready_timeout in
     let execute = D.start_daemon in

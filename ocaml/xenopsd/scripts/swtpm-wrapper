@@ -97,17 +97,18 @@ def check_state_needs_init(fname):
 def main(argv):
     print("Arguments: %s" % " ".join(argv[1:]))
 
-    if len(argv) < 4:
+    if len(argv) < 5:
         sys.exit("Not enough arguments.")
 
     domid = int(argv[1])
     tpm_dir = argv[2]
     tpm_state = argv[3]
+    needs_init = argv[4] == "true"
     tpm_path = tpm_dir
     depriv = True
     depriv = False # FOR TESTING :7000 ONLY
 
-    for arg in argv[4:]:
+    for arg in argv[5:]:
         if arg == "--priv":
             depriv = False
         else:
@@ -130,27 +131,27 @@ def main(argv):
         needs_upload = True
         tpm_state = tpm_dir
         os.makedirs(tpm_state, exist_ok=True)
-        tpm_file = os.path.join(tpm_dir, "tpm2-00.permall")
+        tpm_file = None
     else:
         sys.exit("Unknown state scheme  %s\n" % tpm_state_scheme)
 
     tpm_env = dict(os.environ)
     tpm_env["LD_LIBRARY_PATH"] = "/usr/lib:"
 
-    # TODO: xapi should tell us whether the state is empty
-    if check_state_needs_init(tpm_file):
+    if needs_init or (tpm_file is not None and check_state_needs_init(tpm_file)):
         print('Initial manufacture')
         tpm_exe = '/usr/bin/swtpm_setup'
         tpm_args = ["swtpm_setup", "--tpm2", "--tpm-state", tpm_state, "--createek", "--create-ek-cert", "--create-platform-cert", "--lock-nvram", "--not-overwrite"]
         subprocess.check_call(tpm_args, executable=tpm_exe, env=tpm_env)
         if needs_upload:
+          tpm_file = os.path.join(tpm_dir, "tpm2-00.permall")
           tpm_file_b64 = tpm_file + ".b64"
           with open(tpm_file, 'rb') as binary:
              with open(tpm_file_b64, "w") as encoded:
                subprocess.check_call(["base64", "-w0"], stdin=binary, stdout=encoded)
           os.rename(tpm_file_b64, tpm_file)
-	  # name must not contain .b64
-          subprocess.check_call(["curl", tpm_uri, "--fail", "--upload-file", tpm_file]) 
+          # name must not contain .b64
+          subprocess.check_call(["curl", tpm_uri, "--fail", "--upload-file", tpm_file])
           os.unlink(tpm_file)
           print("Uploaded initial TPM to %s" % tpm_uri)
 
