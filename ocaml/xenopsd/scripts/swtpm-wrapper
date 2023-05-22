@@ -106,7 +106,6 @@ def main(argv):
     needs_init = argv[4] == "true"
     tpm_path = tpm_dir
     depriv = True
-    depriv = False # FOR TESTING :7000 ONLY
 
     for arg in argv[5:]:
         if arg == "--priv":
@@ -191,7 +190,8 @@ def main(argv):
             return
 
         tpm_path = '/'
-        tpm_uri = tpm_state
+        if not needs_upload:
+            tpm_uri = tpm_state
 
     swtpm_sock = os.path.join(tpm_dir, "swtpm-sock")
     swtpm_pid = os.path.join(tpm_path, "swtpm-%d.pid" % domid)

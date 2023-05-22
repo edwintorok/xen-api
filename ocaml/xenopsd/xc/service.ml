@@ -697,7 +697,7 @@ module Swtpm = struct
     let pid_filename = pidfile_path domid in
     let vm_uuid = Xenops_helpers.uuid_of_domid ~xs domid |> Uuidx.to_string in
 
-    let chroot, _socket_path =
+    let chroot, socket_path =
       Xenops_sandbox.Swtpm_guard.start (Xenops_task.get_dbg task) ~vm_uuid
         ~domid ~paths:[]
     in
@@ -711,7 +711,7 @@ module Swtpm = struct
        xenopsd needs to be in charge of choosing the scheme according to the backend
     *)
     let state_uri =
-      (* HACK for testing, should be a unix socket and unix+http *) "http://localhost:7000"
+      Printf.sprintf "unix+http://%s" socket_path
     in
     (* fetch it here instead of swtpm-wrapper: better error reporting,
      swtpm-wrapper runs as a service and getting the exact error back is

@@ -62,13 +62,7 @@ let serve_forever_lwt path callback =
   let stop, do_stop = Lwt.task () in
   let server = Cohttp_lwt_unix.Server.make ~callback ~conn_closed () in
   (* small backlog: this is a dedicated socket for a single client *)
-  let* socket =
-    (* HACK for  testing vtpm *)
-    if path = "" then
-      Conduit_lwt_server.listen ~backlog:128 (Unix.ADDR_INET
-    (Unix.inet_addr_loopback, 7000))
-    else
-      Conduit_lwt_server.listen ~backlog:2 (Unix.ADDR_UNIX path) in
+  let* socket = Conduit_lwt_server.listen ~backlog:2 (Unix.ADDR_UNIX path) in
   let server_wait_exit =
     Cohttp_lwt_unix.Server.create ~stop
       ~mode:(`TCP (`Socket socket))

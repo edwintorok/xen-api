@@ -94,20 +94,15 @@ let listen_for_vm {Persistent.vm_uuid; path; gid} =
   let vm_uuid_str = Uuidm.to_string vm_uuid in
   D.debug "resume: listening on socket %s for VM %s" path vm_uuid_str ;
   let* () = safe_unlink path in
-  let* stop_server = make_server_rpcfn ~cache path vm_uuid_str in
   let* vm = with_xapi ~cache @@ Xen_api_lwt_unix.VM.get_by_uuid ~uuid:vm_uuid_str in
   let* vTPMs = with_xapi ~cache @@ Xen_api_lwt_unix.VM.get_VTPMs ~self:vm in
-  let* stop_server2 =
+  let* stop_server =
     if vTPMs <> [] && Astring.String.is_infix ~affix:"/swtpm" path then
       let* uuid = with_xapi ~cache @@ Xen_api_lwt_unix.VTPM.get_uuid
       ~self:(List.hd vTPMs) in
-      make_server_vtpm_rest ~cache "" (Uuidm.of_string uuid |> Option.get)
-    else Lwt.return Lwt.return
-  in
-  let stop_server () =
-    let* () = stop_server ()
-    and* () = stop_server2 ()
-    in Lwt.return_unit
+      make_server_vtpm_rest ~cache path (Uuidm.of_string uuid |> Option.get)
+    else
+      make_server_rpcfn ~cache path vm_uuid_str
   in
   let* () = log_fds () in
   Hashtbl.add sockets path (stop_server, (vm_uuid, gid)) ;
