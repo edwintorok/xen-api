@@ -446,6 +446,7 @@ module Dm : sig
        Xenops_task.task_handle
     -> xs:Xenstore.Xs.xsh
     -> contents:string
+    -> vtpm:Xenops_interface.Vm.tpm option
     -> Xenctrl.domid
     -> unit
 
