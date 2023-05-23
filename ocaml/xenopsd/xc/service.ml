@@ -669,7 +669,7 @@ module Swtpm = struct
   let pidfile_path domid = Printf.sprintf "swtpm-%d.pid" domid
 
   module D = SystemdDaemonMgmt (struct
-    let name = "swtpm-wrapper"
+    let name = "swtpm"
 
     let pid_location = Pid.File pidfile_path
   end)
