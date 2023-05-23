@@ -102,7 +102,7 @@ def main(argv):
     tpm_dir = argv[2]
     tpm_state = argv[3]
     tpm_path = tpm_dir
-    depriv = True
+    depriv = False # FIXME:  depriv True doesn't work with curl
 
     for arg in argv[4:]:
         if arg == "--priv":
