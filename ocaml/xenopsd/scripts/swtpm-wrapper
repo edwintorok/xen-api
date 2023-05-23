@@ -188,7 +188,7 @@ def main(argv):
                "--tpm2",
                "--tpmstate", state_param,
                "--ctrl", "type=unixio,fd=%i" % sock.fileno(),
-               "--log", "level=1",
+               "--log", "level=99",
                "--pid", "file=%s" % swtpm_pid,
                "-t"] + tpm_args
 
