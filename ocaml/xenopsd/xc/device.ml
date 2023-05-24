@@ -3853,8 +3853,8 @@ module Dm = struct
     Unixext.write_string_to_file path efivars ;
     debug "Wrote EFI variables to %s (domid=%d)" path domid
 
-  let suspend_vtpms (task : Xenops_task.task_handle) ~xs domid ~vm_uuid ~vtpm =
-    debug "Called Dm.suspend_vtpms (domid=%d)" domid ;
+  let suspend_vtpm (task : Xenops_task.task_handle) ~xs domid ~vtpm =
+    debug "Called Dm.suspend_vtpm (domid=%d)" domid ;
     let dbg = Xenops_task.get_dbg task in
     Option.map
       (fun (Xenops_interface.Vm.Vtpm vtpm_uuid) ->
@@ -3863,9 +3863,9 @@ module Dm = struct
       vtpm
     |> Option.to_list
 
-  let restore_vtpm (task : Xenops_task.task_handle) ~xs ~contents ~vtpm domid =
-    debug "Called Dm.restore_vtpms (domid=%d)" domid ;
-    (* TODO: multiple vTPM support? *)
+  let restore_vtpm (task : Xenops_task.task_handle) ~xs:_ ~contents ~vtpm domid
+      =
+    debug "Called Dm.restore_vtpm (domid=%d)" domid ;
     let dbg = Xenops_task.get_dbg task in
     Option.iter
       (fun (Xenops_interface.Vm.Vtpm vtpm_uuid) ->

@@ -1678,7 +1678,7 @@ let suspend_emu_manager ~(task : Xenops_task.task_handle) ~xc:_ ~xs ~domain_type
                   Device.Dm.suspend_varstored task ~xs domid ~vm_uuid
                 in
                 let (_ : string list) =
-                  Device.Dm.suspend_vtpms task ~xs domid ~vm_uuid ~vtpm
+                  Device.Dm.suspend_vtpm task ~xs domid ~vtpm
                 in
                 ()
             ) ;
@@ -1760,12 +1760,10 @@ let forall f l =
   let open Suspend_image.M in
   fold (fun x () -> f x) l ()
 
-let write_vtpms_record task ~xs ~vtpm domid main_fd =
+let write_vtpm_record task ~xs ~vtpm domid main_fd =
   let open Suspend_image in
   let open Suspend_image.M in
-  Device.Dm.suspend_vtpms task ~xs domid
-    ~vm_uuid:(Uuidx.to_string (Xenops_helpers.uuid_of_domid ~xs domid))
-    ~vtpm
+  Device.Dm.suspend_vtpm task ~xs domid ~vtpm
   |> forall @@ fun swtpm_record ->
      let swtpm_rec_len = String.length swtpm_record in
      debug "Writing swtpm record (domid=%d length=%d)" domid swtpm_rec_len ;
@@ -1810,7 +1808,7 @@ let suspend (task : Xenops_task.task_handle) ~xc ~xs ~domain_type ~is_uefi ~dm
     >>= fun () ->
     ( if is_uefi then
         write_varstored_record task ~xs domid main_fd >>= fun () ->
-        write_vtpms_record task ~xs ~vtpm domid main_fd
+        write_vtpm_record task ~xs ~vtpm domid main_fd
     else
       return ()
     )

@@ -434,11 +434,10 @@ module Dm : sig
     -> Xenctrl.domid
     -> unit
 
-  val suspend_vtpms :
+  val suspend_vtpm :
        Xenops_task.task_handle
     -> xs:Xenstore.Xs.xsh
     -> Xenctrl.domid
-    -> vm_uuid:string
     -> vtpm:Xenops_interface.Vm.tpm option
     -> string list
 

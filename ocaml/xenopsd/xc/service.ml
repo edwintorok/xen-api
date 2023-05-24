@@ -531,8 +531,6 @@ module Vgpu = struct
 end
 
 module SystemdDaemonMgmt (D : DAEMONPIDPATH) = struct
-  let name = D.name
-
   (* backward compat: for daemons running during an update *)
   module Compat = DaemonMgmt (D)
 
