@@ -93,12 +93,12 @@ smoketest_guard()
     DIR="/var/lib/xcp/run/swtpm-root-${DOMID}/"
 
     # cleanup from previous test potentially
-    xapiguard-cli destroy smoketest "${DOMID}" "${DIR}/xapidepriv"
+    xapiguard-cli vtpm-destroy smoketest "${DOMID}" "${DIR}/xapidepriv"
     rm -rf "${DIR}"
 
     mkdir -p "${DIR}"
     trap 'rm -rf "${DIR}"' EXIT
-    xapiguard-cli create smoketest "\"${VM}\"" "${DOMID}" "${DIR}/xapidepriv"
+    xapiguard-cli vtpm-create smoketest "\"${VM}\"" "${DOMID}" "${DIR}/xapidepriv"
     trap './varstore_privileged_cli.exe destroy smoketest "${DOMID}" "${DIR}/xapidepriv"' EXIT
 
     smoketest_wrapper "unix+http://xapidepriv"
