@@ -216,7 +216,7 @@ let with_reusable_stunnel ?use_fork_exec_helper ?write_to_log ?verify_cert host
           incr attempt_number ;
           try
             let unique_id = get_new_stunnel_id () in
-            Stunnel.with_connect ~unique_id ?use_fork_exec_helper ?write_to_log
+            Stunnel_cache.with_connect ~unique_id ?use_fork_exec_helper ?write_to_log
               ~verify_cert host port
             @@ fun x ->
             if check_reusable x.Stunnel.fd (Stunnel.getpid x.Stunnel.pid) then
@@ -328,7 +328,7 @@ let with_transport ?(stunnel_wait_disconnect = true) transport f =
             host port f
         else
           let unique_id = get_new_stunnel_id () in
-          Stunnel.with_connect ~use_fork_exec_helper ~write_to_log ~unique_id
+          Stunnel_cache.with_connect ~use_fork_exec_helper ~write_to_log ~unique_id
             ~verify_cert ~extended_diagnosis:true host port f
       in
       st_proc' @@ fun st_proc ->

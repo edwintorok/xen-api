@@ -59,7 +59,7 @@ val appliance : verification_config
 
 val pool : verification_config
 
-val with_connect :
+val with_connect_unsafe :
      ?unique_id:int
   -> ?use_fork_exec_helper:bool
   -> ?write_to_log:(string -> unit)

@@ -309,7 +309,7 @@ let with_open_tcp_ssl server f =
   debug "Connecting via stunnel to [%s] port [%d]\n%!" server port ;
   (* We don't bother closing fds since this requires our close_and_exec wrapper *)
   let open Safe_resources in
-  Stunnel.with_connect ~use_fork_exec_helper:false
+  Stunnel_cache.with_connect ~use_fork_exec_helper:false
     ~write_to_log:(fun x -> debug "stunnel: %s\n%!" x)
     ~verify_cert:None ~extended_diagnosis:(!debug_file <> None) server port
   @@ fun x ->

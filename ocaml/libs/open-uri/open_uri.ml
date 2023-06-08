@@ -59,11 +59,11 @@ let with_open_uri ?verify_cert uri f =
       in
       match (Uri.host uri, Uri.port uri) with
       | Some host, Some port ->
-          Stunnel.with_connect ~verify_cert host port (fun s ->
+          Stunnel_cache.with_connect ~verify_cert host port (fun s ->
               f Safe_resources.Unixfd.(!(s.Stunnel.fd))
           )
       | Some host, None ->
-          Stunnel.with_connect ~verify_cert host !Constants.https_port (fun s ->
+          Stunnel_cache.with_connect ~verify_cert host !Constants.https_port (fun s ->
               f Safe_resources.Unixfd.(!(s.Stunnel.fd))
           )
       | _, _ ->

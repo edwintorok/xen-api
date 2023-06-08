@@ -165,7 +165,7 @@ let open_secure_connection () =
   let host = !get_master_address () in
   let port = !Db_globs.https_port in
   let verify_cert = Stunnel_client.pool () in
-  Stunnel.with_connect ~use_fork_exec_helper:true ~extended_diagnosis:true
+  Stunnel_cache.with_connect ~use_fork_exec_helper:true ~extended_diagnosis:true
     ~write_to_log:(fun x -> debug "stunnel: %s\n" x)
     ~verify_cert host port
   @@ fun st_proc ->

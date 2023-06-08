@@ -91,7 +91,7 @@ let init_tls_verification () =
 let with_open_tcp_ssl server f =
   let port = 443 in
   (* We don't bother closing fds since this requires our close_and_exec wrapper *)
-  Stunnel.with_connect ~use_fork_exec_helper:false
+  Stunnel_cache.with_connect ~use_fork_exec_helper:false
     ~write_to_log:(fun _ -> ())
     ~verify_cert:(Stunnel_client.pool ()) server port
   @@ fun x -> f x.Stunnel.fd

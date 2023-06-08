@@ -242,5 +242,5 @@ let with_connect ?use_fork_exec_helper ?write_to_log ~verify_cert host port f =
       r
   | None ->
       info "connect did not find cached stunnel for endpoint %s:%d" host port ;
-      Stunnel.with_connect ?use_fork_exec_helper ?write_to_log ~verify_cert host
+      Stunnel_cache.with_connect_unsafe ?use_fork_exec_helper ?write_to_log ~verify_cert host
         port f

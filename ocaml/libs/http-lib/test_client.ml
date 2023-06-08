@@ -20,7 +20,7 @@ let with_connection ip port f =
   finally (fun () -> f s) (fun () -> Unix.close s)
 
 let with_stunnel ip port f =
-  Stunnel.with_connect ~verify_cert:None ~use_fork_exec_helper:false
+  Stunnel_cache.with_connect ~verify_cert:None ~use_fork_exec_helper:false
     ~extended_diagnosis:false ip port
   @@ fun s ->
   let fd = s.Stunnel.fd in
