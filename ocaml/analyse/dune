@@ -1,0 +1,16 @@
+(executable
+	(public_name xapi-analyze)
+	(package xapi-analyse)
+	(name analyse)
+	(libraries
+	     dune-build-info
+	     rrd-transport
+		fmt
+	     xapi-rrd
+	     xapi-rrd.unix
+	     xmlm
+		 owl
+		 owl-base
+ 	)
+	; TODO: enabled_if owl
+)
