@@ -888,7 +888,7 @@ let flush_db_to_redo_log db log =
     write_db_to_fd log ;
   !(log.currently_accessible)
 
-let flush_db_or_raise db log =
+let flush_db_exn db log =
   match (db, log.read_only) with
   | None, true ->
       () (* no-op *)
@@ -904,9 +904,9 @@ let flush_db_or_raise db log =
         "Database provided during Redo_log.enable, but the redo log is \
          read-only!"
 
-let enable db log reason = enable log reason ; flush_db_or_raise db log
+let enable db log reason = enable log reason ; flush_db_exn db log
 
-let enable_block db log path = enable_block log path ; flush_db_or_raise db log
+let enable_block db log path = enable_block log path ; flush_db_exn db log
 
 (* Write the given database to all active redo_logs *)
 let flush_db_to_all_active_redo_logs db =
