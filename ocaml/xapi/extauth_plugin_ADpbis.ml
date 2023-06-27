@@ -849,8 +849,8 @@ module AuthADlw : Auth_signature.AUTH_MODULE = struct
     in
     go 0
 
-  let is_pbis_server_available max =
-    Locking_helpers.Named_mutex.execute mutex_check_availability (fun () ->
+  let is_pbis_server_available ~__context max =
+    Locking_helpers.Named_mutex.execute ~__context mutex_check_availability (fun () ->
         _is_pbis_server_available max
     )
 
@@ -885,7 +885,7 @@ module AuthADlw : Auth_signature.AUTH_MODULE = struct
           explicitly filter any one-time credentials [like AD username/password for example] that it
           does not need long-term.]
   *)
-  let on_enable config_params =
+  let on_enable ~__context config_params =
     (* but in the ldap plugin, we should 'join the AD/kerberos domain', i.e. we should*)
     (* basically: (1) create a machine account in the kerberos realm,*)
     (* (2) store the machine account password somewhere locally (in a keytab) *)
@@ -990,7 +990,7 @@ module AuthADlw : Auth_signature.AUTH_MODULE = struct
           in
           let max_tries = 60 in
           (* tests 60 x 5.0 seconds = 300 seconds = 5minutes trying *)
-          if not (is_pbis_server_available max_tries) then (
+          if not (is_pbis_server_available ~__context max_tries) then (
             let errmsg =
               Printf.sprintf
                 "External authentication server not available after %i query \
@@ -1130,7 +1130,7 @@ module AuthADlw : Auth_signature.AUTH_MODULE = struct
       Called internally by xapi whenever it starts up. The system_boot flag is true iff xapi is
       starting for the first time after a host boot
   *)
-  let on_xapi_initialize _system_boot =
+  let on_xapi_initialize ~__context _system_boot =
     (* the AD server is initialized outside xapi, by init.d scripts *)
 
     (* this function is called during xapi initialization in xapi.ml *)
@@ -1138,7 +1138,7 @@ module AuthADlw : Auth_signature.AUTH_MODULE = struct
     (* make sure that the AD/LSASS server is responding before returning *)
     let max_tries = 12 in
     (* tests 12 x 5.0 seconds = 60 seconds = up to 1 minute trying *)
-    if not (is_pbis_server_available max_tries) then (
+    if not (is_pbis_server_available ~__context max_tries) then (
       let errmsg =
         Printf.sprintf
           "External authentication server not available after %i query tests"

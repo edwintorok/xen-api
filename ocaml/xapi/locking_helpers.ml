@@ -215,7 +215,7 @@ module Named_mutex = struct
 
   let create name = {name; m= Mutex.create ()}
 
-  let execute (x : t) f =
+  let execute (x : t) ~__context:_ f =
     let r = Lock x.name in
     Thread_state.waiting_for r ;
     with_lock x.m (fun () ->

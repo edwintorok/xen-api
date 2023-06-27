@@ -303,7 +303,7 @@ module AuthX : Auth_signature.AUTH_MODULE = struct
      		explicitly filter any one-time credentials [like AD username/password for example] that it
      		does not need long-term.]
   *)
-  let on_enable _config_params =
+  let on_enable ~__context:_ _config_params =
     (* nothing to do in this unix plugin, we always have /etc/passwd and /etc/group *)
     ()
 
@@ -323,7 +323,7 @@ module AuthX : Auth_signature.AUTH_MODULE = struct
      	Called internally by xapi whenever it starts up. The system_boot flag is true iff xapi is
      	starting for the first time after a host boot
   *)
-  let on_xapi_initialize _system_boot =
+  let on_xapi_initialize ~__context _system_boot =
     (* again, nothing to be initialized here in this unix plugin *)
     ()
 

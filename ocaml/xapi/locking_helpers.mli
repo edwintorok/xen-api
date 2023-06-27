@@ -46,5 +46,5 @@ module Named_mutex : sig
 
   val create : string -> t
 
-  val execute : t -> (unit -> 'a) -> 'a
+  val execute : t -> __context:Context.t -> (unit -> 'a) -> 'a
 end

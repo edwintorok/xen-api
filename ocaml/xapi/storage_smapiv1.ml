@@ -193,7 +193,7 @@ module SMAPIv1 : Server_impl = struct
         ~subtask_of:(Ref.of_string dbg) (fun __context ->
           let task = Context.get_task_id __context in
           Storage_interface.Raw
-            (Sm.sr_probe
+            (Sm.sr_probe ~__context
                (Some task, Sm.sm_master true :: device_config)
                _type sm_config
             )
@@ -270,7 +270,7 @@ module SMAPIv1 : Server_impl = struct
           let device_config = Sm.sm_master srmaster :: device_config in
           Sm.call_sm_functions ~__context ~sR:sr (fun _ _type ->
               try
-                Sm.sr_attach
+                Sm.sr_attach ~__context
                   (Some (Context.get_task_id __context), device_config)
                   _type sr
               with
@@ -291,7 +291,7 @@ module SMAPIv1 : Server_impl = struct
               ~uuid:(Storage_interface.Sr.string_of sr)
           in
           Sm.call_sm_functions ~__context ~sR:sr (fun device_config _type ->
-              try Sm.sr_detach device_config _type sr with
+              try Sm.sr_detach ~__context device_config _type sr with
               | Api_errors.Server_error (code, params) ->
                   raise (Storage_error (Backend_error (code, params)))
               | e ->

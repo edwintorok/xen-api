@@ -1475,7 +1475,7 @@ module AuthADWinbind : Auth_signature.AUTH_MODULE = struct
           explicitly filter any one-time credentials [like AD username/password for example] that it
           does not need long-term.]
   *)
-  let on_enable config_params =
+  let on_enable ~__context:_ config_params =
     let user =
       from_config ~name:"user" ~err_msg:"enable requires user" ~config_params
     in
@@ -1591,7 +1591,7 @@ module AuthADWinbind : Auth_signature.AUTH_MODULE = struct
       Called internally by xapi whenever it starts up. The system_boot flag is true iff xapi is
       starting for the first time after a host boot
   *)
-  let on_xapi_initialize _system_boot =
+  let on_xapi_initialize ~__context:_ _system_boot =
     Winbind.start ~timeout:5. ~wait_until_success:true ;
     ClosestKdc.trigger_update ~start:ClosestKdc.startup_delay ;
     RotateMachinePassword.trigger_rotate ~start:5. ;

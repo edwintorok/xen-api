@@ -118,7 +118,7 @@ type t = {
        	 explicitly filter any one-time credentials [like AD username/password for example] that it
        	 does not need long-term.]
     *)
-    on_enable: (string * string) list -> unit
+    on_enable: __context:Context.t -> (string * string) list -> unit
   ; (* unit on_disable()
 
        	 Called internally by xapi _on each host_ when a client disables an auth service via the XenAPI.
@@ -132,7 +132,7 @@ type t = {
        	 Called internally by xapi whenever it starts up. The system_boot flag is true iff xapi is
        	 starting for the first time after a host boot
     *)
-    on_xapi_initialize: bool -> unit
+    on_xapi_initialize: __context:Context.t -> bool -> unit
   ; (* unit on_xapi_exit()
 
        	 Called internally when xapi is doing a clean exit.

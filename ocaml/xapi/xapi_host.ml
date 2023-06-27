@@ -1770,7 +1770,7 @@ let enable_external_auth ~__context ~host ~config ~service_name ~auth_type =
 
           (* use the special 'named dispatcher' function to call an extauth plugin function even though we have *)
           (* not yet set up the external_auth_type value that will enable generic access to the extauth plugin. *)
-          (Ext_auth.nd auth_type).on_enable config ;
+          (Ext_auth.nd auth_type).on_enable ~__context config ;
 
           (* from this point on, we have successfully enabled the external authentication services. *)
 
