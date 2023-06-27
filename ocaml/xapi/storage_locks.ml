@@ -32,12 +32,12 @@ let make () =
   }
 
 (** Execute the function with the specified instance locked *)
-let with_instance_lock t key f =
+let with_instance_lock ~__context t key f =
   let r =
     Locking_helpers.Lock
       ("SM/" ^ Ref.really_pretty_and_small (Ref.of_string key))
   in
-  Locking_helpers.Thread_state.waiting_for r ;
+  let __context = Locking_helpers.Thread_state.waiting_for ~__context r in
   with_lock t.m (fun () ->
       (* Wait for the lock to be free (ie the table entry to be removed and the master lock to be released *)
       while Hashtbl.mem t.t key || t.master_lock do
@@ -45,16 +45,16 @@ let with_instance_lock t key f =
       done ;
       Hashtbl.replace t.t key ()
   ) ;
-  Locking_helpers.Thread_state.acquired r ;
-  Xapi_stdext_pervasives.Pervasiveext.finally f (fun () ->
+  let __context = Locking_helpers.Thread_state.acquired ~__context r in
+  Xapi_stdext_pervasives.Pervasiveext.finally (f ~__context) (fun () ->
       with_lock t.m (fun () -> Hashtbl.remove t.t key ; Condition.broadcast t.c) ;
-      Locking_helpers.Thread_state.released r
+      Locking_helpers.Thread_state.released ~__context r
   )
 
 (** Execute the function with the master_lock held and no instance locks held *)
-let with_master_lock t f =
+let with_master_lock ~__context t f =
   let r = Locking_helpers.Lock "SM" in
-  Locking_helpers.Thread_state.waiting_for r ;
+  let __context = Locking_helpers.Thread_state.waiting_for ~__context r in
   with_lock t.m (fun () ->
       (* Wait for the master_lock to be released *)
       while t.master_lock do
@@ -67,11 +67,11 @@ let with_master_lock t f =
         Condition.wait t.c t.m
       done
   ) ;
-  Locking_helpers.Thread_state.acquired r ;
-  Xapi_stdext_pervasives.Pervasiveext.finally f (fun () ->
+  let __context = Locking_helpers.Thread_state.acquired ~__context r in
+  Xapi_stdext_pervasives.Pervasiveext.finally (f ~__context) (fun () ->
       with_lock t.m (fun () ->
           t.master_lock <- false ;
           Condition.broadcast t.c
       ) ;
-      Locking_helpers.Thread_state.released r
+      Locking_helpers.Thread_state.released ~__context r
   )

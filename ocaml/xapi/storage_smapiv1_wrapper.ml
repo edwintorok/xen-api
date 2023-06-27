@@ -395,9 +395,9 @@ functor
       let locks_remove sr =
         with_lock locks_m (fun () -> Hashtbl.remove locks (s_of_sr sr))
 
-      let with_vdi sr vdi f =
+      let with_vdi ~__context sr vdi f =
         let locks = locks_find sr in
-        Storage_locks.with_instance_lock locks (s_of_vdi vdi) f
+        Storage_locks.with_instance_lock ~__context locks (s_of_vdi vdi) f
 
       let with_all_vdis sr f =
         let locks = locks_find sr in
@@ -581,20 +581,20 @@ functor
         in
         match failures with [] -> next () | f :: _ -> raise f
 
-      let epoch_begin context ~dbg ~sr ~vdi ~vm ~persistent =
+      let epoch_begin ~__context context ~dbg ~sr ~vdi ~vm ~persistent =
         info "VDI.epoch_begin dbg:%s sr:%s vdi:%s vm:%s persistent:%b" dbg
           (s_of_sr sr) (s_of_vdi vdi) (s_of_vm vm) persistent ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi ~vm Vdi.leaked
               (fun () ->
                 Impl.VDI.epoch_begin context ~dbg ~sr ~vdi ~vm ~persistent
             )
         )
 
-      let attach3 context ~dbg ~dp ~sr ~vdi ~vm ~read_write =
+      let attach3 ~__context context ~dbg ~dp ~sr ~vdi ~vm ~read_write =
         info "VDI.attach3 dbg:%s dp:%s sr:%s vdi:%s vm:%s read_write:%b" dbg dp
           (s_of_sr sr) (s_of_vdi vdi) (s_of_vm vm) read_write ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi ~vm Vdi.leaked
               (fun () ->
                 let state =
@@ -618,11 +618,11 @@ functor
         let vm = vm_of_s "0" in
         attach3 context ~dbg ~dp ~sr ~vdi ~vm ~read_write
 
-      let attach context ~dbg ~dp ~sr ~vdi ~read_write =
+      let attach ~__context context ~dbg ~dp ~sr ~vdi ~read_write =
         info "VDI.attach dbg:%s dp:%s sr:%s vdi:%s read_write:%b" dbg dp
           (s_of_sr sr) (s_of_vdi vdi) read_write ;
         let vm = vm_of_s "0" in
-        let backend = attach3 context ~dbg ~dp ~sr ~vdi ~vm ~read_write in
+        let backend = attach3 ~__context context ~dbg ~dp ~sr ~vdi ~vm ~read_write in
         (* VDI.attach2 should be used instead, VDI.attach is only kept for
            backwards-compatibility, because older xapis call Remote.VDI.attach during SXM.
            However, they ignore the return value, so in practice it does not matter what
@@ -661,10 +661,10 @@ functor
                  )
               )
 
-      let activate3 context ~dbg ~dp ~sr ~vdi ~vm =
+      let activate3 ~__context context ~dbg ~dp ~sr ~vdi ~vm =
         info "VDI.activate3 dbg:%s dp:%s sr:%s vdi:%s vm:%s" dbg dp (s_of_sr sr)
           (s_of_vdi vdi) (s_of_vm vm) ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi ~vm Vdi.leaked
               (fun () ->
                 ignore
@@ -683,10 +683,10 @@ functor
         let vm = vm_of_s "0" in
         activate3 context ~dbg ~dp ~sr ~vdi ~vm
 
-      let deactivate context ~dbg ~dp ~sr ~vdi ~vm =
+      let deactivate ~__context context ~dbg ~dp ~sr ~vdi ~vm =
         info "VDI.deactivate dbg:%s dp:%s sr:%s vdi:%s vm:%s" dbg dp
           (s_of_sr sr) (s_of_vdi vdi) (s_of_vm vm) ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi ~vm Vdi.leaked
               (fun () ->
                 ignore
@@ -696,10 +696,10 @@ functor
             )
         )
 
-      let detach context ~dbg ~dp ~sr ~vdi ~vm =
+      let detach ~__context context ~dbg ~dp ~sr ~vdi ~vm =
         info "VDI.detach dbg:%s dp:%s sr:%s vdi:%s vm:%s" dbg dp (s_of_sr sr)
           (s_of_vdi vdi) (s_of_vm vm) ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi ~vm Vdi.leaked
               (fun () ->
                 ignore
@@ -709,10 +709,10 @@ functor
             )
         )
 
-      let epoch_end context ~dbg ~sr ~vdi ~vm =
+      let epoch_end ~__context context ~dbg ~sr ~vdi ~vm =
         info "VDI.epoch_end dbg:%s sr:%s vdi:%s vm:%s" dbg (s_of_sr sr)
           (s_of_vdi vdi) (s_of_vm vm) ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi ~vm Vdi.leaked
               (fun () -> Impl.VDI.epoch_end context ~dbg ~sr ~vdi ~vm
             )
@@ -742,42 +742,42 @@ functor
         | result ->
             result
 
-      let snapshot_and_clone call_name call_f context ~dbg ~sr ~vdi_info =
+      let snapshot_and_clone ~__context call_name call_f context ~dbg ~sr ~vdi_info =
         info "%s dbg:%s sr:%s vdi_info:%s" call_name dbg (s_of_sr sr)
           (string_of_vdi_info vdi_info) ;
-        with_vdi sr vdi_info.vdi (fun () -> call_f context ~dbg ~sr ~vdi_info)
+        with_vdi ~__context sr vdi_info.vdi (fun ~__context () -> call_f context ~dbg ~sr ~vdi_info)
 
       let snapshot = snapshot_and_clone "VDI.snapshot" Impl.VDI.snapshot
 
       let clone = snapshot_and_clone "VDI.clone" Impl.VDI.clone
 
-      let set_name_label context ~dbg ~sr ~vdi ~new_name_label =
+      let set_name_lab~__context context ~dbg ~sr ~vdi ~new_name_label =
         info "VDI.set_name_label dbg:%s sr:%s vdi:%s new_name_label:%s" dbg
           (s_of_sr sr) (s_of_vdi vdi) new_name_label ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             Impl.VDI.set_name_label context ~dbg ~sr ~vdi ~new_name_label
         )
 
-      let set_name_description context ~dbg ~sr ~vdi ~new_name_description =
+      let set_name_description ~__context context ~dbg ~sr ~vdi ~new_name_description =
         info
           "VDI.set_name_description dbg:%s sr:%s vdi:%s new_name_description:%s"
           dbg (s_of_sr sr) (s_of_vdi vdi) new_name_description ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             Impl.VDI.set_name_description context ~dbg ~sr ~vdi
               ~new_name_description
         )
 
-      let resize context ~dbg ~sr ~vdi ~new_size =
+      let resize context ~__context ~dbg ~sr ~vdi ~new_size =
         info "VDI.resize dbg:%s sr:%s vdi:%s new_size:%Ld" dbg (s_of_sr sr)
           (s_of_vdi vdi) new_size ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             Impl.VDI.resize context ~dbg ~sr ~vdi ~new_size
         )
 
-      let destroy_and_data_destroy call_name call_f context ~dbg ~sr ~vdi =
+      let destroy_and_data_destroy ~__context call_name call_f context ~dbg ~sr ~vdi =
         info "%s dbg:%s sr:%s vdi:%s" call_name dbg (s_of_sr sr) (s_of_vdi vdi) ;
 
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             remove_datapaths_andthen_nolock context ~dbg ~sr ~vdi Vdi.all
               (fun () -> call_f context ~dbg ~sr ~vdi
             )
@@ -799,10 +799,10 @@ functor
           location ;
         Impl.VDI.introduce context ~dbg ~sr ~uuid ~sm_config ~location
 
-      let set_persistent context ~dbg ~sr ~vdi ~persistent =
+      let set_persistent ~__context context ~dbg ~sr ~vdi ~persistent =
         info "VDI.set_persistent dbg:%s sr:%s vdi:%s persistent:%b" dbg
           (s_of_sr sr) (s_of_vdi vdi) persistent ;
-        with_vdi sr vdi (fun () ->
+        with_vdi ~__context sr vdi (fun ~__context () ->
             Impl.VDI.set_persistent context ~dbg ~sr ~vdi ~persistent
         )
 
@@ -835,24 +835,24 @@ functor
           (s_of_sr sr) (s_of_vdi vdi) key ;
         Impl.VDI.remove_from_sm_config context ~dbg ~sr ~vdi ~key
 
-      let get_url context ~dbg ~sr ~vdi =
+      let get_url ~__context context ~dbg ~sr ~vdi =
         info "VDI.get_url dbg:%s sr:%s vdi:%s" dbg (s_of_sr sr) (s_of_vdi vdi) ;
         Impl.VDI.get_url context ~dbg ~sr ~vdi
 
-      let enable_cbt context ~dbg ~sr ~vdi =
+      let enable_cbt ~__context context ~dbg ~sr ~vdi =
         info "VDI.enable_cbt dbg:%s sr:%s vdi:%s" dbg (s_of_sr sr) (s_of_vdi vdi) ;
-        with_vdi sr vdi (fun () -> Impl.VDI.enable_cbt context ~dbg ~sr ~vdi)
+        with_vdi ~__context sr vdi (fun ~__context () -> Impl.VDI.enable_cbt context ~dbg ~sr ~vdi)
 
-      let disable_cbt context ~dbg ~sr ~vdi =
+      let disable_cbt ~__context context ~dbg ~sr ~vdi =
         info "VDI.disable_cbt dbg:%s sr:%s vdi:%s" dbg (s_of_sr sr)
           (s_of_vdi vdi) ;
-        with_vdi sr vdi (fun () -> Impl.VDI.disable_cbt context ~dbg ~sr ~vdi)
+        with_vdi ~__context sr vdi (fun ~__context () -> Impl.VDI.disable_cbt context ~dbg ~sr ~vdi)
 
       (** The [sr] parameter is the SR of VDI [vdi_to]. *)
-      let list_changed_blocks context ~dbg ~sr ~vdi_from ~vdi_to =
+      let list_changed~__context _blocks context ~dbg ~sr ~vdi_from ~vdi_to =
         info "VDI.list_changed_blocks dbg:%s sr:%s vdi_from:%s vdi_to:%s" dbg
           (s_of_sr sr) (s_of_vdi vdi_from) (s_of_vdi vdi_to) ;
-        with_vdi sr vdi_to (fun () ->
+        with_vdi ~__context sr vdi_to (fun ~__context () ->
             Impl.VDI.list_changed_blocks context ~dbg ~sr ~vdi_from ~vdi_to
         )
     end
@@ -912,7 +912,7 @@ functor
       (** [destroy_sr context dp sr allow_leak vdi_already_locked] attempts to free
         		    the resources associated with [dp] in [sr]. If [vdi_already_locked] then
         		    it is assumed that all VDIs are already locked. *)
-      let destroy_sr context ~dbg ~dp ~sr ~sr_t ~allow_leak vdi_already_locked =
+      let destroy_sr ~__context context ~dbg ~dp ~sr ~sr_t ~allow_leak vdi_already_locked =
         (* Every VDI in use by this session should be detached and deactivated
            This code makes the assumption that a datapath is only on 0 or 1 VDIs. However, it retains debug code (identified below) to verify this.
            It also assumes that the VDIs associated with a datapath don't change during its execution - again it retains debug code to verify this.
@@ -930,9 +930,9 @@ functor
           vdis_with_dp ;
         let locker vdi =
           if vdi_already_locked then
-            fun f -> f ()
+            fun f -> f ~__context ()
           else
-            VDI.with_vdi sr vdi
+            VDI.with_vdi ~__context sr vdi
         in
         (* This is debug code to verify that no more than 1 VDI matched the datapath. We also convert the 0 and 1 cases to an Option which is more natural to work with *)
         let vdi_to_remove =
@@ -961,7 +961,7 @@ functor
           | None ->
               None
           | Some (vdi, vdi_t) ->
-              locker vdi (fun () ->
+              locker vdi (fun ~__context () ->
                   try
                     let vm = Vdi.get_dp_vm dp vdi_t in
                     VDI.destroy_datapath_nolock context ~dbg ~dp ~sr ~vdi ~vm
@@ -1018,12 +1018,12 @@ functor
         ) ;
         failure
 
-      let destroy' context ~dbg ~dp ~allow_leak =
+      let destroy' ~__context context ~dbg ~dp ~allow_leak =
         info "DP.destroy dbg:%s dp:%s allow_leak:%b" dbg dp allow_leak ;
         let failures =
           Host.list !Host.host
           |> List.filter_map (fun (sr, sr_t) ->
-                 destroy_sr context ~dbg ~dp ~sr ~sr_t ~allow_leak false
+                 destroy_sr ~__context context ~dbg ~dp ~sr ~sr_t ~allow_leak false
              )
         in
         match (failures, allow_leak) with
@@ -1090,7 +1090,7 @@ functor
 
       let stat_vdi _context ~dbg ~sr ~vdi () =
         info "DP.stat_vdi dbg:%s sr:%s vdi:%s" dbg (s_of_sr sr) (s_of_vdi vdi) ;
-        VDI.with_vdi sr vdi (fun () ->
+        VDI.with_vdi sr vdi (fun ~__context () ->
             match Host.find sr !Host.host with
             | None ->
                 raise (Storage_error (Sr_not_attached (s_of_sr sr)))
@@ -1122,7 +1122,7 @@ functor
 
       let stat context ~dbg ~sr =
         info "SR.stat dbg:%s sr:%s" dbg (s_of_sr sr) ;
-        with_sr sr (fun () ->
+        with_sr sr (fun ~__context () ->
             match Host.find sr !Host.host with
             | None ->
                 raise (Storage_error (Sr_not_attached (s_of_sr sr)))
@@ -1132,7 +1132,7 @@ functor
 
       let scan context ~dbg ~sr =
         info "SR.scan dbg:%s sr:%s" dbg (s_of_sr sr) ;
-        with_sr sr (fun () ->
+        with_sr sr (fun ~__context () ->
             match Host.find sr !Host.host with
             | None ->
                 raise (Storage_error (Sr_not_attached (s_of_sr sr)))
@@ -1142,7 +1142,7 @@ functor
 
       let create context ~dbg ~sr ~name_label ~name_description ~device_config
           ~physical_size =
-        with_sr sr (fun () ->
+        with_sr sr (fun ~__context () ->
             match Host.find sr !Host.host with
             | None ->
                 Impl.SR.create context ~dbg ~sr ~name_label ~name_description
@@ -1187,7 +1187,7 @@ functor
         in
         info "SR.attach dbg:%s sr:%s device_config:[%s]" dbg (s_of_sr sr)
           device_config_str ;
-        with_sr sr (fun () ->
+        with_sr sr (fun ~__context () ->
             match Host.find sr !Host.host with
             | None ->
                 Impl.SR.attach context ~dbg ~sr ~device_config ;
@@ -1206,17 +1206,17 @@ functor
           (* Enumerate all active datapaths *)
           List.concat (List.map (fun (_, vdi_t) -> Vdi.dp vdi_t) (Sr.list sr_t))
         in
-        with_sr sr (fun () ->
+        with_sr sr (fun ~__context () ->
             match Host.find sr !Host.host with
             | None ->
                 raise (Storage_error (Sr_not_attached (s_of_sr sr)))
             | Some sr_t ->
-                VDI.with_all_vdis sr (fun () ->
+                VDI.with_all_vdis sr (fun ~__context () ->
                     let dps = active_dps sr_t in
                     List.iter
                       (fun dp ->
                         let (_ : exn option) =
-                          DP.destroy_sr context ~dbg ~dp ~sr ~sr_t
+                          DP.destroy_sr ~__context context ~dbg ~dp ~sr ~sr_t
                             ~allow_leak:false true
                         in
                         ()
@@ -1239,7 +1239,7 @@ functor
 
       let reset _context ~dbg ~sr =
         info "SR.reset dbg:%s sr:%s" dbg (s_of_sr sr) ;
-        with_sr sr (fun () ->
+        with_sr sr (fun ~__context () ->
             Host.remove sr !Host.host ;
             Everything.to_file !host_state_path (Everything.make ()) ;
             VDI.locks_remove sr

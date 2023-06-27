@@ -95,19 +95,24 @@ module Thread_state = struct
 
   let now () = Unix.gettimeofday ()
 
-  let waiting_for resource =
-    update (fun ts -> {ts with waiting_for= Some (resource, now ())})
+  let waiting_for ~__context resource =
+    let __context = Context.tracing_start __context ("Locking_helpers.Thread_state.waiting_for " ^ (string_of_resource resource)) in
+    update (fun ts -> {ts with waiting_for= Some (resource, now ())});
+    __context
 
-  let acquired resource =
+  let acquired ~__context resource =
+    let __context = Context.tracing_replace __context ("Locking.helpers.Thread_state.acquired " ^ (string_of_resource resource)) in
     update (fun ts ->
         {
           ts with
           waiting_for= None
         ; acquired_resources= (resource, now ()) :: ts.acquired_resources
         }
-    )
+    );
+    __context
 
-  let released resource =
+  let released ~__context resource =
+    Context.complete_tracing __context;
     update (fun ts ->
         {
           ts with
@@ -217,9 +222,9 @@ module Named_mutex = struct
 
   let execute (x : t) ~__context f =
     let r = Lock x.name in
-    Thread_state.waiting_for r ;
+    let __context = Thread_state.waiting_for ~__context r in
     with_lock x.m (fun () ->
-        Thread_state.acquired r ;
-        finally (f ~__context) (fun () -> Thread_state.released r)
+        let __context = Thread_state.acquired ~__context r in
+        finally (f ~__context) (fun () -> Thread_state.released ~__context r)
     )
 end

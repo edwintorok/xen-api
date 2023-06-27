@@ -25,13 +25,13 @@ module Thread_state : sig
   val with_named_thread : string -> API.ref_task -> (unit -> 'a) -> 'a
   (** Called when a thread becomes associated with a particular task *)
 
-  val waiting_for : resource -> unit
+  val waiting_for : __context:Context.t -> resource -> Context.t
   (** Called when a thread is about to block waiting for a resource to be free *)
 
-  val acquired : resource -> unit
+  val acquired : __context:Context.t -> resource -> Context.t
   (** Called when a thread acquires a resource *)
 
-  val released : resource -> unit
+  val released : __context:Context.t -> resource -> unit
   (** Called when a thread releases a resource *)
 
   val get_all_acquired_resources : unit -> resource list

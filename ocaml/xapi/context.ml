@@ -470,16 +470,20 @@ let get_client_ip context =
 let get_user_agent context =
   match context.origin with Internal -> None | Http (rq, _) -> rq.user_agent
 
-let with_tracing context name f =
+let tracing_start context name =
   let open Tracing in
   let parent = context.tracing in
   let tracer = get_tracer ~name in
   match Tracer.start ~tracer ~name ~parent () with
-  | Ok span ->
-      let new_context = {context with tracing= span} in
-      let result = f new_context in
-      let _ = Tracer.finish span in
-      result
-  | Error e ->
-      R.warn "Failed to start tracing: %s" (Printexc.to_string e) ;
-      f context
+  | Ok span -> {context with tracing= span}
+  | Error e -> R.warn "Failed to start tracing: %s" (Printexc.to_string e); {context with tracing = None}
+
+let tracing_replace context name =
+  let (_: (_, _) result) = Tracing.Tracer.finish context.tracing in
+  tracing_start context name
+
+let with_tracing context name f =
+  let __context = tracing_start context name in
+  let r = f __context in
+  let (_: (_, _) result) = Tracing.Tracer.finish context.tracing in
+  r

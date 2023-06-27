@@ -153,3 +153,6 @@ val tracing_of : t -> Tracing.Span.t option
 val with_tracing : t -> string -> (t -> 'a) -> 'a
 
 val set_client_span : t -> Tracing.Span.t option
+
+val tracing_start: t -> string -> t
+val tracing_replace: t -> string -> t
