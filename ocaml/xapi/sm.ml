@@ -87,14 +87,14 @@ let serialize_attach_detach =
   Locking_helpers.Named_mutex.create "sr_attach/detach"
 
 let sr_attach dconf driver sr =
-  Locking_helpers.Named_mutex.execute serialize_attach_detach (fun () ->
+  Locking_helpers.Named_mutex.execute serialize_attach_detach (fun ~__context () ->
       debug "sr_attach" driver (sprintf "sr=%s" (Ref.string_of sr)) ;
       let call = Sm_exec.make_call ~sr_ref:sr dconf "sr_attach" [] in
       Sm_exec.parse_unit (Sm_exec.exec_xmlrpc (driver_filename driver) call)
   )
 
 let sr_detach dconf driver sr =
-  Locking_helpers.Named_mutex.execute serialize_attach_detach (fun () ->
+  Locking_helpers.Named_mutex.execute serialize_attach_detach (fun ~__context () ->
       debug "sr_detach" driver (sprintf "sr=%s" (Ref.string_of sr)) ;
       let call = Sm_exec.make_call ~sr_ref:sr dconf "sr_detach" [] in
       Sm_exec.parse_unit (Sm_exec.exec_xmlrpc (driver_filename driver) call)
@@ -102,7 +102,7 @@ let sr_detach dconf driver sr =
 
 let sr_probe dconf driver sr_sm_config =
   if List.mem_assoc Sr_probe (features_of_driver driver) then
-    Locking_helpers.Named_mutex.execute serialize_attach_detach (fun () ->
+    Locking_helpers.Named_mutex.execute serialize_attach_detach (fun ~__context () ->
         debug "sr_probe" driver
           (sprintf "sm_config=[%s]"
              (String.concat "; "

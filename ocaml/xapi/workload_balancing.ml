@@ -519,7 +519,7 @@ let init_wlb ~__context ~wlb_url ~wlb_username ~wlb_password ~xenserver_username
   Locking_helpers.Named_mutex.execute ~__context request_mutex
     (perform_wlb_request ~enable_log:false ~meth:"AddXenServer" ~params
        ~auth:(encoded_auth wlb_username wlb_password)
-       ~url:wlb_url ~handle_response ~__context
+       ~url:wlb_url ~handle_response
     )
 
 let decon_wlb ~__context =
@@ -546,9 +546,7 @@ let decon_wlb ~__context =
     let params = pool_uuid_param ~__context in
     try
       Locking_helpers.Named_mutex.execute ~__context request_mutex
-        (perform_wlb_request ~meth:"RemoveXenServer" ~params ~handle_response
-           ~__context
-        )
+        (fun ~__context () -> perform_wlb_request ~meth:"RemoveXenServer" ~params ~handle_response ~__context ())
     with
     (*Based on CA-60147,CA-93312 and CA-137044 - XAPI is designed to handle the error *)
     | _ ->

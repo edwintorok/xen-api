@@ -29,12 +29,12 @@ let clustering_lock_m = Locking_helpers.Named_mutex.create "clustering"
 
 let with_clustering_lock ~__context where f =
   debug "Trying to grab host-local clustering lock... (%s)" where ;
-  Locking_helpers.Named_mutex.execute ~__context clustering_lock_m (fun () ->
+  Locking_helpers.Named_mutex.execute ~__context clustering_lock_m (fun ~__context () ->
       Xapi_stdext_pervasives.Pervasiveext.finally
         (fun () ->
           debug "Grabbed host-local clustering lock; executing function... (%s)"
             where ;
-          f ()
+          f ~__context ()
         )
         (fun () ->
           debug
@@ -153,14 +153,14 @@ let assert_cluster_stack_valid ~cluster_stack =
 let with_clustering_lock_if_needed ~__context ~sr_sm_type where f =
   match get_required_cluster_stacks ~__context ~sr_sm_type with
   | [] ->
-      f ()
+      f ~__context ()
   | _required_cluster_stacks ->
       with_clustering_lock ~__context where f
 
 let with_clustering_lock_if_cluster_exists ~__context where f =
   match Db.Cluster.get_all ~__context with
   | [] ->
-      f ()
+      f ~__context ()
   | _ ->
       with_clustering_lock ~__context where f
 

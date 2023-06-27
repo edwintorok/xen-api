@@ -850,7 +850,7 @@ module AuthADlw : Auth_signature.AUTH_MODULE = struct
     go 0
 
   let is_pbis_server_available ~__context max =
-    Locking_helpers.Named_mutex.execute ~__context mutex_check_availability (fun () ->
+    Locking_helpers.Named_mutex.execute ~__context mutex_check_availability (fun ~__context:_ () ->
         _is_pbis_server_available max
     )
 

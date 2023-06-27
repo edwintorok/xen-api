@@ -875,7 +875,7 @@ functor
 
       let ha_compute_max_host_failures_to_tolerate ~__context =
         Xapi_clustering.with_clustering_lock_if_cluster_exists ~__context
-          __LOC__ (fun () ->
+          __LOC__ (fun ~__context () ->
             info "Pool.ha_compute_max_host_failures_to_tolerate: pool = '%s'"
               (current_pool_uuid ~__context) ;
             Local.Pool.ha_compute_max_host_failures_to_tolerate ~__context
@@ -884,7 +884,7 @@ functor
       let ha_compute_hypothetical_max_host_failures_to_tolerate ~__context
           ~configuration =
         Xapi_clustering.with_clustering_lock_if_cluster_exists ~__context
-          __LOC__ (fun () ->
+          __LOC__ (fun ~__context () ->
             info
               "Pool.ha_compute_hypothetical_max_host_failures_to_tolerate: \
                pool = '%s'; configuration = [ %s ]"
@@ -911,7 +911,7 @@ functor
 
       let set_ha_host_failures_to_tolerate ~__context ~self ~value =
         Xapi_clustering.with_clustering_lock_if_cluster_exists ~__context
-          __LOC__ (fun () ->
+          __LOC__ (fun ~__context () ->
             info
               "Pool.set_ha_host_failures_to_tolerate: pool = '%s'; value = %Ld"
               (pool_uuid ~__context self)

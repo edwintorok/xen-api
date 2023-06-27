@@ -272,13 +272,13 @@ let wipe_params_after_fn params fn =
   with e -> wipe params ; raise e
 
 let do_external_auth uname pwd =
-  Locking_helpers.Named_mutex.execute serialize_auth (fun () ->
+  Locking_helpers.Named_mutex.execute serialize_auth (fun ~__context:_ () ->
       (Ext_auth.d ()).authenticate_username_password uname
         (Bytes.unsafe_to_string pwd)
   )
 
 let do_local_auth uname pwd =
-  Locking_helpers.Named_mutex.execute serialize_auth (fun () ->
+  Locking_helpers.Named_mutex.execute serialize_auth (fun ~__context:_ () ->
       try Pam.authenticate uname (Bytes.unsafe_to_string pwd)
       with Failure msg ->
         raise
@@ -288,7 +288,7 @@ let do_local_auth uname pwd =
   )
 
 let do_local_change_password uname newpwd =
-  Locking_helpers.Named_mutex.execute serialize_auth (fun () ->
+  Locking_helpers.Named_mutex.execute serialize_auth (fun ~__context:_ () ->
       Pam.change_password uname (Bytes.unsafe_to_string newpwd)
   )
 

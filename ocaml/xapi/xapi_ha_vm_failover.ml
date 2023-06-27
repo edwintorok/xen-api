@@ -741,7 +741,7 @@ let compute_max_host_failures_to_tolerate ~__context ?live_set ?protected_vms ()
    true if something changed, false otherwise *)
 let mark_pool_as_overcommitted ~__context ~live_set =
   Xapi_clustering.with_clustering_lock_if_cluster_exists ~__context __LOC__
-    (fun () ->
+    (fun ~__context () ->
       let pool = Helpers.get_pool ~__context in
       let overcommitted = Db.Pool.get_ha_overcommitted ~__context ~self:pool in
       let planned_for = Db.Pool.get_ha_plan_exists_for ~__context ~self:pool in
