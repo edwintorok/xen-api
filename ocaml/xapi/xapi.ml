@@ -164,13 +164,19 @@ let register_callback_fns () =
     Api_server.callback1 false req sock xml
   in
   Xapi_cli.rpc_fun := Some fake_rpc ;
+  let acquired = ref None in
   let set_stunnelpid _task_opt pid =
-    Locking_helpers.Thread_state.acquired
-      (Locking_helpers.Process ("stunnel", pid))
+    acquired :=
+      Some
+        (Locking_helpers.Thread_state.acquired
+           (Locking_helpers.Process ("stunnel", pid))
+           None
+        )
   in
   let unset_stunnelpid _task_opt pid =
     Locking_helpers.Thread_state.released
       (Locking_helpers.Process ("stunnel", pid))
+      (Option.get !acquired)
   in
   let stunnel_destination_is_ok addr =
     Server_helpers.exec_with_new_task "check_stunnel_destination"
