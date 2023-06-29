@@ -58,12 +58,13 @@ open Xapi_stdext_pervasives.Pervasiveext
 
 (** Join a given queue and execute the function 'f' when its our turn. Actually perform the computation in
     this thread so we can return a result. *)
-let wait_in_line q description f =
+let wait_in_line ~__context q description f =
   let m = Mutex.create () in
   let c = Condition.create () in
   let state = ref `Pending in
   let waiting =
     Locking_helpers.Thread_state.waiting_for
+      ?parent:(Context.tracing_of __context)
       (Locking_helpers.Lock q.Thread_queue.name)
   in
   let ok =
