@@ -1,0 +1,5 @@
+(executable
+	(name loadgen)
+	(libraries xapi-client xapi_version)
+	(promote (until-clean))
+)

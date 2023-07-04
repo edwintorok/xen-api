@@ -13,6 +13,7 @@
     xmlm
     xapi-client
     xapi-types
+    xapi-rrd
   )
 )
 
