@@ -57,7 +57,6 @@ setup = function(thread)
   -- save the thread in the global threads table, so we can read back thread specific value in 'done'
   -- note that global variables accessed during 'init'/'request'/'response' will actually be variable on 'thread' here
   thread:set("ThreadId", #threads)
-  thread:set("Addr", tostring(thread.addr))
   table.insert(threads, thread)
 end
 
@@ -123,52 +122,44 @@ end
 
 Request_begin = {}
 -- per thread callbacks
-Requests = {}
 
 init = function(args)
   Time_start = seconds(clock_gettime())
   Request_end = {}
   Request_counter = 1
   Response_counter = 1
-  wrk.headers['User-Agent'] = 'wrk'
-  wrk.headers['Host'] = Addr
-
-  if #args >= 2 then
-    Output = args[2]
+  if #args >= 1 then
+    Output = args[1]
   end
-  if #args >= 3 then
-    Trace_id = args[3]
+  if #args >= 2 then
+    Trace_id = args[2]
     print("Got trace id", Trace_id)
   end
 
-  if #args >= 1 then
-      local inputfile = args[1]
-      local file = io.open(inputfile, "r")
-      if not file then
-        error(string.format("Cannot open file to read requests: %s", inputfile))
-      else
-        print(string.format("Reading requests from %s", inputfile))
-        local request = file:read()
-        local method, path = string.match(request,"(%g+) (%g+)")
-        wrk.method = method
-        wrk.path = path
-        local i = 1
-        for body in file:lines() do
-          local h = {}
-          h['Content-Length'] = tostring(#body)
-          h['traceparent'] = format_traceparent(Trace_id, ThreadId, i)
-          Requests[i] = wrk.format(method, path, h, body)
-          i = i + 1
-        end
-      end
-  else
-    for i in 1,99 do
-      local h = {}
-      h['traceparent'] = format_traceparent(Trace_id, ThreadId, i)
-      Requests[i] = wrk.format(nil, "/", h, nil)
-    end
-  end
-  -- print(Requests[1])
+  wrk.method = "POST"
+  wrk.path = "/RPC2"
+  wrk.headers['Content-Type'] = 'text/xml'
+  wrk.headers['User-Agent'] = 'wrk'
+  wrk.body = string.format([[<?xml version='1.0'?>
+<methodCall>
+<methodName>session.login_with_password</methodName>
+<params>
+<param>
+<value><string>root</string></value>
+</param>
+<param>
+<value><string>%s</string></value>
+</param>
+<param>
+<value><string>4.2.0</string></value>
+</param>
+<param>
+<value><string>wrk</string></value>
+</param>
+</params>
+</methodCall>
+]], "OrGoFbM3PE9u")
+  wrk.headers['Content-Length'] = tostring(#wrk.body)
 end
 
 -- per request callbacks
@@ -178,15 +169,13 @@ end
 
 request = function()
   Request_begin[Request_counter] = tostring(seconds(clock_gettime()))
-  local req = Requests[Request_counter]
+  -- TODO: pregen some of these?
+  wrk.headers["traceparent"] = format_traceparent(Trace_id, ThreadId, Request_counter)
   Request_counter = Request_counter + 1
-  return req
+  return wrk.format()
 end
 
 response = function(status, headers, body)
   Request_end[Response_counter] = seconds(clock_gettime())
   Response_counter = Response_counter + 1
---  print(status)
---  print(headers)
---  print(body)
 end

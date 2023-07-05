@@ -48,7 +48,7 @@ end
 let write_calls n call uri_path conv =
   let filename = String.concat "." [call.Rpc.name; uri_path] in
   Out_channel.with_open_text filename @@ fun oc ->
-  Printf.fprintf oc "/%s\n" uri_path;
+  Printf.fprintf oc "POST /%s\n" uri_path;
   for _ = 1 to n do
    (* we need to repeat the conversion call, because JSONRPC has a builtin counter *)
    let str = conv call in
@@ -69,4 +69,4 @@ module C = Client.ClientF(Dump)
 let () =
   (* we need to loop here, because jsonrpc would carry an ID that needs to be changed with each request *)
   let version = Xapi_version.version in
-  C.Session.login_with_password ~rpc ~uname:"root" ~pwd:"" ~version ~originator:__FILE__ |> Dump.ok
+  C.Session.login_with_password ~rpc ~uname:"root" ~pwd:"9zZSxVEPAu5w" ~version ~originator:__FILE__ |> Dump.ok
