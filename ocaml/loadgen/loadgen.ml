@@ -22,33 +22,10 @@
  that can be converted into distributed tracing format.
 *)
 
-module Dump = struct 
-  type 'a t =
-  | Done of 'a
-  | Unavailable
-
- let return x = Done x
-
- let unavailable = Unavailable
-
- (* we do not run the 'bind', just return the input: we only have the input for the HTTP request, not the response,
-    and we want to dump those inputs to a file
-  *)
- let bind x f =
-  match x with
-  | Done v -> f v
-  | Unavailable as u -> u
-
- let ok = function
-  | Unavailable -> ()
-  | Done _ -> assert false (* we expected to dump some HTTP request *)
-
-end
-
 let write_calls n call uri_path conv =
   let filename = String.concat "." [call.Rpc.name; uri_path] in
   Out_channel.with_open_text filename @@ fun oc ->
-  Printf.fprintf oc "/%s\n" uri_path;
+  Printf.fprintf oc "POST /%s\n" uri_path;
   for _ = 1 to n do
    (* we need to repeat the conversion call, because JSONRPC has a builtin counter *)
    let str = conv call in
@@ -58,15 +35,28 @@ let write_calls n call uri_path conv =
   done
 
 let n = 1000
+let conn = Speculative.connect Unix.(ADDR_INET(inet_addr_loopback, 8000))
 
-let rpc call : Rpc.response Dump.t =
-  write_calls n call "jsonrpc" Jsonrpc.string_of_call;
-  write_calls n call "RPC2" Xmlrpc.string_of_call;
-  Dump.unavailable
+let rpc call : Rpc.response Speculative.Freer.Monad.t =
+  (* write_calls n call "jsonrpc" Jsonrpc.string_of_call;
+  write_calls n call "RPC2" Xmlrpc.string_of_call; *)
+  let str = Jsonrpc.string_of_call call in
+  let buf = Bytes.create 8192 in
+  let decode_response nread =
+    Bytes.sub_string buf 0 nread
+    |> Jsonrpc.response_of_string
+  in
+  let open Speculative.Freer in
+  let read_response =
+    decode_response <$> Speculative.read conn buf
+  in
+    Speculative.write conn str >>> read_response
 
-module C = Client.ClientF(Dump)
+module C = Client.ClientF(Speculative.Freer.Monad)
 
 let () =
   (* we need to loop here, because jsonrpc would carry an ID that needs to be changed with each request *)
   let version = Xapi_version.version in
-  C.Session.login_with_password ~rpc ~uname:"root" ~pwd:"" ~version ~originator:__FILE__ |> Dump.ok
+  let _=  C.Session.login_with_password ~rpc ~uname:"root" ~pwd:"foo" ~version ~originator:__FILE__ |> Speculative.run conn in ()
+
+
