@@ -21,6 +21,8 @@ module Lwt_unix_IO = struct
 
   let ( >>= ) = Lwt.bind
 
+  let ( >>| ) = Lwt.( >|= )
+
   let return = Lwt.return
 
   let ( >> ) m n = m >>= fun _ -> n
@@ -165,7 +167,7 @@ let uri_local_json =
 (* TODO: https *)
 let uri_ip_json ip = Uri.make ~scheme:"https" ~host:ip ~path:"/jsonrpc" ()
 
-module Client = Client.ClientF (Lwt)
+module Client = Client.ClientF (Lwt_unix_IO)
 include Client
 
 module SessionCache = struct

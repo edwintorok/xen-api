@@ -239,8 +239,8 @@ let gen_client highapi =
            "open API"
          ; "open Rpc"
          ; "module type RPC = sig val rpc: Rpc.t -> Rpc.t end"
-         ; "module type IO = sig type 'a t val bind : 'a t -> ('a -> 'b t) -> \
-            'b t val return : 'a -> 'a t end"
+         ; "module type IO = sig type 'a t val (>>|) : 'a t -> ('a -> 'b) -> \
+            'b t end"
          ; "module type AsyncQualifier = sig val async_qualifier : string end"
          ; ""
          ; "let server_failure code args = raise (Api_errors.Server_error \
@@ -248,8 +248,7 @@ let gen_client highapi =
          ]
        ; O.Module.strings_of (Gen_client.gen_module highapi)
        ; [
-           "module Id = struct type 'a t = 'a let bind x f = f x let return x \
-            = x end"
+           "module Id = struct type 'a t = 'a let (>>|) = (|>) end"
          ; "module Client = ClientF(Id)"
          ]
        ]

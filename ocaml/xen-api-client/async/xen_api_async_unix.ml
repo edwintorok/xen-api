@@ -23,6 +23,8 @@ module IO = struct
 
   let ( >>= ) = Deferred.( >>= )
 
+  let ( >>| ) = Deferred.( >>| )
+
   (* let (>>) m n = m >>= fun _ -> n *)
   let return = Deferred.return
 
@@ -125,10 +127,5 @@ let make_json ?(timeout = 30.) uri call =
   let req = Jsonrpc.string_of_call call in
   do_it uri req >>| Jsonrpc.response_of_string
 
-module Client = Client.ClientF (struct
-  include Deferred
-
-  let bind a f = bind a ~f
-end)
-
+module Client = Client.ClientF (Deferred)
 include Client

@@ -33,7 +33,11 @@ val uri_ip_json : string -> Uri.t
 (** [uri_ip_json ip] is an Uri to connect to [ip] using the preferred protocols. Currently this is 'https://' using JSONRPC.
     Should be passed to [make_json]. *)
 
-include module type of Client.ClientF (Lwt)
+include module type of Client.ClientF (struct
+  include Lwt
+
+  let ( >>| ) = Lwt.( >|= )
+end)
 
 module Lwt_unix_IO : sig
   type ic = (unit -> unit Lwt.t) * Lwt_io.input_channel

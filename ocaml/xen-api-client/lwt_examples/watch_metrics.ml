@@ -32,6 +32,7 @@ let exn_to_string = function
       Printexc.to_string e
 
 let main () =
+  let open Lwt.Infix in
   Lwt_switch.with_switch @@ fun switch ->
   let t =
     SessionCache.create_uri ~switch ~target:(Uri.of_string !uri)

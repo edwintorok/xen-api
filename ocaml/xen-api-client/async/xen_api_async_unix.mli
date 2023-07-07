@@ -21,8 +21,4 @@ val make_json :
 (** [make_json ?timeout uri] returns an 'rpc' function which can be
     passed to Client.* functions *)
 
-include module type of Client.ClientF (struct
-  include Async.Deferred
-
-  let bind a f = bind a ~f
-end)
+include module type of Client.ClientF (Async.Deferred)

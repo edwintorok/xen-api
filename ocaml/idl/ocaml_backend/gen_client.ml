@@ -194,6 +194,7 @@ let gen_module api : O.Module.t =
       else
         OU.alias_of_ty task
     in
+    let conv = from_xmlrpc x.msg_result in
     O.Let.make
       ~name:x.msg_name
         (* Plus ~rpc:(xml -> xml) function (alternative to using functor) *)
@@ -202,8 +203,7 @@ let gen_module api : O.Module.t =
         (List.map to_rpc args
         @ [
             (if is_ctor then ctor_record else "")
-          ; Printf.sprintf
-              "rpc_wrapper rpc %s [ %s ] >>= fun x -> return (%s x)"
+          ; Printf.sprintf "rpc_wrapper rpc %s [ %s ]%s%s"
               ( if sync then
                   Printf.sprintf "\"%s\"" wire_name
               else
@@ -211,7 +211,8 @@ let gen_module api : O.Module.t =
                   wire_name
               )
               (String.concat "; " rpc_args)
-              (from_xmlrpc x.msg_result)
+              (if conv = "" then "" else " >>| ")
+              conv
           ]
         )
       ()
@@ -232,17 +233,16 @@ let gen_module api : O.Module.t =
   in
   let preamble =
     [
-      "let (>>=) = X.bind"
-    ; "let return = X.return"
+      "let (>>|) = X.(>>|)"
     ; "let rpc_wrapper rpc name args = "
-    ; "  rpc (Rpc.call name args) >>= fun response -> "
+    ; "  rpc (Rpc.call name args) >>| fun response -> "
     ; "  if response.Rpc.success then"
-    ; "    return response.Rpc.contents"
+    ; "    response.Rpc.contents"
     ; "  else match response.Rpc.contents with"
     ; "    | Rpc.Enum [ Rpc.String \"Fault\"; Rpc.String code ] -> failwith \
        (\"INTERNAL ERROR: \"^code)"
-    ; "    | Rpc.Enum ((Rpc.String code) :: args) -> return (server_failure \
-       code (List.map Rpc.string_of_rpc args))"
+    ; "    | Rpc.Enum ((Rpc.String code) :: args) -> server_failure code \
+       (List.map Rpc.string_of_rpc args)"
     ; "    | rpc -> failwith (\"Client.rpc: \" ^ Rpc.to_string rpc)"
     ]
   in
