@@ -23,10 +23,7 @@ struct
 
   type +!'a t = Pure : 'a -> 'a t | Blocked : 'x op * ('x -> 'a) -> 'a t
 
-  and !'a op =
-    | Op : 'a O.t -> 'a op
-    | Pair : 'a op * 'b op -> ('a * 'b) op
-    | Dynamic : 'x op * ('x -> 'a) * ('a -> 'b t) -> 'b op
+  and !'a op = Op : 'a O.t -> 'a op | Pair : 'a op * 'b op -> ('a * 'b) op
 
   let lift op = Blocked (Op op, Fun.id)
 
@@ -66,16 +63,6 @@ struct
 
   let ( <* ) a b = liftA2 const a b
 
-  let return = pure
-
-  let ( >>= ) m f =
-    match m with
-    | Pure x ->
-        f x
-    | Blocked (op, map) ->
-        let dynamic = Dynamic (op, map, f) in
-        Blocked (dynamic, Fun.id)
-
   let ( >>> ) : unit t -> 'a t -> 'a t =
    fun ignorable next ->
     match (ignorable, next) with
@@ -100,13 +87,7 @@ struct
 
   let rec run_op : 'a. 'a op -> 'a =
     fun (type a) (op : a op) : a ->
-     match op with
-     | Op op ->
-         O.run op
-     | Pair (x, y) ->
-         (run_op x, run_op y)
-     | Dynamic (op, app, f) ->
-         run (run_op op |> app |> f)
+     match op with Op op -> O.run op | Pair (x, y) -> (run_op x, run_op y)
 
   (* TODO: batching/etc runner *)
   and run : 'a. 'a t -> 'a =

@@ -18,4 +18,4 @@ module F = Freer.Make (T)
 
 module Test = struct include T module Gen = T include F end
 
-let () = Test_categories.test_monad_ops (module Test)
+let () = Test_categories.test_applicative_ops (module Test)

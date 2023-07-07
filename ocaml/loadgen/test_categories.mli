@@ -90,21 +90,3 @@ end
 val test_applicative : (module Applicative) -> unit
 
 val test_applicative_ops : (module ApplicativeOps) -> unit
-
-module type Monad = sig
-  include Applicative
-
-  val return : 'a -> 'a t
-
-  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
-end
-
-module type MonadOps = sig
-  include Monad
-
-  val ( >> ) : _ t -> 'a t -> 'a t
-end
-
-val test_monad : (module Monad) -> unit
-
-val test_monad_ops : (module MonadOps) -> unit
