@@ -12,6 +12,31 @@
  * GNU Lesser General Public License for more details.
  *)
 
+module TA(X: sig type 'a t end) = struct
+    type ('a, 'b) t =
+      | Leaf: ('a -> 'b X.t) -> ('a, 'b) t
+      | Node : ('a, 'x) t * ('x, 'b) t -> ('a, 'b) t
+
+    let tsingleton r = Leaf r
+
+    let snoc t r = Node(t, Leaf r)
+    let append t1 t2 = Node(t1, t2)
+
+    type ('a, 'b) viewl =
+      | TOne: ('a -> 'b X.t) ->('a, 'b) viewl
+      | TM: ('a -> 'x X.t) * ('x, 'b) t -> ('a, 'b) viewl
+
+    let rec go : 'a 'b 'x. ('a, 'x) t -> ('x, 'b) t -> ('a, 'b) viewl =
+     fun (type a b x) (t1:(a,x) t) (tr:(x,b) t): (a, b) viewl -> match t1 with
+      |Leaf r -> TM (r, tr)
+      | Node (tl1, tl2) -> go tl1 (Node(tl2, tr))
+      
+    let tviewl = function
+    | Leaf r -> TOne r      
+    | Node (t1, t2) ->
+      go t1 t2
+end
+
 module Make (O : sig
   type !'a t
 
@@ -21,6 +46,11 @@ end) =
 struct
   module T = O
 
+  (* need zseq: type aligned sequence,
+  Freer Monads, more extensible effects.
+  Paragraph 3, Freer Applicative: type aligned sequence...
+   *)
+  
   type +!'a t = Pure : 'a -> 'a t | Blocked : 'x op * ('x -> 'a) -> 'a t
 
   and !'a op = Op : 'a O.t -> 'a op | Pair : 'a op * 'b op -> ('a * 'b) op
@@ -59,6 +89,7 @@ struct
 
   let liftA2 f x y = f <$> x <*> y
 
+  (* TODO: speculative here? *)
   let ( *> ) a1 a2 = Fun.id <$ a1 <*> a2
 
   let ( <* ) a b = liftA2 const a b
