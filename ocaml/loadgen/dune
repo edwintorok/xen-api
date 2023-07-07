@@ -1,5 +1,5 @@
 (test
 	(name test_speculative)
-	(libraries xapi-client xapi_version crowbar rresult)
+	(libraries xapi-client xapi_version crowbar rresult faraday bigstringaf bigstring-unix)
 )
 

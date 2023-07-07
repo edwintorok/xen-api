@@ -12,11 +12,14 @@
  * GNU Lesser General Public License for more details.
  *)
 
+(* TODO: also the pregenerated buffer here should be shared between connections... *)
+
 module Operation = struct
   type !'a t =
     (* TODO: bigstring instead *)
     | Read : (bytes -> int -> int -> 'a) -> 'a t
     | Write : {off: int; len: int} -> unit t
+    | Done : unit t
 end
 
 module Freer = struct
@@ -75,7 +78,6 @@ module Freer = struct
               nextf y
           )
 
-
   (* use sparingly, we won't be able to extract all blocked ops if both LHS and RHS of the bind are blocked *)
   module Monad = struct
     type nonrec 'a t = 'a t
@@ -93,13 +95,13 @@ module Freer = struct
   end
 end
 
-type conn = {q: string Queue.t; mutable off: int; addr: Unix.sockaddr}
+type conn = {f: Faraday.t; mutable off: int; mutable b: Bigstringaf.t;  addr: Unix.sockaddr}
 
-let write t str =
-  let len = String.length str in
-  let op = Operation.Write {off= t.off; len} in
-  t.off <- t.off + len ;
-  Queue.push str t.q;
+let write t ?off ?len str =
+  let lens = String.length str in
+  let op = Operation.Write {off= t.off; len= lens} in
+  t.off <- t.off + lens ;
+  Faraday.write_string t.f ?off ?len str ;
   Freer.lift op
 
 let read _t buf =
@@ -110,7 +112,11 @@ let read _t buf =
   let op = Operation.Read cb in
   Freer.lift op
 
-let connect addr = {q= Queue.create (); off= 0; addr}
+let finish t =
+  t.b <-  Faraday.serialize_to_bigstring t.f;
+  Freer.lift Done
+
+let connect addr = {f= Faraday.create 8192; off= 0; addr; b = Bigstringaf.create 1}
 
 let run conn t =
   let b = Buffer.create 100 in
@@ -120,10 +126,10 @@ let run conn t =
   let run_op (type a) (op : a Operation.t) : a =
     match op with
     | Operation.Read cb ->
-      (* TODO *)
-      cb (Bytes.create 0) 0 0
+        (* TODO *)
+        cb (Bytes.create 0) 0 0
     | Operation.Write {off; len} ->
-        Printf.printf "%d; off: %d, len: %d\n" (String.length s) off len;
+        Printf.printf "%d; off: %d, len: %d\n" (String.length s) off len ;
         let s = String.sub s off len in
         print_string s
   in
