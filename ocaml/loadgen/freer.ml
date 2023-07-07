@@ -76,9 +76,25 @@ struct
         let dynamic = Dynamic (op, map, f) in
         Blocked (dynamic, Fun.id)
 
-  let ( >>> ) a b =
-    (* TODO: optimized version from speculative.ml *)
-    a >>= fun () -> b
+  let ( >>> ) : unit t -> 'a t -> 'a t =
+   fun ignorable next ->
+    match (ignorable, next) with
+    | Pure (), _ ->
+        next
+    | Blocked (ops, f), Pure x ->
+        Blocked
+          ( ops
+          , fun result ->
+              let () = f result in
+              x
+          )
+    | Blocked (opsf, f), Blocked (opsnext, nextf) ->
+        Blocked
+          ( opsf <@@> opsnext
+          , fun (x, y) ->
+              let () = f x in
+              nextf y
+          )
 
   let ( >> ) m n = ignore <$> m >>> n
 
