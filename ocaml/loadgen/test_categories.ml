@@ -61,7 +61,6 @@ module Check (G : Free) = struct
 
   let run2 t = t |> G.run |> G.run
 
-
   let run = G.run
 
   let check_eq run x y =
@@ -81,7 +80,6 @@ module Check (G : Free) = struct
     check_eq run
       (() |> Rresult.R.trap_exn @@ fun () -> f1 x y)
       (() |> Rresult.R.trap_exn @@ fun () -> f2 x y)
-
 end
 
 let ( <.> ) f g x = f (g x)

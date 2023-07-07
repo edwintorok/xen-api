@@ -26,7 +26,8 @@
   It is not necessary to provide a way to 'run' the operation at this stage.
 *)
 module type Operation = sig
-  type 'a t (** an operation that returns type ['a]. Any parameters for the operation should be stored in the type/variant itself. *)
+  (** an operation that returns type ['a]. Any parameters for the operation should be stored in the type/variant itself. *)
+  type 'a t
 end
 
 module type Functor = sig
@@ -44,14 +45,14 @@ end
   from the actual operation implementation, such that you don't have to be concerned with implementing/following the laws for those categories
   while implementing the operations, and supporting new operations is as easy as defining a way to construct them and extending the [Operation.t] variant.
 *)
-module MakeFree(O: Operation): Functor with type 'a t = 'a O.t
+module MakeFree (O : Operation) : Functor with type 'a t = 'a O.t
 
 module type Applicative = sig
   include Functor
 
-  val pure: 'a -> 'a t
+  val pure : 'a -> 'a t
 
-  val apply: ('a -> 'b) t -> 'a t -> 'b t
+  val apply : ('a -> 'b) t -> 'a t -> 'b t
 end
 
-module MakeApplicative(F: Functor) : Applicative
+module MakeApplicative (F : Functor) : Applicative

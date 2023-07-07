@@ -25,9 +25,13 @@
 
 module type Gen = sig
   type 'a t
+
   type poly_a
-  val gena: poly_a Crowbar.gen
-  val gen: poly_a Crowbar.gen -> poly_a t Crowbar.gen
+
+  val gena : poly_a Crowbar.gen
+
+  val gen : poly_a Crowbar.gen -> poly_a t Crowbar.gen
+
   val eq : poly_a -> poly_a -> bool
 
   val pp : poly_a Fmt.t
@@ -35,36 +39,47 @@ end
 
 module type Functor = sig
   type 'a t
+
   val fmap : ('a -> 'b) -> 'a t -> 'b t
 end
 
 module type Free = sig
-  module T : sig type 'a t end
-  module Gen: Gen with type 'a t = 'a T.t
+  module T : sig
+    type 'a t
+  end
+
+  module Gen : Gen with type 'a t = 'a T.t
+
   include Functor
-  val lift: 'a T.t -> 'a t
+
+  val lift : 'a T.t -> 'a t
+
   val run : 'a t -> 'a
 end
 
 module type FunctorOps = sig
   include Free
+
   val ( <$> ) : ('a -> 'b) -> 'a t -> 'b t
+
   val ( <$ ) : 'a -> _ t -> 'a t
 end
 
 val test_functor : (module Free) -> unit
+
 val test_functor_ops : (module FunctorOps) -> unit
 
 module type Applicative = sig
   include Free
 
-  val pure: 'a -> 'a t
+  val pure : 'a -> 'a t
 
-  val ( <*> ): ('a -> 'b) t -> 'a t -> 'b t
+  val ( <*> ) : ('a -> 'b) t -> 'a t -> 'b t
 end
 
 module type ApplicativeOps = sig
   include Applicative
+
   include FunctorOps with type 'a t := 'a t
 
   val ( *> ) : _ t -> 'a t -> 'a t
@@ -73,13 +88,15 @@ module type ApplicativeOps = sig
 end
 
 val test_applicative : (module Applicative) -> unit
+
 val test_applicative_ops : (module ApplicativeOps) -> unit
 
 module type Monad = sig
   include Applicative
+
   val return : 'a -> 'a t
 
-  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
+  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
 end
 
 module type MonadOps = sig
@@ -89,4 +106,5 @@ module type MonadOps = sig
 end
 
 val test_monad : (module Monad) -> unit
+
 val test_monad_ops : (module MonadOps) -> unit

@@ -8,8 +8,10 @@ module T = struct
   let run (type a) : a t -> a = function A n -> n
 
   type poly_a = int
+
   let gena = Crowbar.int
-  let gen agen = (Crowbar.(map [agen] @@ fun n -> A n))
+
+  let gen agen = Crowbar.(map [agen] @@ fun n -> A n)
 end
 
 module F = Freer.Make (T)

@@ -95,7 +95,12 @@ module Freer = struct
   end
 end
 
-type conn = {f: Faraday.t; mutable off: int; mutable b: Bigstringaf.t;  addr: Unix.sockaddr}
+type conn = {
+    f: Faraday.t
+  ; mutable off: int
+  ; mutable b: Bigstringaf.t
+  ; addr: Unix.sockaddr
+}
 
 let write t ?off ?len str =
   let lens = String.length str in
@@ -113,10 +118,11 @@ let read _t buf =
   Freer.lift op
 
 let finish t =
-  t.b <-  Faraday.serialize_to_bigstring t.f;
+  t.b <- Faraday.serialize_to_bigstring t.f ;
   Freer.lift Done
 
-let connect addr = {f= Faraday.create 8192; off= 0; addr; b = Bigstringaf.create 1}
+let connect addr =
+  {f= Faraday.create 8192; off= 0; addr; b= Bigstringaf.create 1}
 
 let run conn t =
   let b = Buffer.create 100 in
