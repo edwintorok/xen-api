@@ -42,108 +42,134 @@ module Connection = struct
 
   let content_length = "Content-Length: "
 
-  let parse conn buff =
+  let rec parse_content_length conn buff =
     let len = conn.receive_off - conn.parse_off in
-    let old = conn.parse_off in
+    if len > 1 then (
+      let c = Bigstringaf.get buff conn.parse_off in
+      if c = '\r' then (
+        assert (Bigstringaf.get buff (conn.parse_off + 1) = '\n') ;
+        (* TODO: fallback *)
+        conn.parse_off <- conn.parse_off + 2 ;
+        conn.parse_state <- WaitBody ;
+        wait_body conn buff
+      ) else
+        let num = Char.code c - Char.code '0' in
+        assert (num >= 0 && num < 9) ;
+        (* TODO: fallback otherwise *)
+        conn.content_length <- (conn.content_length * 10) + num ;
+        conn.parse_off <- conn.parse_off + 1 ;
+        parse_content_length conn buff
+    )
+
+  and ignore_line conn buff =
+    let len = conn.receive_off - conn.parse_off in
+    if len > 0 then
+      match Bigstringaf.memchr buff conn.parse_off '\r' len with
+      | -1 ->
+          conn.parse_off <- conn.receive_off - 1
+      | pos when Bigstringaf.get buff (pos + 1) = '\n' ->
+          conn.parse_state <- Wait_content_length ;
+          conn.parse_off <- pos + 2 ;
+          wait_content_length conn buff
+      | _ ->
+          conn.parse_off <- conn.receive_off - 1
+
+  and wait_content_length conn buff =
+    let len = conn.receive_off - conn.parse_off in
+    (* TODO: transform to lowercase, for now we have a fast-path only for matching case *)
+    if len >= String.length content_length then
+      if
+        Bigstringaf.memcmp_string buff conn.parse_off content_length 0
+          (String.length content_length)
+        = 0
+      then (
+        conn.content_length <- 0 ;
+        conn.parse_state <- Parse_content_length ;
+        conn.parse_off <- conn.parse_off + String.length content_length ;
+        parse_content_length conn buff
+      ) else (
+        conn.parse_state <- Ignore_line ;
+        conn.parse_off <- conn.parse_off + String.length content_length ;
+        ignore_line conn buff
+      )
+
+  and wait_status_line conn buff =
+    let len = conn.receive_off - conn.parse_off in
+    let len = len - 1 in
+    if len > 0 then
+      match Bigstringaf.memchr buff conn.parse_off '\r' len with
+      | -1 ->
+          conn.parse_off <- conn.receive_off - 1
+      | pos when Bigstringaf.get buff (pos + 1) = '\n' ->
+          if
+            Bigstringaf.memcmp_string buff conn.receive_off_begin http_200 0
+              (String.length http_200)
+            = 0
+          then (
+            conn.parse_state <- Wait_content_length ;
+            conn.parse_off <- pos + 2 ;
+            wait_content_length conn buff
+          ) else (
+            conn.parse_state <-
+              Fallback (* TODO: fallback to Cohttp on errors *) ;
+            conn.parse_off <- conn.receive_off_begin
+          )
+      | _ ->
+          conn.parse_off <- conn.receive_off - 1
+
+  and discard conn buff =
+    let len = conn.receive_off - conn.parse_off in
+    if conn.discard > 0 then (
+      let discarded = Int.min len conn.discard in
+      conn.parse_off <- conn.parse_off + discarded ;
+      conn.discard <- conn.discard - discarded
+    ) ;
+    if conn.discard = 0 then (
+      assert (conn.discard = 0) ;
+      conn.parse_state <- Wait_status_line ;
+      incr responses ;
+      wait_status_line conn buff
+    )
+
+  and wait_body conn buff =
+    let len = conn.receive_off - conn.parse_off in
+    if len > 3 then
+      match Bigstringaf.memchr buff conn.parse_off '\r' (len - 3) with
+      | -1 ->
+          conn.parse_off <- conn.receive_off - 3
+      | pos ->
+          if
+            Bigstringaf.get buff (pos + 1) = '\n'
+            && Bigstringaf.get buff (pos + 2) = '\r'
+            && Bigstringaf.get buff (pos + 3) = '\n'
+          then (
+            conn.parse_state <- Discard ;
+            conn.discard <- conn.content_length ;
+            conn.parse_off <- pos + 4 ;
+            discard conn buff
+          ) else (
+            conn.parse_off <- pos + 1 ;
+            wait_body conn buff
+          )
+
+  let parse conn buff =
     (* 1 for lookahead for '\n' *)
     (* TODO: eof handling isn't good *)
-    let () =
-      match conn.parse_state with
-      | Wait_status_line -> (
-            let len = len -1 in
-          if len > 0 then
-            match Bigstringaf.memchr buff conn.parse_off '\r' len with
-            | -1 ->
-                conn.parse_off <- conn.receive_off - 1
-            | pos when Bigstringaf.get buff (pos + 1) = '\n' ->
-                if
-                  Bigstringaf.memcmp_string buff conn.receive_off_begin http_200
-                    0 (String.length http_200)
-                  = 0
-                then (
-                  conn.parse_state <- Wait_content_length ;
-                  conn.parse_off <- pos + 2
-                ) else (
-                  conn.parse_state <-
-                    Fallback (* TODO: fallback to Cohttp on errors *) ;
-                  conn.parse_off <- conn.receive_off_begin
-                )
-            | _ ->
-                conn.parse_off <- conn.receive_off - 1
-        )
-      | Wait_content_length ->
-          (* TODO: transform to lowercase, for now we have a fast-path only for matching case *)
-          if len >= String.length content_length then
-            if
-              Bigstringaf.memcmp_string buff conn.parse_off content_length 0
-                (String.length content_length)
-              = 0
-            then (
-              conn.content_length <- 0 ;
-              conn.parse_state <- Parse_content_length ;
-              conn.parse_off <- conn.parse_off + String.length content_length
-            ) else (
-              conn.parse_state <- Ignore_line ;
-              conn.parse_off <- conn.parse_off + String.length content_length
-            )
-      | Parse_content_length ->
-          if len > 1 then (
-            let c = Bigstringaf.get buff conn.parse_off in
-            if c = '\r' then (
-              assert (Bigstringaf.get buff (conn.parse_off + 1) = '\n') ;
-              (* TODO: fallback *)
-              conn.parse_off <- conn.parse_off + 2 ;
-              conn.parse_state <- WaitBody
-            ) else
-              let num = Char.code c - Char.code '0' in
-              assert (num >= 0 && num < 9) ;
-              (* TODO: fallback otherwise *)
-              conn.content_length <- (conn.content_length * 10) + num ;
-              conn.parse_off <- conn.parse_off + 1
-          )
-      | WaitBody -> (
-          if len > 3 then
-            match Bigstringaf.memchr buff conn.parse_off '\r' (len - 3) with
-            | -1 ->
-                conn.parse_off <- conn.receive_off - 3
-            | pos ->
-                if
-                  Bigstringaf.get buff (pos + 1) = '\n'
-                  && Bigstringaf.get buff (pos + 2) = '\r'
-                  && Bigstringaf.get buff (pos + 3) = '\n'
-                then (
-                  conn.parse_state <- Discard ;
-                  conn.discard <- conn.content_length ;
-                  conn.parse_off <- pos + 4
-                ) else
-                  conn.parse_off <- pos + 1
-        )
-      | Ignore_line -> (
-          if len > 0 then
-            match Bigstringaf.memchr buff conn.parse_off '\r' len with
-            | -1 ->
-                conn.parse_off <- conn.receive_off - 1
-            | pos when Bigstringaf.get buff (pos + 1) = '\n' ->
-                conn.parse_state <- Wait_content_length ;
-                conn.parse_off <- pos + 2
-            | _ ->
-                conn.parse_off <- conn.receive_off - 1
-        )
-      | Discard ->
-          if conn.discard > 0 then (
-            let discarded = Int.min len conn.discard in
-            conn.parse_off <- conn.parse_off + discarded ;
-            conn.discard <- conn.discard - discarded
-          );
-          if conn.discard = 0 then (
-            assert (conn.discard = 0) ;
-            conn.parse_state <- Wait_status_line ;
-            incr responses
-          )
-      | Fallback ->
-          failwith "TODO: fallback"
-    in
-    conn.parse_off - old
+    match conn.parse_state with
+    | Wait_status_line ->
+        wait_status_line conn buff
+    | Wait_content_length ->
+        wait_content_length conn buff
+    | Parse_content_length ->
+        parse_content_length conn buff
+    | WaitBody ->
+        wait_body conn buff
+    | Ignore_line ->
+        ignore_line conn buff
+    | Discard ->
+        discard conn buff
+    | Fallback ->
+        failwith "TODO: fallback"
 
   let invalid =
     let socket = Unix.stdin in
@@ -215,15 +241,18 @@ module Connection = struct
     !dst_off
 
   let rec send t buffer =
-    try
-      assert (not t.closed) ;
-      let written =
-        Bigstring_unix.write t.socket ~off:t.off ~len:t.len buffer
-      in
-      t.off <- t.off + written ;
-      t.len <- t.len - written ;
-      written
-    with Unix.(Unix_error (EINTR, _, _)) -> (send [@tailcall]) t buffer
+    if t.len > 0 then
+      try
+        assert (not t.closed) ;
+        let written =
+          Bigstring_unix.write t.socket ~off:t.off ~len:t.len buffer
+        in
+        t.off <- t.off + written ;
+        t.len <- t.len - written ;
+        written
+      with Unix.(Unix_error (EINTR, _, _)) -> (send [@tailcall]) t buffer
+    else
+      0
 
   let rec receive t into off len nread' =
     assert (len > 0) ;
@@ -289,9 +318,7 @@ let fastpath_handle_event mux fd events t =
         (conn.receive_end - conn.receive_off)
         0
     in
-    while Connection.parse conn t.send_receive_buffer > 0 do
-      ()
-    done ;
+    Connection.parse conn t.send_receive_buffer ;
     if nread = 0 then (
       Connection.disconnect conn ; do_disconnect t mux conn
     )
@@ -381,6 +408,6 @@ let () =
     let conn = connect t Unix.(ADDR_INET (Unix.inet_addr_loopback, 8000)) in
     for _ = 1 to repeat do
       Connection.write conn "GET / HTTP/1.1\r\nHost: localhost:8000\r\n\r\n"
-    done ;
-  done;
+    done
+  done ;
   run t
