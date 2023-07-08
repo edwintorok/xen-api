@@ -131,8 +131,10 @@ let do_disconnect t mux conn =
 let fastpath_handle_event mux fd events t =
   let conn = t.conntable.(Xapi_stdext_unix.Unixext.int_of_file_descr fd) in
   if Polly.Events.(test events out) then
-    if Connection.send conn t.send_receive_buffer = 0 then
-      Polly.upd mux fd Polly.Events.inp ;
+    if Connection.send conn t.send_receive_buffer = 0 then (
+      Unix.shutdown fd Unix.SHUTDOWN_SEND ;
+      Polly.upd mux fd Polly.Events.inp
+    ) ;
   if Polly.Events.(test events inp) then (
     (* read and discard for now, TODO *)
     let nread = Connection.receive conn t.send_receive_buffer t.receive_off in
@@ -172,6 +174,8 @@ let build_conntable connections =
     connections ;
   conntbl
 
+let repeat = 999
+
 let run ?(receive_buffer_size = 16384) t =
   let connections = List.length t.connections in
   (* we need a fast way to look up Connection.t given an fd: a hashtable would be too slow *)
@@ -179,7 +183,7 @@ let run ?(receive_buffer_size = 16384) t =
   let need_write_buffer =
     List.fold_left Connection.sum_queued_bytes 0 t.connections
   in
-  let need_receive_buffer = connections * receive_buffer_size in
+  let need_receive_buffer = connections * repeat * receive_buffer_size in
   ensure_buffer t (need_write_buffer + need_receive_buffer) ;
   let off =
     List.fold_left (Connection.serialize t.send_receive_buffer) 0 t.connections
@@ -209,7 +213,7 @@ let run ?(receive_buffer_size = 16384) t =
 let () =
   let t = init () in
   let conn = connect t Unix.(ADDR_INET (Unix.inet_addr_loopback, 8000)) in
-  for _ = 1 to 999 do
+  for _ = 1 to repeat do
     Connection.write conn "GET / HTTP/1.1\r\nHost: localhost:8000\r\n\r\n"
   done ;
   run t
