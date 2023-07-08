@@ -1,160 +1,215 @@
-(*
- * Copyright (C) 2023 Cloud Software Group
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published
- * by the Free Software Foundation; version 2.1 only. with the special
- * exception on linking described in file LICENSE.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *)
+let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
-(* TODO: also the pregenerated buffer here should be shared between connections... *)
+let rec connect_start sock addr =
+  let open Unix in
+  try connect sock addr with
+  | Unix_error ((EINPROGRESS | EAGAIN | EWOULDBLOCK), _, _) ->
+      ()
+  | Unix_error (EINTR, _, _) ->
+      (connect_start [@tailcall]) sock addr
 
-module Operation = struct
-  type !'a t =
-    (* TODO: bigstring instead *)
-    | Read : (bytes -> int -> int -> 'a) -> 'a t
-    | Write : {off: int; len: int} -> unit t
-    | Done : unit t
+module Connection = struct
+  type t = {
+      addr: Unix.sockaddr
+    ; socket: Unix.file_descr
+    ; send_buffer: string Queue.t
+    ; mutable closed: bool
+    ; mutable off: int
+    ; mutable len: int
+  }
+
+  let invalid =
+    let socket = Unix.stdin in
+    {
+      addr= Unix.ADDR_INET (Unix.inet_addr_any, 0)
+    ; socket
+    ; send_buffer= Queue.create ()
+    ; closed= true
+    ; off= 0
+    ; len= 0
+    }
+
+  let connect addr =
+    let socket = Unix.socket ~cloexec:true Unix.PF_INET Unix.SOCK_STREAM 0 in
+    try
+      Unix.setsockopt socket Unix.TCP_NODELAY true ;
+      Unix.set_nonblock socket ;
+      connect_start socket addr ;
+      {
+        addr
+      ; send_buffer= Queue.create ()
+      ; closed= false
+      ; off= 0
+      ; len= 0
+      ; socket
+      }
+    with e ->
+      let bt = Printexc.get_raw_backtrace () in
+      Unix.close socket ;
+      Printexc.raise_with_backtrace e bt
+
+  let disconnect t = t.closed <- true
+
+  let write conn str =
+    assert (not conn.closed) ;
+    Queue.push str conn.send_buffer
+
+  let flush _conn = ()
+
+  let sum acc s = acc + String.length s
+
+  let sum_queued_bytes acc t = Queue.fold sum acc t.send_buffer
+
+  let serialize into off t =
+    let dst_off = ref off in
+    let serialize_entry str =
+      let len = String.length str in
+      Bigstringaf.blit_from_string str ~src_off:0 into ~dst_off:!dst_off ~len ;
+      dst_off := !dst_off + len
+    in
+    Queue.iter serialize_entry t.send_buffer ;
+    t.off <- off ;
+    t.len <- !dst_off - off ;
+    Queue.clear t.send_buffer ;
+    !dst_off
+
+  let rec send t buffer =
+    try
+      assert (not t.closed) ;
+      let written =
+        Bigstring_unix.write t.socket ~off:t.off ~len:t.len buffer
+      in
+      t.off <- t.off + written ;
+      t.len <- t.len - written ;
+      written
+    with Unix.(Unix_error (EINTR, _, _)) -> (send [@tailcall]) t buffer
+
+  let rec receive t into off =
+    try
+      let len = Bigstringaf.length into - off in
+      assert (len > 0) ;
+      Bigstring_unix.read t.socket ~off ~len into
+    with Unix.(Unix_error (EINTR, _, _)) -> (receive [@tailcall]) t into off
 end
 
-module Freer = struct
-  type !_ t = Pure : 'a -> 'a t | Blocked : 'x blocked * ('x -> 'a) -> 'a t
-
-  and !'a blocked =
-    | Op : 'a Operation.t -> 'a blocked
-    | Pair : 'a blocked * 'b blocked -> ('a * 'b) blocked
-    | Dynamic : 'x blocked * ('x -> 'a) * ('a -> 'b t) -> 'b blocked
-
-  let ( <@@> ) a b = Pair (a, b)
-
-  let lift op = Blocked (Op op, Fun.id)
-
-  let pure x = Pure x
-
-  (* operations are not recursive, and therefore O(1) *)
-
-  let ( <$> ) : 'a 'b. ('a -> 'b) -> 'a t -> 'b t =
-   fun f -> function
-    | Pure x ->
-        Pure (f x)
-    | Blocked (ops, app) ->
-        Blocked (ops, fun x -> x |> app |> f)
-
-  let pairf f1 f2 (x, y) = (f1 x) (f2 y)
-
-  (* see also https://hackage.haskell.org/package/free-5.2/docs/Control-Applicative-Free-Fast.htm *)
-  let ( <*> ) : 'a 'b. ('a -> 'b) t -> 'a t -> 'b t =
-   fun af ax ->
-    match (af, ax) with
-    | Pure f, _ ->
-        f <$> ax
-    | Blocked (ops, app), Pure x ->
-        Blocked (ops, Fun.flip app x)
-    | Blocked (opsf, appf), Blocked (opsx, appx) ->
-        Blocked (opsf <@@> opsx, pairf appf appx)
-
-  let ( >>> ) : unit t -> 'a t -> 'a t =
-   fun ignorable next ->
-    match (ignorable, next) with
-    | Pure (), _ ->
-        next
-    | Blocked (ops, f), Pure x ->
-        Blocked
-          ( ops
-          , fun result ->
-              let () = f result in
-              x
-          )
-    | Blocked (opsf, f), Blocked (opsnext, nextf) ->
-        Blocked
-          ( opsf <@@> opsnext
-          , fun (x, y) ->
-              let () = f x in
-              nextf y
-          )
-
-  (* use sparingly, we won't be able to extract all blocked ops if both LHS and RHS of the bind are blocked *)
-  module Monad = struct
-    type nonrec 'a t = 'a t
-
-    let return = pure
-
-    let bind : 'a 'b. 'a t -> ('a -> 'b t) -> 'b t =
-     fun m f ->
-      match m with
-      | Pure p ->
-          f p
-      | Blocked (op, app) ->
-          let dynamic = Dynamic (op, app, f) in
-          Blocked (dynamic, Fun.id)
-  end
-end
-
-type conn = {
-    f: Faraday.t
-  ; mutable off: int
-  ; mutable b: Bigstringaf.t
-  ; addr: Unix.sockaddr
+type t = {
+    mutable send_receive_buffer: Bigstringaf.t
+  ; mutable receive_off: int
+  ; mutable connections: Connection.t list
+  ; mutable conntable: Connection.t array
+  ; mutable conns: int
 }
 
-let write t ?off ?len str =
-  let lens = String.length str in
-  let op = Operation.Write {off= t.off; len= lens} in
-  t.off <- t.off + lens ;
-  Faraday.write_string t.f ?off ?len str ;
-  Freer.lift op
+let init () =
+  {
+    send_receive_buffer= Bigstringaf.create 8192 (* will get resized *)
+  ; connections= []
+  ; conntable= [||]
+  ; receive_off= -1
+  ; conns= 0
+  }
 
-let read _t buf =
-  let cb data off len =
-    Bytes.blit data off buf 0 len ;
-    len
+let connect t addr =
+  let conn = Connection.connect addr in
+  t.connections <- conn :: t.connections ;
+  t.conns <- t.conns + 1 ;
+  conn
+
+let ensure_buffer t size =
+  if Bigstringaf.length t.send_receive_buffer < size then
+    t.send_receive_buffer <- Bigstringaf.create size
+
+let timeout_ms = 30_000
+
+let do_disconnect t mux conn =
+  assert conn.Connection.closed ;
+  Polly.del mux conn.Connection.socket ;
+  Unix.close conn.socket ;
+  Queue.clear conn.send_buffer ;
+  t.conns <- t.conns - 1
+
+let fastpath_handle_event mux fd events t =
+  let conn = t.conntable.(Xapi_stdext_unix.Unixext.int_of_file_descr fd) in
+  if Polly.Events.(test events out) then
+    if Connection.send conn t.send_receive_buffer = 0 then
+      Polly.upd mux fd Polly.Events.inp ;
+  if Polly.Events.(test events inp) then (
+    (* read and discard for now, TODO *)
+    let nread = Connection.receive conn t.send_receive_buffer t.receive_off in
+    assert (nread >= 0) ;
+    t.receive_off <- t.receive_off + nread ;
+    if nread = 0 then (
+      Connection.disconnect conn ; do_disconnect t mux conn
+    )
+  ) ;
+  (* TODO: handle errors *)
+  t
+
+let rec fastpath mux ~connections t =
+  if t.conns > 0 then
+    let (_ : t) =
+      Polly.wait_fold mux connections timeout_ms t fastpath_handle_event
+    in
+    fastpath mux ~connections t
+  else (* TODO: count responses after decoding them *)
+    0
+
+let build_conntable connections =
+  let conns =
+    connections
+    |> List.to_seq
+    |> Seq.map (fun t ->
+           Xapi_stdext_unix.Unixext.int_of_file_descr t.Connection.socket
+       )
   in
-  let op = Operation.Read cb in
-  Freer.lift op
+  let maxfd = Seq.fold_left max 0 conns + 1 in
+  let conntbl = Array.make maxfd Connection.invalid in
+  List.iter
+    (fun conn ->
+      conntbl.(Xapi_stdext_unix.Unixext.int_of_file_descr conn.Connection.socket) <-
+        conn
+    )
+    connections ;
+  conntbl
 
-let finish t =
-  t.b <- Faraday.serialize_to_bigstring t.f ;
-  Freer.lift Done
-
-let connect addr =
-  {f= Faraday.create 8192; off= 0; addr; b= Bigstringaf.create 1}
-
-let run conn t =
-  let b = Buffer.create 100 in
-  let print str = Buffer.add_string b str in
-  Queue.iter print conn.q ;
-  let s = Buffer.contents b in
-  let run_op (type a) (op : a Operation.t) : a =
-    match op with
-    | Operation.Read cb ->
-        (* TODO *)
-        cb (Bytes.create 0) 0 0
-    | Operation.Write {off; len} ->
-        Printf.printf "%d; off: %d, len: %d\n" (String.length s) off len ;
-        let s = String.sub s off len in
-        print_string s
+let run ?(receive_buffer_size = 16384) t =
+  let connections = List.length t.connections in
+  (* we need a fast way to look up Connection.t given an fd: a hashtable would be too slow *)
+  t.conntable <- build_conntable t.connections ;
+  let need_write_buffer =
+    List.fold_left Connection.sum_queued_bytes 0 t.connections
   in
-  let open Freer in
-  let rec run_blocked : 'a 'b. 'a blocked -> ('a -> 'b) -> 'b =
-    fun (type a b) (blocked : a blocked) (app : a -> b) : b ->
-     match blocked with
-     | Op op ->
-         run_op op |> app
-     | Pair (a, b) ->
-         (run_blocked a Fun.id, run_blocked b Fun.id) |> app
-     | Dynamic (op, app', f) ->
-         run_actual (run_blocked op app' |> f) |> app
-  and run_actual : 'a. 'a t -> 'a =
-    fun (type a) (t : a t) : a ->
-     match t with
-     | Pure x ->
-         x
-     | Blocked (blocked, app) ->
-         run_blocked blocked app
+  let need_receive_buffer = connections * receive_buffer_size in
+  ensure_buffer t (need_write_buffer + need_receive_buffer) ;
+  let off =
+    List.fold_left (Connection.serialize t.send_receive_buffer) 0 t.connections
   in
-  run_actual t
+  t.receive_off <- off ;
+  (* off is receive offset *)
+  let mux = Polly.create () in
+  let register_connection conn =
+    Polly.add mux conn.Connection.socket Polly.Events.(inp lor out)
+  in
+  let finally () = Polly.close mux in
+  Fun.protect ~finally @@ fun () ->
+  List.iter register_connection t.connections ;
+  Gc.compact () ;
+  let t0 = Unix.gettimeofday () in
+  let requests = fastpath mux ~connections t in
+  let t1 = Unix.gettimeofday () in
+  List.iter
+    (fun conn ->
+      if not conn.Connection.closed then (
+        Connection.disconnect conn ; do_disconnect t mux conn
+      )
+    )
+    t.connections ;
+  Printf.printf "Requests/s: %f\n" (float requests /. (t1 -. t0))
+
+let () =
+  let t = init () in
+  let conn = connect t Unix.(ADDR_INET (Unix.inet_addr_loopback, 8000)) in
+  for _ = 1 to 999 do
+    Connection.write conn "GET / HTTP/1.1\r\nHost: localhost:8000\r\n\r\n"
+  done ;
+  run t
