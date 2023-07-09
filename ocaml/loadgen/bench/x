@@ -1,0 +1,18 @@
+*   Trying 127.0.0.1:8000...
+* Connected to localhost (127.0.0.1) port 8000 (#0)
+> GET / HTTP/1.1
+> Host: localhost:8000
+> User-Agent: curl/8.0.1
+> Accept: */*
+> 
+< HTTP/1.1 200 OK
+< Server: nginx/1.24.0
+< Date: Sun, 09 Jul 2023 10:39:34 GMT
+< Content-Type: text/html
+< Content-Length: 8474
+< Last-Modified: Mon, 20 Feb 2023 00:00:00 GMT
+< Connection: keep-alive
+< ETag: "63f2b800-211a"
+< Accept-Ranges: bytes
+< 
+* Connection #0 to host localhost left intact

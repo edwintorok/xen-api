@@ -1,0 +1,24 @@
+(library
+ (name bechamel_simple_cli)
+ (modules bechamel_simple_cli)
+ (libraries bechamel bechamel-notty notty.unix)
+)
+
+(executable
+ (name bench_line)
+ (modules bench_line find_line)
+ (modes exe)
+ (optional)
+ (libraries bechamel bechamel_simple_cli bigstringaf cohttp httpaf memtrace re.posix re)
+)
+
+(executable
+ (name bench_content_length)
+ (modules bench_content_length find_content_length)
+ (modes exe)
+ (optional)
+ (libraries bechamel bechamel_simple_cli bigstringaf cohttp httpaf memtrace re.posix re)
+)
+
+(ocamllex find_line)
+(ocamllex find_content_length)
