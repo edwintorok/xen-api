@@ -55,7 +55,8 @@ module OCamllex = struct
     (buff, lexbuf, off)
 
   let reset (_, lexbuf, off) =
-    off := 0; Lexing.flush_input lexbuf
+    off := 0 ;
+    Lexing.flush_input lexbuf
 
   let line_ocamllex buff f (buff', lexbuf, _) =
     assert (buff' == buff) ;
@@ -66,25 +67,41 @@ module OCamllex = struct
 end
 
 module Regex = struct
-  let re = Re.Posix.compile_pat "[^\r]*\r\n"
+  let re =
+    Re.Posix.compile_pat
+      "^HTTP/1.1 ([0-9]{3}) [^\r]*\r\n\
+       ([^\r]+\r\n\
+       )*[Cc][Oo][Nn][Tt][Ee][Nn][Tt]-[Ll][Ee][Nn][Gg][Tt][Hh]:[ \t]*([0-9]+)[ \
+       \t]*\r\n\
+       ([^\r]+\r\n\
+       )*\r\n"
 
   let allocate buff = Bigstringaf.to_string buff
 
-  let rec line_regex buff f str off acc =
-    if off >= String.length str then
-      acc
-    else
-      try
-        let groups = Re.exec ~pos:off re str in
-        if Re.Group.test groups 0 then
-          let start = Re.Group.start groups 0 in
-          let finish = Re.Group.stop groups 0 in
-          line_regex buff f str finish @@ f acc buff start (finish - start)
-        else
-          acc
-      with Not_found -> acc
+  let digit str pos =
+    let c = str.[pos] in
+    let n = Char.code c - Char.code '0' in
+    assert (n >= 0 && n < 10) ;
+    n
 
-  let line_regex buff f str = line_regex buff f str 0 0
+  let rec number str ~finish ~start acc =
+    if start < finish then
+      number str ~finish ~start:(start + 1) @@ ((acc * 10) + digit str start)
+    else
+      acc
+
+  let line_regex _buff f str =
+    let groups = Re.exec re str in
+    if Re.Group.test groups 1 && Re.Group.test groups 3 then
+      let status =
+        number str ~finish:(Re.Group.stop groups 1)
+          ~start:(Re.Group.start groups 1) 0
+      in
+      let len =
+        number str ~finish:(Re.Group.stop groups 3)
+          ~start:(Re.Group.start groups 3) 0
+      in
+      f status len (Re.Group.stop groups 0)
 end
 
 let rec line_bigstringaf_get buff f line_off acc len off =
@@ -105,8 +122,8 @@ let repeat = 100
 
 let check_headers code content_length headers_end =
   (* Printf.printf "code: %d, content_length: %d, headers_end: %d; %d\n" code content_length headers_end (String.length test_data_str); *)
-  assert (code = 200);
-  assert (content_length = 8474);
+  assert (code = 200) ;
+  assert (content_length = 8474) ;
   assert (headers_end = String.length test_data_str)
 
 let test_line name ~allocate ~reset f =
@@ -119,16 +136,119 @@ let test_line name ~allocate ~reset f =
     f test_data check_headers t
   done
 
+module RIO = struct
+  type 'a t = 'a
+
+  let return x = x
+
+  let ( >>= ) m f = f m
+
+  type ic = {buf: Bigstringaf.t; mutable off: int}
+
+  type oc = unit
+
+  type conn = unit
+
+  let write _ = failwith "response-w"
+
+  let flush _ = failwith "response-f"
+
+  let read_line ic =
+    let len = Bigstringaf.length ic.buf - ic.off in
+    if len = 0 then
+      None
+    else
+      match Bigstringaf.memchr ic.buf ic.off '\r' len with
+      | -1 ->
+          let off = ic.off in
+          ic.off <- ic.off + len ;
+          Some (Bigstringaf.substring ic.buf ~off ~len)
+      | pos ->
+          if Bigstringaf.get ic.buf (pos + 1) = '\n' then (
+            let off = ic.off in
+            ic.off <- pos + 2 ;
+            Some (Bigstringaf.substring ic.buf ~off ~len:(pos - off))
+          ) else
+            failwith "TODO: bad line"
+
+  let read _ = failwith "TODO"
+end
+
+module R = Cohttp.Response.Make (RIO)
+
+let cohttp_allocate buf = RIO.{buf; off= 0}
+
+let cohttp_reset t = t.RIO.off <- 0
+
+let cohttp_response _ f t =
+  match R.read t with
+  | `Eof ->
+      failwith "EOF"
+  | `Invalid str ->
+      invalid_arg str
+  | `Ok r ->
+      let h = Cohttp.Response.headers r in
+      let len =
+        Cohttp.Header.get h "Content-Length" |> Option.get |> int_of_string
+      in
+      let status = Cohttp.Code.code_of_status (Cohttp.Response.status r) in
+      f status len t.RIO.off
+
+let error_handler _ = failwith "error"
+
+let httpaf_allocate _buff =
+  (* can only parse if we have sent a request.. *)
+  Httpaf.Request.create `GET "/"
+
+let httpaf_reset _ = () 
+
+let rec httpaf_response buff f ((req, _) as t) ~off ~len =
+  match Httpaf.Client_connection.next_read_operation req with
+  | `Close ->
+      off
+  | `Read ->
+      if len = 0 then (
+        let n = Httpaf.Client_connection.read_eof req buff ~off ~len:0 in
+        assert (n = 0) ;
+        httpaf_response buff f t ~off ~len
+      ) else
+        let consumed = Httpaf.Client_connection.read req buff ~off ~len in
+        httpaf_response buff f t ~off:(off + consumed) ~len:(len - consumed)
+
+let httpaf_response buff f req =
+  let resp = ref None in
+  let response_handler r _ = resp := Some r in
+  let _, req =
+    Httpaf.Client_connection.request req ~error_handler ~response_handler
+  in
+  let headers_end =
+    httpaf_response buff f (req, resp) ~off:0 ~len:(Bigstringaf.length buff)
+  in
+  match !resp with
+  | None ->
+      failwith "No response"
+  | Some resp -> (
+    match Httpaf.Response.body_length ~request_method:`GET resp with
+    | `Fixed len ->
+        f (Httpaf.Status.to_code resp.status) (Int64.to_int len) headers_end
+    | _ ->
+        failwith "bad body length"
+  )
+
 let benchmarks =
   Test.make_grouped ~name:"content-length"
     [
-    (*  test_line ~allocate:Regex.allocate ~reset:ignore "re" Regex.line_regex *)
-     test_line ~allocate:OCamllex.allocate ~reset:OCamllex.reset "ocamllex"
+      test_line ~allocate:Regex.allocate ~reset:ignore "re" Regex.line_regex
+    ; test_line ~allocate:OCamllex.allocate ~reset:OCamllex.reset "ocamllex"
         OCamllex.line_ocamllex
-   (* ; test_line ~allocate:ignore ~reset:ignore "memchr" line_memchr
-    ; test_line ~allocate:ignore ~reset:ignore "split" line_split
-    ; test_line ~allocate:ignore ~reset:ignore "bigstringaf.get"
-        line_bigstringaf_get *)
+    ; test_line ~allocate:cohttp_allocate ~reset:cohttp_reset "cohttp"
+        cohttp_response
+    ; test_line ~allocate:httpaf_allocate ~reset:httpaf_reset "httpaf"
+        httpaf_response
+      (* ; test_line ~allocate:ignore ~reset:ignore "memchr" line_memchr
+         ; test_line ~allocate:ignore ~reset:ignore "split" line_split
+         ; test_line ~allocate:ignore ~reset:ignore "bigstringaf.get"
+             line_bigstringaf_get *)
     ]
 
 let () =
