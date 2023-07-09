@@ -200,7 +200,7 @@ let httpaf_allocate _buff =
   (* can only parse if we have sent a request.. *)
   Httpaf.Request.create `GET "/"
 
-let httpaf_reset _ = () 
+let httpaf_reset _ = ()
 
 let rec httpaf_response buff f ((req, _) as t) ~off ~len =
   match Httpaf.Client_connection.next_read_operation req with
@@ -235,6 +235,140 @@ let httpaf_response buff f req =
         failwith "bad body length"
   )
 
+module StateParser = struct
+  type state = WaitEndOfHeaders | Discard | Invalid
+
+  type t = {
+      buff: Bigstringaf.t
+    ; mutable off: int
+    ; mutable len: int
+    ; mutable eoh_off: int
+    ; mutable state: state
+    ; mutable discard: int
+    ; mutable content_length: int
+  }
+
+  let allocate buff =
+    let len = Bigstringaf.length buff in
+    {
+      buff
+    ; off= 0
+    ; len
+    ; state= WaitEndOfHeaders
+    ; eoh_off= 0
+    ; discard= 0
+    ; content_length= 0
+    }
+
+  let reset t =
+    t.state <- WaitEndOfHeaders ;
+    t.eoh_off <- 0
+
+  let http_200 = "HTTP/1.1 200 "
+
+  let rec skip_to_next_line t buff off =
+    match
+      Bigstringaf.memchr buff off '\r' (Bigstringaf.length buff - off - 1)
+    with
+    | -1 ->
+        -1
+    | pos ->
+        let pos = pos + 1 in
+        if Bigstringaf.unsafe_get buff pos = '\n' then
+          pos + 1
+        else
+          skip_to_next_line t buff pos
+
+  let content_length = "Content-Length: "
+
+  let invalid t =
+    t.state <- Invalid ;
+    false
+
+  let discard t =
+    let len = Int.min t.discard (t.len - t.off) in
+    assert (len >= 0) ;
+    if len > 0 then (
+      t.off <- t.off + len ;
+      t.len <- t.len - len ;
+      t.discard <- t.discard - len
+    ) ;
+    if t.discard = 0 then (
+      t.state <- WaitEndOfHeaders ;
+      true
+    ) else
+      false
+
+  let rec parse_content_length_value t buff off acc =
+    let c = Bigstringaf.unsafe_get buff off in
+    if c = '\r' then (
+      t.off <- t.eoh_off ;
+      t.discard <- acc ;
+      t.content_length <- acc ;
+      t.state <- Discard ;
+      discard t
+    ) else
+      let n = Char.code c - Char.code '0' in
+      assert (n >= 0 && n < 10) ;
+      parse_content_length_value t buff (off + 1) @@ ((acc * 10) + n)
+
+  let rec parse_headers t buff off =
+    if
+      Bigstringaf.memcmp_string buff off content_length 0
+        (String.length content_length)
+      = 0
+    then
+      parse_content_length_value t buff (off + String.length content_length) 0
+    else
+      parse_headers t buff @@ skip_to_next_line t buff off
+
+  let parse_status_line t buff =
+    (* headers to parse between t.off and t.eof_off *)
+    if
+      Bigstringaf.memcmp_string buff t.off http_200 0 (String.length http_200)
+      = 0
+    then
+      let off = skip_to_next_line t buff (t.off + String.length http_200) in
+      parse_headers t buff off
+    else
+      invalid t
+
+  let rec wait_end_of_headers buff t =
+    let len = t.len - t.eoh_off - 3 in
+    match Bigstringaf.memchr buff t.eoh_off '\r' len with
+    | -1 ->
+        t.eoh_off <- t.eoh_off + len ;
+        (* wait for more data, haven't encountered end of headers yet *)
+        false
+    | pos ->
+        (* check 2nd eol first, it'll likely filter out false hits sooner *)
+        if
+          Bigstringaf.unsafe_get_int16_le buff (pos + 2) = 0x0a0d
+          && Bigstringaf.unsafe_get_int16_le buff pos = 0x0a0d
+        then (
+          t.eoh_off <- pos + 3 ;
+          parse_status_line t buff
+        ) else (
+          t.eoh_off <- pos + 1 ;
+          (* this was the end of one header, not of all headers, keep searching *)
+          wait_end_of_headers buff t
+        )
+
+  let parse buff f t =
+    assert (buff == t.buff) ;
+    let finished =
+      match t.state with
+      | WaitEndOfHeaders ->
+          wait_end_of_headers buff t
+      | Discard ->
+          discard t
+      | Invalid ->
+          failwith "Parsing failed" (* TODO: fall back *)
+    in
+    if finished then
+      f 200 t.content_length t.eoh_off
+end
+
 let benchmarks =
   Test.make_grouped ~name:"content-length"
     [
@@ -245,6 +379,9 @@ let benchmarks =
         cohttp_response
     ; test_line ~allocate:httpaf_allocate ~reset:httpaf_reset "httpaf"
         httpaf_response
+    ; test_line ~allocate:StateParser.allocate ~reset:StateParser.reset
+        "stateparser" StateParser.parse
+      (* TODO: a fully manual state machine.... from speculative.ml *)
       (* ; test_line ~allocate:ignore ~reset:ignore "memchr" line_memchr
          ; test_line ~allocate:ignore ~reset:ignore "split" line_split
          ; test_line ~allocate:ignore ~reset:ignore "bigstringaf.get"
