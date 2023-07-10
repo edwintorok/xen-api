@@ -35,6 +35,20 @@ let rec line_memchr buff f line_off off acc =
 
 let line_memchr buff f () = line_memchr buff f 0 0 0
 
+let needle = Bigstringaf.of_string "\r\n" ~off:0 ~len:2
+
+let rec line_memmem buff f line_off off acc =
+  match Base_bigstring.unsafe_memmem ~haystack:buff ~needle ~haystack_pos:off ~haystack_len:(Bigstringaf.length buff - off) ~needle_pos:0 ~needle_len:2 with
+  | -1 ->
+      acc
+  | pos ->
+        let acc = f acc buff line_off (pos - off) in
+        let line_off = pos + 2 in
+        (line_memmem [@tailcall]) buff f line_off line_off acc
+
+let line_memmem buff f () = line_memmem buff f 0 0 0
+
+
 let line_split buff f () =
   let s = Bigstringaf.to_string buff in
   let lines = String.split_on_char '\n' s in
@@ -130,6 +144,7 @@ let benchmarks =
     ; test_line ~allocate:ignore ~reset:ignore "split" line_split
     ; test_line ~allocate:ignore ~reset:ignore "bigstringaf.get"
         line_bigstringaf_get
+    ; test_line ~allocate:ignore ~reset:ignore "memmem" line_memmem
     ]
 
 let () =

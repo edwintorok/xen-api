@@ -9,7 +9,7 @@
  (modules bench_line find_line)
  (modes exe)
  (optional)
- (libraries bechamel bechamel_simple_cli bigstringaf memtrace re.posix re)
+ (libraries bechamel bechamel_simple_cli bigstringaf memtrace re.posix re base_bigstring)
 )
 
 (executable
@@ -17,7 +17,7 @@
  (modules bench_content_length find_content_length)
  (modes exe)
  (optional)
- (libraries bechamel bechamel_simple_cli bigstringaf cohttp httpaf memtrace re.posix re http)
+ (libraries bechamel bechamel_simple_cli bigstringaf cohttp httpaf memtrace re.posix re base_bigstring)
 )
 
 (ocamllex find_line)
