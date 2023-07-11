@@ -1,3 +1,5 @@
+open Zero_http
+
 let test_data_str =
   String.concat "\r\n"
     [
@@ -11,23 +13,25 @@ let test_data_str =
     ; {|ETag: "63f2b800-211a"|}
     ; "Accept-Ranges: bytes"
     ; ""
-    ; ""
+    ; String.make 8474 '_'
     ]
 
 let () =
-  let buf = Bigstringaf.create 64 in
+  Printexc.record_backtrace true;
+  let buf = Bigstringaf.create 64 in (* TODO: test with smaller buffer *)
+  let zb = Zero_buffer.of_bigstring buf ~off:0 ~len:(Bigstringaf.length buf) in
   let callback ~status_code ~content_length ~headers_size =
     Printf.printf "Status code: %d, content length: %d, headers size: %d\n"
       status_code content_length headers_size
   in
-  let t = Zerohttp.Response.create buf callback in
   let stroff = ref 0 in
+  let test_data_str = test_data_str ^ test_data_str in
   let reader str ~off ~len buf =
-    let len = Int.min len (String.length test_data_str - off) in
+    let len = Int.min len (String.length test_data_str - !stroff) in
     if len > 0 then
       Bigstringaf.blit_from_string str ~src_off:!stroff buf ~dst_off:off ~len;
     stroff := !stroff + len;
     len
   in
-  let (_:bool) = Zerohttp.Response.read t reader test_data_str in
-  ()
+  let t = Response.create zb reader test_data_str callback in
+  Zero_http.Response.read t;  Zero_http.Response.read t

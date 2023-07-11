@@ -31,6 +31,9 @@ module View : sig
   (** a view of the underlying buffer *)
   type 'a t
 
+  val get: ro t -> int -> char
+  (** [get t pos] retrieves the character at [pos] in [t]. *)
+
   val memchr : ro t -> pos:int -> char -> int
   (** [memchr view ~pos char] searches for [char] in [view].
      [pos] is relative to the beginning of [view].
@@ -42,6 +45,9 @@ module View : sig
 
   val size : _ t -> int
   (** [size view] is the size in bytes of [view]. *)
+
+  val debug: ro t -> len:int -> unit
+  (** [debug t len] prints buffer up to [len] for debugging. *)
 end
 
 val producer : t -> wo View.t

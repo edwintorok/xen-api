@@ -15,11 +15,14 @@
 (** Zero-copy line parsing *)
 
 (** a parser that looks for \r\n *)
-type 'a t
+type t
 
-val make: Zero_buffer.t -> read:'a Zero_buffer.refill -> 'a -> 'a t
+val make: Zero_buffer.t -> read:'a Zero_buffer.refill -> 'a -> t
 (** [make zbuf ~read input] creates a line parser that uses [read input] to read data and [zbuf] as temporary storage. *)
 
-val read_line: _ t -> ('a -> 'b -> Zero_buffer.ro Zero_buffer.View.t -> eol_len:int -> int) -> 'a -> 'b -> 'a
+val read_line: t -> ('a -> 'b -> Zero_buffer.ro Zero_buffer.View.t -> eol_len:int -> 'a) -> 'a -> 'b -> 'a
 (** [read_line t process_line acc input] calls [process_line acc input] with a buffer containing a single line to be parsed,
  and the accumulator [acc]. *)
+
+val read_data: t -> ('a -> Zero_buffer.ro Zero_buffer.View.t -> int) -> 'a -> bool
+(** [read_data t callback] invokes [callback] when there is data available to read. *)

@@ -20,14 +20,18 @@
   It will allocate memory only when not on that fastpath.
 *)
 
+module Zero_buffer : sig
+  include module type of Zero_buffer
+end
+
 module Response : sig
   type t
 
-  val create : Bigstringaf.t -> (status_code:int -> content_length:int -> headers_size:int -> unit) -> t
+  val create : Zero_buffer.t -> ('a Zero_buffer.refill) -> 'a -> (status_code:int -> content_length:int -> headers_size:int -> unit) -> t
   (** [create buff callback] creates new HTTP response parser state that invokes [callback] when a response has been parsed. *)
 
-  val read: t -> ('a -> off:int -> len:int -> Bigstringaf.t -> int) -> 'a -> bool
-  (** [read t reader conn] reads data using [reader] and parses a potentially partial HTTP response stream.
+  val read: t -> unit
+  (** [read t ] reads data using [reader] and parses a potentially partial HTTP response stream.
     This is a fastpath if the following conditions are met:
       * the response is <HTTP status code 4xx
       * a Content-Length header is present with that exact capitalization
