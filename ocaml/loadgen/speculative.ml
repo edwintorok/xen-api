@@ -8,16 +8,6 @@ let rec connect_start sock addr =
   | Unix_error (EINTR, _, _) ->
       (connect_start [@tailcall]) sock addr
 
-(* TODO: Wait_line separately from parse state, always parse full lines? *)
-type parse_state =
-  | Wait_status_line
-  | Wait_content_length
-  | Parse_content_length
-  | Ignore_line
-  | Fallback
-  | Discard
-  | WaitBody
-
 let responses = ref 0
 
 module Connection = struct
@@ -25,151 +15,16 @@ module Connection = struct
       addr: Unix.sockaddr
     ; socket: Unix.file_descr
     ; send_buffer: string Queue.t
+    ; zb: Zero_http.Zero_buffer.t
+    ; parser: Zero_http.Response.t
     ; mutable closed: bool
     ; mutable off: int
     ; mutable len: int
-    ; mutable receive_off_begin: int
-    ; mutable parse_off: int
-    ; mutable discard: int
-    ; mutable parse_state: parse_state
-    ; mutable receive_off: int
-    ; mutable content_length: int
-    ; mutable receive_end: int
   }
-  (* TODO: for safety: bigstring views... *)
 
-  let http_200 = "HTTP/1.1 200 "
+  let invalid_buf = Bigstringaf.create 1
 
-  let content_length = "Content-Length: "
-
-  let rec parse_content_length conn buff =
-    let len = conn.receive_off - conn.parse_off in
-    if len > 1 then (
-      let c = Bigstringaf.get buff conn.parse_off in
-      if c = '\r' then (
-        assert (Bigstringaf.get buff (conn.parse_off + 1) = '\n') ;
-        (* TODO: fallback *)
-        conn.parse_off <- conn.parse_off + 2 ;
-        conn.parse_state <- WaitBody ;
-        wait_body conn buff
-      ) else
-        let num = Char.code c - Char.code '0' in
-        assert (num >= 0 && num < 9) ;
-        (* TODO: fallback otherwise *)
-        conn.content_length <- (conn.content_length * 10) + num ;
-        conn.parse_off <- conn.parse_off + 1 ;
-        parse_content_length conn buff
-    )
-
-  and ignore_line conn buff =
-    let len = conn.receive_off - conn.parse_off in
-    if len > 0 then
-      match Bigstringaf.memchr buff conn.parse_off '\r' len with
-      | -1 ->
-          conn.parse_off <- conn.receive_off - 1
-      | pos when Bigstringaf.get buff (pos + 1) = '\n' ->
-          conn.parse_state <- Wait_content_length ;
-          conn.parse_off <- pos + 2 ;
-          wait_content_length conn buff
-      | _ ->
-          conn.parse_off <- conn.receive_off - 1
-
-  and wait_content_length conn buff =
-    let len = conn.receive_off - conn.parse_off in
-    (* TODO: transform to lowercase, for now we have a fast-path only for matching case *)
-    if len >= String.length content_length then
-      if
-        Bigstringaf.memcmp_string buff conn.parse_off content_length 0
-          (String.length content_length)
-        = 0
-      then (
-        conn.content_length <- 0 ;
-        conn.parse_state <- Parse_content_length ;
-        conn.parse_off <- conn.parse_off + String.length content_length ;
-        parse_content_length conn buff
-      ) else (
-        conn.parse_state <- Ignore_line ;
-        conn.parse_off <- conn.parse_off + String.length content_length ;
-        ignore_line conn buff
-      )
-
-  and wait_status_line conn buff =
-    let len = conn.receive_off - conn.parse_off in
-    let len = len - 1 in
-    if len > 0 then
-      match Bigstringaf.memchr buff conn.parse_off '\r' len with
-      | -1 ->
-          conn.parse_off <- conn.receive_off - 1
-      | pos when Bigstringaf.get buff (pos + 1) = '\n' ->
-          if
-            Bigstringaf.memcmp_string buff conn.receive_off_begin http_200 0
-              (String.length http_200)
-            = 0
-          then (
-            conn.parse_state <- Wait_content_length ;
-            conn.parse_off <- pos + 2 ;
-            wait_content_length conn buff
-          ) else (
-            conn.parse_state <-
-              Fallback (* TODO: fallback to Cohttp on errors *) ;
-            conn.parse_off <- conn.receive_off_begin
-          )
-      | _ ->
-          conn.parse_off <- conn.receive_off - 1
-
-  and discard conn buff =
-    let len = conn.receive_off - conn.parse_off in
-    if conn.discard > 0 then (
-      let discarded = Int.min len conn.discard in
-      conn.parse_off <- conn.parse_off + discarded ;
-      conn.discard <- conn.discard - discarded
-    ) ;
-    if conn.discard = 0 then (
-      assert (conn.discard = 0) ;
-      conn.parse_state <- Wait_status_line ;
-      incr responses ;
-      wait_status_line conn buff
-    )
-
-  and wait_body conn buff =
-    let len = conn.receive_off - conn.parse_off in
-    if len > 3 then
-      match Bigstringaf.memchr buff conn.parse_off '\r' (len - 3) with
-      | -1 ->
-          conn.parse_off <- conn.receive_off - 3
-      | pos ->
-          if
-            Bigstringaf.get buff (pos + 1) = '\n'
-            && Bigstringaf.get buff (pos + 2) = '\r'
-            && Bigstringaf.get buff (pos + 3) = '\n'
-          then (
-            conn.parse_state <- Discard ;
-            conn.discard <- conn.content_length ;
-            conn.parse_off <- pos + 4 ;
-            discard conn buff
-          ) else (
-            conn.parse_off <- pos + 1 ;
-            wait_body conn buff
-          )
-
-  let parse conn buff =
-    (* 1 for lookahead for '\n' *)
-    (* TODO: eof handling isn't good *)
-    match conn.parse_state with
-    | Wait_status_line ->
-        wait_status_line conn buff
-    | Wait_content_length ->
-        wait_content_length conn buff
-    | Parse_content_length ->
-        parse_content_length conn buff
-    | WaitBody ->
-        wait_body conn buff
-    | Ignore_line ->
-        ignore_line conn buff
-    | Discard ->
-        discard conn buff
-    | Fallback ->
-        failwith "TODO: fallback"
+  let invalid_zb = Zero_http.Zero_buffer.of_bigstring invalid_buf ~off:0 ~len:0
 
   let invalid =
     let socket = Unix.stdin in
@@ -180,20 +35,34 @@ module Connection = struct
     ; closed= true
     ; off= 0
     ; len= 0
-    ; receive_off_begin= 0
-    ; receive_off= 0
-    ; receive_end= 0
-    ; parse_off= 0
-    ; parse_state= Wait_status_line
-    ; content_length= 0
-    ; discard= 0
+    ; zb= invalid_zb
+    ; parser=
+        Zero_http.Response.create invalid_zb (fun _ -> failwith "invalid") ()
     }
+
+  let rec refill socket ~off ~len into =
+    match Bigstring_unix.read socket ~off ~len into with
+    | 0 ->
+        0
+    | nread ->
+        nread
+    | exception Unix.(Unix_error (EINTR, _, _)) ->
+        (refill [@tailcall]) socket ~off ~len into
+    | exception Unix.(Unix_error ((EAGAIN | EWOULDBLOCK), _, _)) ->
+        -1
 
   let connect addr =
     let socket = Unix.socket ~cloexec:true Unix.PF_INET Unix.SOCK_STREAM 0 in
     try
       Unix.setsockopt socket Unix.TCP_NODELAY true ;
       Unix.set_nonblock socket ;
+      (* TODO: share slice of global send_receive_buffer *)
+      let buf = Bigstringaf.create 8192 in
+      let zb =
+        Zero_http.Zero_buffer.of_bigstring buf ~off:0
+          ~len:(Bigstringaf.length buf)
+      in
+      let parser = Zero_http.Response.create zb refill socket in
       connect_start socket addr ;
       {
         addr
@@ -202,13 +71,8 @@ module Connection = struct
       ; off= 0
       ; len= 0
       ; socket
-      ; receive_off_begin= 0
-      ; receive_off= 0
-      ; receive_end= 0
-      ; parse_off= 0
-      ; parse_state= Wait_status_line
-      ; content_length= 0
-      ; discard= 0
+      ; parser
+      ; zb
       }
     with e ->
       let bt = Printexc.get_raw_backtrace () in
@@ -254,19 +118,13 @@ module Connection = struct
     else
       0
 
-  let rec receive t into off len nread' =
-    assert (len > 0) ;
-    match Bigstring_unix.read t.socket ~off ~len into with
-    | 0 ->
-        nread'
-    | nread ->
-        assert (nread >= 0) ;
-        t.receive_off <- t.receive_off + nread ;
-        receive t into (off + nread) (len - nread) (nread + nread')
-    | exception Unix.(Unix_error (EINTR, _, _)) ->
-        (receive [@tailcall]) t into off len nread'
-    | exception Unix.(Unix_error ((EAGAIN | EWOULDBLOCK), _, _)) ->
-        nread'
+  let receive t =
+    (* TODO: 'a param so we don't have to allocate *)
+    Zero_http.Response.read t.parser
+      (fun ~status_code ~content_length:_ ~headers_size:_ ->
+        if status_code = 200 then
+          incr responses
+    )
 end
 
 type t = {
@@ -313,15 +171,11 @@ let fastpath_handle_event mux fd events t =
       Polly.upd mux fd Polly.Events.inp
     ) ;
   if Polly.Events.(test events inp) then (
-    let nread =
-      Connection.receive conn t.send_receive_buffer conn.receive_off
-        (conn.receive_end - conn.receive_off)
-        0
-    in
-    Connection.parse conn t.send_receive_buffer ;
-    if nread = 0 then (
-      Connection.disconnect conn ; do_disconnect t mux conn
-    )
+    Connection.receive conn ;
+    if Zero_http.Zero_buffer.is_eof conn.zb then begin
+      Connection.disconnect conn ;
+      do_disconnect t mux conn
+    end
   ) ;
   (* TODO: handle errors *)
   t
@@ -353,7 +207,9 @@ let build_conntable connections =
     connections ;
   conntbl
 
-let repeat = 900
+let repeat = 800
+
+let nconn = 100
 
 let run ?(receive_buffer_size = 16384) t =
   let connections = List.length t.connections in
@@ -368,16 +224,6 @@ let run ?(receive_buffer_size = 16384) t =
     List.fold_left (Connection.serialize t.send_receive_buffer) 0 t.connections
   in
   t.receive_off <- off ;
-  List.iter
-    (fun conn ->
-      conn.Connection.receive_off_begin <- t.receive_off ;
-      conn.Connection.parse_off <- t.receive_off ;
-      conn.Connection.receive_off <- t.receive_off ;
-      conn.Connection.receive_end <-
-        conn.Connection.receive_off + (repeat * receive_buffer_size) ;
-      t.receive_off <- conn.Connection.receive_end
-    )
-    t.connections ;
   (* off is receive offset *)
   let mux = Polly.create () in
   let register_connection conn =
@@ -404,7 +250,7 @@ let run ?(receive_buffer_size = 16384) t =
 
 let () =
   let t = init () in
-  for _ = 1 to 100 do
+  for _ = 1 to nconn do
     let conn = connect t Unix.(ADDR_INET (Unix.inet_addr_loopback, 8000)) in
     for _ = 1 to repeat do
       Connection.write conn "GET / HTTP/1.1\r\nHost: localhost:8000\r\n\r\n"

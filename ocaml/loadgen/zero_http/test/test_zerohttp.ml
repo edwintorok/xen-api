@@ -37,6 +37,4 @@ let () =
   in
   let t = Response.create zb reader test_data_str in
   Zero_http.Response.read t callback;
-  Zero_http.Response.read t callback;
-  Zero_http.Response.read t callback;
   if not !called then failwith "Callback not called"

@@ -73,3 +73,6 @@ val check_invariant: t -> unit
 
 val reset: t -> unit
 (** [reset t] resets all consumer/producer offsets. *)
+
+val is_eof: t -> bool
+(** [is_eof t] checks whether EOF has been reached on the input, and all data in the buffer has been consumed. *)

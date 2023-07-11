@@ -41,6 +41,7 @@ type t = {
   ; half: int
   ; producer: wo View.t
   ; consumer: ro View.t
+  ; mutable eof: bool
 }
 
 let of_bigstring buf ~off ~len =
@@ -51,6 +52,7 @@ let of_bigstring buf ~off ~len =
   ; producer= View.{buf; start= 0; stop = len}
   ; half = len / 2
   ; consumer= View.{buf; start= 0; stop= 0}
+  ; eof = false
   }
 
 let check_invariant t =
@@ -65,6 +67,7 @@ let reset t =
   t.producer.start <- 0;
   t.consumer.start <- 0 ;
   t.consumer.stop <- 0 ;
+  t.eof <- false;
   check_invariant t
 
 let producer t = t.producer
@@ -82,13 +85,19 @@ let produced t amount =
   t.consumer.stop <- t.producer.start ;
   assert (t.producer.start <= t.producer.stop)
 
+let is_eof t =
+  t.eof && View.size t.consumer = 0
+
 let refill t reader input =
   let producer = t.producer in
   let len = View.size producer in
   let nread = reader input ~off:producer.start ~len t.buf in
-  assert (nread >= 0) ;
-  assert (nread <= len) ;
-  produced t nread
+  if nread = 0 then t.eof <- true
+  else if nread > 0 then begin
+    assert (nread <= len) ;
+    produced t nread
+  end
+  (* can be -1 for EAGAIN *)
 
 let consumer t = t.consumer
 
@@ -105,3 +114,4 @@ let consumed t amount =
   ) else if t.consumer.start >= t.half then
     (* when more than half of the buffer is empty at the beginning: compact any unconsumed entries *)
     move_to_beginning t 
+

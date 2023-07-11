@@ -1,5 +1,5 @@
 (executable
 	(name speculative)
-	(libraries xapi-client xapi_version crowbar rresult faraday bigstringaf bigstring-unix polly xapi-stdext-unix)
+	(libraries xapi-client xapi_version crowbar rresult faraday bigstringaf bigstring-unix polly xapi-stdext-unix zero_http)
 )
 
