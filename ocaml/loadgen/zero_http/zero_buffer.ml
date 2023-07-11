@@ -92,6 +92,7 @@ let refill t reader input =
   if not t.eof then
   let producer = t.producer in
   let len = View.size producer in
+  if len > 0 then
   let nread = reader input ~off:producer.start ~len t.buf in
   if nread = 0 then t.eof <- true
   else if nread > 0 then begin
