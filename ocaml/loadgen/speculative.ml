@@ -173,6 +173,7 @@ let fastpath_handle_event mux fd events t =
   if Polly.Events.(test events inp) then (
     Connection.receive conn ;
     if Zero_http.Zero_buffer.is_eof conn.zb then begin
+      prerr_endline "EOF";
       Connection.disconnect conn ;
       do_disconnect t mux conn
     end
@@ -207,9 +208,9 @@ let build_conntable connections =
     connections ;
   conntbl
 
-let repeat = 800
+let repeat = 30
 
-let nconn = 100
+let nconn = 1
 
 let run ?(receive_buffer_size = 16384) t =
   let connections = List.length t.connections in
