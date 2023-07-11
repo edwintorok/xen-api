@@ -52,7 +52,7 @@ let () =
        (flow, parser)
   in
   let t0 = Unix.gettimeofday () in
-  Fiber.List.iter process_connection connections ;
+  Fiber.List.iter (process_connection_eio env) connections ;
   let t1 = Unix.gettimeofday () in
   let r = Atomic.get responses in
   Printf.printf "req/s: %g\n (responses: %d)\n" (float r /. (t1 -. t0)) r
