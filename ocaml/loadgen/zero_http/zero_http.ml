@@ -74,7 +74,8 @@ module Response = struct
         let acc = (acc * 10) + n in
         (parse_content_length_value [@tailcall]) t ~eol_len ~off:(off + 1) acc
 
-  let content_length = "Content-Length: "
+  let _content_length = "Content-Length: "
+  let content_length = "content-length: "
 
   let parse_content_length _ () t ~eol_len =
     if Zero_buffer.View.is_prefix t content_length then
@@ -99,10 +100,13 @@ module Response = struct
         (wait_end_of_headers [@tailcall]) t
 
   let http_200 = "HTTP/1.1 200 "
+  let http_403 = "HTTP/1.1 403 "
 
   let parse_status_line acc () view ~eol_len:_ =
     if Zero_buffer.View.is_prefix view http_200 then
       200
+    else if Zero_buffer.View.is_prefix view http_403 then
+      403
     else
       acc
 
@@ -112,7 +116,7 @@ module Response = struct
     match Zero_lines.read_line t.lines parse_status_line (-1) () with
     | -1 ->
         ()
-    | status_code when status_code = 200 ->
+    | status_code when status_code = 200 || status_code = 403 ->
         t.status_code <- status_code ;
         (wait_content_length [@tailcall]) t
     | _ ->

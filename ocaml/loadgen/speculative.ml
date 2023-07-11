@@ -122,7 +122,7 @@ module Connection = struct
     (* TODO: 'a param so we don't have to allocate *)
     Zero_http.Response.read t.parser
       (fun ~status_code ~content_length:_ ~headers_size:_ ->
-        if status_code = 200 then
+        if status_code = 200 || status_code = 403 then
           incr responses
     )
 end
@@ -250,8 +250,9 @@ let run ?(receive_buffer_size = 16384) t =
 
 let () =
   let t = init () in
+  let addr = (Unix.getaddrinfo "perfuk-18-06d.xenrt.citrite.net" "80" [] |> List.hd).Unix.ai_addr in
   for _ = 1 to nconn do
-    let conn = connect t Unix.(ADDR_INET (Unix.inet_addr_loopback, 8000)) in
+    let conn = connect t addr in
     for _ = 1 to repeat do
       Connection.write conn "GET / HTTP/1.1\r\nHost: localhost:8000\r\n\r\n"
     done

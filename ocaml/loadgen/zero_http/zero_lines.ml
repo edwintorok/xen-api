@@ -19,6 +19,7 @@ let read_line (Z t) process_line acc input =
       t.scanned_eol <- t.scanned_eol + Zero_buffer.View.size consumer ;
       acc
   | pos ->
+      t.scanned_eol <- 0;
       (* assert (Zero_buffer.View.get consumer (pos-1) = '\r'); *)
       let eol_len = pos - 1 in
       (* Zero_buffer.View.debug consumer ~len:eol_len; *)
