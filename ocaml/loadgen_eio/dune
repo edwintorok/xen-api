@@ -1,4 +1,4 @@
 (executable
 	(name loadgen_eio)
-	(libraries eio eio_main zero_http bigstringaf)	
+	(libraries eio eio_main zero_http bigstringaf cohttp-eio)	
 )

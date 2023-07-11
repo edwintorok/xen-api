@@ -26,6 +26,11 @@ let process_connection (flow, parser) =
   done ;
   Eio.Flow.close flow
 
+let process_connection_eio env (flow, _) =
+  let response, _body = Cohttp_eio.Client.get env ~conn:flow ~host:"localhost" "/" in
+  if Http.Response.status response = `OK then
+    Atomic.incr responses
+
 let () =
   Eio_main.run @@ fun env ->
   Switch.run @@ fun sw ->
