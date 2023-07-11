@@ -89,6 +89,7 @@ let is_eof t =
   t.eof && View.size t.consumer = 0
 
 let refill t reader input =
+  if not t.eof then
   let producer = t.producer in
   let len = View.size producer in
   let nread = reader input ~off:producer.start ~len t.buf in
