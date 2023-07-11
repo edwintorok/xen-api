@@ -27,11 +27,11 @@ end
 module Response : sig
   type t
 
-  val create : Zero_buffer.t -> ('a Zero_buffer.refill) -> 'a -> (status_code:int -> content_length:int -> headers_size:int -> unit) -> t
+  val create : Zero_buffer.t -> ('a Zero_buffer.refill) -> 'a -> t
   (** [create buff callback] creates new HTTP response parser state that invokes [callback] when a response has been parsed. *)
 
-  val read: t -> unit
-  (** [read t ] reads data using [reader] and parses a potentially partial HTTP response stream.
+  val read: t -> (status_code:int -> content_length:int -> headers_size:int -> unit) -> unit
+  (** [read t callback] reads data using [reader] and parses a potentially partial HTTP response stream.
     This is a fastpath if the following conditions are met:
       * the response is <HTTP status code 4xx
       * a Content-Length header is present with that exact capitalization

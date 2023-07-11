@@ -19,26 +19,6 @@ let test_data_str =
 let test_data =
   Bigstringaf.of_string ~off:0 ~len:(String.length test_data_str) test_data_str
 
-let rec line_memchr buff f line_off off acc =
-  match Bigstringaf.memchr buff off '\r' (Bigstringaf.length buff - off) with
-  | -1 ->
-      acc
-  | pos ->
-      if Bigstringaf.get buff (pos + 1) = '\n' then
-        let acc = f acc buff line_off (pos - off) in
-        let line_off = pos + 2 in
-        (line_memchr [@tailcall]) buff f line_off line_off acc
-      else
-        line_memchr buff f line_off (pos + 1) acc
-
-let line_memchr buff f () = line_memchr buff f 0 0 0
-
-let line_split buff f () =
-  let s = Bigstringaf.to_string buff in
-  let lines = String.split_on_char '\n' s in
-  let f acc line = f acc line 0 (String.length line) in
-  List.fold_left f 0 lines - 1 (* extra empty line *)
-
 module OCamllex = struct
   let allocate buff =
     let off = ref 0 in
@@ -60,10 +40,10 @@ module OCamllex = struct
 
   let line_ocamllex buff f (buff', lexbuf, _) =
     assert (buff' == buff) ;
-    let code = Find_content_length.status_line lexbuf in
+    let status_code = Find_content_length.status_line lexbuf in
     let content_length = Find_content_length.content_length_header lexbuf in
-    let headers_end = Find_content_length.ignore_headers lexbuf in
-    f code content_length headers_end
+    let headers_size = Find_content_length.ignore_headers lexbuf in
+    f ~status_code ~content_length ~headers_size
 end
 
 module Regex = struct
@@ -101,7 +81,8 @@ module Regex = struct
         number str ~finish:(Re.Group.stop groups 3)
           ~start:(Re.Group.start groups 3) 0
       in
-      f status len (Re.Group.stop groups 0)
+      f ~status_code:status ~content_length:len
+        ~headers_size:(Re.Group.stop groups 0)
 end
 
 let rec line_bigstringaf_get buff f line_off acc len off =
@@ -120,11 +101,11 @@ let line_bigstringaf_get buff f () =
 
 let repeat = 100
 
-let check_headers code content_length headers_end =
+let check_headers ~status_code ~content_length ~headers_size =
   (* Printf.printf "code: %d, content_length: %d, headers_end: %d; %d\n" code content_length headers_end (String.length test_data_str); *)
-  assert (code = 200) ;
+  assert (status_code = 200) ;
   assert (content_length = 8474) ;
-  assert (headers_end = String.length test_data_str)
+  assert (headers_size = String.length test_data_str)
 
 let test_line name ~allocate ~reset f =
   let t = allocate test_data in
@@ -188,11 +169,11 @@ let cohttp_response _ f t =
       invalid_arg str
   | `Ok r ->
       let h = Cohttp.Response.headers r in
-      let len =
+      let content_length =
         Cohttp.Header.get h "Content-Length" |> Option.get |> int_of_string
       in
-      let status = Cohttp.Code.code_of_status (Cohttp.Response.status r) in
-      f status len t.RIO.off
+      let status_code = Cohttp.Code.code_of_status (Cohttp.Response.status r) in
+      f ~status_code ~content_length ~headers_size:t.RIO.off
 
 let error_handler _ = failwith "error"
 
@@ -230,7 +211,9 @@ let httpaf_response buff f req =
   | Some resp -> (
     match Httpaf.Response.body_length ~request_method:`GET resp with
     | `Fixed len ->
-        f (Httpaf.Status.to_code resp.status) (Int64.to_int len) headers_end
+        f
+          ~status_code:(Httpaf.Status.to_code resp.status)
+          ~content_length:(Int64.to_int len) ~headers_size:headers_end
     | _ ->
         failwith "bad body length"
   )
@@ -336,13 +319,13 @@ module StateParser = struct
   let end_of_headers = Bigstringaf.of_string "\r\n\r\n" ~off:0 ~len:4
 
   let rec wait_end_of_headers buff t =
-     let len = t.len - t.eoh_off - 3 in
+    let len = t.len - t.eoh_off - 3 in
     match Bigstringaf.memchr buff t.eoh_off '\r' len with
-     | -1 ->
-         t.eoh_off <- t.eoh_off + len ;
-         (* wait for more data, haven't encountered end of headers yet *)
-         false
-     | pos ->
+    | -1 ->
+        t.eoh_off <- t.eoh_off + len ;
+        (* wait for more data, haven't encountered end of headers yet *)
+        false
+    | pos ->
         (* check 2nd eol first, it'll likely filter out false hits sooner *)
         if
           Bigstringaf.unsafe_get_int16_le buff (pos + 2) = 0x0a0d
@@ -368,8 +351,10 @@ module StateParser = struct
           failwith "Parsing failed" (* TODO: fall back *)
     in
     if finished then
-      f 200 t.content_length t.eoh_off
+      f ~status_code:200 ~content_length:t.content_length
+        ~headers_size:t.eoh_off
 end
+
 module StateParserMM = struct
   type state = WaitEndOfHeaders | Discard | Invalid
 
@@ -399,20 +384,18 @@ module StateParserMM = struct
     t.state <- WaitEndOfHeaders ;
     t.eoh_off <- 0
 
-    (* TODO: duplicate stateparser and stateparser memem so we can compare side by side *)
+  (* TODO: duplicate stateparser and stateparser memem so we can compare side by side *)
   let memmem buff off len needle =
     (* TODO: assert bounds checks *)
     Base_bigstring.unsafe_memmem ~haystack:buff ~needle ~haystack_pos:off
-      ~haystack_len:len
-      ~needle_pos:0
+      ~haystack_len:len ~needle_pos:0
       ~needle_len:(Bigstringaf.length needle)
-    (*match Base_bigstring.memmem ~haystack:buff ~needle ~haystack_pos:off
+  (*match Base_bigstring.memmem ~haystack:buff ~needle ~haystack_pos:off
       ~haystack_len:len
       ~needle_pos:0
       ~needle_len:(Bigstringaf.length needle) () with
     | None -> -1
     | Some pos -> pos *)
-
 
   let http_200 = "HTTP/1.1 200 "
 
@@ -430,7 +413,10 @@ module StateParserMM = struct
           skip_to_next_line t buff pos
 
   let content_length = "Content-Length: "
-  let content_length = Bigstringaf.of_string content_length ~off:0 ~len:(String.length content_length)
+
+  let content_length =
+    Bigstringaf.of_string content_length ~off:0
+      ~len:(String.length content_length)
 
   let invalid t =
     t.state <- Invalid ;
@@ -465,9 +451,12 @@ module StateParserMM = struct
 
   let parse_headers t buff off =
     match memmem buff off (Bigstringaf.length buff - off) content_length with
-    | -1 -> invalid t
+    | -1 ->
+        invalid t
     | off ->
-      parse_content_length_value t buff (off + Bigstringaf.length content_length) 0
+        parse_content_length_value t buff
+          (off + Bigstringaf.length content_length)
+          0
 
   let parse_status_line t buff =
     (* headers to parse between t.off and t.eof_off *)
@@ -505,29 +494,47 @@ module StateParserMM = struct
           failwith "Parsing failed" (* TODO: fall back *)
     in
     if finished then
-      f 200 t.content_length t.eoh_off
+      f ~status_code:200 ~content_length:t.content_length
+        ~headers_size:t.eoh_off
 end
 
+let zero_http_allocate buf =
+  (* buf already contains the data so refill has nothing to do, except report EOF the 2nd time around *)
+  let zb =
+    Zero_http.Zero_buffer.of_bigstring buf ~off:0 ~len:(Bigstringaf.length buf)
+  in
+  let finished = ref false in
+  let refill _ ~off:_ ~len _ =
+    if !finished then
+      0
+    else (
+      finished := true ;
+      len
+    )
+  in
+  Zero_http.Response.create zb refill input
+
+let zero_http_reset _t = ()
+
+let zero_http_parse _buff f t = Zero_http.Response.read t f
 
 let benchmarks =
   Test.make_grouped ~name:"content-length"
     [
-     test_line ~allocate:Regex.allocate ~reset:ignore "re" Regex.line_regex
+      test_line ~allocate:Regex.allocate ~reset:ignore "re" Regex.line_regex
     ; test_line ~allocate:OCamllex.allocate ~reset:OCamllex.reset "ocamllex"
         OCamllex.line_ocamllex
     ; test_line ~allocate:cohttp_allocate ~reset:cohttp_reset "cohttp"
         cohttp_response
     ; test_line ~allocate:httpaf_allocate ~reset:httpaf_reset "httpaf"
-        httpaf_response;
-     test_line ~allocate:StateParser.allocate ~reset:StateParser.reset
+        httpaf_response
+    ; test_line ~allocate:StateParser.allocate ~reset:StateParser.reset
         "stateparser" StateParser.parse
     ; test_line ~allocate:StateParserMM.allocate ~reset:StateParserMM.reset
         "stateparser-memmem" StateParserMM.parse
+    ; test_line ~allocate:zero_http_allocate ~reset:zero_http_reset "zero_http"
+        zero_http_parse
       (* TODO: a fully manual state machine.... from speculative.ml *)
-      (* ; test_line ~allocate:ignore ~reset:ignore "memchr" line_memchr
-         ; test_line ~allocate:ignore ~reset:ignore "split" line_split
-         ; test_line ~allocate:ignore ~reset:ignore "bigstringaf.get"
-             line_bigstringaf_get *)
     ]
 
 let () =
