@@ -33,6 +33,7 @@
  *
  * This only describes a simplified behaviour relevant to static analyses.
  */
+#include <stdint.h>
 #define DEBUG
 #define CAML_NAME_SPACE
 #include <caml/alloc.h>
@@ -74,7 +75,7 @@ caml_domain_state *Caml_state = &mainstate;
 
 /* CIL runs after preprocessing so cannot see or evaluate macros,
  * i.e. we cannot directly check whether a function contains calls to CAMLparam or not.
- * However we can that it contains the preabmle from __VERIFIER_camlparam0,
+ * However we can that it contains the preamble from __VERIFIER_camlparam0,
  * and then extract the name of the caml_frame and local root from camlparam1,
  * and check that all values are registered as local roots.
  * */
@@ -125,28 +126,55 @@ STUB value caml_alloc_atom(tag_t tag)
     return Val_hp(hp);
 }
 
+static void dummy_finalize(value v) {  }
+
+static int dummy_compare(value v1, value v2) { return 0; }
+static intnat dummy_hash(value v) { return 0; }
+static void dummy_serialize(value v, uintnat *bsize_32, uintnat *bsize_64) {}
+static uintnat dummy_deserialize(void *dst) { return 0; }
+static int dummy_compare_ext(value v1, value v2) { return 0; }
+
+/* declare at least one custom op, to avoid the static analyzer complaining that it cannot find any suitable
+   call targets in __caml_maybe_run_finalizer for the function pointers */
+static struct custom_operations dummy_ops = {
+    "dummy.ops",
+    dummy_finalize,
+    dummy_compare,
+    dummy_hash,
+    dummy_serialize,
+    dummy_deserialize,
+    dummy_compare_ext
+};
+
+STUB value __VERIFIER_nondet_value(void)
+{ value val; return val; }
+
+
 /* could be a linked list, for simplicity it is not.
  * this should be enough for may-points-to analysis to pick up the ops */
 static struct
 {
     const struct custom_operations *ops;
     value v;
-} a_custom_op;
+} a_custom_op = 
+{ .ops = &dummy_ops
+};
 
 static int __custom_ops_running;
 
 STUB static void __caml_maybe_run_finalizer(void)
 {
-    const struct custom_operations *ops = a_custom_op.ops;
+    const struct custom_operations* ops = a_custom_op.ops;
     value v = a_custom_op.v;
     uintnat bsize_32, bsize_64;
 
-    if ( !ops || !Is_block(v) )
+    if (!ops || !Is_block(v))
         return;
+
     /* only call finalizer once */
     a_custom_op.ops = NULL;
     a_custom_op.v = Val_unit;
-    __goblint_assume(Custom_ops_val(v) == ops);
+    __goblint_assume(v && Custom_ops_val(v) == ops);
 
     /* See https://v2.ocaml.org/manual/intfc.html#ss:c-custom-ops
      * these functions are not allowed to trigger a GC */
@@ -180,9 +208,6 @@ STUB static void __caml_maybe_run_finalizer(void)
             (void)memchr(dst, 0, size);
         }
         free(dst);
-
-        if ( ops->fixed_length )
-            (void)*ops->fixed_length;
     }
 
     if ( ops->finalize )
@@ -559,9 +584,6 @@ STUB int32_t __VERIFIER_nondet_int32(void)
 
 STUB int64_t __VERIFIER_nondet_int64(void)
 { int64_t val; return val; }
-
-STUB value __VERIFIER_nondet_value(void)
-{ value val; return val; }
 
 static int __in_noalloc;
 

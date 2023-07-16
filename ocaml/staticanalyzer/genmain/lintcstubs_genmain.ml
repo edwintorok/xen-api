@@ -49,7 +49,7 @@ let gen_of_native_arg args =
   function
   (* TODO: we could do more analysis on the type for value to determine whether
      it is an integer or not, what tag it can have, etc. *)
-  | (Value | Double | Int32 | Int64 | Intnat) as arg ->
+  | (Value | Double | Int32 | Int64 | Intnat _) as arg ->
       nondet @@ ctype_of_native_arg arg ^ "()"
   | Bytecode_argv ->
       Printf.sprintf "value[]{%s}"
@@ -187,7 +187,7 @@ void caml_alloc_point_here(void);
     (* TODO: put in a header *)
     Printf.printf "int __VERIFIER_nondet_int(void);\n" ;
     Printf.printf "void __access_Val(value);\n" ;
-    Primitives_of_cmt.[Value; Double; Int32; Int64; Intnat]
+    Primitives_of_cmt.[Value; Double; Int32; Int64; Intnat {untagged_int=false}]
     |> List.iter @@ fun t -> print_nondet_prototype t
   in
   print_endline "void __caml_maybe_run_gc(void);" ;

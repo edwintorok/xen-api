@@ -11,7 +11,7 @@ Rule 1. CAMLparam
   > }
   > EOF
 
-  $ lintcstubs --set mainfun[+] foo --set ana.activated '["ocamlcstubs", "escape"]' --disable warn.deadcode -I $(ocamlc -where) test.c
+  $ lintcstubs --set mainfun[+] foo --disable warn.deadcode -I $(ocamlc -where) test.c
 
   $ cat >test.c <<EOF
   > #include <caml/memory.h>
@@ -22,7 +22,7 @@ Rule 1. CAMLparam
   >   CAMLreturn0;
   > }
   > EOF
-  $ lintcstubs --set mainfun[+] foo --set ana.activated '["ocamlcstubs", "escape"]' --disable warn.info --disable warn.deadcode -I $(ocamlc -where) test.c
+  $ lintcstubs --set mainfun[+] foo --disable warn.info --disable warn.deadcode -I $(ocamlc -where) test.c
 
   $ cat >test.c <<EOF
   > #include <caml/memory.h>
@@ -30,7 +30,7 @@ Rule 1. CAMLparam
   > {
   > }
   > EOF
-  $ lintcstubs --set mainfun[+] foo --set ana.activated '["ocamlcstubs", "escape"]' --disable warn.info --disable warn.deadcode -I $(ocamlc -where) test.c
+  $ lintcstubs --set mainfun[+] foo --disable warn.info --disable warn.deadcode -I $(ocamlc -where) test.c
 
   $ cat >test.c <<EOF
   > #include <caml/memory.h>
@@ -42,6 +42,6 @@ Rule 1. CAMLparam
   >   CAMLreturn(result);
   > }
   > EOF
-  $ lintcstubs --set mainfun[+] foo --set ana.activated '["ocamlcstubs", "escape"]' --disable warn.info --disable warn.deadcode -I $(ocamlc -where) test.c
+  $ lintcstubs --conf examples/very-precise.json --set mainfun[+] foo --disable warn.info --disable warn.deadcode -I $(ocamlc -where) test.c
 
   TODO: this generates a lot of warnings

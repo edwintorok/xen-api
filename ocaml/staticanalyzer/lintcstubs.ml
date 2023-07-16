@@ -68,7 +68,7 @@ let set_default_flags () =
       set_auto "files[+]" @@ Fpath.to_string one
 
 (** [enable_tracing_if_needed ()] enables tracing messages in our analyses
-  if enabled on the CLI with [dbg.trace].
+  if enabled on the CLI with [dbg.debug].
  *)
 let enable_tracing_if_needed () =
   if Lintcstubs_analysis.Ocamlcstubs.tracing () then
