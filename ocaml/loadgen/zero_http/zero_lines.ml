@@ -22,7 +22,7 @@ let read_line (Z t) process_line acc input =
       t.scanned_eol <- 0;
       (* assert (Zero_buffer.View.get consumer (pos-1) = '\r'); *)
       let eol_len = pos - 1 in
-      (* Zero_buffer.View.debug consumer ~len:eol_len; *)
+      Zero_buffer.View.debug consumer ~len:eol_len;
       t.in_call <- true;
       (* TODO: exceptions *)
       let acc = process_line acc input consumer ~eol_len in

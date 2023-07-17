@@ -4,6 +4,10 @@ type wo = unit
 
 type 'a refill = 'a -> off:int -> len:int -> Bigstringaf.t -> int
 
+let src = Logs.Src.create ~doc:"protocol logging" "loadgen.zero_buffer"
+
+module Log = (val Logs.src_log src)
+
 module View = struct
   type 'a t = {
       buf: Bigstringaf.t
@@ -12,14 +16,14 @@ module View = struct
   }
 
   let get t pos =
-     assert (pos >= 0);
-     Bigstringaf.get t.buf (t.start + pos)
+    assert (pos >= 0) ;
+    Bigstringaf.get t.buf (t.start + pos)
 
   let size t = t.stop - t.start
 
   let memchr t ~pos c =
-    assert (pos >= 0);
-    assert (pos < t.stop);
+    assert (pos >= 0) ;
+    assert (pos < t.stop) ;
     let off = t.start + pos in
     match Bigstringaf.memchr t.buf off c (t.stop - off) with
     | -1 ->
@@ -27,13 +31,19 @@ module View = struct
     | off ->
         off - t.start
 
+  let debug_level = Some Logs.Debug
+
   let debug t ~len =
-    Printf.eprintf "@%d, +%d: %s\n" t.start len @@ Bigstringaf.substring t.buf ~off:t.start ~len
+    (* avoid allocating the closure here when not debugging *)
+    if Logs.Src.level src = debug_level then
+      Log.debug (fun m ->
+          m "@@[%3d, +%3d]< %s" t.start len
+          @@ Bigstringaf.substring t.buf ~off:t.start ~len
+      )
 
   let is_prefix t prefix =
     let len = String.length prefix in
     len <= size t && Bigstringaf.memcmp_string t.buf t.start prefix 0 len = 0
-
 end
 
 type t = {
@@ -48,11 +58,11 @@ let of_bigstring buf ~off ~len =
   assert (off >= 0) ;
   assert (len >= 0) ;
   {
-    buf = Bigstringaf.sub buf ~off ~len
-  ; producer= View.{buf; start= 0; stop = len}
-  ; half = len / 2
+    buf= Bigstringaf.sub buf ~off ~len
+  ; producer= View.{buf; start= 0; stop= len}
+  ; half= len / 2
   ; consumer= View.{buf; start= 0; stop= 0}
-  ; eof = false
+  ; eof= false
   }
 
 let check_invariant t =
@@ -64,10 +74,10 @@ let check_invariant t =
 
 let reset t =
   check_invariant t ;
-  t.producer.start <- 0;
+  t.producer.start <- 0 ;
   t.consumer.start <- 0 ;
   t.consumer.stop <- 0 ;
-  t.eof <- false;
+  t.eof <- false ;
   check_invariant t
 
 let producer t = t.producer
@@ -85,21 +95,21 @@ let produced t amount =
   t.consumer.stop <- t.producer.start ;
   assert (t.producer.start <= t.producer.stop)
 
-let is_eof t =
-  t.eof && View.size t.consumer = 0
+let is_eof t = t.eof && View.size t.consumer = 0
 
 let refill t reader input =
   if not t.eof then
-  let producer = t.producer in
-  let len = View.size producer in
-  if len > 0 then
-  let nread = reader input ~off:producer.start ~len t.buf in
-  if nread = 0 then t.eof <- true
-  else if nread > 0 then begin
-    assert (nread <= len) ;
-    produced t nread
-  end
-  (* can be -1 for EAGAIN *)
+    let producer = t.producer in
+    let len = View.size producer in
+    if len > 0 then
+      let nread = reader input ~off:producer.start ~len t.buf in
+      if nread = 0 then
+        t.eof <- true
+      else if nread > 0 then (
+        assert (nread <= len) ;
+        produced t nread
+      )
+(* can be -1 for EAGAIN *)
 
 let consumer t = t.consumer
 
@@ -115,5 +125,4 @@ let consumed t amount =
     t.producer.start <- 0
   ) else if t.consumer.start >= t.half then
     (* when more than half of the buffer is empty at the beginning: compact any unconsumed entries *)
-    move_to_beginning t 
-
+    move_to_beginning t

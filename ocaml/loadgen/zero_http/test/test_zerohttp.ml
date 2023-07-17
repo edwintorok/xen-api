@@ -17,6 +17,8 @@ let test_data_str =
     ]
 
 let () =
+  Logs.set_level ~all:true (Some Logs.Debug);
+  Logs.set_reporter @@ Logs_fmt.reporter ();
   Printexc.record_backtrace true;
   let buf = Bigstringaf.create 64 in (* TODO: test with smaller buffer *)
   let zb = Zero_buffer.of_bigstring buf ~off:0 ~len:(Bigstringaf.length buf) in

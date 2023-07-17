@@ -1,4 +1,4 @@
 (test
 	(name test_zerohttp)
-	(libraries zero_http)
+	(libraries zero_http logs.fmt)
 )

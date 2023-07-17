@@ -17,6 +17,9 @@
 (** A producer/consumers buffer that does not allocate once created *)
 type t
 
+val src: Logs.src
+(** [src] is this module's logging source. Can be used to set logging level. *)
+
 val of_bigstring : Bigstringaf.t -> off:int -> len:int -> t
 (** [of_bigstring bigstring ~off ~len] is a buffer using the region [[off, off+len)] of [bigstring].
  The buffer can be uninitialized. *)

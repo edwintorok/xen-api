@@ -1,4 +1,4 @@
 (library
 	(name zero_http)
-	(libraries bigstringaf)
+	(libraries bigstringaf logs)
 )
