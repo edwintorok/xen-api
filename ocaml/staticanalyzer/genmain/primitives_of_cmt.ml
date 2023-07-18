@@ -20,27 +20,84 @@
 *)
 
 module Shape = struct
-    (** https://v2.ocaml.org/manual/intfc.html#s%3Ac-ocaml-datatype-repr *)
-    type range = {min:int ; max: int}
-    type t =
-      | UnboxedInt of range (** integers between [min] and [max], inclusive *)
-      | Block of { tag: int; size: range; elements: t array option }
+  (** https://v2.ocaml.org/manual/intfc.html#s%3Ac-ocaml-datatype-repr *)
+  type range = {min: int; max: int}
 
-    let fixed n = {min=n;max=n}
-    let string_size = {min = 1; max = 1 + Sys.max_string_length * 8 / Sys.word_size}
+  type unboxed = Int of range | DoubleArrayElement
 
-    let bool = UnboxedInt {min=0; max = 1}
-    let char = UnboxedInt {min = 0; max = 255}
-    let int = UnboxedInt {min = min_int; max = max_int}
-    let block tag ?elements size = Block {tag; size; elements }
-    let float = block Obj.double_tag (fixed 1)
-    let bytes = block Obj.string_tag string_size
-    let string = block Obj.string_tag string_size
-    let int32 = block Obj.custom_tag (fixed 1)
-    let int64 = block Obj.custom_tag (fixed @@ 64 / Sys.word_size)
+  type t = Unboxed of unboxed | Boxed of boxed | Unknown
 
-    let tuple n lst = block 0 (fixed @@ List.length lst) ~elements:(Array.of_list lst)
-    (* TODO: also boxed record field... we really need to call the compiler to figure this out? *)
+  and boxed =
+    | Double
+    | Int32 (* can be smaller than a word, special case *)
+    | IntN of {size: int}
+    | String
+    | Tuple of t array
+    | Array of {elements: t}
+    | Block of {tag: int; elements: t array}
+    | Object
+    | Variant of t array
+  (*  | Self of {levels:int} *)
+
+  let fixed n = {min= n; max= n}
+
+  let string_size =
+    {min= 1; max= 1 + (Sys.max_string_length * 8 / Sys.word_size)}
+
+  let unit = Unboxed (Int {min=0;max=0})
+  
+  let bool = Unboxed (Int {min= 0; max= 1})
+
+  let char = Unboxed (Int {min= 0; max= 255})
+
+  let int = Unboxed (Int {min= min_int; max= max_int})
+
+  let constructor x = Unboxed (Int {min = x; max = x})
+
+  let block tag elements = Boxed (Block {tag; elements})
+
+  let bytes = Boxed String
+
+  let string = Boxed String
+
+  let float = Boxed Double
+
+  let int32 = Boxed Int32
+
+  let int64 = Boxed (IntN {size= 64 / Sys.word_size})
+
+  let nativeint = Boxed (IntN {size= 1})
+
+  let tuple lst = Boxed (Tuple (Array.of_list lst))
+
+  let is_double = function Boxed Double -> true | _ -> false
+
+  let record lst =
+    if List.for_all is_double lst then
+      Boxed (Array {elements= Unboxed DoubleArrayElement})
+    else
+      tuple lst
+
+  let array elements = Boxed (Array {elements})
+
+  let obj = Object
+
+  let is = Types.eq_type
+  let of_type_expr e =
+    let open Predef in
+    if is e type_int then int
+    else if is e type_char then char
+    else if is e type_string then string
+    else if is e type_bytes then bytes
+    else if is e type_float then float
+    else if is e type_bool then bool
+    else if is e type_unit then unit
+    else if is e type_nativeint then nativeint
+    else if is e type_int32 then int32
+    else if is e type_int64 then int64
+    (* TODO: look at Path.t and val_type *)
+    else Unknown
+  
 end
 
 type native_arg =
@@ -48,7 +105,7 @@ type native_arg =
   | Double
   | Int32
   | Int64
-  | Intnat of { untagged_int: bool }
+  | Intnat of {untagged_int: bool}
   | Bytecode_argv
   | Bytecode_argn
 
@@ -60,14 +117,14 @@ let native_arg_of_primitive =
   | Unboxed_float ->
       Double
   | Unboxed_integer Pnativeint ->
-      Intnat { untagged_int = false }
+      Intnat {untagged_int= false}
   | Unboxed_integer Pint32 ->
       Int32
   | Unboxed_integer Pint64 ->
       Int64
   | Untagged_int ->
       (* the range of this is one bit less than Pnativeint, but still same type on C side *)
-      Intnat { untagged_int = true }
+      Intnat {untagged_int= true}
 
 (**  [ctype_of_native_arg arg] returns the C type used when implementing
      primitives for native code mode.
@@ -127,7 +184,7 @@ let warning loc =
   using [with_report_exceptions].
  *)
 let iter_primitives_exn ~path f =
-  let primitive_description pd =
+  let primitive_description type_expr pd =
     let open Primitive in
     if native_name_is_external pd then
       (* only process primitives implemented by the user, not the ones defined
@@ -144,31 +201,12 @@ let iter_primitives_exn ~path f =
       in
       f t
   in
-  let all = ref [] in
   let rec value_description _ vd =
     let open Typedtree in
     let open Types in
     match vd.val_val.val_kind with
     | Val_prim prim ->
-        let env = vd.val_desc.ctyp_env in
-        Env.fold_constructors (fun constr () ->
-            match constr.cstr_tag with
-            | Cstr_constant n -> Printf.eprintf "%d\n" n
-            | Cstr_block n -> Printf.eprintf "%d\n" n
-            | Cstr_unboxed -> Printf.eprintf "unboxed\n"
-            | Cstr_extension _ -> Printf.eprintf "ext\n"
-
-        ) None env ();
-        List.iter (fun cid ->
-            try let constr = Env.find_ident_constructor cid env in
-            match constr.cstr_tag with
-            | Cstr_constant n -> Printf.eprintf "%d\n" n
-            | Cstr_block n -> Printf.eprintf "%d\n" n
-            | Cstr_unboxed -> Printf.eprintf "unboxed\n"
-            | Cstr_extension _ -> Printf.eprintf "ext\n"
-            with Not_found -> ()
-        ) !all;
-        primitive_description prim
+        primitive_description vd.val_val.val_type prim
     | _ ->
         ()
   in
@@ -176,15 +214,15 @@ let iter_primitives_exn ~path f =
     let open Typedtree in
     let open Types in
     match tkind with
-    | Ttype_abstract -> ()
-    | Ttype_record _ -> () (* TODO *)
-    | Ttype_variant cnstr ->
-        Printf.eprintf "Got %d constructors" (List.length cnstr);
-        List.iter (fun c ->
-            all := c.Typedtree.cd_id :: !all 
-        ) cnstr;
+    | Ttype_abstract ->
         ()
-    | Ttype_open -> ()
+    | Ttype_record _ ->
+        () (* TODO *)
+    | Ttype_variant cnstr ->
+        Printf.eprintf "Got %d constructors" (List.length cnstr) ;
+        ()
+    | Ttype_open ->
+        ()
   in
   let open Tast_iterator in
   let iterator = {default_iterator with value_description; type_kind} in
@@ -193,15 +231,7 @@ let iter_primitives_exn ~path f =
   |>
   let open Cmt_format in
   function
-  | {cmt_annots= Implementation structure;} ->
-        Env.fold_constructors (fun constr () ->
-            match constr.cstr_tag with
-            | Cstr_constant n -> Printf.eprintf "%d\n" n
-            | Cstr_block n -> Printf.eprintf "%d\n" n
-            | Cstr_unboxed -> Printf.eprintf "unboxed\n"
-            | Cstr_extension _ -> Printf.eprintf "ext\n"
-
-        ) None structure.str_final_env ();
+  | {cmt_annots= Implementation structure; _} ->
       iterator.structure iterator structure
   | {cmt_annots= Interface signature; _} ->
       (* this won't find all primitives, because the interface is allowed to
