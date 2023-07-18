@@ -307,7 +307,7 @@ local build_request = function(n, method, path, body)
     Default_span["rpc.system"] = Rpc_system
     if Rpc_system == "jsonrpc" then
       Default_span["rpc.jsonrpc.request_id"] = n
-      Default_span["rpc.jsonrpc.version"] = "1.0"
+      Default_span["rpc.jsonrpc.version"] = "2.0"
     end
     Default_span["rpc.service"] = "xapi"
   end

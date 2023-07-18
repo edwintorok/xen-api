@@ -19,4 +19,51 @@
    (mtime would allocate an int64 every time and not give us the absolute value, and gettimeofday would use a float)
 *)
 
+module User: sig
+ type _ t
+ type tag = ..
 
+ val write : 'a t -> 'a -> unit
+ (** [write t v] records a new event [t] with value [v]. *)
+
+ val name: _ t -> string
+ (** [name t] is a unique identifier for the name of the event [t] *)
+
+ val tag: _ t -> tag
+ (** [tag t] is the tag associated with event [t] when known. *)
+end
+
+type User.tag +=
+ | Traceparent
+ | Request_id
+ | Connecting
+ | Connected
+ | HttpRequestUrl
+ | HttpRequestMethod
+ | HttpRequestBodySize
+ | HttpResponseHeaders
+ | HttpStatusCode
+ | ContentLength
+ | HttpResponseBody
+ | RpcSystem
+ | Realtime
+ | Nop
+
+type span = Begin | End
+
+type rpc_system = XmlRPC | JsonRPC2
+
+val traceparent: string User.t
+val request_id: int User.t
+val connecting: Unix.sockaddr User.t
+val connected: int User.t
+val http_request_url : string User.t
+val http_request_method: Http.Method.t User.t
+val http_request_body_size: int User.t
+val http_response_headers: span User.t
+val http_response_status_code: int User.t
+val http_response_body_size: int User.t
+val http_response_body: span User.t
+val rpc_system : rpc_system User.t
+val nop: unit User.t
+val realtime: int64 User.t
