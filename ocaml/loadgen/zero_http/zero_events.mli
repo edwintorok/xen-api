@@ -18,7 +18,6 @@
  On OCaml <5.1 it uses its own ring-buffer and bechamel.monotonic_clock
    (mtime would allocate an int64 every time and not give us the absolute value, and gettimeofday would use a float)
 *)
-
 module User: sig
  type _ t
  type tag = ..
@@ -54,16 +53,47 @@ type span = Begin | End
 type rpc_system = XmlRPC | JsonRPC2
 
 val traceparent: string User.t
-val request_id: int User.t
-val connecting: Unix.sockaddr User.t
-val connected: int User.t
 val http_request_url : string User.t
-val http_request_method: Http.Method.t User.t
-val http_request_body_size: int User.t
-val http_response_headers: span User.t
+
+val request_id: int User.t
+val connected: int User.t
 val http_response_status_code: int User.t
 val http_response_body_size: int User.t
+val http_request_body_size: int User.t
+
+val connecting: Unix.sockaddr User.t
+
+val http_request_method: Http.Method.t User.t
+
+val http_response_headers: span User.t
 val http_response_body: span User.t
+
 val rpc_system : rpc_system User.t
 val nop: unit User.t
+
 val realtime: int64 User.t
+
+module Timestamp: sig
+ type t
+ val to_int64: t -> int64
+end
+
+type 'a callback = int -> Timestamp.t -> 'a User.t -> 'a -> unit
+
+val register_callbacks:
+ Runtime_events.Callbacks.t ->
+ traceparent:string callback
+ -> http_request_url: string callback
+ -> http_request_body_size: int callback
+ -> request_id: int callback
+ -> connected: int callback
+ -> http_response_status_code: int callback
+ -> http_response_body_size: int callback
+ -> connecting: Unix.sockaddr callback
+ -> http_request_method: Http.Method.t callback
+ -> http_response_headers: span callback
+ -> http_response_body: span callback
+ -> rpc_system: rpc_system callback
+ -> nop: unit callback
+ -> realtime: int64 callback
+ -> Runtime_events.Callbacks.t

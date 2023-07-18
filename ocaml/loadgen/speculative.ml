@@ -1,7 +1,10 @@
+module Ev = Zero_http.Zero_events
+
 let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
 let rec connect_start sock addr =
   let open Unix in
+  Ev.User.write Ev.connecting addr ;
   try connect sock addr with
   | Unix_error ((EINPROGRESS | EAGAIN | EWOULDBLOCK), _, _) ->
       ()
@@ -17,9 +20,11 @@ module Connection = struct
     ; send_buffer: string Queue.t
     ; zb: Zero_http.Zero_buffer.t
     ; parser: Zero_http.Response.t
+    ; id: int
     ; mutable closed: bool
     ; mutable off: int
     ; mutable len: int
+    ; mutable connecting: bool
   }
 
   let invalid_buf = Bigstringaf.create 1
@@ -35,9 +40,11 @@ module Connection = struct
     ; closed= true
     ; off= 0
     ; len= 0
+    ; id= -1
     ; zb= invalid_zb
     ; parser=
         Zero_http.Response.create invalid_zb (fun _ -> failwith "invalid") ()
+    ; connecting= false
     }
 
   let rec refill socket ~off ~len into =
@@ -51,6 +58,8 @@ module Connection = struct
     | exception Unix.(Unix_error ((EAGAIN | EWOULDBLOCK), _, _)) ->
         -1
 
+  let ids = Atomic.make 0
+
   let connect addr =
     let socket = Unix.socket ~cloexec:true Unix.PF_INET Unix.SOCK_STREAM 0 in
     try
@@ -63,6 +72,8 @@ module Connection = struct
           ~len:(Bigstringaf.length buf)
       in
       let parser = Zero_http.Response.create zb refill socket in
+      let id = Atomic.fetch_and_add ids 1 in
+      Ev.User.write Ev.request_id id ;
       connect_start socket addr ;
       {
         addr
@@ -73,6 +84,8 @@ module Connection = struct
       ; socket
       ; parser
       ; zb
+      ; connecting= true
+      ; id
       }
     with e ->
       let bt = Printexc.get_raw_backtrace () in
@@ -165,17 +178,22 @@ let do_disconnect t mux conn =
 
 let fastpath_handle_event mux fd events t =
   let conn = t.conntable.(Xapi_stdext_unix.Unixext.int_of_file_descr fd) in
-  if Polly.Events.(test events out) then
+  Ev.User.write Ev.request_id conn.Connection.id ;
+  if Polly.Events.(test events out) then (
+    if conn.Connection.connecting then (
+      Ev.User.write Ev.connected conn.Connection.id ;
+      conn.Connection.connecting <- false
+    ) ;
     if Connection.send conn t.send_receive_buffer = 0 then (
       Unix.shutdown fd Unix.SHUTDOWN_SEND ;
       Polly.upd mux fd Polly.Events.inp
-    ) ;
+    )
+  ) ;
   if Polly.Events.(test events inp) then (
     Connection.receive conn ;
-    if Zero_http.Zero_buffer.is_eof conn.zb then begin
-      Connection.disconnect conn ;
-      do_disconnect t mux conn
-    end
+    if Zero_http.Zero_buffer.is_eof conn.zb then (
+      Connection.disconnect conn ; do_disconnect t mux conn
+    )
   ) ;
   (* TODO: handle errors *)
   t
@@ -251,7 +269,11 @@ let run ?(receive_buffer_size = 16384) t =
 
 let () =
   let t = init () in
-  let addr = (Unix.getaddrinfo "perfuk-18-06d.xenrt.citrite.net" "80" [] |> List.hd).Unix.ai_addr in
+  let host = "perfuk-18-06d.xenrt.citrite.net" in
+  let addr = (Unix.getaddrinfo host "80" [] |> List.hd).Unix.ai_addr in
+  Ev.(User.write http_request_url @@ "http://" ^ host ^ "/") ;
+  Ev.(User.write http_request_method `GET) ;
+  (* TODO: traceparent... *)
   for _ = 1 to nconn do
     let conn = connect t addr in
     for _ = 1 to repeat do

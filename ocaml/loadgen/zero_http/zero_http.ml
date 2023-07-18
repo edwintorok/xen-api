@@ -1,4 +1,6 @@
+module Ev = Zero_events
 module Zero_buffer = Zero_buffer
+module Zero_events = Zero_events
 
 let src = Logs.Src.create ~doc:"zero_http protocol logging" "loadgen.zero_http"
 
@@ -39,6 +41,7 @@ module Response = struct
     raise Fallback
 
   let finish t callback =
+    Ev.(User.write http_response_body End);
     (* reset *)
     t.state <- WaitStatusLine ;
     let content_length = t.content_length
@@ -59,6 +62,8 @@ module Response = struct
     callback ~status_code ~content_length ~headers_size
 
   let discard_data t view =
+    if t.discard = t.content_length then
+      Ev.(User.write http_response_body Begin);
     let available = Zero_buffer.View.size view in
     let to_discard = Int.min available t.discard in
     t.discard <- t.discard - to_discard ;
@@ -76,6 +81,7 @@ module Response = struct
     t.state <- WaitEndOfHeaders ;
     (* resume from here *)
     if Zero_lines.read_line t.lines is_empty_line false () then (
+      Ev.(User.write http_response_headers End);
       if is_debug () then
         Log.debug (fun m -> m "Finished parsing header, about to discard %d bytes of body" t.content_length);
       t.discard <- t.content_length ;
@@ -121,6 +127,7 @@ module Response = struct
         wait_content_length t
     | content_length ->
         assert (content_length >= 0) ;
+        Ev.(User.write http_response_body_size content_length);
         if is_debug () then
           Log.debug (fun m -> m "Parsed Content-Length: %d" content_length);
         t.content_length <- content_length ;
@@ -136,20 +143,25 @@ module Response = struct
     else if Zero_buffer.View.is_prefix view http_403 then
       403
     else
+     (* TODO *)
       acc
 
   let wait_status_line t =
     t.state <- WaitStatusLine ;
+    if Zero_lines.is_bol t.lines then
+      Ev.(User.write http_response_headers Begin);
     (* resume from here *)
     match Zero_lines.read_line t.lines parse_status_line (-1) () with
     | -1 ->
         ()
     | status_code when status_code = 200 || status_code = 403 ->
+        Ev.(User.write http_response_status_code status_code);
         t.status_code <- status_code ;
         if is_debug () then
           Log.debug (fun m -> m "Parsed HTTP status code %d" status_code);
         (wait_content_length [@tailcall]) t
     | status_code ->
+        Ev.(User.write http_response_status_code status_code);
         if is_debug () then
           Log.debug (fun m -> m "HTTP status code: %d, falling back to slow parser" status_code);
         failwith "TODO: fallback"

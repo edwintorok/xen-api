@@ -20,6 +20,10 @@
   It will allocate memory only when not on that fastpath.
 *)
 
+module Zero_events: sig
+  include module type of Zero_events
+end
+
 module Zero_buffer : sig
   include module type of Zero_buffer
 end

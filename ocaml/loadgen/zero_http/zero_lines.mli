@@ -26,3 +26,6 @@ val read_line: t -> ('a -> 'b -> Zero_buffer.ro Zero_buffer.View.t -> eol_len:in
 
 val read_data: t -> ('a -> Zero_buffer.ro Zero_buffer.View.t -> int) -> 'a -> bool
 (** [read_data t callback] invokes [callback] when there is data available to read. *)
+
+val is_bol : t -> bool
+(** [is_bol t] whether [t] is at the beginning of line. *)

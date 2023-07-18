@@ -6,6 +6,8 @@ type t = Z: {
   ; mutable in_call: bool
 } -> t
 
+let is_bol (Z t) = t.scanned_eol = 0
+
 let make zb ~read input = Z {zb; read; input; scanned_eol= 0; in_call = false}
 
 let read_line (Z t) process_line acc input =
