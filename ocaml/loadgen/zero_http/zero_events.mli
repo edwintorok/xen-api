@@ -30,7 +30,7 @@ val register_marshaled_event: string -> on_process_event:'a callback -> 'a event
 
 val register_simple_span : string -> span event
 
-val emit: 'a event -> 'a -> unit
+val write: 'a event -> 'a -> unit
 
 val register_callbacks:
  on_simple_span:span callback -> Runtime_events.Callbacks.t -> Runtime_events.Callbacks.t

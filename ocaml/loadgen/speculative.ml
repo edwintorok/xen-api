@@ -1,10 +1,12 @@
-module Ev = Zero_http.Zero_events
+module Ze = Zero_http.Zero_events
 
 let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
+let event_connect = Ze.register_simple_span "http.connect"
+
 let rec connect_start sock addr =
   let open Unix in
-  Ev.User.write Ev.connecting addr ;
+  Ze.(write event_connect Begin);
   try connect sock addr with
   | Unix_error ((EINPROGRESS | EAGAIN | EWOULDBLOCK), _, _) ->
       ()
@@ -73,7 +75,6 @@ module Connection = struct
       in
       let parser = Zero_http.Response.create zb refill socket in
       let id = Atomic.fetch_and_add ids 1 in
-      Ev.User.write Ev.request_id id ;
       connect_start socket addr ;
       {
         addr
@@ -178,10 +179,9 @@ let do_disconnect t mux conn =
 
 let fastpath_handle_event mux fd events t =
   let conn = t.conntable.(Xapi_stdext_unix.Unixext.int_of_file_descr fd) in
-  Ev.User.write Ev.request_id conn.Connection.id ;
   if Polly.Events.(test events out) then (
     if conn.Connection.connecting then (
-      Ev.User.write Ev.connected conn.Connection.id ;
+      Ze.(write event_connect End);
       conn.Connection.connecting <- false
     ) ;
     if Connection.send conn t.send_receive_buffer = 0 then (
@@ -267,12 +267,13 @@ let run ?(receive_buffer_size = 16384) t =
     (float requests /. (t1 -. t0))
     requests
 
+
 let () =
   let t = init () in
   let host = "perfuk-18-06d.xenrt.citrite.net" in
   let addr = (Unix.getaddrinfo host "80" [] |> List.hd).Unix.ai_addr in
-  Ev.(User.write http_request_url @@ "http://" ^ host ^ "/") ;
-  Ev.(User.write http_request_method `GET) ;
+  Ze.(write Zero_http.url_full @@ "http://" ^ host ^ "/") ;
+  Ze.(write Zero_http.url_method `GET);
   (* TODO: traceparent... *)
   for _ = 1 to nconn do
     let conn = connect t addr in

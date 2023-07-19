@@ -48,3 +48,6 @@ module Response : sig
     @param conn is a parameter for [reader] (e.g. a file descriptor)
   *)
 end
+
+val url_full: string Zero_events.event
+val url_method: Http.Method.t Zero_events.event

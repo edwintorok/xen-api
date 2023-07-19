@@ -1,6 +1,18 @@
-module Ev = Zero_events
+module Ze = Zero_events
 module Zero_buffer = Zero_buffer
 module Zero_events = Zero_events
+
+let url = ref ""
+let url_full = Ze.register_marshaled_event "url.full" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns:_ ~name:_ ~value ->
+  url := value
+)
+
+let meth : Http.Method.t ref = ref `GET
+
+let url_method = Ze.register_marshaled_event "method" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns:_ ~name:_ ~value ->
+  meth := value
+)
+
 
 let src = Logs.Src.create ~doc:"zero_http protocol logging" "loadgen.zero_http"
 
@@ -17,6 +29,14 @@ module Response = struct
     ; mutable discard: int
     ; mutable headers_size: int
   }
+
+  let request_begin = Ze.register_marshaled_event "request.begin" ~on_process_event:(fun ~domain ~timestamp_unix_ns ~name ~value ->
+    (* TODO: just parent info *)
+  )
+
+  let request_end = Ze.register_marshaled_event "request.end" ~on_process_event:(fun ~domain ~timestamp_unix_ns ~name ~value ->
+    (* TODO: this one actually emits *)
+  )
 
   let create zb reader input =
     let lines = Zero_lines.make zb ~read:reader input in
@@ -40,8 +60,10 @@ module Response = struct
       Log.debug (fun m -> m "Cannot parse HTTP line, falling back to slow parser");
     raise Fallback
 
+  let http_response_body = Ze.register_simple_span "http.response.body"
+
   let finish t callback =
-    Ev.(User.write http_response_body End);
+    Ze.(write http_response_body End);
     (* reset *)
     t.state <- WaitStatusLine ;
     let content_length = t.content_length
@@ -63,7 +85,7 @@ module Response = struct
 
   let discard_data t view =
     if t.discard = t.content_length then
-      Ev.(User.write http_response_body Begin);
+      Ze.(write http_response_body Begin);
     let available = Zero_buffer.View.size view in
     let to_discard = Int.min available t.discard in
     t.discard <- t.discard - to_discard ;
@@ -77,11 +99,13 @@ module Response = struct
 
   let is_empty_line _ () _ ~eol_len = eol_len = 0
 
+  let http_response_headers = Ze.register_simple_span "http.response.headers"
+
   let rec wait_end_of_headers t =
     t.state <- WaitEndOfHeaders ;
     (* resume from here *)
     if Zero_lines.read_line t.lines is_empty_line false () then (
-      Ev.(User.write http_response_headers End);
+      Ze.(write http_response_headers End);
       if is_debug () then
         Log.debug (fun m -> m "Finished parsing header, about to discard %d bytes of body" t.content_length);
       t.discard <- t.content_length ;
@@ -127,7 +151,6 @@ module Response = struct
         wait_content_length t
     | content_length ->
         assert (content_length >= 0) ;
-        Ev.(User.write http_response_body_size content_length);
         if is_debug () then
           Log.debug (fun m -> m "Parsed Content-Length: %d" content_length);
         t.content_length <- content_length ;
@@ -149,19 +172,17 @@ module Response = struct
   let wait_status_line t =
     t.state <- WaitStatusLine ;
     if Zero_lines.is_bol t.lines then
-      Ev.(User.write http_response_headers Begin);
+      Ze.(write http_response_headers Begin);
     (* resume from here *)
     match Zero_lines.read_line t.lines parse_status_line (-1) () with
     | -1 ->
         ()
     | status_code when status_code = 200 || status_code = 403 ->
-        Ev.(User.write http_response_status_code status_code);
         t.status_code <- status_code ;
         if is_debug () then
           Log.debug (fun m -> m "Parsed HTTP status code %d" status_code);
         (wait_content_length [@tailcall]) t
     | status_code ->
-        Ev.(User.write http_response_status_code status_code);
         if is_debug () then
           Log.debug (fun m -> m "HTTP status code: %d, falling back to slow parser" status_code);
         failwith "TODO: fallback"

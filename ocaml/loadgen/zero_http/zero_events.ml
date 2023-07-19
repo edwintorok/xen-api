@@ -106,7 +106,7 @@ type Runtime_events.User.tag += SimpleSpan
 let register_simple_span name =
   Runtime_events.User.register name SimpleSpan Runtime_events.Type.span  
 
-let emit ev value = Runtime_events.User.write ev value
+let write ev value = Runtime_events.User.write ev value
 
 let register_callbacks ~on_simple_span callbacks =
   let on_simple_span domain timestamp user value =
