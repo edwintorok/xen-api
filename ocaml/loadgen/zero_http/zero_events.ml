@@ -181,11 +181,33 @@ module CurrentSpan = struct
   let () = register Runtime_events.Type.int process_int
 end
 
-type User.tag += Request_id
+module SmallString = MakeType(String)
 
-let request_id = User.register "zero_events.request_id" Request_id Type.int
+let string_attribute name =
+  let module M = MakeAttribute(struct
+  type t = string
+  let name = name
+  let typ = SmallString.typ
+  let to_attribute str = String str
+  end) in
+  M.user
 
-type User.tag += Connecting
+let int_attribute name =
+  let module M = MakeAttribute(struct
+  type t = int
+  let name = name
+  let typ = Runtime_events.Type.int
+  let to_attribute int = Int64 (Int64.of_int int)
+  end) in
+  M.user
+
+let make_span name =
+  let module M = MakeSpan(struct let name = name end) in
+  M.user
+
+let traceparent = string_attribute "traceparent"
+
+let connect = make_span "zero_events.connect"
 
 let connecting = User.register "zero_events.connecting" Connecting sockaddr
 
