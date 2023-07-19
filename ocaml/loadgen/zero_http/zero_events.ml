@@ -14,184 +14,316 @@
 
 (* TODO: select based on compiler version, for now just 5.1+ version *)
 
-(* Zero allocation when recording events. 
+(* Zero allocation when recording events.
    Allocation is unavoidable when decoding, but that can happen in a separate process. *)
 
-module User = Runtime_events.User
-module Type = Runtime_events.Type
 module Timestamp = Runtime_events.Timestamp
 
-let sockaddr =
- let marshal_flags = [Marshal.No_sharing] in
- let encode bytes (addr:Unix.sockaddr) =
-  (* inet_addr is abstract, but internally a string, so it is marshalable *)
-  let n=  Marshal.to_buffer bytes 0 (Bytes.length bytes) addr marshal_flags in
-  n
- in
- let decode bytes len : Unix.sockaddr =
-  Marshal.from_bytes bytes 0
- in
- Type.register ~encode ~decode
+module MakeType (T : sig
+  (** a small marshalable type. In marshaled form it must fit into 1024 bytes. *)
+  type t
+end) =
+struct
+  type t = T.t
+  let marshal_flags = [Marshal.No_sharing]
 
- let encode_small_string bytes str =
-  let n = String.length str in
-  Bytes.blit_string str 0 bytes 0 n;
-  n
+  let encode bytes (span : T.t) =
+    Marshal.to_buffer bytes 0 (Bytes.length bytes) span marshal_flags
 
- let decode_small_string bytes len =
-  Bytes.sub_string bytes 0 len
+  let decode bytes len : T.t =
+    assert (len >= Marshal.header_size) ;
+    assert (len >= Marshal.total_size bytes 0) ;
+    Marshal.from_bytes bytes 0
 
-let small_string =
- Type.register ~encode:encode_small_string ~decode:decode_small_string
+  let typ = Runtime_events.Type.register ~encode ~decode
+end
 
-let type_http_request_method =
- let encode bytes meth =
-  encode_small_string bytes (Http.Method.to_string meth)
- in
- let decode bytes len =
-  decode_small_string bytes len |> Http.Method.of_string
- in
- Type.register ~encode ~decode
+let spans = Hashtbl.create 1000
 
-type rpc_system =
- | XmlRPC
- | JsonRPC2
+type attr = String of string | Bool of bool | Double of float | Int64 of int64
 
-let type_rpc_system =
- let encode bytes r =
-  let i = match r with
-  | XmlRPC -> 0
-  | JsonRPC2 -> 1
+module SpanId = struct
+  type t = int
+
+  let ids = Atomic.make 0
+
+  let invalid = -1
+
+  let root = 0
+
+  let next () = Atomic.fetch_and_add ids 1
+end
+
+type current_span = {
+    attributes: (string * attr) Stack.t
+  ; events: (string * Runtime_events.Timestamp.t) Stack.t
+  ; mutable start_time_unix_nano: int64
+  ; id: SpanId.t
+  ; parent: SpanId.t
+}
+
+let make_span ~parent =
+  {
+    attributes= Stack.create ()
+  ; events= Stack.create ()
+  ; id= SpanId.invalid
+  ; start_time_unix_nano= -1L
+  ; parent
+  }
+
+let handlers = Stack.create ()
+
+let spans = Hashtbl.create 127
+
+let domains = Array.make 128 None
+
+let get_current_span domain = domains.(domain)
+
+let register typ process_event =
+  let register_user_event callbacks =
+    Runtime_events.Callbacks.add_user_event typ process_event callbacks
   in
-  Bytes.set_uint8 bytes 0 i;
-  1
- in
- let decode bytes len =
-  assert (len == 1);
-  match Bytes.get_uint8 bytes 0 with
-  | 0 -> XmlRPC
-  | 1 -> JsonRPC2
-  | n -> invalid_arg (Printf.sprintf "Invalid rpc system decoded: %d" n)
- in
- Type.register ~encode ~decode
+  Stack.push register_user_event handlers
 
-let int64 =
-  let encode bytes i =
-   Bytes.set_int64_ne bytes 0 i;
-   8
-  in
-  let decode bytes len =
-   assert (len == 8);
-   Bytes.get_int64_ne bytes 0
-  in
-  Type.register ~encode ~decode
- 
-type User.tag += Traceparent
-let traceparent = User.register "traceparent" Traceparent small_string
+module MakeAttribute (T : sig
+  type t
+
+  val name : string
+
+  val typ : t Runtime_events.Type.t
+
+  val to_attribute : t -> attr
+end) =
+struct
+  type Runtime_events.User.tag += Attribute
+
+  let user = Runtime_events.User.register T.name Attribute T.typ
+
+  let process_attribute span timestamp user t =
+    let name = Runtime_events.User.name user in
+    Stack.push (name, T.to_attribute t) span.attributes ;
+    Stack.push (name, timestamp) span.events
+
+  let process_attribute_event domain timestamp user value =
+    match Runtime_events.User.tag user with
+    | Attribute ->
+        let span = get_current_span domain |> Option.get in
+        process_attribute span timestamp user value
+    | _ ->
+        ()
+
+  let () = register T.typ process_attribute_event
+end
+
+let emit_span = ref ignore
+
+module MakeSpan (T : sig
+  val name : string
+end) =
+struct
+  type Runtime_events.User.tag += CustomSpan
+
+  let user =
+    Runtime_events.User.register T.name CustomSpan Runtime_events.Type.span
+
+  let process_span_event domain timestamp user value =
+    match Runtime_events.User.tag user with
+    | CustomSpan -> (
+        let span = get_current_span domain |> Option.get in
+        match value with
+        | Runtime_events.Type.Begin ->
+            (* TODO: sync+adjust to realtime *)
+            span.start_time_unix_nano <-
+              Runtime_events.Timestamp.to_int64 timestamp
+        | End ->
+            assert (span.start_time_unix_nano <> -1L) ;
+            !emit_span span ;
+            Hashtbl.remove spans span.id ;
+            domains.(domain) <- None
+      )
+    | _ ->
+        ()
+
+  let () = register Runtime_events.Type.span process_span_event
+end
+
+let register_user_events callbacks = Stack.fold ( |> ) callbacks handlers
+
+module CurrentSpan = struct
+  type Runtime_events.User.tag += NewSpan | SetCurrent
+
+  let set_current =
+    Runtime_events.User.register "zero_events.set_current" SetCurrent
+      Runtime_events.Type.int
+
+  let new_span =
+    Runtime_events.User.register "zero_events.new_span" NewSpan
+      Runtime_events.Type.int
+
+  let process_int domain _timestamp user value =
+    match Runtime_events.User.tag user with
+    | NewSpan ->
+        let parent =
+          match get_current_span domain with
+          | None ->
+              SpanId.root
+          | Some span ->
+              span.id
+        in
+        let span = make_span ~parent in
+        Hashtbl.add spans value span ;
+        domains.(domain) <- Some span
+    | SetCurrent ->
+        domains.(domain) <- Some (Hashtbl.find spans value)
+    | _ ->
+        ()
+
+  let () = register Runtime_events.Type.int process_int
+end
 
 type User.tag += Request_id
+
 let request_id = User.register "zero_events.request_id" Request_id Type.int
 
 type User.tag += Connecting
+
 let connecting = User.register "zero_events.connecting" Connecting sockaddr
 
 type User.tag += Connected
+
 let connected = User.register "zero_events.connected" Connected Type.int
 
 type User.tag += HttpRequestUrl
-let http_request_url = User.register "url.full" HttpRequestUrl small_string (* url *)
+
+let http_request_url =
+  User.register "url.full" HttpRequestUrl small_string (* url *)
 
 type User.tag += HttpRequestMethod
-let http_request_method = User.register "http.request.method" HttpRequestMethod type_http_request_method
+
+let http_request_method =
+  User.register "http.request.method" HttpRequestMethod type_http_request_method
 
 type User.tag += HttpRequestBodySize
-let http_request_body_size = User.register "http.request.body.size" HttpRequestBodySize Type.int
+
+let http_request_body_size =
+  User.register "http.request.body.size" HttpRequestBodySize Type.int
 
 type User.tag += HttpResponseHeaders
-let http_response_headers = User.register "zero_events.http.response.headers" HttpResponseHeaders Type.span
+
+let http_response_headers =
+  User.register "zero_events.http.response.headers" HttpResponseHeaders
+    Type.span
 
 type User.tag += HttpStatusCode
-let http_response_status_code = User.register "http.response.status_code" HttpStatusCode Type.int
+
+let http_response_status_code =
+  User.register "http.response.status_code" HttpStatusCode Type.int
 
 type User.tag += ContentLength
-let http_response_body_size = User.register "http.response.body_size" ContentLength Type.int
+
+let http_response_body_size =
+  User.register "http.response.body_size" ContentLength Type.int
 
 type span = Type.span = Begin | End
+
 type User.tag += HttpResponseBody
-let http_response_body = User.register "zero_events.http.response.body" HttpResponseBody Type.span
+
+let http_response_body =
+  User.register "zero_events.http.response.body" HttpResponseBody Type.span
 
 type User.tag += RpcSystem
+
 let rpc_system = User.register "rpc.system" RpcSystem type_rpc_system
 
 (* this allocates but we call it once on startup *)
 let now_ns () =
- let d, ps = Ptime_clock.now_d_ps () in
- let d_in_ns = Int64.(mul 86_400_000_000_000L @@ of_int d) in
- let r = Int64.add d_in_ns (Int64.div ps 1000L)  in
- Printf.printf "now: %Ld\n" r;
- r
+  let d, ps = Ptime_clock.now_d_ps () in
+  let d_in_ns = Int64.(mul 86_400_000_000_000L @@ of_int d) in
+  let r = Int64.add d_in_ns (Int64.div ps 1000L) in
+  Printf.printf "now: %Ld\n" r ;
+  r
 
 (* need to sync the monotonic timestamp with a well defined clock, so that we can correlate timestamps across hosts *)
 type User.tag += Realtime
+
 let realtime = User.register "realtime" Realtime int64
 
 type User.tag += Nop
+
 let nop = User.register "nop" Nop Type.unit
 
 let () =
- (* sample the monotonic and absolute clock multiple times, so that we can measure using monotonic clock,
-    but report using the absolute clock *)
- Runtime_events.User.write nop ();
- Runtime_events.User.write realtime (now_ns ());
- Runtime_events.User.write realtime (now_ns ());
- Runtime_events.User.write nop ();
- Runtime_events.User.write nop ()
- 
+  (* sample the monotonic and absolute clock multiple times, so that we can measure using monotonic clock,
+     but report using the absolute clock *)
+  Runtime_events.User.write nop () ;
+  Runtime_events.User.write realtime (now_ns ()) ;
+  Runtime_events.User.write realtime (now_ns ()) ;
+  Runtime_events.User.write nop () ;
+  Runtime_events.User.write nop ()
+
 type 'a callback = int -> Timestamp.t -> 'a User.t -> 'a -> unit
-let register_callbacks callbacks ~traceparent ~http_request_url ~http_request_body_size ~request_id ~connected ~http_response_status_code ~http_response_body_size ~connecting ~http_request_method ~http_response_headers ~http_response_body ~rpc_system ~nop ~realtime =
- let add typ f callbacks = Runtime_events.Callbacks.add_user_event typ f callbacks in
- let handle_small_string domain timestamp user value =
-  match User.tag user with
-  | Traceparent -> traceparent domain timestamp user value
-  | HttpRequestUrl -> http_request_url domain timestamp user value
-  | _ -> ()
- in
- let handle_int domain timestamp user value =
-  match User.tag user with
-  | Request_id -> request_id domain timestamp user value
-  | Connected -> connected domain timestamp user value
-  | HttpRequestBodySize -> http_request_body_size domain timestamp user value
-  | HttpStatusCode -> http_response_status_code domain timestamp user value
-  | ContentLength -> http_response_body_size domain timestamp user value
-  | _ -> ()
- in
- let handle_rpc_system domain timestamp user value =
-  rpc_system domain timestamp user value
- in
- let handle_sockaddr domain timestamp user value =
-   connecting domain timestamp user value
- in
- let handle_http_request_method domain timestamp user value =
-  http_request_method domain timestamp user value
- in
- let handle_span domain timestamp user value =
-  match User.tag user with
-  | HttpResponseHeaders -> http_response_headers domain timestamp user value
-  | HttpResponseBody -> http_response_body domain timestamp user value 
-  | _ -> ()
- in
- let handle_int64 domain timestamp user value =
-  realtime domain timestamp user value
- in
- let handle_unit domain timestamp user value =
-  nop domain timestamp user value
- in
- callbacks 
- |> add small_string handle_small_string
- |> add Type.int handle_int
- |> add type_rpc_system handle_rpc_system
- |> add sockaddr handle_sockaddr
- |> add type_http_request_method handle_http_request_method
- |> add Type.span handle_span
- |> add int64 handle_int64
- |> add Type.unit handle_unit
+
+let register_callbacks callbacks ~traceparent ~http_request_url
+    ~http_request_body_size ~request_id ~connected ~http_response_status_code
+    ~http_response_body_size ~connecting ~http_request_method
+    ~http_response_headers ~http_response_body ~rpc_system ~nop ~realtime =
+  let add typ f callbacks =
+    Runtime_events.Callbacks.add_user_event typ f callbacks
+  in
+  let handle_small_string domain timestamp user value =
+    match User.tag user with
+    | Traceparent ->
+        traceparent domain timestamp user value
+    | HttpRequestUrl ->
+        http_request_url domain timestamp user value
+    | _ ->
+        ()
+  in
+  let handle_int domain timestamp user value =
+    match User.tag user with
+    | Request_id ->
+        request_id domain timestamp user value
+    | Connected ->
+        connected domain timestamp user value
+    | HttpRequestBodySize ->
+        http_request_body_size domain timestamp user value
+    | HttpStatusCode ->
+        http_response_status_code domain timestamp user value
+    | ContentLength ->
+        http_response_body_size domain timestamp user value
+    | _ ->
+        ()
+  in
+  let handle_rpc_system domain timestamp user value =
+    rpc_system domain timestamp user value
+  in
+  let handle_sockaddr domain timestamp user value =
+    connecting domain timestamp user value
+  in
+  let handle_http_request_method domain timestamp user value =
+    http_request_method domain timestamp user value
+  in
+  let handle_span domain timestamp user value =
+    match User.tag user with
+    | HttpResponseHeaders ->
+        http_response_headers domain timestamp user value
+    | HttpResponseBody ->
+        http_response_body domain timestamp user value
+    | _ ->
+        ()
+  in
+  let handle_int64 domain timestamp user value =
+    realtime domain timestamp user value
+  in
+  let handle_unit domain timestamp user value =
+    nop domain timestamp user value
+  in
+  callbacks
+  |> add small_string handle_small_string
+  |> add Type.int handle_int
+  |> add type_rpc_system handle_rpc_system
+  |> add sockaddr handle_sockaddr
+  |> add type_http_request_method handle_http_request_method
+  |> add Type.span handle_span
+  |> add int64 handle_int64
+  |> add Type.unit handle_unit
