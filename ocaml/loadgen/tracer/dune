@@ -1,4 +1,4 @@
 (executable
 	(name tracer)
-	(libraries opentelemetry runtime_events zero_http unix)
+	(libraries opentelemetry runtime_events zero_http unix opentelemetry_client_ocurl)
 )

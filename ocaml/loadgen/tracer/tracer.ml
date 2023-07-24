@@ -1,5 +1,9 @@
 open Opentelemetry
 
+let () =
+  Opentelemetry_client
+OTLPSpanExporter(endpoint='http://10.71.57.164:4317',
+
 let ns = Zero_http.Zero_events.Timestamp.to_int64
 
 let delta = ref 0L

@@ -1,4 +1,4 @@
 (library
 	(name zero_http)
-	(libraries bigstringaf logs runtime_events unix http ptime.clock.os ptime)
+	(libraries bigstringaf logs runtime_events unix http ptime.clock.os ptime opentelemetry)
 )
