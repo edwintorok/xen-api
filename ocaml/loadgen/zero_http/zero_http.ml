@@ -51,7 +51,7 @@ module Response = struct
   let attr_int i = Opentelemetry.Proto.Common.Int_value (Int64.of_int i)
   let attr_str s = Opentelemetry.Proto.Common.String_value s
   
-  let request_end = Ze.register_marshaled_event "request.end" ~on_process_event:(fun ~domain ~timestamp_unix_ns ~name ~value ->
+  let request_end = Ze.register_marshaled_event "request.end" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns ~name:_ ~value ->
     let start_time_unix_nano = Hashtbl.find span_data value.id in
     let attributes =
       List.rev_map to_attr
@@ -100,6 +100,7 @@ module Response = struct
 
   let finish t callback =
     Ze.(write http_response_body End);
+    Ze.(write request_end t.span_state);
     (* reset *)
     t.state <- WaitStatusLine ;
     let content_length = t.span_state.content_length
@@ -207,8 +208,10 @@ module Response = struct
 
   let wait_status_line t =
     t.state <- WaitStatusLine ;
-    if Zero_lines.is_bol t.lines then
+    if Zero_lines.is_bol t.lines then begin
       Ze.(write http_response_headers Begin);
+      Ze.(write request_begin t.span_state);
+    end;
     (* resume from here *)
     match Zero_lines.read_line t.lines parse_status_line (-1) () with
     | -1 ->
