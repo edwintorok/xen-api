@@ -45,16 +45,15 @@ module Response = struct
     Hashtbl.replace span_data value.id timestamp_unix_ns
   )
 
-  let to_attr (key, value) = Opentelemetry.Proto.Common.default_key_value ~key ~value:(Some value) ()
+  let to_attr (key, value) =
+     Opentelemetry.Proto.Common.default_key_value ~key ~value:(Some value) ()
 
-
-  let attr_int i = Opentelemetry.Proto.Common.Int_value (Int64.of_int i)
-  let attr_str s = Opentelemetry.Proto.Common.String_value s
+  let attr_int i = `Int i
+  let attr_str s = `String s
   
   let request_end = Ze.register_marshaled_event "request.end" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns ~name:_ ~value ->
-    let start_time_unix_nano = Hashtbl.find span_data value.id in
-    let attributes =
-      List.rev_map to_attr
+    let start_time = Hashtbl.find span_data value.id in
+    let attrs =
        [ "http.response.status_code", attr_int value.status_code
        ; "http.response.body.size", attr_int value.content_length
        ; "http.request.method", attr_str "GET" (* TODO *)
@@ -65,12 +64,14 @@ module Response = struct
  
       ]
     in
-    let span = Opentelemetry.Proto.Trace.default_span
-      ~start_time_unix_nano
-      ~end_time_unix_nano:timestamp_unix_ns
+    let trace_id = (Opentelemetry.Scope.get_surrounding () |> Option.get).trace_id in
+    let span, _ = Opentelemetry.Span.create
+      ~trace_id
+      ~start_time
+      ~end_time:timestamp_unix_ns
       ~kind:Opentelemetry.Span.Span_kind_client
-      ~attributes
-       () in
+      ~attrs
+       "request" (* TODO *) in
     Opentelemetry.Trace.emit ~service_name:"loadgen" [span]
   )
 

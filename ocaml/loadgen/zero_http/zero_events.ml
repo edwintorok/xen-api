@@ -60,6 +60,8 @@ module Timestamp = struct
     | _ ->
         ()
 
+  let initialized () = !delta > 0L
+
   let to_unix_nano t =
     let offset = !delta in
     assert (offset > 0L) ;

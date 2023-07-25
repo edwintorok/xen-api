@@ -34,3 +34,8 @@ val write: 'a event -> 'a -> unit
 
 val register_callbacks:
  on_simple_span:span callback -> Runtime_events.Callbacks.t -> Runtime_events.Callbacks.t
+
+module Timestamp: sig
+ val to_unix_nano: Runtime_events.Timestamp.t -> int64
+ val initialized: unit -> bool
+end

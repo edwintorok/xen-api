@@ -225,7 +225,7 @@ let build_conntable connections =
     connections ;
   conntbl
 
-let repeat = 1
+let repeat = 10
 (* TODO: have pipeline and nonpipeline mode so we can have multiple persistent but not pipelined requests *)
 
 let nconn = 100
