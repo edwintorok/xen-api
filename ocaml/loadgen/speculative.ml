@@ -1,5 +1,4 @@
 module Ze = Zero_http.Zero_events
-
 let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
 let event_connect = Ze.register_simple_span "http.connect"
@@ -268,7 +267,7 @@ let run ?(receive_buffer_size = 16384) t =
     requests
 
 
-let () =
+let test_get () =
   let t = init () in
   let host = "perfuk-18-06d.xenrt.citrite.net" in
   let addr = (Unix.getaddrinfo host "80" [] |> List.hd).Unix.ai_addr in
