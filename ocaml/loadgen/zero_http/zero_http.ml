@@ -13,6 +13,11 @@ let url_method = Ze.register_marshaled_event "method" ~on_process_event:(fun ~do
   meth := value
 )
 
+let tp = ref None
+let traceparent = Ze.register_marshaled_event "traceparent" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns:_ ~name:_ ~value ->
+  tp := Some value
+)
+
 
 let src = Logs.Src.create ~doc:"zero_http protocol logging" "loadgen.zero_http"
 
@@ -61,12 +66,13 @@ module Response = struct
        ; "server.address", attr_str "perfuk-18-06d.xenrt.citrite.net"
        ; "server.port", attr_int 80
        ; "url.full", attr_str "http://perfuk-18-06d.xenrt.citrite.net/"
- 
       ]
     in
-    let trace_id = (Opentelemetry.Scope.get_surrounding () |> Option.get).trace_id in
+    let trace_id, id = Opentelemetry.Trace_context.Traceparent.of_value (Option.get !tp) |> Result.get_ok in
+    (* let trace_id = (Opentelemetry.Scope.get_surrounding () |> Option.get).trace_id in*)
     let span, _ = Opentelemetry.Span.create
       ~trace_id
+      ~id
       ~start_time
       ~end_time:timestamp_unix_ns
       ~kind:Opentelemetry.Span.Span_kind_client

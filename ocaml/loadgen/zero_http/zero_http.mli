@@ -51,3 +51,4 @@ end
 
 val url_full: string Zero_events.event
 val url_method: Http.Method.t Zero_events.event
+val traceparent: string Zero_events.event
