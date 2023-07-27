@@ -21,6 +21,7 @@
    The load generator will send appropriate HTTP [traceparent] headers, and collect timing information,
    that can be converted into distributed tracing format.
 *)
+module Ze = Zero_http.Zero_events
 
 let write_calls n call uri_path conv =
   let filename = String.concat "." [call.Rpc.name; uri_path] in
@@ -37,10 +38,11 @@ let write_calls n call uri_path conv =
 let n = 1000
 
 let t = Speculative.init ()
+let host = "perfuk-18-06d.xenrt.citrite.net"
+let addr = (Unix.getaddrinfo host "80" [] |> List.hd).Unix.ai_addr
+let conn = Speculative.connect t addr
 
-let conn = Speculative.connect t Unix.(ADDR_INET (inet_addr_loopback, 8000))
-
-module I =
+(*module I =
   struct
     type !'a t = Real of 'a | Blocked
     let run = function | Real x -> x | Blocked -> failwith "TODO"
@@ -50,16 +52,23 @@ module F = Freer.Make(I)
 module M = struct
   include F
   let (>>|) x y = fmap y x
+end*)
+
+module M = struct
+  type 'a t = Blocked
+
+  let (>>|) _ _ = Blocked
 end
 
 let rpc call : Rpc.response M.t =
   (* write_calls n call "jsonrpc" Jsonrpc.string_of_call;
      write_calls n call "RPC2" Xmlrpc.string_of_call; *)
   let str = Jsonrpc.string_of_call call in
-  let open M in
-  let read_response = M.lift I.Blocked in
+  let buf = Buffer.create 1024 in
+  Printf.bprintf buf "POST /jsonrpc HTTP/1.1\r\nHost: %s\r\nContent-Length: %d\r\n\r\n" host (String.length str);
+  Speculative.Connection.write conn (Buffer.contents buf);
   Speculative.Connection.write conn str;
-  read_response
+  M.Blocked
   (*let buf = Bytes.create 8192 in
   let decode_response nread =
     Bytes.sub_string buf 0 nread |> Jsonrpc.response_of_string
@@ -71,10 +80,18 @@ let rpc call : Rpc.response M.t =
 module C = Client.ClientF (M)
 
 let () =
+  Logs.set_reporter (Logs_fmt.reporter ());
+  let pwd = In_channel.with_open_text "/tmp/.pwd" In_channel.input_all |> String.trim in
+ (* TODO: flag Logs.set_level ~all:true (Some Logs.Debug); *)
   (* we need to loop here, because jsonrpc would carry an ID that needs to be changed with each request *)
   let version = Xapi_version.version in
-  let _ =
-    C.Session.login_with_password ~rpc ~uname:"root" ~pwd:"foo" ~version
-      ~originator:__FILE__ |> M.run
-  in
+  Ze.(write Zero_http.url_full @@ "http://" ^ host ^ "/") ;
+  Ze.(write Zero_http.url_method `POST);
+  for i = 1 to 100 do
+    let (_: _ M.t) =
+      C.Session.login_with_password ~rpc ~uname:"root" ~pwd ~version
+        ~originator:__FILE__
+    in
+    ()
+  done;
   Speculative.run t

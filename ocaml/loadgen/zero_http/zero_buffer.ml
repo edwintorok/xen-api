@@ -23,8 +23,8 @@ module View = struct
 
   let memchr t ~pos c =
     assert (pos >= 0) ;
-    assert (pos < t.stop) ;
     let off = t.start + pos in
+    assert (off < t.stop);
     match Bigstringaf.memchr t.buf off c (t.stop - off) with
     | -1 ->
         -1

@@ -197,15 +197,17 @@ module Response = struct
   let http_200 = "HTTP/1.1 200 "
 
   let http_403 = "HTTP/1.1 403 "
+  let http_500 = "HTTP/1.1 500 "
 
   let parse_status_line acc () view ~eol_len:_ =
     if Zero_buffer.View.is_prefix view http_200 then
       200
     else if Zero_buffer.View.is_prefix view http_403 then
       403
+    else if Zero_buffer.View.is_prefix view http_500 then
+      500
     else
-     (* TODO *)
-      acc
+    failwith "TODO: other http code"
 
   let wait_status_line t =
     t.state <- WaitStatusLine ;
@@ -217,7 +219,7 @@ module Response = struct
     match Zero_lines.read_line t.lines parse_status_line (-1) () with
     | -1 ->
         ()
-    | status_code when status_code = 200 || status_code = 403 ->
+    | status_code when status_code = 200 || status_code = 403 || status_code = 500 (* TODO *) ->
         t.span_state.status_code <- status_code ;
         if is_debug () then
           Log.debug (fun m -> m "Parsed HTTP status code %d" status_code);

@@ -18,7 +18,7 @@ let read_line (Z t) process_line acc input =
   match Zero_buffer.View.memchr consumer ~pos:t.scanned_eol '\n' with
   | -1 ->
       (* no newline yet *)
-      t.scanned_eol <- t.scanned_eol + Zero_buffer.View.size consumer ;
+      t.scanned_eol <- Zero_buffer.View.size consumer ;
       acc
   | pos ->
       t.scanned_eol <- 0;
@@ -37,6 +37,7 @@ let read_data (Z t) callback input =
     assert (not t.in_call);
     Zero_buffer.refill t.zb t.read t.input;
     let consumer = Zero_buffer.consumer t.zb in
+    (* TODO: add flag to enable *)
     (* Zero_buffer.View.debug consumer ~len:(Zero_buffer.View.size consumer); *)
     if Zero_buffer.View.size consumer > 0 then begin
         t.in_call <- true;
