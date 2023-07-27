@@ -538,5 +538,4 @@ let benchmarks =
     ]
 
 let () =
-  Memtrace.trace_if_requested () ;
   Bechamel_simple_cli.cli benchmarks
