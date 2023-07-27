@@ -36,28 +36,45 @@ let write_calls n call uri_path conv =
 
 let n = 1000
 
-let conn = Speculative.connect Unix.(ADDR_INET (inet_addr_loopback, 8000))
+let t = Speculative.init ()
 
-let rpc call : Rpc.response Speculative.Freer.Monad.t =
+let conn = Speculative.connect t Unix.(ADDR_INET (inet_addr_loopback, 8000))
+
+module I =
+  struct
+    type !'a t = Real of 'a | Blocked
+    let run = function | Real x -> x | Blocked -> failwith "TODO"
+  end
+
+module F = Freer.Make(I)
+module M = struct
+  include F
+  let (>>|) x y = fmap y x
+end
+
+let rpc call : Rpc.response M.t =
   (* write_calls n call "jsonrpc" Jsonrpc.string_of_call;
      write_calls n call "RPC2" Xmlrpc.string_of_call; *)
   let str = Jsonrpc.string_of_call call in
-  let buf = Bytes.create 8192 in
+  let open M in
+  let read_response = M.lift I.Blocked in
+  Speculative.Connection.write conn str;
+  read_response
+  (*let buf = Bytes.create 8192 in
   let decode_response nread =
     Bytes.sub_string buf 0 nread |> Jsonrpc.response_of_string
   in
-  let open Speculative.Freer in
+   let open M in
   let read_response = decode_response <$> Speculative.read conn buf in
-  Speculative.write conn str >>> read_response
+  Speculative.write conn str >>> read_response *)
 
-module C = Client.ClientF (Speculative.Freer.Monad)
+module C = Client.ClientF (M)
 
 let () =
   (* we need to loop here, because jsonrpc would carry an ID that needs to be changed with each request *)
   let version = Xapi_version.version in
   let _ =
     C.Session.login_with_password ~rpc ~uname:"root" ~pwd:"foo" ~version
-      ~originator:__FILE__
-    |> Speculative.run conn
+      ~originator:__FILE__ |> M.run
   in
-  ()
+  Speculative.run t

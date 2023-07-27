@@ -1,5 +1,5 @@
 (executable
-	(name speculative)
+	(name loadgen)
 	(libraries xapi-client xapi_version rresult faraday bigstringaf bigstring-unix polly xapi-stdext-unix zero_http)
 )
 
