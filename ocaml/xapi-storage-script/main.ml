@@ -1780,7 +1780,7 @@ let bind ~volume_script_dir =
       )
     in
     let proj_bitmap r = r.Xapi_storage.Control.bitmap in
-    return (Result.map ~f:proj_bitmap result)
+    Lwt.return (Result.map proj_bitmap result)
   in
   S.VDI.list_changed_blocks vdi_list_changed_blocks_impl ;
   let vdi_data_destroy_impl dbg sr vdi =

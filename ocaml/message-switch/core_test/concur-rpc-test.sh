@@ -29,16 +29,10 @@ lwt/server_main.exe -path "$SPATH" -concurrent &
 lwt/client_main.exe -path "$SPATH" -secs 5
 sleep 2
 
-echo Performance test of Async to Lwt
-test -x lwt/server_main.exe && test -x async/client_async_main.exe || exit 1
+echo Performance test of Lwt to Unix
+test -x lwt/server_main.exe && test -x ./client_unix_main.exe || exit 1
 lwt/server_main.exe -path "$SPATH" -concurrent &
-async/client_async_main.exe -path "$SPATH" -secs 5
-sleep 2
-
-echo Performance test of Async to Async
-test -x async/server_async_main.exe && test -x async/client_async_main.exe || exit 1
-async/server_async_main.exe -path "$SPATH" -concurrent &
-async/client_async_main.exe -path "$SPATH" -secs 5
+./client_unix_main.exe -path "$SPATH" -secs 5
 sleep 2
 
 ../cli/main.exe shutdown --path "$SPATH"
