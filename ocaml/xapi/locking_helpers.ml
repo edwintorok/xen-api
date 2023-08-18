@@ -11,7 +11,87 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-let with_lock = Xapi_stdext_threads.Threadext.Mutex.execute
+
+module IntMap = Map.Make (Int)
+
+module Thread_local_storage = struct
+  module Thread_key = struct
+    type t = Thread.t
+
+    let hash t = Thread.id t
+
+    let equal a b = Thread.id a = Thread.id b
+  end
+
+  module WeakSet = Weak.Make (Thread_key)
+  module WeakTable = Ephemeron.K1.Make (Thread_key)
+
+  (* While a thread is alive we keep some per-thread data,
+     after the thread dies the data will be GC-ed.
+     This is exactly what weak Ephemeron hashtables provide,
+     they are not thread-safe themselves and require a global mutex
+  *)
+  type 'a t = {
+      lock: Mutex.t
+    ; threads: WeakSet.t
+    ; tbl: 'a WeakTable.t
+    ; init: unit -> 'a
+  }
+
+  let make init =
+    {
+      lock= Mutex.create ()
+    ; tbl= WeakTable.create 47
+    ; threads= WeakSet.create 47
+    ; init
+    }
+
+  let with_lock t f arg =
+    Mutex.lock t.lock ;
+    match f t arg with
+    | result ->
+        Mutex.unlock t.lock ; result
+    | exception e ->
+        let bt = Printexc.get_raw_backtrace () in
+        Mutex.unlock t.lock ;
+        Printexc.raise_with_backtrace e bt
+
+  let find_or_create_unlocked t self =
+    (* try/with avoids allocation on fast-path *)
+    try WeakTable.find t.tbl self
+    with Not_found ->
+      (* slow-path: first time use on current thread *)
+      WeakSet.add t.threads self ;
+      let v = t.init () in
+      WeakTable.add t.tbl self v ; v
+
+  let get t =
+    let self = Thread.self () in
+    with_lock t find_or_create_unlocked self
+
+  let set_unlocked t v =
+    let self = Thread.self () in
+    WeakTable.replace t.tbl self v
+
+  let set t v = with_lock t set_unlocked v
+
+  let snapshot_unlocked t () =
+    WeakSet.fold
+      (fun thr acc ->
+        match WeakTable.find_opt t.tbl thr with
+        | None ->
+            acc
+        | Some v ->
+            IntMap.add (Thread.id thr) v acc
+      )
+      t.threads IntMap.empty
+
+  let snapshot t = with_lock t snapshot_unlocked ()
+
+  let count_unlocked t () = WeakTable.length t.tbl
+
+  let count t = with_lock t count_unlocked ()
+end
 
 let finally = Xapi_stdext_pervasives.Pervasiveext.finally
 
@@ -79,45 +159,29 @@ module Thread_state = struct
   let empty =
     {acquired_resources= []; task= Ref.null; name= ""; waiting_for= None}
 
-  let m = Mutex.create ()
+  let make_empty () = empty
 
-  module IntMap = Map.Make (struct
-    type t = int
+  let thread_states = Thread_local_storage.make make_empty
 
-    let compare = compare
-  end)
-
-  let thread_states = ref IntMap.empty
+  (* to be able to debug locking problems we need a consistent snapshot:
+     if we're waiting for a lock, who's holding it currently and what locks are they holding or waiting for?
+  *)
 
   let get_acquired_resources_by_task task =
-    let snapshot = with_lock m (fun () -> !thread_states) in
+    let snapshot = Thread_local_storage.snapshot thread_states in
     let all, _ = IntMap.partition (fun _ ts -> ts.task = task) snapshot in
     List.map fst
       (IntMap.fold (fun _ ts acc -> ts.acquired_resources @ acc) all [])
 
   let get_all_acquired_resources () =
-    let snapshot = with_lock m (fun () -> !thread_states) in
+    let snapshot = Thread_local_storage.snapshot thread_states in
     List.map fst
       (IntMap.fold (fun _ ts acc -> ts.acquired_resources @ acc) snapshot [])
 
-  let me () = Thread.id (Thread.self ())
-
   let update f =
-    let id = me () in
-    let snapshot = with_lock m (fun () -> !thread_states) in
-    let ts =
-      if IntMap.mem id snapshot then
-        f (IntMap.find id snapshot)
-      else
-        f empty
-    in
-    with_lock m (fun () ->
-        thread_states :=
-          if ts = empty then
-            IntMap.remove id !thread_states
-          else
-            IntMap.add id ts !thread_states
-    )
+    let old = Thread_local_storage.get thread_states in
+    let ts = f old in
+    Thread_local_storage.set thread_states ts
 
   let with_named_thread name task f =
     update (fun ts -> {ts with name; task}) ;
@@ -182,7 +246,7 @@ module Thread_state = struct
 
   let to_graphviz () =
     let t' = now () in
-    let snapshot = with_lock m (fun () -> !thread_states) in
+    let snapshot = Thread_local_storage.snapshot thread_states in
     (* Map from thread ids -> record rows *)
     let threads =
       IntMap.map
@@ -273,7 +337,7 @@ module Thread_state = struct
     in
     String.concat "\n" all
 
-  let known_threads () = with_lock m (fun () -> IntMap.cardinal !thread_states)
+  let known_threads () = Thread_local_storage.count thread_states
 
   let with_resource resource acquire f release arg =
     let acquired = acquire resource arg in
