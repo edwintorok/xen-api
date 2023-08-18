@@ -79,6 +79,10 @@ module type DEBUG = sig
   val log_backtrace : unit -> unit
 
   val log_and_ignore_exn : (unit -> unit) -> unit
+
+  val log_and_ignore_exn1 : ('a -> unit) -> 'a -> unit
+
+  val log_and_ignore_exn2 : ('a -> 'b -> unit) -> 'a -> 'b -> unit
 end
 
 module Make : functor (_ : BRAND) -> DEBUG

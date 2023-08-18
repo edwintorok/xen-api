@@ -310,6 +310,10 @@ module type DEBUG = sig
   val log_backtrace : unit -> unit
 
   val log_and_ignore_exn : (unit -> unit) -> unit
+
+  val log_and_ignore_exn1 : ('a -> unit) -> 'a -> unit
+
+  val log_and_ignore_exn2 : ('a -> 'b -> unit) -> 'a -> 'b -> unit
 end
 
 module Make =
@@ -350,5 +354,13 @@ functor
 
     let log_and_ignore_exn f =
       try f ()
+      with e -> log_backtrace_internal ~level:Syslog.Debug ~msg:"debug" e ()
+
+    let log_and_ignore_exn1 f arg1 =
+      try f arg1
+      with e -> log_backtrace_internal ~level:Syslog.Debug ~msg:"debug" e ()
+
+    let log_and_ignore_exn2 f arg1 arg2 =
+      try f arg1 arg2
       with e -> log_backtrace_internal ~level:Syslog.Debug ~msg:"debug" e ()
   end

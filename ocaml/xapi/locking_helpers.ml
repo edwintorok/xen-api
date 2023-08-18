@@ -274,6 +274,17 @@ module Thread_state = struct
     String.concat "\n" all
 end
 
+let finally2 pre f post arg1 arg2 =
+  let start = pre arg1 arg2 in
+  match f () with
+  | r ->
+      D.log_and_ignore_exn2 post arg1 start ;
+      r
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      D.log_and_ignore_exn2 post arg1 start ;
+      Printexc.raise_with_backtrace e bt
+
 module Named_mutex = struct
   type t = {name: string; m: Mutex.t; r: resource}
 
@@ -289,7 +300,6 @@ module Named_mutex = struct
     in
     let waiting = Thread_state.waiting_for ?parent x.r in
     with_lock x.m (fun () ->
-        let acquired = Thread_state.acquired x.r waiting in
-        finally f (fun () -> Thread_state.released x.r acquired)
+        finally2 Thread_state.acquired f Thread_state.released x.r waiting
     )
 end
