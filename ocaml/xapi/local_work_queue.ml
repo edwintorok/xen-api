@@ -62,10 +62,11 @@ let wait_in_line ~__context q description f =
   let m = Mutex.create () in
   let c = Condition.create () in
   let state = ref `Pending in
+  let lock = q.Thread_queue.lock in
   let waiting =
     Locking_helpers.Thread_state.waiting_for
       ?parent:(Context.tracing_of __context)
-      (Locking_helpers.Lock q.Thread_queue.name)
+      lock
   in
   let ok =
     q.Thread_queue.push_fn description (fun () ->
@@ -90,13 +91,9 @@ let wait_in_line ~__context q description f =
         Condition.wait c m
       done
   ) ;
-  let acquired =
-    Locking_helpers.Thread_state.acquired
-      (Locking_helpers.Lock q.Thread_queue.name) waiting
-  in
+  let acquired = Locking_helpers.Thread_state.acquired lock waiting in
   finally f (fun () ->
-      Locking_helpers.Thread_state.released
-        (Locking_helpers.Lock q.Thread_queue.name) acquired ;
+      Locking_helpers.Thread_state.released lock acquired ;
       with_lock m (fun () ->
           state := `Finished ;
           Condition.signal c

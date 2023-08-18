@@ -19,6 +19,8 @@ let host = !Xapi_globs.localhost_ref
 
 let () = Xapi_observer.register ~__context ~self:observer ~host
 
+let mutex_lock_unlock m f = Mutex.lock m ; f () ; Mutex.unlock m
+
 let benchmarks =
   let open Locking_helpers in
   let named_execute m f = Named_mutex.execute m f in
@@ -28,7 +30,8 @@ let benchmarks =
   in
   Test.make_grouped ~name:"Mutex"
     [
-      test "Mutex.execute" Mutex.create
+      test "Mutex.lock/unlock" Mutex.create mutex_lock_unlock
+    ; test "Mutex.execute" Mutex.create
         Xapi_stdext_threads.Threadext.Mutex.execute
     ; test "NamedMutex.execute"
         (fun () -> Named_mutex.create "test")

@@ -169,13 +169,13 @@ let register_callback_fns () =
     acquired :=
       Some
         (Locking_helpers.Thread_state.acquired
-           (Locking_helpers.Process ("stunnel", pid))
+           (Locking_helpers.process ("stunnel", pid))
            None
         )
   in
   let unset_stunnelpid _task_opt pid =
     Locking_helpers.Thread_state.released
-      (Locking_helpers.Process ("stunnel", pid))
+      (Locking_helpers.process ("stunnel", pid))
       (Option.get !acquired)
   in
   let stunnel_destination_is_ok addr =

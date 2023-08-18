@@ -34,7 +34,7 @@ let make () =
 (** Execute the function with the specified instance locked *)
 let with_instance_lock t key f =
   let r =
-    Locking_helpers.Lock
+    Locking_helpers.lock
       ("SM/" ^ Ref.really_pretty_and_small (Ref.of_string key))
   in
   let waiting = Locking_helpers.Thread_state.waiting_for r in
@@ -51,9 +51,11 @@ let with_instance_lock t key f =
       Locking_helpers.Thread_state.released r acquired
   )
 
+let sm_lock = Locking_helpers.lock "SM"
+
 (** Execute the function with the master_lock held and no instance locks held *)
 let with_master_lock t f =
-  let r = Locking_helpers.Lock "SM" in
+  let r = sm_lock in
   let waiting = Locking_helpers.Thread_state.waiting_for r in
   with_lock t.m (fun () ->
       (* Wait for the master_lock to be released *)
