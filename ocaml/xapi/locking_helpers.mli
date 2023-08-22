@@ -29,10 +29,10 @@ module Thread_state : sig
   val with_named_thread : string -> API.ref_task -> (unit -> 'a) -> 'a
   (** Called when a thread becomes associated with a particular task *)
 
-  val waiting_for : resource -> waiting option
+  val waiting_for : ?parent:Tracing.Span.t -> resource -> waiting
   (** Called when a thread is about to block waiting for a resource to be free *)
 
-  val acquired : resource -> waiting option -> acquired
+  val acquired : resource -> waiting -> acquired
   (** Called when a thread acquires a resource *)
 
   val released : resource -> acquired -> unit
@@ -50,5 +50,6 @@ module Named_mutex : sig
 
   val create : string -> t
 
-  val execute : t -> (unit -> 'a) -> 'a
+  val execute :
+    ?__context:Context.t -> ?parent:Tracing.Span.t -> t -> (unit -> 'a) -> 'a
 end
