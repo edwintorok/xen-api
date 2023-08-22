@@ -15,36 +15,32 @@
 module IntMap = Map.Make (Int)
 
 module Thread_local_storage = struct
-  module Thread_key = struct
-    type t = Thread.t
+  module Thread_key : sig
+    type t = private int
 
-    let hash t = Thread.id t
+    val of_thread : Thread.t -> t
 
-    let equal a b = Thread.id a = Thread.id b
+    val hash : t -> int
+
+    val equal : t -> t -> bool
+  end = struct
+    type t = int
+
+    let of_thread = Thread.id
+
+    let hash x = x
+
+    let equal = Int.equal
   end
 
-  module WeakSet = Weak.Make (Thread_key)
-  module WeakTable = Ephemeron.K1.Make (Thread_key)
+  module LiveThreads = Hashtbl.Make (Thread_key)
 
   (* While a thread is alive we keep some per-thread data,
      after the thread dies the data will be GC-ed.
      This is exactly what weak Ephemeron hashtables provide,
      they are not thread-safe themselves and require a global mutex
   *)
-  type 'a t = {
-      lock: Mutex.t
-    ; threads: WeakSet.t
-    ; tbl: 'a WeakTable.t
-    ; init: unit -> 'a
-  }
-
-  let make init =
-    {
-      lock= Mutex.create ()
-    ; tbl= WeakTable.create 47
-    ; threads= WeakSet.create 47
-    ; init
-    }
+  type 'a t = {lock: Mutex.t; tbl: 'a LiveThreads.t; init: unit -> 'a}
 
   let with_lock t f arg =
     Mutex.lock t.lock ;
@@ -56,39 +52,46 @@ module Thread_local_storage = struct
         Mutex.unlock t.lock ;
         Printexc.raise_with_backtrace e bt
 
+  let on_thread_gc t thread_id =
+    Mutex.lock t.lock ;
+    LiveThreads.remove t.tbl thread_id ;
+    Mutex.unlock t.lock
+
   let find_or_create_unlocked t self =
     (* try/with avoids allocation on fast-path *)
-    try WeakTable.find t.tbl self
+    let id = Thread_key.of_thread self in
+    try LiveThreads.find t.tbl id
     with Not_found ->
       (* slow-path: first time use on current thread *)
-      WeakSet.add t.threads self ;
       let v = t.init () in
-      WeakTable.add t.tbl self v ; v
+      LiveThreads.replace t.tbl id v ;
+      Gc.finalise_last (fun () -> on_thread_gc t id) self ;
+      v
 
   let get t =
     let self = Thread.self () in
     with_lock t find_or_create_unlocked self
 
+  let make init : 'a t =
+    let t = {lock= Mutex.create (); tbl= LiveThreads.create 47; init} in
+    (* preallocate storage for current thread *)
+    let (_ : 'a) = get t in
+    t
+
   let set_unlocked t v =
     let self = Thread.self () in
-    WeakTable.replace t.tbl self v
+    LiveThreads.replace t.tbl (Thread_key.of_thread self) v
 
   let _set t v = with_lock t set_unlocked v
 
   let snapshot_unlocked t () =
-    WeakSet.fold
-      (fun thr acc ->
-        match WeakTable.find_opt t.tbl thr with
-        | None ->
-            acc
-        | Some v ->
-            IntMap.add (Thread.id thr) v acc
-      )
-      t.threads IntMap.empty
+    LiveThreads.fold
+      (fun thr v acc -> IntMap.add (thr :> int) v acc)
+      t.tbl IntMap.empty
 
   let snapshot t = with_lock t snapshot_unlocked ()
 
-  let count_unlocked t () = WeakTable.length t.tbl
+  let count_unlocked t () = LiveThreads.length t.tbl
 
   let count t = with_lock t count_unlocked ()
 end
