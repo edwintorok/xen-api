@@ -166,13 +166,13 @@ let register_callback_fns () =
   Xapi_cli.rpc_fun := Some fake_rpc ;
   let acquired = ref None in
   let set_stunnelpid _task_opt pid =
-    let resource = Locking_helpers.Process ("stunnel", pid) in
+    let resource = Locking_helpers.process ("stunnel", pid) in
     let waiting = Locking_helpers.Thread_state.waiting_for resource in
     acquired := Some (Locking_helpers.Thread_state.acquired resource waiting)
   in
   let unset_stunnelpid _task_opt pid =
     Locking_helpers.Thread_state.released
-      (Locking_helpers.Process ("stunnel", pid))
+      (Locking_helpers.process ("stunnel", pid))
       (Option.get !acquired)
   in
   let stunnel_destination_is_ok addr =
