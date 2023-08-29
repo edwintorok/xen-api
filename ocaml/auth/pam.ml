@@ -12,6 +12,25 @@
  * GNU Lesser General Public License for more details.
  *)
 
-external authenticate : string -> string -> unit = "stub_XA_mh_authorize"
+type pam_handle
 
-external change_password : string -> string -> unit = "stub_XA_mh_chpasswd"
+external authenticate_start: unit -> pam_handle = "stub_XA_mh_authorize_start"
+external authenticate_stop: pam_handle -> unit = "stub_XA_mh_authorize_stop"
+
+external authorize : pam_handle -> string -> string -> unit = "stub_XA_mh_authorize"
+
+(* TODO: make this configurable in Xapi_globs *)
+ (* because this is initialized on startup this is not settable from a config file yet! *)
+let auth_workers = Threadpool.create ~name:"PAM auth" authenticate_start authenticate_stop 8
+
+let () = at_exit (fun () -> Threadpool.shutdown auth_workers)
+
+let authenticate user password =
+  Threadpool.run_in_pool auth_workers @@ fun handle ->
+  authorize handle user password
+
+external change_password : pam_handle -> string -> string -> unit = "stub_XA_mh_chpasswd"
+
+let change_password user password =
+ Threadpool.run_in_pool auth_workers @@ fun handle ->
+ change_password handle user password

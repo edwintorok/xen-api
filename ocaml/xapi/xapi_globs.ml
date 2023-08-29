@@ -437,6 +437,8 @@ let xha_timeout = "timeout"
 
 let message_limit = ref 10000
 
+let auth_workers = 8
+
 let xapi_message_script = ref "mail-alarm"
 
 (* Emit a warning if more than this amount of clock skew detected *)

@@ -6,5 +6,6 @@
   (name pam)
   (c_library_flags -lpam)
   (wrapped false)
+  (libraries threads.posix xapi-stdext-threads log)
 )
 

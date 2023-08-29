@@ -28,9 +28,52 @@
 
 #include "xa_auth.h"
 
-CAMLprim value stub_XA_mh_authorize(value username, value password){
+CAMLprim value stub_XA_mh_authorize_start(value unit)
+{
+  CAMLparam1(unit);
+  CAMLlocal1(result);
+  pam_handle_t *handle;
+  const char *error = NULL;
+
+  result = caml_alloc(1, Abstract_tag);
+
+  caml_enter_blocking_section();
+  handle = XA_mh_authorize_start(&error);
+  caml_leave_blocking_section();
+
+  if (!handle)
+    caml_failwith(error ? error : "Unknown error");
+
+  *((pam_handle_t** ) Data_abstract_val(result)) = handle;
+  CAMLreturn(result);
+}
+
+static pam_handle_t *pam_handle_of_val(value v)
+{
+ return *((pam_handle_t **) Data_abstract_val(v)); 
+}
+
+CAMLprim value stub_XA_mh_authorize_stop(value handle)
+{
+  CAMLparam1(handle);
+  const char* error = NULL;
+  int rc;
+
+/* we need to pass some pam rc codes like PAM_ABORT here... */
+  caml_enter_blocking_section();
+  rc = XA_mh_authorize_stop(pam_handle_of_val(handle), PAM_SUCCESS, &error);
+  caml_leave_blocking_section();
+
+  if (rc < 0)
+    caml_failwith(error ? error : "Unknown error");
+
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value stub_XA_mh_authorize(value ml_handle, value username, value password){
     CAMLparam2(username, password);
     CAMLlocal1(ret);
+    pam_handle_t *handle = pam_handle_of_val(ml_handle);
     ret = Val_unit;
 
     char *c_username = strdup(String_val(username));
@@ -39,7 +82,7 @@ CAMLprim value stub_XA_mh_authorize(value username, value password){
     int rc;
 
     caml_enter_blocking_section();
-    rc = XA_mh_authorize(c_username, c_password, &error);
+    rc = XA_mh_authorize(handle, c_username, c_password, &error);
     free(c_username);
     free(c_password);
     caml_leave_blocking_section();
@@ -49,10 +92,11 @@ CAMLprim value stub_XA_mh_authorize(value username, value password){
     CAMLreturn(ret);
 }
 
-CAMLprim value stub_XA_mh_chpasswd(value username, value new_password){
+CAMLprim value stub_XA_mh_chpasswd(value ml_handle, value username, value new_password){
     CAMLparam2(username, new_password);
     CAMLlocal1(ret);
     ret = Val_unit;
+    pam_handle_t *handle = pam_handle_of_val(ml_handle);
 
     char *c_username = strdup(String_val(username));
     char *c_new_password = strdup(String_val(new_password));
@@ -60,7 +104,7 @@ CAMLprim value stub_XA_mh_chpasswd(value username, value new_password){
     int rc;
 
     caml_enter_blocking_section();
-    rc = XA_mh_chpasswd (c_username, c_new_password, &error);
+    rc = XA_mh_chpasswd (handle, c_username, c_new_password, &error);
     free(c_username);
     free(c_new_password);
     caml_leave_blocking_section();

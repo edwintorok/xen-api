@@ -16,6 +16,7 @@
 #include "xa_auth.h"
 #include <security/pam_appl.h>
 #include <security/pam_misc.h>
+#include <unistd.h>
 
 #define SERVICE_NAME "xapi"
 
@@ -68,18 +69,56 @@ resperr:
     return PAM_CONV_ERR;
 }
 
-int XA_mh_authorize (const char *username, const char *password,
+/*
+    pam(3)  says "The libpam interfaces are only thread-safe if each thread within the multithreaded application uses its own PAM handle."
+
+    This is ambigous, but a safe interpretation is that PAM handles must be created, used and destroyed within the same thread:
+    sharing a PAM handle between threads is not safe even if only one thread at a time would access it.
+
+    pam_start(3) says "it is not possible to use the same handle for different transactions, a new one is needed for every new context."
+        "The PAM handle cannot be used for multiple authentications at the same time as long as pam_end was not called on it before."
+
+    We need a pool of ready-to-use PAM handles to handle authentication in a dedicated worker thread-pool
+    (API threads are created and destroyed dynamically they wouldn't be useful for caching a handle)
+*/
+
+
+pam_handle_t *XA_mh_authorize_start (const char **error)
+{
+    pam_handle_t *pamh;
+    struct pam_conv xa_conv = {xa_auth_conv, NULL};
+    int rc = pam_start(SERVICE_NAME, NULL, &xa_conv, &pamh);
+    if (PAM_SUCCESS == rc)
+        return pamh;
+    /* pamh is not valid here! */
+    if (error) *error = pam_strerror(NULL, rc);
+    return NULL;
+}
+
+int XA_mh_authorize_stop (pam_handle_t *pamh, int rc, const char **error)
+{
+    rc = pam_end(pamh, rc);
+    if (PAM_SUCCESS == rc)
+        return 0;
+    /* pamh is not valid here! */
+    if (error) *error = pam_strerror(NULL, rc);
+    return -1;
+}
+
+int XA_mh_authorize (pam_handle_t *pamh, const char *username, const char *password,
                      const char **error)
 {
     struct xa_auth_info auth_info = {username, password};
     struct pam_conv xa_conv = {xa_auth_conv, &auth_info};
-    pam_handle_t *pamh;
     int rc = XA_SUCCESS;
 
-    if ((rc = pam_start(SERVICE_NAME, username, &xa_conv, &pamh))
-        != PAM_SUCCESS) {
+    if ((rc = pam_set_item(pamh, PAM_USER, username)) != PAM_SUCCESS) {
         goto exit;
     }
+    if ((rc = pam_set_item(pamh, PAM_CONV, &xa_conv)) != PAM_SUCCESS) {
+        goto exit;
+    }
+
     if ((rc = pam_authenticate(pamh, PAM_DISALLOW_NULL_AUTHTOK))
         != PAM_SUCCESS) {
         goto exit;
@@ -88,7 +127,6 @@ int XA_mh_authorize (const char *username, const char *password,
     rc = pam_acct_mgmt(pamh, PAM_DISALLOW_NULL_AUTHTOK);
 
  exit:
-    pam_end(pamh, rc);
     if (rc != PAM_SUCCESS) {
         if (error) *error = pam_strerror(pamh, rc);
         rc = XA_ERR_EXTERNAL;
@@ -99,27 +137,19 @@ int XA_mh_authorize (const char *username, const char *password,
     return rc;
 }
 
-int XA_mh_chpasswd (const char *username, const char *new_passwd, const char **error)
+int XA_mh_chpasswd (pam_handle_t *pamh, const char *username, const char *new_passwd, const char **error)
 {
     struct xa_auth_info auth_info = {username, new_passwd};
     struct pam_conv xa_conv = {xa_auth_conv, &auth_info};
-    pam_handle_t *pamh;
     int rc = XA_SUCCESS;
 
-    if ((rc = pam_start(SERVICE_NAME, username, &xa_conv, &pamh))
-        != PAM_SUCCESS) {
-        goto exit;
-    }
     rc = pam_chauthtok(pamh, 0);
 
- exit:
     if (rc != PAM_SUCCESS) {
         if (error) *error = pam_strerror(pamh, rc);
-        pam_end(pamh, rc);
         rc = XA_ERR_EXTERNAL;
     }
     else {
-        pam_end(pamh, rc);
         rc = XA_SUCCESS;
     }
     return rc;

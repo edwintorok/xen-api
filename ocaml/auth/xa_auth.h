@@ -14,13 +14,17 @@
 #ifndef _XA_AUTH_H_
 #define _XA_AUTH_H_
 
+#include <security/pam_appl.h>
 #define XA_SUCCESS 0
 #define XA_ERR_EXTERNAL 1
 
-extern int XA_mh_authorize (const char *username, const char *password, 
+pam_handle_t *XA_mh_authorize_start (const char **error);
+int XA_mh_authorize_stop (pam_handle_t *pamh, int rc, const char **error);
+
+extern int XA_mh_authorize (pam_handle_t *handle, const char *username, const char *password, 
 			    const char **error);
 
-extern int XA_mh_chpasswd (const char *username, const char *new_passwd, 
+extern int XA_mh_chpasswd (pam_handle_t *handle, const char *username, const char *new_passwd, 
 			   const char **error);
 
 #endif /* _XA_AUTH_H_ */
