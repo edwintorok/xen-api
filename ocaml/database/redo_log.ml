@@ -168,6 +168,7 @@ let redo_log_entry_to_string r =
         (String.length newval) newval
 
 let parse_string str len pos =
+  let open Stdlib in
   let str = String.sub str !pos len in
   pos := !pos + len ;
   str
@@ -182,6 +183,7 @@ let parse_length_and_string str pos =
   parse_string str len pos
 
 let string_to_redo_log_entry str =
+  let open Stdlib in
   let pos = ref 0 in
   let kind = parse_string str kind_size pos in
   match kind with
@@ -239,7 +241,7 @@ let start_io_process block_dev ctrlsockpath datasockpath =
     ["-device"; block_dev; "-ctrlsock"; ctrlsockpath; "-datasock"; datasockpath]
   in
   Forkhelpers.safe_close_and_exec None None None []
-    !Db_globs.redo_log_block_device_io
+    Stdlib.(!Db_globs.redo_log_block_device_io)
     args
 
 let connect sockpath latest_response_time =
@@ -253,7 +255,7 @@ let connect sockpath latest_response_time =
       (* It's probably the case that the process hasn't started yet. *)
       (* See if we can afford to wait and try again *)
       Unix.close s ;
-      let attempt_delay = !Db_globs.redo_log_connect_delay in
+      let attempt_delay = Stdlib.(!Db_globs.redo_log_connect_delay) in
       let now = Unix.gettimeofday () in
       let remaining = latest_response_time -. now in
       if attempt_delay < remaining then (
@@ -377,7 +379,7 @@ let action_read fn_db fn_delta sock datasockpath =
   R.debug "Performing read" ;
   (* Compute desired response time *)
   let latest_response_time =
-    get_latest_response_time !Db_globs.redo_log_max_block_time_read
+    get_latest_response_time Stdlib.(!Db_globs.redo_log_max_block_time_read)
   in
   (* Write *)
   let str = Bytes.of_string "read______" in
@@ -390,7 +392,7 @@ let action_write_db marker generation_count write_fn sock datasockpath =
   R.debug "Performing writedb (generation %Ld)" generation_count ;
   (* Compute desired response time *)
   let latest_response_time =
-    get_latest_response_time !Db_globs.redo_log_max_block_time_writedb
+    get_latest_response_time Stdlib.(!Db_globs.redo_log_max_block_time_writedb)
   in
   (* Send write command down control channel *)
   let str =
@@ -460,7 +462,7 @@ let action_write_delta marker generation_count data flush_db_fn sock
   R.debug "Performing writedelta (generation %Ld)" generation_count ;
   (* Compute desired response time *)
   let latest_response_time =
-    get_latest_response_time !Db_globs.redo_log_max_block_time_writedelta
+    get_latest_response_time Stdlib.(!Db_globs.redo_log_max_block_time_writedelta)
   in
   (* Write *)
   let str =
@@ -651,7 +653,7 @@ let startup log =
             () (* We're already connected *)
         | None ->
             let latest_connect_time =
-              get_latest_response_time !Db_globs.redo_log_max_startup_time
+              get_latest_response_time Stdlib.(!Db_globs.redo_log_max_startup_time)
             in
             (* Now connect to the process via the socket *)
             let s = connect ctrlsockpath latest_connect_time in
