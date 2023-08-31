@@ -35,9 +35,9 @@ module type LockWitness = sig
    *)
 
   module MakeRecord (T : sig
-    type 'a t
+    type ('a, 'b) t
   end) : sig
-    val assert_locked : locked -> (unit * locked) T.t -> (locked * locked) T.t
+    val assert_locked : locked -> (unit, locked) T.t -> (locked, locked) T.t
     (** [assert_locked locked_witness record] checks that [record] holds the [locked_witness].
       [locked_witness] can only be obtained while inside {!with_lock}.
      *)
@@ -58,10 +58,10 @@ struct
   let with_lock = Xapi_stdext_threads.Threadext.Mutex.execute
 
   module MakeRecord (T : sig
-    type _ t
+    type (_, _) t
   end) =
   struct
-    type _t = unit T.t
+    type _t = (unit, unit) T.t
 
     let assert_locked () t = t
   end
@@ -97,11 +97,11 @@ end
 (* can be implemented more efficiently inside LockedRef, but it wouldn't ensure we hold the mutex *)
 let update (type a b) (module LW : LockWitness with type locked = b) t f =
   let module R = LW.MakeRecord (struct
-    type nonrec 'b t = (a, 'b) LockedRef.t
+    type nonrec ('b, 'c) t = (a, 'b * 'c) LockedRef.t
   end) in
   LW.with_lock LW.mutex @@ fun locked ->
   let t = R.assert_locked locked t in
-  LockedRef.(t := f locked !t)
+  LockedRef.(t := f !t)
 
 open LockedRef
 
@@ -144,6 +144,8 @@ let redo_log_sm_config = [("type", "raw")]
 (* ---------------------------------------------------- *)
 (* Encapsulate the state of a single redo_log instance. *)
 
+type 'a lock_witness = (module LockWitness with type locked = 'a)
+
 type 'a redo_log_conf = {
     name: string
   ; marker: string
@@ -156,20 +158,18 @@ type 'a redo_log_conf = {
   ; sock: (Unix.file_descr option, 'a) LockedRef.t
   ; pid: ((Forkhelpers.pidty * string * string) option, 'a) LockedRef.t
   ; num_dying_processes: int Atomic.t
+  ; mutex: 'locked lock_witness
 }
+  constraint 'a = _ * 'locked
 
 module CreationMutex = MakeMutex ()
 
-type locked = CreationMutex.locked * CreationMutex.locked
-
-type unlocked = unit * CreationMutex.locked
-
-type ('a, 'b) redo_log = 'b redo_log_conf
+type 'a redo_log = R : (unit * 'b) redo_log_conf -> 'a redo_log
 
 module RedoLogSet = Set.Make (struct
-  type t = (unit, locked) redo_log
+  type t = unit redo_log
 
-  let compare log1 log2 = compare log1.marker log2.marker
+  let compare (R log1) (R log2) = compare log1.marker log2.marker
 end)
 
 let _redo_log_creation_mutex = CreationMutex.mutex
@@ -700,14 +700,18 @@ let healthy log =
 
 exception TooManyProcesses
 
-module RedologRecord = CreationMutex.MakeRecord (struct
-  type 'a t = 'a redo_log_conf
-end)
-
-let with_locked_log log f =
-  CreationMutex.with_lock CreationMutex.mutex @@ fun locked ->
+let with_locked_log (type locked) log f =
+  let module LW = (val (log.mutex : locked lock_witness)) in
+  let module RedologRecord = LW.MakeRecord (struct
+    type ('a, 'b) t = ('a * 'b) redo_log_conf
+  end) in
+  LW.with_lock LW.mutex @@ fun locked ->
   let log = RedologRecord.assert_locked locked log in
   f log
+
+let with_locked_log log f =
+  let R log = log in
+   with_locked_log log f
 
 let startup' log =
   if is_enabled log then (
@@ -862,29 +866,29 @@ let connect_and_perform_action f desc log =
 (* Functions for handling creation and deletion of redo log instances. *)
 
 let create ~name ~state_change_callback ~read_only =
+  let module M = MakeMutex () in
+  let mutex = (module M : LockWitness with type locked = M.locked) in
   let instance =
-    {
-      name
-    ; marker= Uuidx.to_string (Uuidx.make ())
-    ; read_only
-    ; device= Atomic.make None
-    ; currently_accessible= ref (module CreationMutex) true
-    ; state_change_callback
-    ; time_of_last_failure= ref (module CreationMutex) 0.
-    ; backoff_delay=
-        ref (module CreationMutex) Db_globs.redo_log_initial_backoff_delay
-    ; sock= ref (module CreationMutex) None
-    ; pid= ref (module CreationMutex) None
-    ; num_dying_processes= Atomic.make 0
-    }
+    R
+      {
+        name
+      ; marker= Uuidx.to_string (Uuidx.make ())
+      ; read_only
+      ; device= Atomic.make None
+      ; currently_accessible= ref mutex true
+      ; state_change_callback
+      ; time_of_last_failure= ref mutex 0.
+      ; backoff_delay= ref mutex Db_globs.redo_log_initial_backoff_delay
+      ; sock= ref mutex None
+      ; pid= ref mutex None
+      ; num_dying_processes= Atomic.make 0
+      ; mutex
+      }
   in
   update
     (module CreationMutex)
     all_redo_logs
-    (fun locked all_redo_logs ->
-      let instance = RedologRecord.assert_locked locked instance in
-      RedoLogSet.add instance all_redo_logs
-    ) ;
+    (fun all_redo_logs -> RedoLogSet.add instance all_redo_logs) ;
   instance
 
 let create_rw = create ~read_only:false
@@ -894,10 +898,8 @@ let create_ro = create ~read_only:true
 let shutdown log = with_locked_log log shutdown'
 
 let delete log =
-  update (module CreationMutex) all_redo_logs @@ fun locked all_redo_logs ->
-  let log = RedologRecord.assert_locked locked log in
-  shutdown' log ;
-  disable log ;
+  let () = with_locked_log log @@ fun log -> shutdown' log ; disable log in
+  update (module CreationMutex) all_redo_logs @@ fun all_redo_logs ->
   RedoLogSet.remove log all_redo_logs
 
 (* -------------------------------------------------------- *)
@@ -979,10 +981,11 @@ let flush_db_to_redo_log' db log =
   let write_db_to_fd out_fd = Db_xml.To.fd out_fd db in
   write_db
     (Db_cache_types.Manifest.generation (Db_cache_types.Database.manifest db))
-    write_db_to_fd log;
+    write_db_to_fd log ;
   !(log.currently_accessible)
 
-let flush_db_to_redo_log db log = with_locked_log log @@ fun log -> flush_db_to_redo_log' db log
+let flush_db_to_redo_log db log =
+  with_locked_log log @@ fun log -> flush_db_to_redo_log' db log
 
 let flush_db_exn db log =
   assert (not log.read_only) ;
