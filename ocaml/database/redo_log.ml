@@ -60,8 +60,7 @@ type redo_log_conf = {
     name: string
   ; marker: string
   ; read_only: bool
-  ; enabled: bool ref
-  ; device: string option ref
+  ; device: string option Atomic.t
   ; currently_accessible: bool ref
   ; state_change_callback: (bool -> unit) option
   ; time_of_last_failure: float ref
@@ -90,22 +89,19 @@ let ready_to_write = ref true
 
 (* Controls whether DB writes are also copied to the redo log. *)
 
-let is_enabled log = !(log.enabled)
+let is_enabled log = Option.is_some (Atomic.get log.device)
 
 let enable_existing log vdi_reason =
   D.info "Enabling use of redo log" ;
-  log.device := get_static_device vdi_reason ;
-  log.enabled := true
+  Atomic.set log.device (get_static_device vdi_reason)
 
 let enable_block_existing log path =
   D.info "Enabling use of redo log" ;
-  log.device := Some path ;
-  log.enabled := true
+  Atomic.set log.device (Some path)
 
 let disable log =
   D.info "Disabling use of redo log" ;
-  log.device := None ;
-  log.enabled := false
+  Atomic.set log.device None
 
 (* ------------------------------------------------------------------------------------------------ *)
 (* Functions relating to whether the latest attempt to read/write the redo-log succeeded or failed. *)
@@ -621,7 +617,7 @@ let startup log =
             >= Db_globs.redo_log_max_dying_processes
           then
             raise TooManyProcesses ;
-          match !(log.device) with
+          match Atomic.get log.device with
           | None ->
               D.info "Could not find block device"
           | Some device ->
@@ -706,7 +702,7 @@ let startup log =
 
 let switch log vdi_reason =
   shutdown log ;
-  log.device := get_static_device vdi_reason ;
+  Atomic.set log.device (get_static_device vdi_reason) ;
   startup log
 
 (* Given a socket, execute a function and catch exceptions. *)
@@ -765,8 +761,7 @@ let create ~name ~state_change_callback ~read_only =
       name
     ; marker= Uuidx.to_string (Uuidx.make ())
     ; read_only
-    ; enabled= ref false
-    ; device= ref None
+    ; device= Atomic.make None
     ; currently_accessible= ref true
     ; state_change_callback
     ; time_of_last_failure= ref 0.
