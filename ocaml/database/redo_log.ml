@@ -85,7 +85,7 @@ let all_redo_logs = ref RedoLogSet.empty
 (* ------------------------------------------------------------------------ *)
 (* Functions relating to whether writing to the log is enabled or disabled. *)
 
-let ready_to_write = ref true
+let ready_to_write = Atomic.make true
 
 (* Controls whether DB writes are also copied to the redo log. *)
 
@@ -825,7 +825,7 @@ let write_db generation_count write_fn log =
     )
 
 let write_delta generation_count t flush_db_fn log =
-  if is_enabled log && !ready_to_write then
+  if is_enabled log && Atomic.get ready_to_write then
     (* If we're not currently connected, then try to re-connect (by calling flush_db_fn) at increasing time intervals. *)
     match !(log.sock) with
     | None ->
@@ -844,14 +844,14 @@ let write_delta generation_count t flush_db_fn log =
 let apply fn_db fn_delta log =
   if is_enabled log then (
     (* Turn off writing to the database while we are applying deltas. *)
-    ready_to_write := false ;
+    Atomic.set ready_to_write false ;
     finally
       (fun () ->
         connect_and_perform_action
           (action_read fn_db fn_delta)
           "read from redo log" log
       )
-      (fun () -> ready_to_write := true)
+      (fun () -> Atomic.set ready_to_write true)
   )
 
 (** ------------------------------------------------ *)
