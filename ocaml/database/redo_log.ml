@@ -886,9 +886,11 @@ let flush_db_exn db log =
     raise (RedoLogFailure "Cannot connect to redo log")
 
 let enable_and_flush db log reason =
+  with_lock redo_log_creation_mutex @@ fun () ->
   enable_existing log reason ; flush_db_exn db log
 
 let enable_block_and_flush db log path =
+  with_lock redo_log_creation_mutex @@ fun () ->
   enable_block_existing log path ;
   flush_db_exn db log
 
