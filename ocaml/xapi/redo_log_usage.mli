@@ -16,9 +16,9 @@
 *)
 
 val read_from_redo_log :
-  [< `RO | `RW] Redo_log.redo_log -> string -> Db_ref.t -> unit
+  ([< `RO | `RW], Redo_log.unlocked) Redo_log.redo_log -> string -> Db_ref.t -> unit
 (** Connect to the block device and write the latest version of the database
  * on it to a file with a given name. *)
 
-val stop_using_redo_log : _ Redo_log.redo_log -> unit
+val stop_using_redo_log : (_, Redo_log.unlocked) Redo_log.redo_log -> unit
 (** Disconnect from the block device. May be safely called even when not currently connected. *)

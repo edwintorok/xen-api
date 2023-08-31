@@ -57,7 +57,7 @@ let assert_managed ~__context ~vdi =
 let redo_log_lifecycle_mutex = Mutex.create ()
 
 let metadata_replication :
-    (API.ref_VDI, API.ref_VBD * [`RW] Redo_log.redo_log) Hashtbl.t =
+    (API.ref_VDI, API.ref_VBD * ([`RW], Redo_log.unlocked) Redo_log.redo_log) Hashtbl.t =
   Hashtbl.create Xapi_globs.redo_log_max_instances
 
 let get_master_dom0 ~__context =

@@ -15,75 +15,93 @@ open Xapi_stdext_pervasives.Pervasiveext
 open Xapi_stdext_std.Xstringext
 open Xapi_stdext_unix
 
-module type LockWitness = sig  
-  type 'a t (** a unique mutex type with a type witness for its locking state *)
+module type LockWitness = sig
+  (** a unique mutex type with a type witness for its locking state *)
+  type 'a t
 
+  (** type witness for the unlocked mutex {!t} *)
+  type unlocked
 
-  type unlocked (** type witness for the unlocked mutex {!t} *)
-  type locked  (** type witness for the locked mutex {!t} *)
+  (** type witness for the locked mutex {!t} *)
+  type locked
 
   val mutex : unlocked t
   (** [mutex] is the unique mutex of type ['a t], initially in an unlocked state *)
 
-  val with_lock: unlocked t -> (locked -> unit) -> unit
+  val with_lock : unlocked t -> (locked -> 'a) -> 'a
   (** [with_lock mutex f] calls [f locked_witness] with a type witness for its locked state.
     The [locked_witness] can be used in {!MakeRecord.assert_locked} to "unlock" the fields of a record,
     without having to modify the record itself (except its type parameter)
    *)
 
-  module MakeRecord(T: sig type 'a t end): sig
-    val assert_locked: locked -> (unit * locked) T.t -> (locked * locked) T.t
+  module MakeRecord (T : sig
+    type 'a t
+  end) : sig
+    val assert_locked : locked -> (unit * locked) T.t -> (locked * locked) T.t
     (** [assert_locked locked_witness record] checks that [record] holds the [locked_witness].
       [locked_witness] can only be obtained while inside {!with_lock}.
      *)
   end
 end
 
-module MakeMutex( (** generative functor, ensuring a new, unique type is created on every application *) ) : LockWitness = struct
+module MakeMutex () : LockWitness =
+(* generative functor, ensuring a new, unique type is created on every application *)
+struct
   type _ t = Mutex.t
 
   type unlocked = unit
+
   type locked = unit
 
   let mutex = Mutex.create ()
 
   let with_lock = Xapi_stdext_threads.Threadext.Mutex.execute
 
-  module MakeRecord(T: sig type _ t end) = struct
+  module MakeRecord (T : sig
+    type _ t
+  end) =
+  struct
     type _t = unit T.t
+
     let assert_locked () t = t
   end
 end
 
 module LockedRef : sig
   (** Opening this module will shadow the Stdlib [ref] operators, to ensure they are not used unsafely. *)
-  
-  type ('a, 'mutex) t (** a ref containing values of type ['a] protected by ['mutex] *)
 
-  val ref: (module LockWitness with type locked = 'locked) -> 'a -> ('a, unit * 'locked) t
+  (** a ref containing values of type ['a] protected by ['mutex] *)
+  type ('a, 'mutex) t
 
-  val (!): ('a, 'locked * 'locked) t -> 'a
+  val ref :
+       (module LockWitness with type locked = 'locked)
+    -> 'a
+    -> ('a, unit * 'locked) t
+
+  val ( ! ) : ('a, 'locked * 'locked) t -> 'a
   (** [!a] dereferences [a], requiring for its lock to be held.
     Note that multiple values can share the same mutex. *)
 
-  val (:=) : ('a, 'locked * 'locked) t -> 'a -> unit
+  val ( := ) : ('a, 'locked * 'locked) t -> 'a -> unit
   (** [r := value] assigns [value] to [r] while requiring its lock to be held. *)
-
 end = struct
   type ('a, _) t = 'a ref
 
   let ref _ default = Stdlib.ref default
-  let (!) = Stdlib.(!)
-  let (:=) = Stdlib.(:=)
+
+  let ( ! ) = Stdlib.( ! )
+
+  let ( := ) = Stdlib.( := )
 end
 
 (* can be implemented more efficiently inside LockedRef, but it wouldn't ensure we hold the mutex *)
-let update (type a b) (module LW:LockWitness with type locked = b) t f =
-    let module R = LW.MakeRecord(struct type nonrec 'b t = (a, 'b) LockedRef.t end) in
-    LW.with_lock LW.mutex @@ fun locked ->
-    let t = R.assert_locked locked t in
-    LockedRef.(t := f locked !t)
-  
+let update (type a b) (module LW : LockWitness with type locked = b) t f =
+  let module R = LW.MakeRecord (struct
+    type nonrec 'b t = (a, 'b) LockedRef.t
+  end) in
+  LW.with_lock LW.mutex @@ fun locked ->
+  let t = R.assert_locked locked t in
+  LockedRef.(t := f locked !t)
 
 open LockedRef
 
@@ -140,9 +158,10 @@ type 'a redo_log_conf = {
   ; num_dying_processes: int Atomic.t
 }
 
-module CreationMutex = MakeMutex()
+module CreationMutex = MakeMutex ()
 
 type locked = CreationMutex.locked * CreationMutex.locked
+
 type unlocked = unit * CreationMutex.locked
 
 type ('a, 'b) redo_log = 'b redo_log_conf
@@ -538,7 +557,8 @@ let action_write_delta marker generation_count data flush_db_fn sock
   R.debug "Performing writedelta (generation %Ld)" generation_count ;
   (* Compute desired response time *)
   let latest_response_time =
-    get_latest_response_time Stdlib.(!Db_globs.redo_log_max_block_time_writedelta)
+    get_latest_response_time
+      Stdlib.(!Db_globs.redo_log_max_block_time_writedelta)
   in
   (* Write *)
   let str =
@@ -619,7 +639,7 @@ let maybe_retry f log =
 
 (* Close any existing socket and kill the corresponding process. *)
 
-let shutdown log =
+let shutdown' log =
   if is_enabled log then (
     D.debug "Shutting down connection to I/O process for '%s'" log.name ;
     try
@@ -671,7 +691,7 @@ let shutdown log =
 
 let broken log =
   set_time_of_last_failure log ;
-  shutdown log ;
+  shutdown' log ;
   cannot_connect_fn log
 
 let healthy log =
@@ -680,9 +700,9 @@ let healthy log =
 
 exception TooManyProcesses
 
-module RedologRecord = CreationMutex.MakeRecord(
-  struct type 'a t = 'a redo_log_conf end
-)
+module RedologRecord = CreationMutex.MakeRecord (struct
+  type 'a t = 'a redo_log_conf
+end)
 
 let with_locked_log log f =
   CreationMutex.with_lock CreationMutex.mutex @@ fun locked ->
@@ -736,7 +756,8 @@ let startup' log =
             () (* We're already connected *)
         | None ->
             let latest_connect_time =
-              get_latest_response_time Stdlib.(!Db_globs.redo_log_max_startup_time)
+              get_latest_response_time
+                Stdlib.(!Db_globs.redo_log_max_startup_time)
             in
             (* Now connect to the process via the socket *)
             let s = connect ctrlsockpath latest_connect_time in
@@ -788,7 +809,7 @@ let startup' log =
 let startup log = with_locked_log log startup'
 
 let switch log vdi_reason =
-  with_locked_log log shutdown;
+  with_locked_log log shutdown' ;
   Atomic.set log.device (get_static_device vdi_reason) ;
   startup log
 
@@ -850,41 +871,50 @@ let create ~name ~state_change_callback ~read_only =
     ; currently_accessible= ref (module CreationMutex) true
     ; state_change_callback
     ; time_of_last_failure= ref (module CreationMutex) 0.
-    ; backoff_delay= ref (module CreationMutex) Db_globs.redo_log_initial_backoff_delay
+    ; backoff_delay=
+        ref (module CreationMutex) Db_globs.redo_log_initial_backoff_delay
     ; sock= ref (module CreationMutex) None
     ; pid= ref (module CreationMutex) None
     ; num_dying_processes= Atomic.make 0
     }
   in
-  update (module CreationMutex) all_redo_logs (fun locked all_redo_logs ->
+  update
+    (module CreationMutex)
+    all_redo_logs
+    (fun locked all_redo_logs ->
       let instance = RedologRecord.assert_locked locked instance in
       RedoLogSet.add instance all_redo_logs
-  ) ;
+    ) ;
   instance
 
 let create_rw = create ~read_only:false
 
 let create_ro = create ~read_only:true
 
+let shutdown log = with_locked_log log shutdown'
+
 let delete log =
-  shutdown log ;
+  update (module CreationMutex) all_redo_logs @@ fun locked all_redo_logs ->
+  let log = RedologRecord.assert_locked locked log in
+  shutdown' log ;
   disable log ;
-  update (module CreationMutex) all_redo_logs (fun _locked all_redo_logs ->
-      RedoLogSet.remove log all_redo_logs
-  )
+  RedoLogSet.remove log all_redo_logs
 
 (* -------------------------------------------------------- *)
 (* Helper functions for interacting with multiple redo_logs *)
 let with_active_redo_logs f =
-  update (module CreationMutex) all_redo_logs (fun _locked all_redo_logs ->
+  update
+    (module CreationMutex)
+    all_redo_logs
+    (fun _locked all_redo_logs ->
       let active_redo_logs =
         RedoLogSet.filter
           (fun log -> is_enabled log && not log.read_only)
           all_redo_logs
       in
-      RedoLogSet.iter f active_redo_logs;
+      RedoLogSet.iter f active_redo_logs ;
       all_redo_logs
-  )
+    )
 
 (* --------------------------------------------------------------- *)
 (* Functions which interact with the redo log on the block device. *)
@@ -927,6 +957,7 @@ let write_delta generation_count t flush_db_fn log =
 
 let apply fn_db fn_delta log =
   if is_enabled log then (
+    with_locked_log log @@ fun log ->
     (* Turn off writing to the database while we are applying deltas. *)
     Atomic.set ready_to_write false ;
     finally
@@ -943,13 +974,15 @@ let apply fn_db fn_delta log =
 (** Functions which operate on all active redo_logs. *)
 
 (* Flush the database to the given redo_log instance. *)
-let flush_db_to_redo_log db log =
+let flush_db_to_redo_log' db log =
   D.info "Flushing database to redo_log [%s]" log.name ;
   let write_db_to_fd out_fd = Db_xml.To.fd out_fd db in
   write_db
     (Db_cache_types.Manifest.generation (Db_cache_types.Database.manifest db))
-    write_db_to_fd log ;
+    write_db_to_fd log;
   !(log.currently_accessible)
+
+let flush_db_to_redo_log db log = with_locked_log log @@ fun log -> flush_db_to_redo_log' db log
 
 let flush_db_exn db log =
   assert (not log.read_only) ;
@@ -959,18 +992,16 @@ let flush_db_exn db log =
     raise (RedoLogFailure "Cannot connect to redo log")
 
 let enable_and_flush db log reason =
-  with_locked_log log @@ fun log ->
   enable_existing log reason ; flush_db_exn db log
 
 let enable_block_and_flush db log path =
-  with_locked_log log @@ fun log ->
   enable_block_existing log path ;
   flush_db_exn db log
 
 (* Write the given database to all active redo_logs *)
 let flush_db_to_all_active_redo_logs db =
   D.info "Flushing database to all active redo-logs" ;
-  with_active_redo_logs (fun log -> ignore (flush_db_to_redo_log db log))
+  with_active_redo_logs (fun log -> ignore (flush_db_to_redo_log' db log))
 
 (* Write a delta to all active redo_logs *)
 let database_callback event db =
@@ -1024,7 +1055,7 @@ let database_callback event db =
             entry
             (fun () ->
               (* the function which will be invoked if a database write is required instead of a delta *)
-              ignore (flush_db_to_redo_log db log)
+              ignore (flush_db_to_redo_log' db log)
             )
             log
       )

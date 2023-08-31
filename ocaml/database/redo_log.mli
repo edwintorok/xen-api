@@ -66,7 +66,10 @@ val redo_log_events : (string * bool) Event.channel
 val startup : (_, unlocked) redo_log -> unit
 (** Start the I/O process. Will do nothing if it's already started. *)
 
-val shutdown : (_, locked) redo_log -> unit
+val shutdown' : (_, locked) redo_log -> unit
+(** Stop the I/O process. Will do nothing if it's not already started. *)
+
+val shutdown : (_, unlocked) redo_log -> unit
 (** Stop the I/O process. Will do nothing if it's not already started. *)
 
 val switch : (_, unlocked) redo_log -> string -> unit
@@ -82,7 +85,7 @@ val create_rw :
   name:string -> state_change_callback:(bool -> unit) option -> ([> `RW], unlocked) redo_log
 (** Create a RW redo log instance and add it to the set. *)
 
-val delete : (_, locked) redo_log -> unit
+val delete : (_, unlocked) redo_log -> unit
 (** Shutdown a redo_log instance and remove it from the set. *)
 
 (** {Finding active redo_log instances} *)
@@ -107,7 +110,7 @@ type t =
 val apply :
      (Generation.t -> Unix.file_descr -> int -> float -> unit)
   -> (Generation.t -> t -> unit)
-  -> ([< `RO | `RW], locked) redo_log
+  -> ([< `RO | `RW], unlocked) redo_log
   -> unit
 (** Read from the block device.
     This function is best-effort only and does not raise any exceptions in the case of error.
@@ -116,7 +119,7 @@ val apply :
     For each database, [db_fn] is invoked with the database's generation count, a file descriptor from which to read the database's contents, the length of the database in bytes and the latest response time. The [db_fn] function may raise {!Unixext.Timeout} if the transfer is not complete by the latest response time.
     For each database delta, [delta_fn] is invoked with the delta's generation count and the value of the delta. *)
 
-val flush_db_to_redo_log : Db_cache_types.Database.t -> ([< `RW], locked) redo_log -> bool
+val flush_db_to_redo_log : Db_cache_types.Database.t -> ([< `RW], unlocked) redo_log -> bool
 (** Immediately write the given database to the given redo_log instance *)
 
 val flush_db_to_all_active_redo_logs : Db_cache_types.Database.t -> unit

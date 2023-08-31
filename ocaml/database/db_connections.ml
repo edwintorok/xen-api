@@ -81,7 +81,7 @@ let dec_and_read_db_flush_thread_refcount () =
 
 let pre_exit_hook () =
   (* We're about to exit. Close the active redo logs. *)
-  Redo_log.with_active_redo_logs Redo_log.shutdown ;
+  Redo_log.with_active_redo_logs Redo_log.shutdown' ;
   R.debug "Closed all active redo logs."
 
 (* The connection flushing calls each lock the connection they're flushing to.
