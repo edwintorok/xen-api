@@ -27,28 +27,31 @@ val recommended_vdi_size : int64
 val redo_log_sm_config : (string * string) list
 (** SM config for redo log VDI *)
 
+type unlocked (** type witness for unlocked mutex *)
+type locked (** type witness for locked mutex *)
+
 (** {redo_log data type} *)
-type 'a redo_log
+type ('a, 'b) redo_log
 
 (** {2 Enabling and disabling writing} *)
 
 val is_enabled : _ redo_log -> bool
 (** Returns [true] iff writing deltas to the block device is enabled. *)
 
-val enable_existing : [< `RO | `RW] redo_log -> string -> unit
+val enable_existing : ([< `RO | `RW], unlocked) redo_log -> string -> unit
 (** Enables writing deltas to the block device. Subsequent modifications to the database will be persisted to the block device. Takes a static-VDI reason as argument to select the device to use.
     The redo log is expected to contain some data to be played back.
  *)
 
 val enable_and_flush :
-  Db_cache_types.Database.t -> [< `RW] redo_log -> string -> unit
+  Db_cache_types.Database.t -> ([< `RW], unlocked) redo_log -> string -> unit
 (** Like {!enable_existing} but the redo log is freshly created and will trigger an immediate database flush  *)
 
-val enable_block_existing : [< `RO] redo_log -> string -> unit
+val enable_block_existing : ([< `RO], unlocked) redo_log -> string -> unit
 (** Enables writing deltas to the block device. Subsequent modifications to the database will be persisted to the block device. Takes a path as argument to select the device to use. *)
 
 val enable_block_and_flush :
-  Db_cache_types.Database.t -> [< `RW] redo_log -> string -> unit
+  Db_cache_types.Database.t -> ([< `RW], unlocked) redo_log -> string -> unit
 (** Like {!enable_block_existing} but the redo log is freshly created and will trigger an immediate database flush  *)
 
 val disable : _ redo_log -> unit
@@ -60,31 +63,31 @@ val redo_log_events : (string * bool) Event.channel
 
 (** {2 Lifecycle of I/O process} *)
 
-val startup : _ redo_log -> unit
+val startup : (_, unlocked) redo_log -> unit
 (** Start the I/O process. Will do nothing if it's already started. *)
 
-val shutdown : _ redo_log -> unit
+val shutdown : (_, locked) redo_log -> unit
 (** Stop the I/O process. Will do nothing if it's not already started. *)
 
-val switch : _ redo_log -> string -> unit
+val switch : (_, unlocked) redo_log -> string -> unit
 (** Start using the VDI with the given reason as redo-log, discarding the current one. *)
 
 (** {Keeping track of existing redo_log instances} *)
 
 val create_ro :
-  name:string -> state_change_callback:(bool -> unit) option -> [> `RO] redo_log
+  name:string -> state_change_callback:(bool -> unit) option -> ([> `RO], unlocked) redo_log
 (** Create a RO redo log instance and add it to the set. *)
 
 val create_rw :
-  name:string -> state_change_callback:(bool -> unit) option -> [> `RW] redo_log
+  name:string -> state_change_callback:(bool -> unit) option -> ([> `RW], unlocked) redo_log
 (** Create a RW redo log instance and add it to the set. *)
 
-val delete : _ redo_log -> unit
+val delete : (_, locked) redo_log -> unit
 (** Shutdown a redo_log instance and remove it from the set. *)
 
 (** {Finding active redo_log instances} *)
 
-val with_active_redo_logs : (_ redo_log -> unit) -> unit
+val with_active_redo_logs : ((_, locked) redo_log -> unit) -> unit
 (* Apply the supplied function to all active redo_logs. *)
 
 (** {2 Interacting with the block device} *)
@@ -104,7 +107,7 @@ type t =
 val apply :
      (Generation.t -> Unix.file_descr -> int -> float -> unit)
   -> (Generation.t -> t -> unit)
-  -> [< `RO | `RW] redo_log
+  -> ([< `RO | `RW], locked) redo_log
   -> unit
 (** Read from the block device.
     This function is best-effort only and does not raise any exceptions in the case of error.
@@ -113,7 +116,7 @@ val apply :
     For each database, [db_fn] is invoked with the database's generation count, a file descriptor from which to read the database's contents, the length of the database in bytes and the latest response time. The [db_fn] function may raise {!Unixext.Timeout} if the transfer is not complete by the latest response time.
     For each database delta, [delta_fn] is invoked with the delta's generation count and the value of the delta. *)
 
-val flush_db_to_redo_log : Db_cache_types.Database.t -> [< `RW] redo_log -> bool
+val flush_db_to_redo_log : Db_cache_types.Database.t -> ([< `RW], locked) redo_log -> bool
 (** Immediately write the given database to the given redo_log instance *)
 
 val flush_db_to_all_active_redo_logs : Db_cache_types.Database.t -> unit
