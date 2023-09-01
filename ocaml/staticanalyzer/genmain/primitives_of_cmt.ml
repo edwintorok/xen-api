@@ -40,9 +40,10 @@ module Shape = struct
     | Unboxed of unboxed  (** directly stored in a value *)
     | Boxed of boxed  (** pointer stored in value, allocated separately *)
     | Exception  (** exceptions have dedicated API calls *)
-    | Unknown  (** a value we cannot yet analyze (e.g. abstract type) *)
     | Variant of unboxed option * boxed array
         (** a variant can contain both boxed and unboxed types: [A | B of ... | C ...] *)
+    | Arrow of t * t  (** [e1 -> e2] *)
+    | Unknown  (** a value we cannot yet analyze (e.g. abstract type) *)
 
   and boxed =
     | Double  (** OCaml [float] *)
@@ -109,6 +110,8 @@ module Shape = struct
 
   let is = Types.eq_type
 
+  let arrow e1 e2 = Arrow (e1, e2)
+
   let rec of_type_expr e =
     let open Predef in
     if is e type_int then
@@ -141,8 +144,9 @@ module Shape = struct
           tuple (List.map of_type_expr lst)
       | Tobject _ ->
           obj
-      | Tvar _ | Tarrow _ | Tconstr _ | Tfield _ | Tnil | Tunivar _ | Tpackage _
-        ->
+      | Tarrow (_, e1, e2, _) ->
+          arrow (of_type_expr e1) (of_type_expr e2)
+      | Tvar _ | Tconstr _ | Tfield _ | Tnil | Tunivar _ | Tpackage _ ->
           Unknown
       | Tlink e | Tsubst (e, _) | Tpoly (e, _) ->
           (* TODO: substitute type variables in call... *)
@@ -160,11 +164,11 @@ type native_arg =
   | Bytecode_argv
   | Bytecode_argn
 
-let native_arg_of_primitive type_expr =
+let native_arg_of_primitive (shape, arg) =
   let open Primitive in
-  function
+  match arg with
   | Same_as_ocaml_repr ->
-      Value (Shape.of_type_expr type_expr)
+      Value shape
   | Unboxed_float ->
       Double
   | Unboxed_integer Pnativeint ->
@@ -182,7 +186,7 @@ let native_arg_of_primitive type_expr =
 
     @see <https://v2.ocaml.org/manual/intfc.html#ss:c-unboxed> on the use of [intnat]*)
 let ctype_of_native_arg = function
-  | Value ->
+  | Value _ ->
       "value"
   | Double ->
       "double"
@@ -228,6 +232,25 @@ let with_report_exceptions f =
 let warning loc =
   Printf.ksprintf @@ fun msg -> Location.prerr_warning loc (Preprocessor msg)
 
+let rec arrow_of_shape = function
+  | Shape.Arrow (e1, e2) ->
+      Seq.append (arrow_of_shape e1) (arrow_of_shape e2)
+  | shape ->
+      Seq.return shape
+
+let get_arrow e =
+  match List.of_seq (arrow_of_shape @@ Shape.of_type_expr e) with
+  | [] ->
+      assert false
+  | [Unknown] ->
+      None
+  | [_] ->
+      assert false
+  | lst ->
+      let rev = List.rev lst in
+      let ret = List.hd rev and args = rev |> List.tl |> List.rev in
+      Some (ret, args)
+
 (** [iter_primitives_exn ~path primitive_description] will load the .cmt/.cmti file
  [path] and iterate on any primitives defined using [primitive_description].
 
@@ -236,19 +259,31 @@ let warning loc =
  *)
 let iter_primitives_exn ~path f =
   let primitive_description type_expr pd =
-    (* TODO: get a Tarrow list from type_expr, split and zip over... *)
     let open Primitive in
     if native_name_is_external pd then
       (* only process primitives implemented by the user, not the ones defined
          by the compiler itself *)
+      let ret, args =
+        match get_arrow type_expr with
+        | Some ((_, args) as shape)
+          when List.length args = List.length pd.prim_native_repr_args ->
+            shape
+        | _ ->
+            (* not fatal: treat them as unknown *)
+            ( Shape.Unknown
+            , pd.prim_native_repr_args |> List.map @@ fun _ -> Shape.Unknown
+            )
+      in
       let t =
         {
           byte_name= byte_name pd
         ; native_name= native_name pd
         ; arity= pd.prim_arity
-        ; native_result= native_arg_of_primitive pd.prim_native_repr_res
+        ; native_result= native_arg_of_primitive (ret, pd.prim_native_repr_res)
         ; alloc= pd.prim_alloc
-        ; native_args= List.map native_arg_of_primitive pd.prim_native_repr_args
+        ; native_args=
+            List.combine args pd.prim_native_repr_args
+            |> List.map native_arg_of_primitive
         }
       in
       f t
@@ -269,8 +304,7 @@ let iter_primitives_exn ~path f =
         ()
     | Ttype_record _ ->
         () (* TODO *)
-    | Ttype_variant cnstr ->
-        Printf.eprintf "Got %d constructors" (List.length cnstr) ;
+    | Ttype_variant _cnstr ->
         ()
     | Ttype_open ->
         ()

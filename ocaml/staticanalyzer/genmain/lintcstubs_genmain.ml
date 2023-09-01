@@ -49,7 +49,7 @@ let gen_of_native_arg args =
   function
   (* TODO: we could do more analysis on the type for value to determine whether
      it is an integer or not, what tag it can have, etc. *)
-  | (Value | Double | Int32 | Int64 | Intnat _) as arg ->
+  | (Value _ | Double | Int32 | Int64 | Intnat _) as arg ->
       nondet @@ ctype_of_native_arg arg ^ "()"
   | Bytecode_argv ->
       Printf.sprintf "value[]{%s}"
@@ -74,12 +74,15 @@ let print_call ~noalloc res name args =
       name
     @@ String.concat ", "
     @@ List.map (gen_of_native_arg args) args ;
-    if res = Value then
-      printf "\t__access_Val(res);\n"
-    (* check that the value is valid *)
-    (* TODO: could insert more assertions based on actual type *)
-    else
-      printf "\t(void)res;\n" ;
+    let () =
+      match res with
+      | Value _ ->
+          printf "\t__access_Val(res);\n"
+      | _ ->
+          (* check that the value is valid *)
+          (* TODO: could insert more assertions based on actual type *)
+          printf "\t(void)res;\n"
+    in
     (*  suppress unused value warning *)
     print_endline "}"
   )
@@ -93,7 +96,7 @@ let print_c_prototype ~noalloc res name args =
 
 let print_c_prototype_arity arity byte_name =
   let open Primitives_of_cmt in
-  print_c_prototype Value byte_name @@ List.init arity (fun _ -> Value)
+  print_c_prototype (Value Unknown) byte_name @@ List.init arity (fun _ -> Value Unknown)
 
 let primitive_description desc =
   let open Primitives_of_cmt in
@@ -106,7 +109,7 @@ let primitive_description desc =
     if desc.arity <= 5 then
       print_c_prototype_arity ~noalloc desc.arity desc.byte_name
     else
-      print_c_prototype ~noalloc Value desc.byte_name
+      print_c_prototype ~noalloc (Value Unknown) desc.byte_name
         [Bytecode_argv; Bytecode_argn]
   else
     (* according to https://v2.ocaml.org/manual/intfc.html#ss:c-prim-impl
@@ -187,7 +190,8 @@ void caml_alloc_point_here(void);
     (* TODO: put in a header *)
     Printf.printf "int __VERIFIER_nondet_int(void);\n" ;
     Printf.printf "void __access_Val(value);\n" ;
-    Primitives_of_cmt.[Value; Double; Int32; Int64; Intnat {untagged_int=false}]
+    Primitives_of_cmt.
+      [(Value Unknown); Double; Int32; Int64; Intnat {untagged_int= false}]
     |> List.iter @@ fun t -> print_nondet_prototype t
   in
   print_endline "void __caml_maybe_run_gc(void);" ;
