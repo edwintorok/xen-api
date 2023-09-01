@@ -44,3 +44,4 @@
    )
   (package xapi-lintcstubs)
 )
+(cram (deps %{bin:lintcstubs_genmain}))
