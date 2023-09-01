@@ -21,87 +21,138 @@
 
 module Shape = struct
   (** https://v2.ocaml.org/manual/intfc.html#s%3Ac-ocaml-datatype-repr *)
-  type range = {min: int; max: int}
+  type range = {
+      min: int  (** minimum possible value for type *)
+    ; max: int  (** maximum possible value for type *)
+  }
+  (** range of an integer. Needed because [unit], [bool], [char], [int] and simple variants are all
+    represented as integers when interfacing with C, but for value analysis it is useful to know
+    their range.
+   *)
 
-  type unboxed = Int of range | DoubleArrayElement
+  (** Integers and float array elements are stored directly in values *)
+  type unboxed =
+    | OCamlInt of range  (** OCaml integer with given range *)
+    | DoubleArrayElement  (** An unboxed float array element *)
 
-  type t = Unboxed of unboxed | Boxed of boxed | Unknown
+  (** information about the size and layout of an OCaml type *)
+  type t =
+    | Unboxed of unboxed  (** directly stored in a value *)
+    | Boxed of boxed  (** pointer stored in value, allocated separately *)
+    | Exception  (** exceptions have dedicated API calls *)
+    | Unknown  (** a value we cannot yet analyze (e.g. abstract type) *)
+    | Variant of unboxed option * boxed array
+        (** a variant can contain both boxed and unboxed types: [A | B of ... | C ...] *)
 
   and boxed =
-    | Double
-    | Int32 (* can be smaller than a word, special case *)
-    | IntN of {size: int}
-    | String
-    | Tuple of t array
+    | Double  (** OCaml [float] *)
+    | Int32  (** can be smaller than a word, special case *)
+    | IntN of {words: int}  (** [int64], [nativeint] *)
+    | String of {writable: bool  (** [string] is not writable *)}
+        (** [string] or [bytes] *)
+    | Tuple of t array  (** (e1,...,en) each element can have different shape *)
     | Array of {elements: t}
+        (** [| element; ... |], all elements have same shape *)
     | Block of {tag: int; elements: t array}
+        (** {field1: ...; ...; fieldN: ...} *)
     | Object
-    | Variant of t array
   (*  | Self of {levels:int} *)
 
   let fixed n = {min= n; max= n}
 
   let string_size =
-    {min= 1; max= 1 + (Sys.max_string_length * 8 / Sys.word_size)}
+    {min= 0; max= 1 + (Sys.max_string_length * 8 / Sys.word_size)}
 
-  let unit = Unboxed (Int {min=0;max=0})
-  
-  let bool = Unboxed (Int {min= 0; max= 1})
+  let unit = Unboxed (OCamlInt {min= 0; max= 0})
 
-  let char = Unboxed (Int {min= 0; max= 255})
+  let bool = Unboxed (OCamlInt {min= 0; max= 1})
 
-  let int = Unboxed (Int {min= min_int; max= max_int})
+  let char = Unboxed (OCamlInt {min= 0; max= 255})
 
-  let constructor x = Unboxed (Int {min = x; max = x})
+  let int = Unboxed (OCamlInt {min= min_int; max= max_int})
+
+  let constructor x = Unboxed (OCamlInt {min= x; max= x})
 
   let block tag elements = Boxed (Block {tag; elements})
 
-  let bytes = Boxed String
+  let bytes = Boxed (String {writable= true})
 
-  let string = Boxed String
+  let string = Boxed (String {writable= false})
 
   let float = Boxed Double
 
   let int32 = Boxed Int32
 
-  let int64 = Boxed (IntN {size= 64 / Sys.word_size})
+  let int64 = Boxed (IntN {words= 64 / Sys.word_size})
 
-  let nativeint = Boxed (IntN {size= 1})
+  let nativeint = Boxed (IntN {words= 1})
 
   let tuple lst = Boxed (Tuple (Array.of_list lst))
 
   let is_double = function Boxed Double -> true | _ -> false
 
+  let exn = Exception
+
   let record lst =
     if List.for_all is_double lst then
+      (* TODO: depends on compiler version/flags? *)
       Boxed (Array {elements= Unboxed DoubleArrayElement})
     else
       tuple lst
 
   let array elements = Boxed (Array {elements})
 
-  let obj = Object
+  (* TODO: depends on compiler version/flags? *)
+  let floatarray = Boxed (Array {elements= Unboxed DoubleArrayElement})
+
+  let obj = Boxed Object
 
   let is = Types.eq_type
-  let of_type_expr e =
+
+  let rec of_type_expr e =
     let open Predef in
-    if is e type_int then int
-    else if is e type_char then char
-    else if is e type_string then string
-    else if is e type_bytes then bytes
-    else if is e type_float then float
-    else if is e type_bool then bool
-    else if is e type_unit then unit
-    else if is e type_nativeint then nativeint
-    else if is e type_int32 then int32
-    else if is e type_int64 then int64
-    (* TODO: look at Path.t and val_type *)
-    else Unknown
-  
+    if is e type_int then
+      int
+    else if is e type_char then
+      char
+    else if is e type_string then
+      string
+    else if is e type_bytes then
+      bytes
+    else if is e type_float then
+      float
+    else if is e type_bool then
+      bool
+    else if is e type_unit then
+      unit
+    else if is e type_nativeint then
+      nativeint
+    else if is e type_int32 then
+      int32
+    else if is e type_int64 then
+      int64
+    else if is e type_exn then
+      exn
+    else if is e type_floatarray then
+      floatarray
+    else
+      match Types.get_desc e with
+      | Ttuple lst ->
+          tuple (List.map of_type_expr lst)
+      | Tobject _ ->
+          obj
+      | Tvar _ | Tarrow _ | Tconstr _ | Tfield _ | Tnil | Tunivar _ | Tpackage _
+        ->
+          Unknown
+      | Tlink e | Tsubst (e, _) | Tpoly (e, _) ->
+          (* TODO: substitute type variables in call... *)
+          of_type_expr e
+      | Tvariant _ ->
+          Unknown (* TODO: use constructor_description here *)
 end
 
 type native_arg =
-  | Value
+  | Value of Shape.t
   | Double
   | Int32
   | Int64
@@ -109,11 +160,11 @@ type native_arg =
   | Bytecode_argv
   | Bytecode_argn
 
-let native_arg_of_primitive =
+let native_arg_of_primitive type_expr =
   let open Primitive in
   function
   | Same_as_ocaml_repr ->
-      Value
+      Value (Shape.of_type_expr type_expr)
   | Unboxed_float ->
       Double
   | Unboxed_integer Pnativeint ->
@@ -185,6 +236,7 @@ let warning loc =
  *)
 let iter_primitives_exn ~path f =
   let primitive_description type_expr pd =
+    (* TODO: get a Tarrow list from type_expr, split and zip over... *)
     let open Primitive in
     if native_name_is_external pd then
       (* only process primitives implemented by the user, not the ones defined
@@ -212,7 +264,6 @@ let iter_primitives_exn ~path f =
   in
   let type_kind _ tkind =
     let open Typedtree in
-    let open Types in
     match tkind with
     | Ttype_abstract ->
         ()
