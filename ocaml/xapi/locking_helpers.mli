@@ -65,3 +65,13 @@ module Named_mutex : sig
   val execute :
     ?__context:Context.t -> ?parent:Tracing.Span.t -> t -> (unit -> 'a) -> 'a
 end
+module Named_semaphore : sig
+  type t
+
+  val create : ?max:int -> string -> t
+
+  val execute :
+    ?__context:Context.t -> ?parent:Tracing.Span.t -> t -> (unit -> 'a) -> 'a
+
+  val set_max: t -> int -> unit
+end

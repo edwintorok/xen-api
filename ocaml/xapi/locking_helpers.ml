@@ -13,10 +13,9 @@
  *)
 
 module IntSet = Set.Make (Int)
-module IntMap = Map.Make(Int)
+module IntMap = Map.Make (Int)
 
 module Thread_local_storage = struct
-
   (* While a thread is alive we keep some per-thread data,
      after the thread dies the data will be GC-ed.
      Ephemerons would allocate some internal options on each lookup,
@@ -27,15 +26,15 @@ module Thread_local_storage = struct
   let rec atomic_update t f v =
     let current = Atomic.get t.all in
     let next = f v current in
-    if not (Atomic.compare_and_set t.all current next) then begin
+    if not (Atomic.compare_and_set t.all current next) then (
       (* race, try again, but don't monopolize the CPU *)
-      Thread.yield ();
+      Thread.yield () ;
       atomic_update t f v
-    end
+    )
 
   let on_thread_gc t thread =
     let id = Thread.id thread in
-    atomic_update t IntSet.remove id;
+    atomic_update t IntSet.remove id ;
     Thread_table.remove t.tbl id
 
   let find_or_create_unlocked t self =
@@ -45,13 +44,13 @@ module Thread_local_storage = struct
     with Not_found ->
       (* slow-path: first time use on current thread *)
       (* since we are adding data specific to the current thread,
-         and all thread ids are unique we cannot race with another thread here.
-        (we may race with other thrads initializing themselves, but that is fine,
-         Thread_table handles that)
-       *)
+          and all thread ids are unique we cannot race with another thread here.
+         (we may race with other thrads initializing themselves, but that is fine,
+          Thread_table handles that)
+      *)
       let v = t.init () in
-      atomic_update t IntSet.add id;
-      Gc.finalise (on_thread_gc t) self;
+      atomic_update t IntSet.add id ;
+      Gc.finalise (on_thread_gc t) self ;
       Thread_table.add t.tbl id v ;
       v
 
@@ -61,24 +60,27 @@ module Thread_local_storage = struct
 
   let make init : 'a t =
     let tbl = Thread_table.create () in
-    let t = {tbl; all = Atomic.make IntSet.empty; init} in
+    let t = {tbl; all= Atomic.make IntSet.empty; init} in
     (* preallocate storage for current thread *)
     let (_ : 'a) = get t in
     t
 
   let set_unlocked t v =
     let id = Thread.id (Thread.self ()) in
-    Thread_table.remove t.tbl id;
+    Thread_table.remove t.tbl id ;
     Thread_table.add t.tbl id v
 
   let _set t v = set_unlocked t v
 
   let snapshot t =
     let all = Atomic.get t.all in
-    IntSet.fold (fun id map ->
-      try IntMap.add id (Thread_table.find t.tbl id) map
-      with Not_found -> map (* race condition: thread exited and not in table anymore *)
-    ) all IntMap.empty
+    IntSet.fold
+      (fun id map ->
+        try IntMap.add id (Thread_table.find t.tbl id) map
+        with Not_found ->
+          map (* race condition: thread exited and not in table anymore *)
+      )
+      all IntMap.empty
 
   let count t = Thread_table.length t.tbl
 end
@@ -398,4 +400,83 @@ module Named_mutex = struct
           p
     in
     Thread_state.with_resource x x.acquire f x.release parent
+end
+
+module Named_semaphore = struct
+  type t = {
+      name: string
+    ; sem: Semaphore.Counting.t
+    ; r: resource
+    ; acquire: t -> Tracing.Span.t option -> Thread_state.acquired
+    ; release: t -> Thread_state.acquired -> unit
+    ; mutable max: int
+    ; max_lock: Mutex.t
+  }
+
+  let create ?(max=1) name =
+    let acquire t parent =
+      let waiting = Thread_state.waiting_for ?parent t.r in
+      Semaphore.Counting.acquire t.sem ;
+      Thread_state.acquired t.r waiting
+    in
+    let release t waiting =
+      Semaphore.Counting.release t.sem ;
+      Thread_state.released t.r waiting
+    in
+    D.debug "Semaphore %s initially has %d resources" name max ;
+    assert (max > 0) ;
+    {
+      name
+    ; sem= Semaphore.Counting.make max
+    ; r= lock name
+    ; acquire
+    ; release
+    ; max
+    ; max_lock= Mutex.create ()
+    }
+
+  let execute ?__context ?parent (x : t) f =
+    let parent =
+      match parent with
+      | None ->
+          Option.bind __context Context.tracing_of
+      | Some _ as p ->
+          p
+    in
+    Thread_state.with_resource x x.acquire f x.release parent
+
+  let set_max t n =
+    if n < 1 then
+      Fmt.invalid_arg
+        "The semaphore '%s' must have at least 1 resource available, \
+         requested: %d"
+        t.name n ;
+    (* ensure only 1 thread attempts to modify the maximum at a time, this is a slow path *)
+    Mutex.lock t.max_lock ;
+    D.debug
+      "Setting semaphore '%s' to have at most %d resource (current max: %d)"
+      t.name n t.max ;
+
+    (* requested to decrease maximum, this might block *)
+    while t.max > n do
+      if not (Semaphore.Counting.try_acquire t.sem) then (
+        D.debug
+          "Semaphore '%s' has >%d resources in use, waiting until some of them \
+           are released"
+          t.name n ;
+        (* may block *)
+        Semaphore.Counting.acquire t.sem
+      ) ;
+      t.max <- t.max - 1
+    done ;
+
+    (* requested to increase maximum, this doesn't block *)
+    while t.max < n do
+      (* doesn't block, semaphores can also be acquired and released from any thread *)
+      Semaphore.Counting.release t.sem ;
+      t.max <- t.max + 1
+    done ;
+    Mutex.unlock t.max_lock ;
+    D.debug "Semaphore '%s' updated to have %d resources (%d in use)" t.name n
+      (Semaphore.Counting.get_value t.sem)
 end
