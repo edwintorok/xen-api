@@ -12,91 +12,75 @@
  * GNU Lesser General Public License for more details.
  *)
 
-module IntMap = Map.Make (Int)
+module IntSet = Set.Make (Int)
+module IntMap = Map.Make(Int)
 
 module Thread_local_storage = struct
-  module Thread_key : sig
-    type t = private int
-
-    val of_thread : Thread.t -> t
-
-    val hash : t -> int
-
-    val equal : t -> t -> bool
-  end = struct
-    type t = int
-
-    let of_thread = Thread.id
-
-    let hash x = x
-
-    let equal = Int.equal
-  end
-
-  module LiveThreads = Hashtbl.Make (Thread_key)
 
   (* While a thread is alive we keep some per-thread data,
      after the thread dies the data will be GC-ed.
      Ephemerons would allocate some internal options on each lookup,
      so we cannot use them here. Instead we add a finaliser on the Thread.t.
   *)
-  type 'a t = {lock: Mutex.t; tbl: 'a LiveThreads.t; init: unit -> 'a}
+  type 'a t = {tbl: 'a Thread_table.t; all: IntSet.t Atomic.t; init: unit -> 'a}
 
-  let with_lock t f arg =
-    Mutex.lock t.lock ;
-    match f t arg with
-    | result ->
-        Mutex.unlock t.lock ; result
-    | exception e ->
-        let bt = Printexc.get_raw_backtrace () in
-        Mutex.unlock t.lock ;
-        Printexc.raise_with_backtrace e bt
+  let rec atomic_update t f v =
+    let current = Atomic.get t.all in
+    let next = f v current in
+    if not (Atomic.compare_and_set t.all current next) then begin
+      (* race, try again, but don't monopolize the CPU *)
+      Thread.yield ();
+      atomic_update t f v
+    end
 
-  let on_thread_gc t thread_id () =
-    Mutex.lock t.lock ;
-    LiveThreads.remove t.tbl thread_id ;
-    Mutex.unlock t.lock
+  let on_thread_gc t thread =
+    let id = Thread.id thread in
+    atomic_update t IntSet.remove id;
+    Thread_table.remove t.tbl id
 
   let find_or_create_unlocked t self =
     (* try/with avoids allocation on fast-path *)
-    let id = Thread_key.of_thread self in
-    try LiveThreads.find t.tbl id
+    let id = Thread.id self in
+    try Thread_table.find t.tbl id
     with Not_found ->
       (* slow-path: first time use on current thread *)
+      (* since we are adding data specific to the current thread,
+         and all thread ids are unique we cannot race with another thread here.
+        (we may race with other thrads initializing themselves, but that is fine,
+         Thread_table handles that)
+       *)
       let v = t.init () in
-      LiveThreads.replace t.tbl id v ;
-      (* do not use a closure here, it might keep 'self' alive forver *)
-      Gc.finalise_last (on_thread_gc t id) self ;
+      atomic_update t IntSet.add id;
+      Gc.finalise (on_thread_gc t) self;
+      Thread_table.add t.tbl id v ;
       v
 
   let get t =
     let self = Thread.self () in
-    with_lock t find_or_create_unlocked self
+    find_or_create_unlocked t self
 
   let make init : 'a t =
-    let lock = Mutex.create () in
-    let tbl = LiveThreads.create 47 in
-    let t = {lock; tbl; init} in
+    let tbl = Thread_table.create () in
+    let t = {tbl; all = Atomic.make IntSet.empty; init} in
     (* preallocate storage for current thread *)
     let (_ : 'a) = get t in
     t
 
   let set_unlocked t v =
-    let self = Thread.self () in
-    LiveThreads.replace t.tbl (Thread_key.of_thread self) v
+    let id = Thread.id (Thread.self ()) in
+    Thread_table.remove t.tbl id;
+    Thread_table.add t.tbl id v
 
-  let _set t v = with_lock t set_unlocked v
+  let _set t v = set_unlocked t v
 
-  let snapshot_unlocked t () =
-    LiveThreads.fold
-      (fun thr v acc -> IntMap.add (thr :> int) v acc)
-      t.tbl IntMap.empty
+  let snapshot t =
+    let all = Atomic.get t.all in
+    IntSet.fold (fun id map ->
+      try IntMap.add id (Thread_table.find t.tbl id) map
+      with Not_found -> map (* race condition: thread exited and not in table anymore *)
+    ) all IntMap.empty
 
-  let snapshot t = with_lock t snapshot_unlocked ()
-
-  let count_unlocked t () = LiveThreads.length t.tbl
-
-  let count t = with_lock t count_unlocked ()
+  let count t = Thread_table.length t.tbl
 end
 
 let finally = Xapi_stdext_pervasives.Pervasiveext.finally

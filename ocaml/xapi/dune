@@ -59,6 +59,7 @@
   (wrapped false)
   (modules (:standard \ xapi_main))
   (libraries
+    thread-table
     angstrom
     astring
     cstruct
