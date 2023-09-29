@@ -14,11 +14,13 @@ let rec connect_start sock addr =
 
 let responses = ref 0
 
+type send = Data of string | Traceparent of string
+
 module Connection = struct
   type t = {
       addr: Unix.sockaddr
     ; socket: Unix.file_descr
-    ; send_buffer: string Queue.t
+    ; send_buffer: send Queue.t
     ; zb: Zero_http.Zero_buffer.t
     ; parser: Zero_http.Response.t
     ; id: int
@@ -94,22 +96,33 @@ module Connection = struct
 
   let disconnect t = t.closed <- true
 
+  let request_begin conn tp =
+    assert (not conn.closed);
+    Queue.push (Traceparent tp) conn.send_buffer
+
   let write conn str =
     assert (not conn.closed) ;
-    Queue.push str conn.send_buffer
+    Queue.push (Data str) conn.send_buffer
 
   let flush _conn = ()
 
-  let sum acc s = acc + String.length s
+  let sum acc s =
+    match s with
+    | Data s ->
+       acc + String.length s
+    | Traceparent _ -> acc
 
   let sum_queued_bytes acc t = Queue.fold sum acc t.send_buffer
 
   let serialize into off t =
     let dst_off = ref off in
-    let serialize_entry str =
-      let len = String.length str in
-      Bigstringaf.blit_from_string str ~src_off:0 into ~dst_off:!dst_off ~len ;
-      dst_off := !dst_off + len
+    let serialize_entry = function
+      | Data str ->
+        let len = String.length str in
+        Bigstringaf.blit_from_string str ~src_off:0 into ~dst_off:!dst_off ~len;
+        dst_off := !dst_off + len
+      | Traceparent tp ->
+        Zero_http.Response.write_request_begin t.parser tp;
     in
     Queue.iter serialize_entry t.send_buffer ;
     t.off <- off ;

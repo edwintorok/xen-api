@@ -13,12 +13,6 @@ let url_method = Ze.register_marshaled_event "method" ~on_process_event:(fun ~do
   meth := value
 )
 
-let tp = ref None
-let traceparent = Ze.register_marshaled_event "traceparent" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns:_ ~name:_ ~value ->
-  tp := Some value
-)
-
-
 let src = Logs.Src.create ~doc:"zero_http protocol logging" "loadgen.zero_http"
 
 module Log = (val Logs.src_log src)
@@ -32,6 +26,7 @@ module Response = struct
     { id: int
     ; mutable status_code: int
     ; mutable content_length: int
+    ; mutable tp: string
     }
 
   type t = {
@@ -45,10 +40,23 @@ module Response = struct
   (* can't marshal entire 't' due to bigarray *)
 
   let span_data = Hashtbl.create 47
+  let traceparent = Hashtbl.create 47
 
   let request_begin = Ze.register_marshaled_event "request.begin" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns ~name:_ ~value ->
-    Hashtbl.replace span_data value.id timestamp_unix_ns
+    Hashtbl.replace span_data value.id timestamp_unix_ns;
+    let q =
+      match Hashtbl.find_opt traceparent value.id  with
+      | None ->
+        let q = Queue.create () in
+        Hashtbl.replace traceparent value.id q;
+        q
+      | Some q -> q in
+    Queue.push value.tp q
   )
+
+  let write_request_begin t tp =
+    t.span_state.tp <- tp;
+    Ze.(write request_begin t.span_state)
 
   let to_attr (key, value) =
      Opentelemetry.Proto.Common.default_key_value ~key ~value:(Some value) ()
@@ -58,17 +66,20 @@ module Response = struct
   
   let request_end = Ze.register_marshaled_event "request.end" ~on_process_event:(fun ~domain:_ ~timestamp_unix_ns ~name:_ ~value ->
     let start_time = Hashtbl.find span_data value.id in
+    let tp = Hashtbl.find traceparent value.id in
+    let trp = Queue.pop tp in
     let attrs =
        [ "http.response.status_code", attr_int value.status_code
        ; "http.response.body.size", attr_int value.content_length
        ; "http.request.method", attr_str "GET" (* TODO *)
        ; "network.protocol.version", attr_str "1.1"
-       ; "server.address", attr_str "perfuk-18-06d.xenrt.citrite.net"
+      (* TODO *)
+       ; "server.address", attr_str "perfuk-18-04d.xenrt.citrite.net"
        ; "server.port", attr_int 80
-       ; "url.full", attr_str "http://perfuk-18-06d.xenrt.citrite.net/"
+       ; "url.full", attr_str "http://perfuk-18-04d.xenrt.citrite.net/"
       ]
     in
-    let trace_id, id = Opentelemetry.Trace_context.Traceparent.of_value (Option.get !tp) |> Result.get_ok in
+    let trace_id, id = Opentelemetry.Trace_context.Traceparent.of_value trp |> Result.get_ok in
     (* let trace_id = (Opentelemetry.Scope.get_surrounding () |> Option.get).trace_id in*)
     let span, _ = Opentelemetry.Span.create
       ~trace_id
@@ -86,7 +97,7 @@ module Response = struct
     let id = Atomic.fetch_and_add next 1 in
     {
       lines
-    ; span_state = { id; status_code = 0; content_length = 0 }
+    ; span_state = { id; status_code = 0; content_length = 0; tp= ""}
     ; state= WaitStatusLine
     ; discard= 0
     ; headers_size= 0 (* TODO: this is not updated yet *)
@@ -219,7 +230,7 @@ module Response = struct
     t.state <- WaitStatusLine ;
     if Zero_lines.is_bol t.lines then begin
       Ze.(write http_response_headers Begin);
-      Ze.(write request_begin t.span_state);
+    (*   Ze.(write request_begin t.span_state); *)
     end;
     (* resume from here *)
     match Zero_lines.read_line t.lines parse_status_line (-1) () with

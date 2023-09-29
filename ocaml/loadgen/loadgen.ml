@@ -38,9 +38,8 @@ let write_calls n call uri_path conv =
 let n = 1000
 
 let t = Speculative.init ()
-let host = "perfuk-18-06d.xenrt.citrite.net"
+let host = "perfuk-18-04d.xenrt.citrite.net"
 let addr = (Unix.getaddrinfo host "80" [] |> List.hd).Unix.ai_addr
-let conn = Speculative.connect t addr
 
 (*module I =
   struct
@@ -60,12 +59,17 @@ module M = struct
   let (>>|) _ _ = Blocked
 end
 
-let rpc call : Rpc.response M.t =
+let trace_id = Opentelemetry.Trace_id.create ()
+
+let rpc conn call : Rpc.response M.t =
   (* write_calls n call "jsonrpc" Jsonrpc.string_of_call;
      write_calls n call "RPC2" Xmlrpc.string_of_call; *)
   let str = Jsonrpc.string_of_call call in
   let buf = Buffer.create 1024 in
-  Printf.bprintf buf "POST /jsonrpc HTTP/1.1\r\nHost: %s\r\nContent-Length: %d\r\n\r\n" host (String.length str);
+  let parent_id = Opentelemetry.Span_id.create () in
+  let tp = Opentelemetry.Trace_context.Traceparent.to_value ~trace_id ~parent_id () in
+  Printf.bprintf buf "POST /jsonrpc HTTP/1.1\r\nHost: %s\r\ntraceparent: %s\r\nContent-Length: %d\r\n\r\n" host tp (String.length str);
+  Speculative.Connection.request_begin conn tp;
   Speculative.Connection.write conn (Buffer.contents buf);
   Speculative.Connection.write conn str;
   M.Blocked
@@ -87,11 +91,15 @@ let () =
   let version = Xapi_version.version in
   Ze.(write Zero_http.url_full @@ "http://" ^ host ^ "/") ;
   Ze.(write Zero_http.url_method `POST);
-  for i = 1 to 100 do
-    let (_: _ M.t) =
-      C.Session.login_with_password ~rpc ~uname:"root" ~pwd ~version
-        ~originator:__FILE__
-    in
-    ()
+  for conni = 1 to 16 do
+    let conn = Speculative.connect t addr in
+    let rpc = rpc conn in
+    for i = 1 to 10 do
+      let (_: _ M.t) =
+        C.Session.login_with_password ~rpc ~uname:"root" ~pwd ~version
+          ~originator:__FILE__
+      in
+      ()
+    done;
   done;
   Speculative.run t

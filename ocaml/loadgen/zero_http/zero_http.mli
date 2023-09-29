@@ -34,6 +34,9 @@ module Response : sig
   val create : Zero_buffer.t -> ('a Zero_buffer.refill) -> 'a -> t
   (** [create buff callback] creates new HTTP response parser state that invokes [callback] when a response has been parsed. *)
 
+  val write_request_begin: t -> string -> unit
+  (** [write_request_begin t traceparent] records that a new request has been created. *)
+
   val read: t -> (status_code:int -> content_length:int -> headers_size:int -> unit) -> unit
   (** [read t callback] reads data using [reader] and parses a potentially partial HTTP response stream.
     This is a fastpath if the following conditions are met:
@@ -51,4 +54,3 @@ end
 
 val url_full: string Zero_events.event
 val url_method: Http.Method.t Zero_events.event
-val traceparent: string Zero_events.event
