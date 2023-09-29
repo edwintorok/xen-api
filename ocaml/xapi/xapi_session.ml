@@ -255,7 +255,7 @@ let local_superuser = "root"
 
 let xapi_internal_originator = "xapi"
 
-let serialize_auth = Locking_helpers.Named_semaphore.create "serialize_auth"
+let serialize_auth = Locking_helpers.Named_semaphore.create ~max:8 "serialize_auth"
 
 let wipe_string_contents str =
   for i = 0 to Bytes.length str - 1 do
