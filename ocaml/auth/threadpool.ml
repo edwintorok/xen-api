@@ -1,9 +1,56 @@
+type 'a wrapped = ('a, Rresult.R.exn_trap) result
+type (-'a, 'b) task = { f: 'a -> 'b; result: 'b wrapped Event.channel }
 
 
+type ('a, 'b) t =
+{ stop_all: unit -> unit
+; tasks: ('a, 'b) task option Event.channel
+}
 
-let mutex_execute = Xapi_stdext_threads.Threadext.Mutex.execute
+let create ~name:_ acquire release workers =
+  let tasks = Event.new_channel () in
 
-module D = Debug.Make (struct let name = "threadpool" end)
+  let rec worker_loop resource () =
+    match Event.sync (Event.receive tasks) with
+    | None -> () (* stop *)
+    | Some task ->
+      let result = Rresult.R.trap_exn task.f resource in
+      Event.sync (Event.send task.result result);
+      worker_loop resource ()
+  in
+
+  let worker _ =
+    let resource = acquire () in
+    let finally () = release resource in
+    Fun.protect ~finally @@ worker_loop resource
+  in
+  let threads = Array.init workers @@ fun idx -> Thread.create worker idx in
+
+  let stop_all () =
+    (* queue up an abort job for each worker for a graceful shutdown *)
+    let stop_all = List.init workers (fun _ -> Event.send tasks None) in
+    Event.select stop_all;
+    Array.iter Thread.join threads
+  in
+  { stop_all; tasks}
+
+let run_in_pool' pool f =
+  let result = Event.new_channel () in
+  Event.sync (Event.send pool.tasks (Some {f; result }));
+  let wait () =
+  match Event.sync(Event.receive result) with
+  | Ok r -> r
+  | Error (`Exn_trap (e, bt)) ->
+    Printexc.raise_with_backtrace e bt
+  in wait
+
+let run_in_pool pool f =
+  run_in_pool' pool f ()
+
+let shutdown t = t.stop_all ()
+
+(*let mutex_execute = Xapi_stdext_threads.Threadext.Mutex.execute
+
 
 type 'a queue = {
     tasks: ('a -> unit) Queue.t
@@ -99,3 +146,4 @@ let shutdown (pool, workers) =
   D.debug "Waiting for %s worker pool to exit" pool.name ;
   Array.iter Thread.join workers ;
   D.debug "Worker pool %s has exited" pool.name
+*)

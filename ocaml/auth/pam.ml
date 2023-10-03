@@ -21,7 +21,7 @@ external authorize : pam_handle -> string -> string -> unit = "stub_XA_mh_author
 
 (* TODO: make this configurable in Xapi_globs *)
  (* because this is initialized on startup this is not settable from a config file yet! *)
-let auth_workers = Threadpool.create ~name:"PAM auth" authenticate_start authenticate_stop 8
+let auth_workers : (pam_handle, unit) Threadpool.t = Threadpool.create ~name:"PAM auth" authenticate_start authenticate_stop 8
 (*
 let () = at_exit (fun () -> Threadpool.shutdown auth_workers)
 *)

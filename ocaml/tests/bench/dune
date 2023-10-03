@@ -19,3 +19,11 @@
  (optional)
  (libraries bechamel_simple_cli pam tests_common)
 )
+
+(executable
+ (name scale_auth)
+ (modules scale_auth)
+ (modes exe)
+ (optional)
+ (libraries pam mtime mtime.clock.os)
+)
