@@ -1,3 +1,6 @@
+
+
+
 let mutex_execute = Xapi_stdext_threads.Threadext.Mutex.execute
 
 module D = Debug.Make (struct let name = "threadpool" end)
@@ -46,17 +49,16 @@ let create ~name acquire release workers =
          D.debug "%s: released resource" name
        in
        Fun.protect ~finally @@ fun () ->
-       mutex_execute t.mutex @@ fun () ->
-       (* fast-path *)
        while not t.shutdown do
-         let task = wait_for_next_task t in
+         let task = mutex_execute t.mutex @@ fun () -> wait_for_next_task t in
+         (* fast-path *)
          D.log_and_ignore_exn (fun () -> task resource)
-       done
+        done
   in
   let workers = Array.init workers (Thread.create worker) in
   (t, workers)
 
-let run_in_pool (pool, _) f =
+let run_in_pool' (pool, _) f =
   let result = ref None in
   (* TODO: might get better perf if we have a round-robin of auth workers and each with its own finished cond signaling.
      But we might get stuck behind a slow call that throttles
@@ -80,13 +82,20 @@ let run_in_pool (pool, _) f =
     | Some (Error (`Exn_trap (e, bt))) ->
         Printexc.raise_with_backtrace e bt
   in
-  wait ()
+  let wait () =
+    mutex_execute pool.mutex wait
+  in
+  wait
+
+let run_in_pool t f =
+  run_in_pool' t f ()
 
 let shutdown (pool, workers) =
   D.debug "Shutting down %s worker pool" pool.name ;
-  mutex_execute pool.mutex @@ fun () ->
-  pool.shutdown <- true ;
-  Condition.broadcast pool.cond ;
+  let () = mutex_execute pool.mutex @@ fun () ->
+    pool.shutdown <- true ;
+    Condition.broadcast pool.cond ;
+  in
   D.debug "Waiting for %s worker pool to exit" pool.name ;
   Array.iter Thread.join workers ;
   D.debug "Worker pool %s has exited" pool.name

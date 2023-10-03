@@ -27,11 +27,13 @@ let () = at_exit (fun () -> Threadpool.shutdown auth_workers)
 *)
 
 let authenticate user password =
-  Threadpool.run_in_pool auth_workers @@ fun handle ->
+  let handle = authenticate_start () in
+  Fun.protect ~finally:(fun () -> authenticate_stop handle) @@ fun () ->
   authorize handle user password
 
 external change_password : pam_handle -> string -> string -> unit = "stub_XA_mh_chpasswd"
 
 let change_password user password =
- Threadpool.run_in_pool auth_workers @@ fun handle ->
+ let handle = authenticate_start () in
+ Fun.protect ~finally:(fun () -> authenticate_stop handle) @@ fun () ->
  change_password handle user password
