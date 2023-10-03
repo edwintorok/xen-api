@@ -1,15 +1,28 @@
 (library
  (name bechamel_simple_cli)
- (modules bechamel_simple_cli)
- (libraries bechamel bechamel-notty notty.unix)
-
+ (modules bechamel_simple_cli bench_concurrent_util)
+ (libraries bechamel bechamel-notty notty.unix threads.posix)
+ (foreign_stubs
+  (language c)
+  (names bench_concurrent_stubs)
+ )
+ (wrapped false)
 )
+
 (executable
  (name bench_named_mutex)
  (modules bench_named_mutex)
  (modes exe)
  (optional)
  (libraries bechamel_simple_cli xapi_internal bechamel-notty notty.unix xapi-stdext-threads tests_common memtrace)
+)
+
+(executable
+ (name bench_concurrent)
+ (modules bench_concurrent)
+ (modes exe)
+ (optional)
+ (libraries bechamel_simple_cli)
 )
 
 (executable
