@@ -11,25 +11,32 @@ let make_barrier_threads n=
   , ref false
   , Array.init n
     @@ Thread.create
-    @@ fun _ ->
+    @@ fun i ->
     let local_stop = ref false in
     while not !local_stop do
-      B.phase1 barrier ;
-      B.phase2 barrier ;
+      B.phase1 barrier i ;
       if Atomic.get stop then
-        local_stop := true
-    done
+        local_stop := true;
+      B.phase2 barrier i;
+    done;
+    (* Format.eprintf "[%d]: exit\n" (Thread.id (Thread.self ())); flush stderr*)
   )
 
 let free_barrier_threads (barrier, stop, freed, threads) =
   assert (not !freed) ;
   freed := true ;
-  B.phase1 barrier ;
   Atomic.set stop true ;
-  B.phase2 barrier ;
-  Array.iter Thread.join threads
+  B.phase1 barrier (Array.length threads);
+  B.phase2 barrier (Array.length threads);
+  Array.iter (fun t ->
+    (*Format.eprintf "[0]: join %d\n" (Thread.id t);
+    flush stderr;*)
+    Thread.join t;
+    (*Format.eprintf "[0]: joined %d\n" (Thread.id t);
+    flush stderr;*)
+  ) threads
 
-let test = Test.make_indexed_with_resource ~args:[1; 4; 8]
+let test = Test.make_indexed_with_resource ~args:[1;4;8]
         ~name:B.name Test.multiple
         ~allocate:make_barrier_threads ~free:free_barrier_threads (fun _ ->
           Staged.stage @@ fun (barrier, _, _, _) ->
@@ -68,6 +75,11 @@ let condvar_pingpong_allocate () =
          while not !go do
            Condition.wait cond1 m
          done ;
+         Mutex.unlock m;
+
+         (* would run actual benchmark code here, mutex has to be released! *)
+
+         Mutex.lock m;
          go := false ;
          Condition.signal cond2
        done ;
@@ -135,6 +147,7 @@ let benchmarks =
     ; (let module T = TestBarrier(Bench_concurrent_util.BarrierBinary) in T.test)
     ; (let module T = TestBarrier(Bench_concurrent_util.BarrierCond) in T.test)
     ; (let module T = TestBarrier(Bench_concurrent_util.BarrierYield) in T.test)
+    ; (let module T = TestBarrier(Bench_concurrent_util.BarrierBinaryArray) in T.test)
     ; Test.make_indexed ~args:[1; 4; 8] ~name:"Thread create/join" (fun n ->
           Staged.stage @@ fun () ->
           let threads = Array.init n @@ Thread.create ignore in
@@ -151,8 +164,7 @@ let benchmarks =
     ; Test.make_indexed_with_resource ~args:[1; 4; 8] ~name:"barrier (condvar array)"
         Test.multiple ~allocate:make_barriercond_threads
         ~free:free_barriercond_threads (fun _ ->
-          Staged.stage run_barriercond_threads
-      )
+          Staged.stage run_barriercond_threads)
     ]
 
 let () = Bechamel_simple_cli.cli benchmarks
