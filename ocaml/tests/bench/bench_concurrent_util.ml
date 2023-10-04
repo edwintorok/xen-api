@@ -15,50 +15,62 @@ module type BARRIER = sig
 end
 
 module BarrierCond = struct
+  module Turnstile = struct
+    type t =
+    { m: Mutex.t
+    ; mutable state: bool    
+    ; cond: Condition.t
+    }
+
+    let create state = {m = Mutex.create(); state; cond = Condition.create ()}
+
+    let wait t =
+      Mutex.lock t.m;
+      while not t.state do
+        Condition.wait t.cond t.m
+      done;
+      t.state <- false;
+      Mutex.unlock t.m
+    
+    let signal t =
+      Mutex.lock t.m;
+      assert (not t.state);
+      t.state <- true;
+      Condition.signal t.cond;
+      Mutex.unlock t.m
+  end
+  
   type t = {
     n: int
-  ; mutable count: int
-  ; m: Mutex.t
-  ; mutable go: bool
-  ; turnstile: Condition.t
-  ; mutable go2: bool
-  ; turnstile2: Condition.t
+  ; count: int Atomic.t
+  ; turnstile: Turnstile.t
+  ; turnstile2: Turnstile.t
   }
   let name = "barrier(condvars)"
 
   let make n = {
-      n; count = 0; m = Mutex.create (); turnstile = Condition.create (); go = false; go2 = false; turnstile2 = Condition.create ()
+      n; count = Atomic.make 0; turnstile = Turnstile.create false; turnstile2 = Turnstile.create true
     }
 
   let phase1 t =
-    Mutex.lock t.m;
-      t.count <- t.count + 1;
-      assert (t.count <= t.n);
-      if t.count = t.n then begin
-        t.go <- true;
-        t.go2 <- false
-      end
-      else while not t.go do
-          Condition.wait t.turnstile t.m
-    done;
-    Mutex.unlock t.m;
-    (* wake up anyone else who is waiting *)
-    Condition.broadcast t.turnstile
+    let count = 1 + Atomic.fetch_and_add t.count 1 in
+    assert (count <= t.n);
+    if count = t.n then begin
+      Turnstile.wait t.turnstile2;
+      Turnstile.signal t.turnstile
+    end;
+    Turnstile.wait t.turnstile;
+    Turnstile.signal t.turnstile
 
   let phase2 t =
-    Mutex.lock t.m;
-      t.count <- t.count - 1;
-      assert (t.count >= 0);
-      if t.count = 0 then begin
-        t.go2 <- true;
-        t.go <- false
-      end
-      else while not t.go2 do
-          Condition.wait t.turnstile2 t.m
-    done;
-    Mutex.unlock t.m;
-    (* wake up anyone else who is waiting *)
-    Condition.broadcast t.turnstile2
+    let count = Atomic.fetch_and_add t.count (-1) -1 in
+    assert (count >= 0);
+    if count = 0 then begin
+      Turnstile.wait t.turnstile;
+      Turnstile.signal t.turnstile2
+    end;
+    Turnstile.wait t.turnstile2;
+    Turnstile.signal t.turnstile2
 
   let wait t = phase1 t; phase2 t
   
