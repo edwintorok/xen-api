@@ -331,20 +331,5 @@ module BarrierBinaryArray = struct
       Format.ksprintf k "n: stop@."*)
     end
 
-  let wait t i = phase1 t i ; phase2 t i
-
-  let () =
-    let b = make 1 in
-    let t = () |> Thread.create @@ fun () ->
-      phase1 b 0;
-      phase2 b 0;
-      phase1 b 0;
-      phase2 b 0
-    in
-    phase1 b 1;
-    phase2 b 1;
-    phase1 b 1;
-    phase2 b 1;
-    Thread.join t
-    
+  let wait t i = phase1 t i ; phase2 t i    
 end
