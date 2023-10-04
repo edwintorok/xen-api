@@ -334,3 +334,36 @@ module BarrierBinaryArray = struct
     phase1 t (Array.length t) ;
     phase2 t (Array.length t)
 end
+
+module Barrier = BarrierBinaryArray
+
+let test_concurrently ~allocate ~free ~name run =
+  let open Bechamel in
+  let allocate n =
+    let stop = Atomic.make false
+    and barrier = Barrier.make (n + 1)
+    and resources = allocate n in
+    let worker i =
+      let local_stop = ref false in
+      let run = run i in
+      while not !local_stop do
+        Barrier.phase1 barrier i ;
+        if Atomic.get stop then
+          local_stop := true ;
+        (* TODO: exceptions.. *)
+        let () = Sys.opaque_identity @@ Staged.unstage run resources in
+        Barrier.phase2 barrier i
+      done
+    in
+    (barrier, stop, Array.init n @@ Thread.create worker, resources)
+  in
+  let free (t, stop, threads, t') =
+    Atomic.set stop true ;
+    Barrier.wait t ;
+    Array.iter Thread.join threads ;
+    free t'
+  in
+  let run (t, _, _, _) = Barrier.wait t in
+  Test.make_indexed_with_resource ~name ~args:[1; 4; 8; 16] Test.multiple
+    ~allocate ~free (fun _ -> Staged.stage run
+  )

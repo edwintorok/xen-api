@@ -143,42 +143,45 @@ let benchmarks =
     [
       Test.make ~name:"overhead" (Staged.stage ignore)
     ; Test.make ~name:"parallel_c_work(10ms)" (Staged.stage run_parallel_c_work)
-    ; (let module T = TestBarrier (Bench_concurrent_util.BarrierPreloaded) in
-      T.test
+    ; Bench_concurrent_util.test_concurrently ~name:"parallel_c_work"
+        ~allocate:ignore ~free:ignore (fun _ -> Staged.stage run_parallel_c_work
       )
-    ; (let module T = TestBarrier (Bench_concurrent_util.BarrierCounting) in
-      T.test
-      )
-    ; (let module T = TestBarrier (Bench_concurrent_util.BarrierBinary) in
-      T.test
-      )
-    ; (let module T = TestBarrier (Bench_concurrent_util.BarrierCond) in
-      T.test
-      )
-    ; (let module T = TestBarrier (Bench_concurrent_util.BarrierYield) in
-      T.test
-      )
-    ; (let module T = TestBarrier (Bench_concurrent_util.BarrierBinaryArray) in
-      T.test
-      )
-    ; Test.make_indexed ~args:[1; 4; 8; 16] ~name:"Thread create/join" (fun n ->
-          Staged.stage @@ fun () ->
-          let threads = Array.init n @@ Thread.create ignore in
-          Array.iter Thread.join threads
-      )
-    ; Test.make_with_resource ~name:"Event ping/pong"
-        ~allocate:event_pingpong_allocate ~free:event_pingpong_free
-        Test.multiple
-        (Staged.stage event_pingpong_run)
-    ; Test.make_with_resource ~name:"Condvar pingpong"
-        ~allocate:condvar_pingpong_allocate ~free:condvar_pingpong_free
-        Test.multiple
-        (Staged.stage condvar_pingpong_run)
-    ; Test.make_indexed_with_resource ~args:[1; 4; 8; 16]
-        ~name:"barrier (condvar array)" Test.multiple
-        ~allocate:make_barriercond_threads ~free:free_barriercond_threads
-        (fun _ -> Staged.stage run_barriercond_threads
-      )
+      (* ; (let module T = TestBarrier (Bench_concurrent_util.BarrierPreloaded) in
+           T.test
+           )
+         ; (let module T = TestBarrier (Bench_concurrent_util.BarrierCounting) in
+           T.test
+           )
+         ; (let module T = TestBarrier (Bench_concurrent_util.BarrierBinary) in
+           T.test
+           )
+         ; (let module T = TestBarrier (Bench_concurrent_util.BarrierCond) in
+           T.test
+           )
+         (*; (let module T = TestBarrier (Bench_concurrent_util.BarrierYield) in
+           T.test
+           )*)
+         ; (let module T = TestBarrier (Bench_concurrent_util.BarrierBinaryArray) in
+           T.test
+           )
+         ; Test.make_indexed ~args:[1; 4; 8; 16] ~name:"Thread create/join" (fun n ->
+               Staged.stage @@ fun () ->
+               let threads = Array.init n @@ Thread.create ignore in
+               Array.iter Thread.join threads
+           )
+         ; Test.make_with_resource ~name:"Event ping/pong"
+             ~allocate:event_pingpong_allocate ~free:event_pingpong_free
+             Test.multiple
+             (Staged.stage event_pingpong_run)
+         ; Test.make_with_resource ~name:"Condvar pingpong"
+             ~allocate:condvar_pingpong_allocate ~free:condvar_pingpong_free
+             Test.multiple
+             (Staged.stage condvar_pingpong_run)
+         ; Test.make_indexed_with_resource ~args:[1; 4; 8; 16]
+             ~name:"barrier (condvar array)" Test.multiple
+             ~allocate:make_barriercond_threads ~free:free_barriercond_threads
+             (fun _ -> Staged.stage run_barriercond_threads
+           )*)
     ]
 
 let () = Bechamel_simple_cli.cli benchmarks

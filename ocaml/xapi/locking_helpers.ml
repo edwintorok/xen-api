@@ -413,7 +413,7 @@ module Named_semaphore = struct
     ; max_lock: Mutex.t
   }
 
-  let create ?(max=1) name =
+  let create ?(max = 1) name =
     let acquire t parent =
       let waiting = Thread_state.waiting_for ?parent t.r in
       Semaphore.Counting.acquire t.sem ;
