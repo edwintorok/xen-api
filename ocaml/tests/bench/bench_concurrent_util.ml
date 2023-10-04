@@ -17,15 +17,13 @@ module Worker = struct
   let worker ~allocate ~free ~run t =
     let resource = allocate () in
     let finally () = free resource in
-    let worker_loop () =
+    let rec worker_loop () =
       wait t.start ;
-      ( if not (Atomic.get t.quit) then (* TODO: exceptions.. *)
-          let () =
-            Sys.opaque_identity @@ Bechamel.Staged.unstage run resource
-          in
-          ()
-      ) ;
-      signal t.stopped
+      if not (Atomic.get t.quit) then (
+        (* TODO: exceptions.. *)
+        let () = Sys.opaque_identity @@ Bechamel.Staged.unstage run resource in
+        signal t.stopped ; worker_loop ()
+      )
     in
     Fun.protect ~finally worker_loop
 
@@ -38,7 +36,9 @@ module Worker = struct
 
   let wait_stop (t, _) = wait t.stopped
 
-  let set_quit (t, _) = Atomic.set t.quit true
+  let set_quit (t, _) =
+    let ok = Atomic.compare_and_set t.quit false true in
+    assert ok (* detect double free *)
 
   let join_thread (_, thread) = Thread.join thread
 
@@ -57,16 +57,8 @@ end
 
 let test_concurrently ?(threads = [1; 4; 8; 16]) ~allocate ~free ~name run =
   let open Bechamel in
-  let allocate n =
-    Format.eprintf "T: %d@." n;
-     Array.init n @@ Worker.make ~allocate ~free ~run in
-  let freed = ref false in
-  let free all =
-    Format.eprintf "S@.";
-    assert (not !freed) ;
-    freed := true ;
-    Worker.shutdown all
-  in
-  Test.make_indexed_with_resource ~name ~args:threads Test.multiple ~allocate ~free
-    (fun _ -> Staged.stage Worker.barrier_wait
+  let allocate n = Array.init n @@ Worker.make ~allocate ~free ~run in
+  let free all = Worker.shutdown all in
+  Test.make_indexed_with_resource ~name ~args:threads Test.multiple ~allocate
+    ~free (fun _ -> Staged.stage Worker.barrier_wait
   )

@@ -7,7 +7,7 @@ external parallel_c_work : int -> unit = "caml_bench_concurrent_parallel_c_work"
  *)
 
 val test_concurrently :
-    ?threads:int list
+     ?threads:int list
   -> allocate:(unit -> 'a)
   -> free:('a -> unit)
   -> name:string
