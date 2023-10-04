@@ -1,368 +1,72 @@
 external parallel_c_work : int -> unit = "caml_bench_concurrent_parallel_c_work"
 
-module type BARRIER = sig
-  type t
+let semaphore () = Semaphore.Binary.make false
 
-  val make : int -> t
+let wait = Semaphore.Binary.acquire
 
-  val phase1 : t -> int -> unit
+let signal = Semaphore.Binary.release
 
-  val phase2 : t -> int -> unit
-
-  val wait : t -> unit
-
-  val name : string
-end
-
-module BarrierCond = struct
-  module Turnstile = struct
-    type t = {m: Mutex.t; mutable state: bool; cond: Condition.t}
-
-    let create state = {m= Mutex.create (); state; cond= Condition.create ()}
-
-    let wait t =
-      Mutex.lock t.m ;
-      while not t.state do
-        Condition.wait t.cond t.m
-      done ;
-      t.state <- false ;
-      Mutex.unlock t.m
-
-    let signal t =
-      Mutex.lock t.m ;
-      assert (not t.state) ;
-      t.state <- true ;
-      Condition.signal t.cond ;
-      Mutex.unlock t.m
-  end
-
-  type t = {
-      n: int
-    ; count: int Atomic.t
-    ; turnstile: Turnstile.t
-    ; turnstile2: Turnstile.t
+(* this uses the 'barrier binary array' implementation technique, see benchmarks in bench_concurrent *)
+module Worker = struct
+  type 'a t = {
+      start: Semaphore.Binary.t
+    ; stopped: Semaphore.Binary.t
+    ; quit: bool Atomic.t
   }
 
-  let name = "barrier(condvars)"
+  let worker ~allocate ~free ~run t =
+    let resource = allocate () in
+    let finally () = free resource in
+    let worker_loop () =
+      wait t.start ;
+      ( if not (Atomic.get t.quit) then (* TODO: exceptions.. *)
+          let () =
+            Sys.opaque_identity @@ Bechamel.Staged.unstage run resource
+          in
+          ()
+      ) ;
+      signal t.stopped
+    in
+    Fun.protect ~finally worker_loop
 
-  let make n =
-    {
-      n
-    ; count= Atomic.make 0
-    ; turnstile= Turnstile.create false
-    ; turnstile2= Turnstile.create true
-    }
+  let make ~allocate ~free ~run _ =
+    let start = semaphore () and stopped = semaphore () in
+    let t = {start; stopped; quit= Atomic.make false} in
+    (t, Thread.create (worker ~allocate ~free ~run) t)
 
-  let phase1 t _ =
-    let count = 1 + Atomic.fetch_and_add t.count 1 in
-    assert (count <= t.n) ;
-    if count = t.n then (
-      Turnstile.wait t.turnstile2 ;
-      Turnstile.signal t.turnstile
-    ) ;
-    Turnstile.wait t.turnstile ;
-    Turnstile.signal t.turnstile
+  let signal_start (t, _) = signal t.start
 
-  let phase2 t _ =
-    let count = Atomic.fetch_and_add t.count (-1) - 1 in
-    assert (count >= 0) ;
-    if count = 0 then (
-      Turnstile.wait t.turnstile ;
-      Turnstile.signal t.turnstile2
-    ) ;
-    Turnstile.wait t.turnstile2 ;
-    Turnstile.signal t.turnstile2
+  let wait_stop (t, _) = wait t.stopped
 
-  let wait t = phase1 t () ; phase2 t ()
+  let set_quit (t, _) = Atomic.set t.quit true
+
+  let join_thread (_, thread) = Thread.join thread
+
+  let barrier_wait all =
+    (* must first start all, do not combine this with waiting *)
+    Array.iter signal_start all ;
+
+    (* wait until all are finished, benchmark code is running in the thread now *)
+    Array.iter wait_stop all
+
+  let shutdown all =
+    Array.iter set_quit all ;
+    Array.iter signal_start all ;
+    Array.iter join_thread all
 end
 
-(* See "The Little Book of Semaphores" 3.7 Reusable barrier, 3.7.7 Barrier objects.
-   Instead of the mutex+count we use an atomic though
-*)
-module BarrierPreloaded = struct
-  type t = {
-      n: int
-    ; count: int Atomic.t
-    ; turnstile: Semaphore.Counting.t
-    ; turnstile2: Semaphore.Counting.t
-  }
-
-  let name = "barrier(semaphores,preloaded)"
-
-  let make n =
-    {
-      n
-    ; count= Atomic.make 0
-    ; turnstile= Semaphore.Counting.make 0
-    ; turnstile2= Semaphore.Counting.make 0
-    }
-
-  let signal semaphore n =
-    for _ = 1 to n do
-      Semaphore.Counting.release semaphore
-    done
-
-  let phase1 t _ =
-    let count = 1 + Atomic.fetch_and_add t.count 1 in
-    assert (count <= t.n) ;
-    if count = t.n then
-      signal t.turnstile t.n ;
-    Semaphore.Counting.acquire t.turnstile
-
-  let phase2 t _ =
-    let count = Atomic.fetch_and_add t.count (-1) - 1 in
-    assert (count >= 0) ;
-    if count = 0 then
-      signal t.turnstile2 t.n ;
-    Semaphore.Counting.acquire t.turnstile2
-
-  let wait t = phase1 t () ; phase2 t ()
-end
-
-module BarrierBinary = struct
-  type t = {
-      n: int
-    ; count: int Atomic.t
-    ; turnstile: Semaphore.Binary.t
-    ; turnstile2: Semaphore.Binary.t
-  }
-
-  let name = "barrier(semaphores,binary)"
-
-  let make n =
-    {
-      n
-    ; count= Atomic.make 0
-    ; turnstile= Semaphore.Binary.make false
-    ; turnstile2= Semaphore.Binary.make true
-    }
-
-  let phase1 t _ =
-    let count = 1 + Atomic.fetch_and_add t.count 1 in
-    assert (count <= t.n) ;
-    if count = t.n then (
-      Semaphore.Binary.acquire t.turnstile2 ;
-      Semaphore.Binary.release t.turnstile
-    ) ;
-    Semaphore.Binary.acquire t.turnstile ;
-    Semaphore.Binary.release t.turnstile
-
-  let phase2 t _ =
-    let count = Atomic.fetch_and_add t.count (-1) - 1 in
-    assert (count >= 0) ;
-    if count = 0 then (
-      Semaphore.Binary.acquire t.turnstile ;
-      Semaphore.Binary.release t.turnstile2
-    ) ;
-    Semaphore.Binary.acquire t.turnstile2 ;
-    Semaphore.Binary.release t.turnstile2
-
-  let wait t = phase1 t () ; phase2 t ()
-end
-
-module BarrierCounting = struct
-  type t = {
-      n: int
-    ; count: int Atomic.t
-    ; turnstile: Semaphore.Counting.t
-    ; turnstile2: Semaphore.Counting.t
-  }
-
-  let name = "barrier(semaphores,counting)"
-
-  let make n =
-    {
-      n
-    ; count= Atomic.make 0
-    ; turnstile= Semaphore.Counting.make 0
-    ; turnstile2= Semaphore.Counting.make 1
-    }
-
-  let phase1 t _ =
-    let count = 1 + Atomic.fetch_and_add t.count 1 in
-    assert (count <= t.n) ;
-    if count = t.n then (
-      Semaphore.Counting.acquire t.turnstile2 ;
-      Semaphore.Counting.release t.turnstile
-    ) ;
-    Semaphore.Counting.acquire t.turnstile ;
-    Semaphore.Counting.release t.turnstile
-
-  let phase2 t _ =
-    let count = Atomic.fetch_and_add t.count (-1) - 1 in
-    assert (count >= 0) ;
-    if count = 0 then (
-      Semaphore.Counting.acquire t.turnstile ;
-      Semaphore.Counting.release t.turnstile2
-    ) ;
-    Semaphore.Counting.acquire t.turnstile2 ;
-    Semaphore.Counting.release t.turnstile2
-
-  let wait t = phase1 t () ; phase2 t ()
-end
-
-(* this relies on OCaml per-domain runtime lock allowing only 1 thread at a time to run,
-    and therefore we can use Thread.yield to wait for a condition to be reached.
-   This is very inefficient, just for comparison: we have no control over which thread wakes:
-   it could be one that will immediately yield again
-*)
-module BarrierYield = struct
-  module Turnstile : sig
-    type t
-
-    val create : bool -> t
-
-    val wait : t -> unit
-
-    val signal : t -> unit
-  end = struct
-    type t = bool Atomic.t
-
-    let create = Atomic.make
-
-    let wait t =
-      while not (Atomic.compare_and_set t true false) do
-        Thread.yield ()
-      done
-
-    let signal t =
-      let ok = Atomic.compare_and_set t false true in
-      assert ok
-  end
-
-  type t = {
-      n: int
-    ; count: int Atomic.t
-    ; turnstile: Turnstile.t
-    ; turnstile2: Turnstile.t
-  }
-
-  let name = "barrier(atomic,yield)"
-
-  let make n =
-    {
-      n
-    ; count= Atomic.make 0
-    ; turnstile= Turnstile.create false
-    ; turnstile2= Turnstile.create true
-    }
-
-  let phase1 t _ =
-    let count = 1 + Atomic.fetch_and_add t.count 1 in
-    assert (count <= t.n) ;
-    if count = t.n then (
-      Turnstile.wait t.turnstile2 ;
-      Turnstile.signal t.turnstile
-    ) ;
-    Turnstile.wait t.turnstile ;
-    Turnstile.signal t.turnstile
-
-  let phase2 t _ =
-    let count = Atomic.fetch_and_add t.count (-1) - 1 in
-    assert (count >= 0) ;
-    if count = 0 then (
-      Turnstile.wait t.turnstile ;
-      Turnstile.signal t.turnstile2
-    ) ;
-    Turnstile.wait t.turnstile2 ;
-    Turnstile.signal t.turnstile2
-
-  let wait t = phase1 t () ; phase2 t ()
-end
-
-module BarrierBinaryArray = struct
-  module Turnstile = struct
-    type t = {start: Semaphore.Binary.t; stop: Semaphore.Binary.t}
-
-    let create _ =
-      {start= Semaphore.Binary.make false; stop= Semaphore.Binary.make false}
-
-    let wait_start t = Semaphore.Binary.acquire t.start
-
-    let wake_start t = Semaphore.Binary.release t.start
-
-    let wait_stop t = Semaphore.Binary.acquire t.stop
-
-    let wake_stop t = Semaphore.Binary.release t.stop
-  end
-
-  type t = Turnstile.t Array.t
-
-  let name = "barrier(semaphores,binary,array)"
-
-  let make n = Array.init (n - 1) Turnstile.create
-
-  let m = Mutex.create ()
-  (*
-  let k s =
-    let id =  Thread.id (Thread.self ()) in
-    Mutex.lock m;
-    Format.eprintf "[%d]: %s\n" id s;
-    flush stderr;
-    Mutex.unlock m
-    *)
-
-  let phase1 t i =
-    if i < Array.length t then
-      (*
-      Format.ksprintf k "%d/%d: wait_start@." i (Array.length t);*)
-      Turnstile.wait_start t.(i)
-    else
-      (*
-      Format.ksprintf k "%d: start@." i;*)
-
-      (*
-      Format.ksprintf k "n: wake_start@.";*)
-      Array.iter Turnstile.wake_start t
-  (*
-      Format.ksprintf k "n: woke_start@.";*)
-
-  let phase2 t i =
-    if i < Array.length t then (*
-      Format.ksprintf k "%d: wake_stop@." i;*)
-      Turnstile.wake_stop t.(i)
-    else
-      (*
-      Format.ksprintf k "%d: woke_stop@." i*)
-
-      (*
-      Format.ksprintf k "n: wait_stop@.";*)
-      Array.iter Turnstile.wait_stop t (*
-      Format.ksprintf k "n: stop@."*)
-
-  let wait t =
-    phase1 t (Array.length t) ;
-    phase2 t (Array.length t)
-end
-
-module Barrier = BarrierBinaryArray
-
-let test_concurrently ~allocate ~free ~name run =
+let test_concurrently ?(threads = [1; 4; 8; 16]) ~allocate ~free ~name run =
   let open Bechamel in
   let allocate n =
-    let stop = Atomic.make false
-    and barrier = Barrier.make (n + 1)
-    and resources = Array.init n @@ fun _ -> allocate () in
-    let worker i =
-      let local_stop = ref false in
-      while not !local_stop do
-        Barrier.phase1 barrier i ;
-        if Atomic.get stop then
-          local_stop := true ;
-        (* TODO: exceptions.. *)
-        let () = Sys.opaque_identity @@ Staged.unstage run resources.(i) in
-        Barrier.phase2 barrier i
-      done
-    in
-    (barrier, stop, Array.init n @@ Thread.create worker, resources)
+    Format.eprintf "T: %d@." n;
+     Array.init n @@ Worker.make ~allocate ~free ~run in
+  let freed = ref false in
+  let free all =
+    Format.eprintf "S@.";
+    assert (not !freed) ;
+    freed := true ;
+    Worker.shutdown all
   in
-  let free (t, stop, threads, t') =
-    Atomic.set stop true ;
-    Barrier.wait t ;
-    Array.iter Thread.join threads ;
-    Array.iter free t'
-  in
-  let run (t, _, _, _) = Barrier.wait t in
-  Test.make_indexed_with_resource ~name ~args:[1; 4; 8; 16] Test.multiple
-    ~allocate ~free (fun _ -> Staged.stage run
+  Test.make_indexed_with_resource ~name ~args:threads Test.multiple ~allocate ~free
+    (fun _ -> Staged.stage Worker.barrier_wait
   )
