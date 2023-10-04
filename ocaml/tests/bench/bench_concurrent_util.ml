@@ -342,16 +342,15 @@ let test_concurrently ~allocate ~free ~name run =
   let allocate n =
     let stop = Atomic.make false
     and barrier = Barrier.make (n + 1)
-    and resources = allocate n in
+    and resources = Array.init n @@ fun _ -> allocate () in
     let worker i =
       let local_stop = ref false in
-      let run = run i in
       while not !local_stop do
         Barrier.phase1 barrier i ;
         if Atomic.get stop then
           local_stop := true ;
         (* TODO: exceptions.. *)
-        let () = Sys.opaque_identity @@ Staged.unstage run resources in
+        let () = Sys.opaque_identity @@ Staged.unstage run resources.(i) in
         Barrier.phase2 barrier i
       done
     in
@@ -361,7 +360,7 @@ let test_concurrently ~allocate ~free ~name run =
     Atomic.set stop true ;
     Barrier.wait t ;
     Array.iter Thread.join threads ;
-    free t'
+    Array.iter free t'
   in
   let run (t, _, _, _) = Barrier.wait t in
   Test.make_indexed_with_resource ~name ~args:[1; 4; 8; 16] Test.multiple

@@ -141,11 +141,16 @@ let run_barriercond_threads a =
 let benchmarks =
   Test.make_grouped ~name:"Concurrent"
     [
-      Test.make ~name:"overhead" (Staged.stage ignore)
+      Bench_concurrent_util.test_concurrently ~name:"parallel_c_work"
+        ~allocate:ignore ~free:ignore
+        (Staged.stage run_parallel_c_work)
+    ; Bench_concurrent_util.test_concurrently ~name:"pam"
+        ~allocate:Pam.authenticate_start ~free:Pam.authenticate_stop
+        ( Staged.stage @@ fun pam ->
+          Pam.authorize pam "pamtest-edvint" "pamtest-edvint"
+        )
+    ; Test.make ~name:"overhead" (Staged.stage ignore)
     ; Test.make ~name:"parallel_c_work(10ms)" (Staged.stage run_parallel_c_work)
-    ; Bench_concurrent_util.test_concurrently ~name:"parallel_c_work"
-        ~allocate:ignore ~free:ignore (fun _ -> Staged.stage run_parallel_c_work
-      )
       (* ; (let module T = TestBarrier (Bench_concurrent_util.BarrierPreloaded) in
            T.test
            )

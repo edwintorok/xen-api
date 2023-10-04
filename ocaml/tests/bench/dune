@@ -22,7 +22,7 @@
  (modules bench_concurrent)
  (modes exe)
  (optional)
- (libraries bechamel_simple_cli)
+ (libraries bechamel_simple_cli pam)
 )
 
 (executable
