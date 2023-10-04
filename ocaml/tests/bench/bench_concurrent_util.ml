@@ -7,73 +7,73 @@ module type BARRIER = sig
 
   val phase1 : t -> int -> unit
 
-  val phase2 : t -> int ->  unit
+  val phase2 : t -> int -> unit
 
-  val wait : t -> int -> unit
+  val wait : t -> unit
 
-  val name: string
+  val name : string
 end
 
 module BarrierCond = struct
   module Turnstile = struct
-    type t =
-    { m: Mutex.t
-    ; mutable state: bool    
-    ; cond: Condition.t
-    }
+    type t = {m: Mutex.t; mutable state: bool; cond: Condition.t}
 
-    let create state = {m = Mutex.create(); state; cond = Condition.create ()}
+    let create state = {m= Mutex.create (); state; cond= Condition.create ()}
 
     let wait t =
-      Mutex.lock t.m;
+      Mutex.lock t.m ;
       while not t.state do
         Condition.wait t.cond t.m
-      done;
-      t.state <- false;
+      done ;
+      t.state <- false ;
       Mutex.unlock t.m
-    
+
     let signal t =
-      Mutex.lock t.m;
-      assert (not t.state);
-      t.state <- true;
-      Condition.signal t.cond;
+      Mutex.lock t.m ;
+      assert (not t.state) ;
+      t.state <- true ;
+      Condition.signal t.cond ;
       Mutex.unlock t.m
   end
-  
+
   type t = {
-    n: int
-  ; count: int Atomic.t
-  ; turnstile: Turnstile.t
-  ; turnstile2: Turnstile.t
+      n: int
+    ; count: int Atomic.t
+    ; turnstile: Turnstile.t
+    ; turnstile2: Turnstile.t
   }
+
   let name = "barrier(condvars)"
 
-  let make n = {
-      n; count = Atomic.make 0; turnstile = Turnstile.create false; turnstile2 = Turnstile.create true
+  let make n =
+    {
+      n
+    ; count= Atomic.make 0
+    ; turnstile= Turnstile.create false
+    ; turnstile2= Turnstile.create true
     }
 
   let phase1 t _ =
     let count = 1 + Atomic.fetch_and_add t.count 1 in
-    assert (count <= t.n);
-    if count = t.n then begin
-      Turnstile.wait t.turnstile2;
+    assert (count <= t.n) ;
+    if count = t.n then (
+      Turnstile.wait t.turnstile2 ;
       Turnstile.signal t.turnstile
-    end;
-    Turnstile.wait t.turnstile;
+    ) ;
+    Turnstile.wait t.turnstile ;
     Turnstile.signal t.turnstile
 
   let phase2 t _ =
-    let count = Atomic.fetch_and_add t.count (-1) -1 in
-    assert (count >= 0);
-    if count = 0 then begin
-      Turnstile.wait t.turnstile;
+    let count = Atomic.fetch_and_add t.count (-1) - 1 in
+    assert (count >= 0) ;
+    if count = 0 then (
+      Turnstile.wait t.turnstile ;
       Turnstile.signal t.turnstile2
-    end;
-    Turnstile.wait t.turnstile2;
+    ) ;
+    Turnstile.wait t.turnstile2 ;
     Turnstile.signal t.turnstile2
 
-  let wait t _ = phase1 t (); phase2 t ()
-  
+  let wait t = phase1 t () ; phase2 t ()
 end
 
 (* See "The Little Book of Semaphores" 3.7 Reusable barrier, 3.7.7 Barrier objects.
@@ -88,6 +88,7 @@ module BarrierPreloaded = struct
   }
 
   let name = "barrier(semaphores,preloaded)"
+
   let make n =
     {
       n
@@ -115,7 +116,7 @@ module BarrierPreloaded = struct
       signal t.turnstile2 t.n ;
     Semaphore.Counting.acquire t.turnstile2
 
-  let wait t _ = phase1 t (); phase2 t ()
+  let wait t = phase1 t () ; phase2 t ()
 end
 
 module BarrierBinary = struct
@@ -127,6 +128,7 @@ module BarrierBinary = struct
   }
 
   let name = "barrier(semaphores,binary)"
+
   let make n =
     {
       n
@@ -138,24 +140,24 @@ module BarrierBinary = struct
   let phase1 t _ =
     let count = 1 + Atomic.fetch_and_add t.count 1 in
     assert (count <= t.n) ;
-    if count = t.n then begin
-      Semaphore.Binary.acquire t.turnstile2;
-      Semaphore.Binary.release t.turnstile;
-    end;
-    Semaphore.Binary.acquire t.turnstile;
+    if count = t.n then (
+      Semaphore.Binary.acquire t.turnstile2 ;
+      Semaphore.Binary.release t.turnstile
+    ) ;
+    Semaphore.Binary.acquire t.turnstile ;
     Semaphore.Binary.release t.turnstile
 
   let phase2 t _ =
     let count = Atomic.fetch_and_add t.count (-1) - 1 in
     assert (count >= 0) ;
-    if count = 0 then begin
-      Semaphore.Binary.acquire t.turnstile;
-      Semaphore.Binary.release t.turnstile2;
-    end;
-    Semaphore.Binary.acquire t.turnstile2;
+    if count = 0 then (
+      Semaphore.Binary.acquire t.turnstile ;
+      Semaphore.Binary.release t.turnstile2
+    ) ;
+    Semaphore.Binary.acquire t.turnstile2 ;
     Semaphore.Binary.release t.turnstile2
 
-  let wait t _ = phase1 t (); phase2 t ()
+  let wait t = phase1 t () ; phase2 t ()
 end
 
 module BarrierCounting = struct
@@ -167,6 +169,7 @@ module BarrierCounting = struct
   }
 
   let name = "barrier(semaphores,counting)"
+
   let make n =
     {
       n
@@ -178,41 +181,45 @@ module BarrierCounting = struct
   let phase1 t _ =
     let count = 1 + Atomic.fetch_and_add t.count 1 in
     assert (count <= t.n) ;
-    if count = t.n then begin
-      Semaphore.Counting.acquire t.turnstile2;
-      Semaphore.Counting.release t.turnstile;
-    end;
-    Semaphore.Counting.acquire t.turnstile;
+    if count = t.n then (
+      Semaphore.Counting.acquire t.turnstile2 ;
+      Semaphore.Counting.release t.turnstile
+    ) ;
+    Semaphore.Counting.acquire t.turnstile ;
     Semaphore.Counting.release t.turnstile
 
   let phase2 t _ =
     let count = Atomic.fetch_and_add t.count (-1) - 1 in
     assert (count >= 0) ;
-    if count = 0 then begin
-      Semaphore.Counting.acquire t.turnstile;
-      Semaphore.Counting.release t.turnstile2;
-    end;
-    Semaphore.Counting.acquire t.turnstile2;
+    if count = 0 then (
+      Semaphore.Counting.acquire t.turnstile ;
+      Semaphore.Counting.release t.turnstile2
+    ) ;
+    Semaphore.Counting.acquire t.turnstile2 ;
     Semaphore.Counting.release t.turnstile2
 
-  let wait t _ = phase1 t (); phase2 t ()
+  let wait t = phase1 t () ; phase2 t ()
 end
 
 (* this relies on OCaml per-domain runtime lock allowing only 1 thread at a time to run,
-   and therefore we can use Thread.yield to wait for a condition to be reached.
-  This is very inefficient, just for comparison: we have no control over which thread wakes:
-  it could be one that will immediately yield again
- *)
+    and therefore we can use Thread.yield to wait for a condition to be reached.
+   This is very inefficient, just for comparison: we have no control over which thread wakes:
+   it could be one that will immediately yield again
+*)
 module BarrierYield = struct
   module Turnstile : sig
     type t
+
     val create : bool -> t
+
     val wait : t -> unit
-    val signal: t -> unit
+
+    val signal : t -> unit
   end = struct
     type t = bool Atomic.t
 
     let create = Atomic.make
+
     let wait t =
       while not (Atomic.compare_and_set t true false) do
         Thread.yield ()
@@ -222,7 +229,7 @@ module BarrierYield = struct
       let ok = Atomic.compare_and_set t false true in
       assert ok
   end
-  
+
   type t = {
       n: int
     ; count: int Atomic.t
@@ -231,6 +238,7 @@ module BarrierYield = struct
   }
 
   let name = "barrier(atomic,yield)"
+
   let make n =
     {
       n
@@ -242,54 +250,49 @@ module BarrierYield = struct
   let phase1 t _ =
     let count = 1 + Atomic.fetch_and_add t.count 1 in
     assert (count <= t.n) ;
-    if count = t.n then begin
-      Turnstile.wait t.turnstile2;
-      Turnstile.signal t.turnstile;
-    end;
-    Turnstile.wait t.turnstile;
+    if count = t.n then (
+      Turnstile.wait t.turnstile2 ;
+      Turnstile.signal t.turnstile
+    ) ;
+    Turnstile.wait t.turnstile ;
     Turnstile.signal t.turnstile
 
   let phase2 t _ =
     let count = Atomic.fetch_and_add t.count (-1) - 1 in
     assert (count >= 0) ;
-    if count = 0 then begin
-      Turnstile.wait t.turnstile;
-      Turnstile.signal t.turnstile2;
-    end;
-    Turnstile.wait t.turnstile2;
+    if count = 0 then (
+      Turnstile.wait t.turnstile ;
+      Turnstile.signal t.turnstile2
+    ) ;
+    Turnstile.wait t.turnstile2 ;
     Turnstile.signal t.turnstile2
 
-  let wait t _ = phase1 t  (); phase2 t ()
+  let wait t = phase1 t () ; phase2 t ()
 end
 
 module BarrierBinaryArray = struct
   module Turnstile = struct
-     type t =
-      { start: Semaphore.Binary.t
-      ; stop: Semaphore.Binary.t
-      }
+    type t = {start: Semaphore.Binary.t; stop: Semaphore.Binary.t}
 
-      let create _ = {start = Semaphore.Binary.make false; stop = Semaphore.Binary.make false}
+    let create _ =
+      {start= Semaphore.Binary.make false; stop= Semaphore.Binary.make false}
 
-      let wait_start t =
-        Semaphore.Binary.acquire t.start
-    
-      let wake_start t =
-        Semaphore.Binary.release t.start
+    let wait_start t = Semaphore.Binary.acquire t.start
 
-      let wait_stop t =
-        Semaphore.Binary.acquire t.stop
-    
-      let wake_stop t =
-        Semaphore.Binary.release t.stop
+    let wake_start t = Semaphore.Binary.release t.start
+
+    let wait_stop t = Semaphore.Binary.acquire t.stop
+
+    let wake_stop t = Semaphore.Binary.release t.stop
   end
-  
+
   type t = Turnstile.t Array.t
 
   let name = "barrier(semaphores,binary,array)"
-  let make n = Array.init (n-1) Turnstile.create
 
-  let m= Mutex.create ()
+  let make n = Array.init (n - 1) Turnstile.create
+
+  let m = Mutex.create ()
   (*
   let k s =
     let id =  Thread.id (Thread.self ()) in
@@ -298,38 +301,36 @@ module BarrierBinaryArray = struct
     flush stderr;
     Mutex.unlock m
     *)
-    
+
   let phase1 t i =
-    if i < Array.length t then begin
-    (*
+    if i < Array.length t then
+      (*
       Format.ksprintf k "%d/%d: wait_start@." i (Array.length t);*)
-      Turnstile.wait_start t.(i);
-    (*
+      Turnstile.wait_start t.(i)
+    else
+      (*
       Format.ksprintf k "%d: start@." i;*)
-    end
-    else begin
-    (*
+
+      (*
       Format.ksprintf k "n: wake_start@.";*)
-      Array.iter Turnstile.wake_start t;
-    (*
+      Array.iter Turnstile.wake_start t
+  (*
       Format.ksprintf k "n: woke_start@.";*)
-    end
 
   let phase2 t i =
-    if i < Array.length t then begin
-    (*
+    if i < Array.length t then (*
       Format.ksprintf k "%d: wake_stop@." i;*)
-      Turnstile.wake_stop t.(i);
-    (*
+      Turnstile.wake_stop t.(i)
+    else
+      (*
       Format.ksprintf k "%d: woke_stop@." i*)
-    end
-    else begin
-    (*
-      Format.ksprintf k "n: wait_stop@.";*)
-      Array.iter Turnstile.wait_stop t;
-    (*
-      Format.ksprintf k "n: stop@."*)
-    end
 
-  let wait t i = phase1 t i ; phase2 t i    
+      (*
+      Format.ksprintf k "n: wait_stop@.";*)
+      Array.iter Turnstile.wait_stop t (*
+      Format.ksprintf k "n: stop@."*)
+
+  let wait t =
+    phase1 t (Array.length t) ;
+    phase2 t (Array.length t)
 end
