@@ -1,4 +1,18 @@
-external parallel_c_work : int -> unit = "caml_bench_concurrent_parallel_c_work"
+external bench_fixed_work : int -> int = "caml_bench_fixed_work"
+
+let rec calibrate n =
+  let t0 = Monotonic_clock.now () in
+  let (_:int) = Sys.opaque_identity (bench_fixed_work n) in
+  let t1 = Monotonic_clock.now () in
+  let dt = Int64.sub t1 t0 in
+  if Int64.compare dt 10_000_000L < 0 then
+    calibrate (n * 2)
+  else Int64.(div (mul (of_int n) 1_000_000L)  dt |> to_int)
+
+let parallel_c_work =
+  let n=  calibrate 1000 in
+  fun ms ->
+  let (_:int) = Sys.opaque_identity (bench_fixed_work (ms * n)) in ()
 
 let semaphore () = Semaphore.Binary.make false
 
