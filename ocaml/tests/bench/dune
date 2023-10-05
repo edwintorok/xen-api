@@ -1,7 +1,7 @@
 (library
  (name bechamel_simple_cli)
  (modules bechamel_simple_cli bench_concurrent_util)
- (libraries bechamel bechamel-notty notty.unix threads.posix)
+ (libraries bechamel bechamel-notty notty.unix threads.posix alcotest)
  (foreign_stubs
   (language c)
   (names bench_concurrent_stubs)

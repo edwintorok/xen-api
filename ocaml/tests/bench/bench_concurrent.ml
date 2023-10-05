@@ -479,11 +479,12 @@ let benchmarks =
       Bench_concurrent_util.test_concurrently ~name:"parallel_c_work"
         ~allocate:ignore ~free:ignore
         (Staged.stage run_parallel_c_work)
-      (*; Bench_concurrent_util.test_concurrently ~name:"pam"
-          ~allocate:Pam.authenticate_start ~free:Pam.authenticate_stop
-          ( Staged.stage @@ fun pam ->
-            Pam.authorize pam "pamtest-edvint" "pamtest-edvint"
-          )*)
+    ; Bench_concurrent_util.test_concurrently ~name:"pam"
+        ~allocate:Pam.authenticate_start ~free:Pam.authenticate_stop
+        ( Staged.stage @@ fun pam ->
+          (* TODO:args *)
+          Pam.authorize pam "pamtest-edvint" "pamtest-edvint"
+        )
     ; Test.make ~name:"overhead" (Staged.stage ignore)
     ; Test.make ~name:"parallel_c_work(10ms)" (Staged.stage run_parallel_c_work)
     ; (let module T = TestBarrier (BarrierPreloaded) in
@@ -524,4 +525,4 @@ let benchmarks =
       )
     ]
 
-let () = Bechamel_simple_cli.cli benchmarks
+let () = Bechamel_simple_cli.alcotest_cli benchmarks
