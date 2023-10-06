@@ -1,18 +1,32 @@
 external bench_fixed_work : int -> int = "caml_bench_fixed_work"
 
-let rec calibrate n =
+(*
+  We could calibrate but that would still change the value slightly from invocation to invocation on the same machine,
+  e.g. when running inside a VM and getting timeslices unpredictably, or if turbo is used, etc.
+
+  let rec calibrate n =
   let t0 = Monotonic_clock.now () in
   let (_:int) = Sys.opaque_identity (bench_fixed_work n) in
   let t1 = Monotonic_clock.now () in
   let dt = Int64.sub t1 t0 in
-  if Int64.compare dt 10_000_000L < 0 then
+  Format.eprintf "Calibrating: %d -> %Luns@." n dt;
+  if Int64.compare dt 100_000_000L < 0 then
     calibrate (n * 2)
   else Int64.(div (mul (of_int n) 1_000_000L)  dt |> to_int)
 
 let parallel_c_work =
-  let n=  calibrate 1000 in
+  let n=  calibrate 10_000_000 in
+  Format.eprintf "Calibrated: %d ~ 1ms@." n ;
   fun ms ->
-  let (_:int) = Sys.opaque_identity (bench_fixed_work (ms * n)) in ()
+  let (_:int) = Sys.opaque_identity (bench_fixed_work (ms * n)) in ()*)
+
+(* 
+  So this will change with different compiler versions or CPU architectures,
+  but will be fixed on a given system.
+*)
+let parallel_c_work () =
+  let (_:int) = Sys.opaque_identity @@ bench_fixed_work @@ 4_000_000 in
+  ()
 
 let semaphore () = Semaphore.Binary.make false
 

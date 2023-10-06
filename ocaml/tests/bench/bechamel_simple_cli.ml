@@ -5,8 +5,7 @@ open Toolkit
 let instances = Instance.[monotonic_clock; minor_allocated; major_allocated]
 
 let cfg =
-  (* stabilize:true would be the default but it measures GC stabilization time as part of the function
-     runtime, leading to about 10x as much time measured than without.
+  (* stabilize:true would be the default but it can cause function runtimes to be 10x the amount measured without.
      It is also confusing for flamegraphs because the GC will show up much more frequently than in reality
      due to the thousands of repeated calls.
   *)

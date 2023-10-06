@@ -1,7 +1,7 @@
 (** Helpers for measuring concurrent or parallel code *)
 
-val parallel_c_work : int -> unit
-(** [parallel_c_work ms] releases the OCaml runtime lock and performs a fixed length operation for [ms] milliseconds.
+val parallel_c_work : unit -> unit
+(** [parallel_c_work ()] releases the OCaml runtime lock and performs a fixed length operation.
 
   This can be useful for testing how efficient the various thread dispatch mechanisms are.
  *)

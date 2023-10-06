@@ -335,8 +335,6 @@ module BarrierBinaryArray = struct
     phase2 t (Array.length t)
 end
 
-let run_parallel_c_work () = Bench_concurrent_util.parallel_c_work 10
-
 module TestBarrier (B : BARRIER) = struct
   let make_barrier_threads n =
     let barrier = B.make (n + 1) in
@@ -478,7 +476,7 @@ let benchmarks =
     [
       Bench_concurrent_util.test_concurrently ~name:"parallel_c_work"
         ~allocate:ignore ~free:ignore
-        (Staged.stage run_parallel_c_work)
+        (Staged.stage Bench_concurrent_util.parallel_c_work)
     ; Bench_concurrent_util.test_concurrently ~name:"pam"
         ~allocate:Pam.authenticate_start ~free:Pam.authenticate_stop
         ( Staged.stage @@ fun pam ->
@@ -486,7 +484,7 @@ let benchmarks =
           Pam.authorize pam "pamtest-edvint" "pamtest-edvint"
         )
     ; Test.make ~name:"overhead" (Staged.stage ignore)
-    ; Test.make ~name:"parallel_c_work(10ms)" (Staged.stage run_parallel_c_work)
+    ; Test.make ~name:"parallel_c_work" (Staged.stage Bench_concurrent_util.parallel_c_work)
     ; (let module T = TestBarrier (BarrierPreloaded) in
       T.test
       )
