@@ -484,7 +484,8 @@ let benchmarks =
           Pam.authorize pam "pamtest-edvint" "pamtest-edvint"
         )
     ; Test.make ~name:"overhead" (Staged.stage ignore)
-    ; Test.make ~name:"parallel_c_work" (Staged.stage Bench_concurrent_util.parallel_c_work)
+    ; Test.make ~name:"parallel_c_work"
+        (Staged.stage Bench_concurrent_util.parallel_c_work)
     ; (let module T = TestBarrier (BarrierPreloaded) in
       T.test
       )

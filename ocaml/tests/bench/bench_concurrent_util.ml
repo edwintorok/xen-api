@@ -20,12 +20,12 @@ let parallel_c_work =
   fun ms ->
   let (_:int) = Sys.opaque_identity (bench_fixed_work (ms * n)) in ()*)
 
-(* 
-  So this will change with different compiler versions or CPU architectures,
-  but will be fixed on a given system.
+(*
+   So this will change with different compiler versions or CPU architectures,
+   but will be fixed on a given system.
 *)
 let parallel_c_work () =
-  let (_:int) = Sys.opaque_identity @@ bench_fixed_work @@ 4_000_000 in
+  let (_ : int) = Sys.opaque_identity @@ bench_fixed_work @@ 4_000_000 in
   ()
 
 let semaphore () = Semaphore.Binary.make false

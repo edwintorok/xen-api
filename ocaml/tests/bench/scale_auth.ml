@@ -62,9 +62,11 @@ let () =
       let handle = Pam.authenticate_start () in
       (* warm up PAM, there is a sleep(1) inside otherwise on init race condition *)
       let () = Pam.authorize handle !user !password in
-      if !warmup_close then begin Pam.authenticate_stop handle; None end
-      else
-      Some handle
+      if !warmup_close then (
+        Pam.authenticate_stop handle ;
+        None
+      ) else
+        Some handle
     else
       None
   in
