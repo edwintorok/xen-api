@@ -127,7 +127,11 @@ int XA_mh_authorize (pam_handle_t *pamh, const char *username, const char *passw
     rc = pam_acct_mgmt(pamh, PAM_DISALLOW_NULL_AUTHTOK);
 
  exit:
-    if (rc != PAM_SUCCESS) {
+    if (PAM_ABORT == rc) {
+        /* according to manpage we must call pam_end immediately. */
+        *error = "PAM_ABORT";
+        rc = XA_ABORT;
+    } else if (rc != PAM_SUCCESS) {
         if (error) *error = pam_strerror(pamh, rc);
         rc = XA_ERR_EXTERNAL;
     }

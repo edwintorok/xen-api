@@ -83,9 +83,14 @@ CAMLprim value stub_XA_mh_authorize(value ml_handle, value username, value passw
 
     caml_enter_blocking_section();
     rc = XA_mh_authorize(handle, c_username, c_password, &error);
+    if (XA_ABORT == rc)
+      XA_mh_authorize_stop(handle, rc, NULL);
     free(c_username);
     free(c_password);
     caml_leave_blocking_section();
+
+    if (XA_ABORT == rc)
+      *((pam_handle_t** ) Data_abstract_val(ml_handle)) = NULL;
 
     if (rc != XA_SUCCESS)
         caml_failwith(error ? error : "Unknown error");

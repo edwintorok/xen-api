@@ -17,6 +17,7 @@
 #include <security/pam_appl.h>
 #define XA_SUCCESS 0
 #define XA_ERR_EXTERNAL 1
+#define XA_ABORT 2
 
 pam_handle_t *XA_mh_authorize_start (const char **error);
 int XA_mh_authorize_stop (pam_handle_t *pamh, int rc, const char **error);

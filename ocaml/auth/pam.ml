@@ -14,13 +14,41 @@
 
 type pam_handle
 
-external authenticate_start : unit -> pam_handle = "stub_XA_mh_authorize_start"
+external authorize_start : unit -> pam_handle = "stub_XA_mh_authorize_start"
 
-external authenticate_stop : pam_handle -> unit = "stub_XA_mh_authorize_stop"
+external authorize_stop : pam_handle -> unit = "stub_XA_mh_authorize_stop"
 
 external authorize : pam_handle -> string -> string -> unit
   = "stub_XA_mh_authorize"
 
+type t =
+{ handle: pam_handle option Atomic.t
+; owner: Thread.t
+}
+
+let authorize_start () =
+  let pam_handle = authorize_start () in
+  { handle = Atomic.make (Some pam_handle)
+  ; owner = Thread.self ()
+  }
+
+let check_handle t =
+  (* handle can only be used in same thread that created it *)
+  assert (Thread.id (Thread.self ()) = Thread.id t.owner);
+  match Atomic.get t.handle with
+  | Some h -> h
+  | None -> assert false (* use after free *)
+
+let authorize_stop t =
+  let handle = check_handle t in
+  (* even if authorize_stop would fail we can only call it once, so mark it as freed now *)
+  Atomic.set t.handle None;
+  authorize_stop handle
+
+let authorize t username password =
+  let handle = check_handle t in
+  authorize handle username password
+  
 (* TODO: make this configurable in Xapi_globs *)
 (* because this is initialized on startup this is not settable from a config file yet! *)
 (*let auth_workers : (pam_handle, unit) Threadpool.t =
@@ -30,14 +58,14 @@ let () = at_exit (fun () -> Threadpool.shutdown auth_workers)
 *)
 
 let authenticate user password =
-  let handle = authenticate_start () in
-  Fun.protect ~finally:(fun () -> authenticate_stop handle) @@ fun () ->
+  let handle = authorize_start () in
+  Fun.protect ~finally:(fun () -> authorize_stop handle) @@ fun () ->
   authorize handle user password
 
 external change_password : pam_handle -> string -> string -> unit
   = "stub_XA_mh_chpasswd"
 
 let change_password user password =
-  let handle = authenticate_start () in
-  Fun.protect ~finally:(fun () -> authenticate_stop handle) @@ fun () ->
-  change_password handle user password
+  let handle = authorize_start () in
+  Fun.protect ~finally:(fun () -> authorize_stop handle) @@ fun () ->
+  change_password (check_handle handle) user password
