@@ -283,10 +283,12 @@ let valid_operations ~expensive_sharing_checks ~__context record _ref' : table =
         && (not is_system_domain)
         && (someones_got_rw_access || (need_write && vbds_to_check <> []))
       then
-        set_errors Api_errors.vdi_in_use [Ref.string_of vdi]
+        set_errors Api_errors.vdi_in_use
+          [Ref.string_of vdi]
           [`attach; `insert; `plug] ;
       if need_write && vdi_record.Db_actions.vDI_read_only then
-        set_errors Api_errors.vdi_readonly [Ref.string_of vdi]
+        set_errors Api_errors.vdi_readonly
+          [Ref.string_of vdi]
           [`attach; `insert; `plug]
     )
   ) ;
@@ -424,6 +426,11 @@ let destroy ~__context ~self =
            ]
          )
       ) ;
+  let metrics = Db.VBD.get_metrics ~__context ~self in
+  (* Don't let a failure to destroy the metrics stop us *)
+  Helpers.log_exn_continue "VBD_metrics.destroy"
+    (fun self -> Db.VBD_metrics.destroy ~__context ~self)
+    metrics ;
   Db.VBD.destroy ~__context ~self
 
 (** Type of a function which does the actual hotplug/ hotunplug *)
@@ -434,7 +441,12 @@ let copy ~__context ?vdi ~vm vbd =
   let all = Db.VBD.get_record ~__context ~self:vbd in
   let new_vbd = Ref.make () in
   let vbd_uuid = Uuidx.to_string (Uuidx.make ()) in
+  let metrics = Ref.make () in
+  let metrics_uuid = Uuidx.to_string (Uuidx.make ()) in
   let vdi = Option.value ~default:all.API.vBD_VDI vdi in
+  Db.VBD_metrics.create ~__context ~ref:metrics ~uuid:metrics_uuid
+    ~io_read_kbs:0. ~io_write_kbs:0. ~last_updated:(Date.of_float 0.)
+    ~other_config:[] ;
   Db.VBD.create ~__context ~ref:new_vbd ~uuid:vbd_uuid ~allowed_operations:[]
     ~current_operations:[] ~storage_lock:false ~vM:vm ~vDI:vdi
     ~empty:(all.API.vBD_empty || vdi = Ref.null)
@@ -445,5 +457,5 @@ let copy ~__context ?vdi ~vm vbd =
     ~status_detail:"" ~other_config:all.API.vBD_other_config
     ~qos_algorithm_type:all.API.vBD_qos_algorithm_type
     ~qos_algorithm_params:all.API.vBD_qos_algorithm_params
-    ~qos_supported_algorithms:[] ~runtime_properties:[] ;
+    ~qos_supported_algorithms:[] ~runtime_properties:[] ~metrics ;
   new_vbd

@@ -36,8 +36,8 @@ let no_exn f x =
   try ignore (f x)
   with exn -> debug "Ignoring exception: %s" (ExnHelper.string_of_exn exn)
 
-let rpc ~verify_cert host_address xml =
-  try Helpers.make_remote_rpc ~verify_cert host_address xml
+let rpc ~__context ~verify_cert host_address xml =
+  try Helpers.make_remote_rpc ~__context ~verify_cert host_address xml
   with Xmlrpc_client.Connection_reset ->
     raise
       (Api_errors.Server_error
@@ -871,14 +871,14 @@ let rec create_or_get_host_on_master __context rpc session_id (host_ref, host) :
           ~external_auth_configuration:host.API.host_external_auth_configuration
           ~license_params:host.API.host_license_params
           ~edition:host.API.host_edition
-          ~license_server:
-            host.API.host_license_server
+          ~license_server:host.API.host_license_server
             (* CA-51925: local_cache_sr can only be written by Host.enable_local_caching_sr but this API
                				 * call is forwarded to the host in question. Since, during a pool-join, the host is offline,
                				 * we need an alternative way of preserving the value of the local_cache_sr field, so it's
                				 * been added to the constructor. *)
           ~local_cache_sr ~chipset_info:host.API.host_chipset_info
           ~ssl_legacy:false
+          ~last_software_update:host.API.host_last_software_update
       in
       (* Copy other-config into newly created host record: *)
       no_exn
@@ -1418,7 +1418,7 @@ let join_common ~__context ~master_address ~master_username ~master_password
     ~force =
   assert_pooling_licensed ~__context ;
   let new_pool_secret = ref (SecretString.of_string "") in
-  let unverified_rpc = rpc ~verify_cert:None master_address in
+  let unverified_rpc = rpc ~__context ~verify_cert:None master_address in
   let me = Helpers.get_localhost ~__context in
   let session_id =
     try
@@ -1457,7 +1457,9 @@ let join_common ~__context ~master_address ~master_username ~master_password
 
   (* Certificate exchange done, we must switch to verified pool connections as
      soon as possible *)
-  let rpc = rpc ~verify_cert:(Stunnel_client.pool ()) master_address in
+  let rpc =
+    rpc ~__context ~verify_cert:(Stunnel_client.pool ()) master_address
+  in
   let session_id =
     try
       Client.Session.login_with_password ~rpc ~uname:master_username
@@ -1563,6 +1565,8 @@ let join_common ~__context ~master_address ~master_username ~master_password
             "Unable to set the write the new pool certificates to the disk : %s"
             (ExnHelper.string_of_exn e)
       ) ;
+      Db.Host.set_latest_synced_updates_applied ~__context ~self:me
+        ~value:`unknown ;
       (* this is where we try and sync up as much state as we can
          with the master. This is "best effort" rather than
          critical; if we fail part way through this then we carry
@@ -2028,6 +2032,7 @@ let designate_new_master ~__context ~host:_ =
     let pool = Helpers.get_pool ~__context in
     if Db.Pool.get_ha_enabled ~__context ~self:pool then
       raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    Db.Pool.set_last_update_sync ~__context ~self:pool ~value:Date.epoch ;
     (* Only the master can sync the *current* database; only the master
        knows the current generation count etc. *)
     Helpers.call_api_functions ~__context (fun rpc session_id ->
@@ -2121,6 +2126,7 @@ let is_slave ~__context ~host:_ =
   debug
     "About to kick the database connection to make sure it's still working..." ;
   let (_ : bool) =
+    Scheduler.PipeDelay.signal Master_connection.delay ;
     Db.is_valid_ref __context
       (Ref.of_string
          "Pool.is_slave checking to see if the database connection is up"
@@ -2342,7 +2348,6 @@ let create_VLAN_from_PIF ~__context ~pif ~network ~vLAN =
 let enable_disable_m = Mutex.create ()
 
 let enable_ha ~__context ~heartbeat_srs ~configuration =
-  Helpers.assert_ha_vtpms_compatible ~__context ;
   if not (Helpers.pool_has_different_host_platform_versions ~__context) then
     with_lock enable_disable_m (fun () ->
         Xapi_ha.enable __context heartbeat_srs configuration
@@ -2923,7 +2928,9 @@ let enable_redo_log ~__context ~sr =
   (* enable the new redo log, unless HA is enabled (which means a redo log
      	 * is already in use) *)
   if not (Db.Pool.get_ha_enabled ~__context ~self:pool) then (
-    Redo_log.enable Xapi_ha.ha_redo_log Xapi_globs.gen_metadata_vdi_reason ;
+    Redo_log.enable_and_flush
+      (Context.database_of __context |> Db_ref.get_database)
+      Xapi_ha.ha_redo_log Xapi_globs.gen_metadata_vdi_reason ;
     Localdb.put Constants.redo_log_enabled "true"
   ) ;
   info "The redo log is now enabled"
@@ -3283,7 +3290,8 @@ let perform ~local_fn ~__context ~host op =
     let open Xmlrpc_client in
     let verify_cert = Some Stunnel.pool (* verify! *) in
     let task_id = Option.map Ref.string_of task_opt in
-    let http = xmlrpc ?task_id ~version:"1.0" "/" in
+    let tracing = Context.set_client_span __context in
+    let http = xmlrpc ?task_id ~version:"1.0" ~tracing "/" in
     let port = !Constants.https_port in
     let transport = SSL (SSL.make ~verify_cert ?task_id (), hostname, port) in
     XMLRPC_protocol.rpc ~srcstr:"xapi" ~dststr:"dst_xapi" ~transport ~http xml
@@ -3329,7 +3337,6 @@ let set_repositories ~__context ~self ~value =
   Xapi_pool_helpers.with_pool_operation ~__context ~self
     ~doc:"pool.set_repositories" ~op:`configure_repositories
   @@ fun () ->
-  Repository.with_reposync_lock @@ fun () ->
   let existings = Db.Pool.get_repositories ~__context ~self in
   (* To be removed *)
   List.iter
@@ -3345,7 +3352,6 @@ let set_repositories ~__context ~self ~value =
     (fun x ->
       if not (List.mem x existings) then (
         Db.Repository.set_hash ~__context ~self:x ~value:"" ;
-        Db.Repository.set_up_to_date ~__context ~self:x ~value:false ;
         Repository.reset_updates_in_cache ()
       )
     )
@@ -3356,12 +3362,10 @@ let add_repository ~__context ~self ~value =
   Xapi_pool_helpers.with_pool_operation ~__context ~self
     ~doc:"pool.add_repository" ~op:`configure_repositories
   @@ fun () ->
-  Repository.with_reposync_lock @@ fun () ->
   let existings = Db.Pool.get_repositories ~__context ~self in
   if not (List.mem value existings) then (
     Db.Pool.add_repositories ~__context ~self ~value ;
     Db.Repository.set_hash ~__context ~self:value ~value:"" ;
-    Db.Repository.set_up_to_date ~__context ~self:value ~value:false ;
     Repository.reset_updates_in_cache ()
   )
 
@@ -3369,7 +3373,6 @@ let remove_repository ~__context ~self ~value =
   Xapi_pool_helpers.with_pool_operation ~__context ~self
     ~doc:"pool.remove_repository" ~op:`configure_repositories
   @@ fun () ->
-  Repository.with_reposync_lock @@ fun () ->
   List.iter
     (fun x ->
       if x = value then (
@@ -3383,41 +3386,18 @@ let remove_repository ~__context ~self ~value =
 let sync_updates ~__context ~self ~force ~token ~token_id =
   Pool_features.assert_enabled ~__context ~f:Features.Updates ;
   let open Repository in
-  (* Two locks are used here:
-   * 1. with_pool_operation: this is used by following repository operations:
-   *    'configure_repositories', 'sync_updates', 'get_updates' and 'apply_updates'.
-   *
-   * 2. with_reposync_lock: this is used by 'configure_repositories' and 'sync_updates' only.
-   *    With this extra lock, 'sync_updates' could download the metadata and packages
-   *    from remote YUM repository without failing operations 'get_updates' and
-   *    'apply_updates'. Meanwhile this lock protects 'sync_updates' and 'configure_repositories'
-   *    from concurrent conflict between them.
-   *
-   * The 'get_updates' and 'apply_updates' don't modify the local pool repository.
-   * But the 'configure_repositories' and 'sync_updates' may do the change.
-   *)
-  let enabled = Repository_helpers.get_enabled_repositories ~__context in
-  match force with
-  | true ->
-      Xapi_pool_helpers.with_pool_operation ~__context ~self
-        ~doc:"pool.sync_updates" ~op:`sync_updates
-      @@ fun () ->
-      with_reposync_lock @@ fun () ->
-      enabled
-      |> List.iter (fun x ->
-             cleanup_pool_repo ~__context ~self:x ;
-             sync ~__context ~self:x ~token ~token_id ;
-             create_pool_repository ~__context ~self:x
-         ) ;
-      set_available_updates ~__context
-  | false ->
-      with_reposync_lock @@ fun () ->
-      enabled |> List.iter (fun x -> sync ~__context ~self:x ~token ~token_id) ;
-      Xapi_pool_helpers.with_pool_operation ~__context ~self
-        ~doc:"pool.sync_updates" ~op:`sync_updates
-      @@ fun () ->
-      List.iter (fun x -> create_pool_repository ~__context ~self:x) enabled ;
-      set_available_updates ~__context
+  Xapi_pool_helpers.with_pool_operation ~__context ~self
+    ~doc:"pool.sync_updates" ~op:`sync_updates
+  @@ fun () ->
+  Repository_helpers.get_enabled_repositories ~__context
+  |> List.iter (fun repo ->
+         if force then cleanup_pool_repo ~__context ~self:repo ;
+         sync ~__context ~self:repo ~token ~token_id ;
+         create_pool_repository ~__context ~self:repo
+     ) ;
+  let checksum = set_available_updates ~__context in
+  Db.Pool.set_last_update_sync ~__context ~self ~value:(Date.now ()) ;
+  checksum
 
 let check_update_readiness ~__context ~self:_ ~requires_reboot =
   (* Pool license check *)
@@ -3588,14 +3568,22 @@ let disable_repository_proxy ~__context ~self =
     )
 
 let set_uefi_certificates ~__context ~self ~value =
-  Db.Pool.set_uefi_certificates ~__context ~self ~value ;
-  Helpers.call_api_functions ~__context (fun rpc session_id ->
-      List.iter
-        (fun host ->
-          Client.Host.write_uefi_certificates_to_disk ~rpc ~session_id ~host
-        )
-        (Db.Host.get_all ~__context)
-  )
+  match !Xapi_globs.override_uefi_certs with
+  | false ->
+      let msg =
+        "Setting UEFI certificates is not possible when override_uefi_certs is \
+         false"
+      in
+      raise Api_errors.(Server_error (operation_not_allowed, [msg]))
+  | true ->
+      Db.Pool.set_uefi_certificates ~__context ~self ~value ;
+      Helpers.call_api_functions ~__context (fun rpc session_id ->
+          List.iter
+            (fun host ->
+              Client.Host.write_uefi_certificates_to_disk ~rpc ~session_id ~host
+            )
+            (Db.Host.get_all ~__context)
+      )
 
 let set_https_only ~__context ~self:_ ~value =
   Helpers.call_api_functions ~__context (fun rpc session_id ->
@@ -3605,3 +3593,89 @@ let set_https_only ~__context ~self:_ ~value =
         )
         (Db.Host.get_all ~__context)
   )
+
+let set_telemetry_next_collection ~__context ~self ~value =
+  let max_days =
+    match Db.Pool.get_telemetry_frequency ~__context ~self with
+    | `daily ->
+        2
+    | `weekly ->
+        14
+    | `monthly ->
+        62
+  in
+  let dt_of_max_sched, dt_of_value =
+    match
+      ( Ptime.Span.of_int_s (max_days * 24 * 3600)
+        |> Ptime.add_span (Ptime_clock.now ())
+      , value |> Date.to_ptime
+      )
+    with
+    | Some dt1, dt2 ->
+        (dt1, dt2)
+    | _ | (exception _) ->
+        let err_msg = "Can't parse date and time for telemetry collection." in
+        raise Api_errors.(Server_error (internal_error, [err_msg]))
+  in
+  let ts = Date.to_string value in
+  match Ptime.is_later dt_of_value ~than:dt_of_max_sched with
+  | true ->
+      raise Api_errors.(Server_error (telemetry_next_collection_too_late, [ts]))
+  | false ->
+      debug "Set the next telemetry collection to %s" ts ;
+      Db.Pool.set_telemetry_next_collection ~__context ~self ~value
+
+let reset_telemetry_uuid ~__context ~self =
+  debug "Creating new telemetry UUID" ;
+  let old_ref = Db.Pool.get_telemetry_uuid ~__context ~self in
+  let uuid = Uuidx.to_string (Uuidx.make ()) in
+  let ref = Xapi_secret.create ~__context ~value:uuid ~other_config:[] in
+  Db.Pool.set_telemetry_uuid ~__context ~self ~value:ref ;
+  if old_ref <> Ref.null then
+    debug "Destroying old telemetry UUID" ;
+  Xapi_stdext_pervasives.Pervasiveext.ignore_exn (fun _ ->
+      Db.Secret.destroy ~__context ~self:old_ref
+  )
+
+let configure_update_sync ~__context ~self ~update_sync_frequency
+    ~update_sync_day =
+  let day =
+    match (update_sync_frequency, update_sync_day) with
+    | `weekly, d when d < 0L || d > 6L ->
+        error
+          "For weekly schedule, cannot set the day when update sync will run \
+           to an integer out of range: 0 ~ 6" ;
+        raise
+          Api_errors.(
+            Server_error
+              (invalid_update_sync_day, [Int64.to_string update_sync_day])
+          )
+    | `daily, d ->
+        if d <> 0L then
+          warn
+            "For 'daily' schedule, the value of update_sync_day is ignored, \
+             update_sync_day of the pool will be set to the default value 0." ;
+        0L
+    | `weekly, d ->
+        d
+  in
+  Db.Pool.set_update_sync_frequency ~__context ~self
+    ~value:update_sync_frequency ;
+  Db.Pool.set_update_sync_day ~__context ~self ~value:day ;
+  if Db.Pool.get_update_sync_enabled ~__context ~self then
+    (* re-schedule periodic update sync with new configuration immediately *)
+    Pool_periodic_update_sync.set_enabled ~__context ~value:true
+
+let set_update_sync_enabled ~__context ~self ~value =
+  if value && Db.Pool.get_repositories ~__context ~self = [] then (
+    error "Cannot enable automatic update syncing if there are no repositories." ;
+    raise Api_errors.(Server_error (no_repositories_configured, []))
+  ) ;
+  Pool_periodic_update_sync.set_enabled ~__context ~value ;
+  Db.Pool.set_update_sync_enabled ~__context ~self ~value
+
+let set_local_auth_max_threads ~__context:_ ~self:_ ~value =
+  Xapi_session.set_local_auth_max_threads value
+
+let set_ext_auth_max_threads ~__context:_ ~self:_ ~value =
+  Xapi_session.set_ext_auth_max_threads value

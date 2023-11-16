@@ -514,6 +514,15 @@ let rec cmdtable_data : (string * cmd_spec) list =
       ; flags= []
       }
     )
+  ; ( "pool-reset-telemetry-uuid"
+    , {
+        reqd= []
+      ; optn= []
+      ; help= "Assign a new UUID for the pool's telemetry data."
+      ; implementation= No_fd Cli_operations.pool_reset_telemetry_uuid
+      ; flags= []
+      }
+    )
   ; ( "host-is-in-emergency-mode"
     , {
         reqd= []
@@ -1558,6 +1567,15 @@ let rec cmdtable_data : (string * cmd_spec) list =
            network uuid>' and 'vdi:<source vdi uuid>=<dest sr uuid>'. \
            Unfortunately, destination uuids cannot be tab-completed."
       ; implementation= No_fd Cli_operations.vm_migrate
+      ; flags= [Standard; Vm_selectors]
+      }
+    )
+  ; ( "vm-restart-device-models"
+    , {
+        reqd= []
+      ; optn= []
+      ; help= "Restart device models of a VM."
+      ; implementation= No_fd Cli_operations.vm_restart_device_models
       ; flags= [Standard; Vm_selectors]
       }
     )
@@ -2979,6 +2997,32 @@ let rec cmdtable_data : (string * cmd_spec) list =
       ; flags= []
       }
     )
+  ; ( "pool-configure-update-sync"
+    , {
+        reqd= ["update-sync-frequency"; "update-sync-day"]
+      ; optn= []
+      ; help=
+          "Configure periodic update synchronization from a remote CDN. \
+           'update_sync_frequency': the frequency the synchronizations happen \
+           from a remote CDN: daily or weekly. 'update_sync_day': which day of \
+           the week the synchronizations will be scheduled in. For 'daily' \
+           schedule, the value is ignored. For 'weekly' schedule, valid values \
+           are 0 to 6, where 0 is Sunday."
+      ; implementation= No_fd Cli_operations.pool_configure_update_sync
+      ; flags= []
+      }
+    )
+  ; ( "pool-set-update-sync-enabled"
+    , {
+        reqd= ["value"]
+      ; optn= []
+      ; help=
+          "Enable or disable periodic update synchronization depending on the \
+           value"
+      ; implementation= No_fd Cli_operations.pool_set_update_sync_enabled
+      ; flags= []
+      }
+    )
   ; ( "host-ha-xapi-healthcheck"
     , {
         reqd= []
@@ -3585,6 +3629,34 @@ let rec cmdtable_data : (string * cmd_spec) list =
       ; optn= ["force"]
       ; help= "Destroy a VTPM"
       ; implementation= No_fd Cli_operations.VTPM.destroy
+      ; flags= []
+      }
+    )
+  ; ( "observer-create"
+    , {
+        reqd= ["name-label"]
+      ; optn=
+          [
+            "host-uuids"
+          ; "name-description"
+          ; "enabled"
+          ; "attributes"
+          ; "endpoints"
+          ; "components"
+          ]
+      ; help=
+          "Create a new observer (A High level object that manages data \
+           creation and export in the Toolstack)"
+      ; implementation= No_fd Cli_operations.Observer.create
+      ; flags= []
+      }
+    )
+  ; ( "observer-destroy"
+    , {
+        reqd= ["uuid"]
+      ; optn= []
+      ; help= "Destroy a provider"
+      ; implementation= No_fd Cli_operations.Observer.destroy
       ; flags= []
       }
     )

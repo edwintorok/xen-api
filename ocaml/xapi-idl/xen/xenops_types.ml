@@ -32,6 +32,7 @@ module Vgpu = struct
           [@default {domain= 0000; bus= 0; dev= 11; fn= 0}]
     ; type_id: string option
     ; uuid: string option
+    ; vclass: string option  (** from vgpu: Compute, NVS, Quadro *)
     ; extra_args: string [@default ""]
           (** string is passed on as is and no structure is assumed *)
   }
@@ -129,7 +130,11 @@ module Vm = struct
   }
   [@@deriving rpcty, sexp]
 
-  type builder_info = HVM of hvm_info | PV of pv_info | PVinPVH of pv_info
+  type builder_info =
+    | HVM of hvm_info
+    | PV of pv_info
+    | PVinPVH of pv_info
+    | PVH of pv_info
   [@@deriving rpcty, sexp]
 
   type id = string [@@deriving rpcty, sexp]
@@ -179,6 +184,7 @@ module Vm = struct
     | Domain_HVM
     | Domain_PV
     | Domain_PVinPVH
+    | Domain_PVH
     | Domain_undefined
   [@@deriving rpcty, sexp]
 

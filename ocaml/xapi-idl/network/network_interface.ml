@@ -301,7 +301,6 @@ let err =
             Some (Internal_error (Printexc.to_string exn))
         )
     }
-  
 
 (** {2 API functions} *)
 
@@ -323,7 +322,6 @@ module Interface_API (R : RPC) = struct
           ]
       ; version= (1, 0, 0)
       }
-    
 
   let implementation = implement description
 
@@ -336,12 +334,17 @@ module Interface_API (R : RPC) = struct
 
   let clear_state =
     declare "clear_state"
-      ["Clear configuration state"]
+      ["Clear configuration state then lock the writing of the state to disk"]
       (unit_p @-> returning unit_p err)
 
   let reset_state =
     declare "reset_state"
       ["Reset configuration state"]
+      (unit_p @-> returning unit_p err)
+
+  let sync_state =
+    declare "sync_state"
+      ["Allow for the config state to be written to disk then perform a write"]
       (unit_p @-> returning unit_p err)
 
   let set_gateway_interface =
@@ -431,6 +434,16 @@ module Interface_API (R : RPC) = struct
           T._ip_addr_list_t
       in
       declare "Interface.get_ipv6_addr" ["Get IPv6 address"]
+        (debug_info_p @-> iface_name_p @-> returning result err)
+
+    let get_ipv6_gateway =
+      let module T = struct
+        type _inet_addr_opt_t = Unix.inet_addr option [@@deriving rpcty]
+      end in
+      let result =
+        Param.mk ~description:["gateway address if exists"] T._inet_addr_opt_t
+      in
+      declare "Interface.get_ipv6_gateway" ["Get IPv6 gateway"]
         (debug_info_p @-> iface_name_p @-> returning result err)
 
     let get_dns =

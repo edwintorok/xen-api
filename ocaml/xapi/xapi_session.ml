@@ -255,7 +255,17 @@ let local_superuser = "root"
 
 let xapi_internal_originator = "xapi"
 
-let serialize_auth = Mutex.create ()
+let throttle_auth_internal = Locking_helpers.Semaphore.create "Internal auth"
+
+let throttle_auth_external = Locking_helpers.Semaphore.create "External auth"
+
+let with_throttle = Locking_helpers.Semaphore.execute
+
+let set_local_auth_max_threads n =
+  Locking_helpers.Semaphore.set_max throttle_auth_internal @@ Int64.to_int n
+
+let set_ext_auth_max_threads n =
+  Locking_helpers.Semaphore.set_max throttle_auth_external @@ Int64.to_int n
 
 let wipe_string_contents str =
   for i = 0 to Bytes.length str - 1 do
@@ -272,13 +282,13 @@ let wipe_params_after_fn params fn =
   with e -> wipe params ; raise e
 
 let do_external_auth uname pwd =
-  with_lock serialize_auth (fun () ->
+  with_throttle throttle_auth_external (fun () ->
       (Ext_auth.d ()).authenticate_username_password uname
         (Bytes.unsafe_to_string pwd)
   )
 
 let do_local_auth uname pwd =
-  with_lock serialize_auth (fun () ->
+  with_throttle throttle_auth_internal (fun () ->
       try Pam.authenticate uname (Bytes.unsafe_to_string pwd)
       with Failure msg ->
         raise
@@ -288,7 +298,7 @@ let do_local_auth uname pwd =
   )
 
 let do_local_change_password uname newpwd =
-  with_lock serialize_auth (fun () ->
+  with_throttle throttle_auth_internal (fun () ->
       Pam.change_password uname (Bytes.unsafe_to_string newpwd)
   )
 
@@ -719,11 +729,18 @@ let slave_local_login_with_password ~__context ~uname ~pwd =
       Xapi_local_session.create ~__context ~pool:false
   )
 
-(* CP-714: Modify session.login_with_password to first try local super-user login; and then call into external auth plugin if this is enabled *)
-(* 1. If the pool master's Host.external_auth_type field is not none, then the Session.login_with_password XenAPI method will:
-      - try and authenticate locally (checking whether the supplied credentials refer to the local superuser account); and then if this authentication step fails
-      - try and authenticate remotely, passing the supplied username/password to the external auth/directory service. (Note: see below for definition of 'authenticate remotely')
-   2. otherwise, Session.login_with_password will only attempt to authenticate against the local superuser credentials
+(* CP-714: Modify session.login_with_password to first try local super-user
+   login; and then call into external auth plugin if this is enabled
+   1. If the pool master's Host.external_auth_type field is not none, then the
+      Session.login_with_password XenAPI method will:
+      - try and authenticate locally (checking whether the supplied credentials
+        refer to the local superuser account); and then if this authentication
+        step fails
+      - try and authenticate remotely, passing the supplied username/password
+        to the external auth/directory service. (Note: see below for definition
+        of 'authenticate remotely')
+   2. otherwise, Session.login_with_password will only attempt to authenticate
+      against the local superuser credentials
 *)
 let login_with_password ~__context ~uname ~pwd ~version:_ ~originator =
   let pwd = Bytes.of_string pwd in

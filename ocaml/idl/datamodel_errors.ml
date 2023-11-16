@@ -147,10 +147,6 @@ let _ =
     ~doc:"The function is not implemented" () ;
   error Api_errors.unimplemented_in_sm_backend ["message"]
     ~doc:"You have attempted a function which is not implemented" () ;
-
-  error Api_errors.dynamic_memory_control_unavailable ["VM"]
-    ~doc:"The VM requires Dynamic Memory Control (DMC), which is unavailable" () ;
-
   (* DB errors *)
   error Api_errors.handle_invalid ["class"; "handle"]
     ~doc:
@@ -176,8 +172,8 @@ let _ =
     () ;
   error Api_errors.memory_constraint_violation_maxpin ["reason"]
     ~doc:
-      "The dynamic memory range violates constraint static_min <= dynamic_min \
-       = dynamic_max = static_max."
+      "The dynamic memory range violates constraint static_min = dynamic_min = \
+       dynamic_max = static_max."
     () ;
 
   (* Session errors *)
@@ -434,6 +430,8 @@ let _ =
   error Api_errors.vgpu_type_not_supported
     ["type"; "supported_types"]
     ~doc:"VGPU type is not one of the PGPU's supported types." () ;
+  error Api_errors.vgpu_type_no_longer_supported ["type"]
+    ~doc:"VGPU type is no longer supported" () ;
   error Api_errors.vgpu_type_not_compatible_with_running_type
     ["pgpu"; "type"; "running_type"]
     ~doc:
@@ -722,6 +720,9 @@ let _ =
        the coordinator's database and pointing to the correct coordinator? Are \
        all servers using the same pool secret?"
     () ;
+  error Api_errors.host_xapi_version_higher_than_coordinator
+    ["host_xapi_version"]
+    ~doc:"The host xapi version is higher than the one in the coordinator" () ;
   error Api_errors.host_broken []
     ~doc:
       "This server failed in the middle of an automatic failover operation and \
@@ -1892,8 +1893,6 @@ let _ =
   error Api_errors.repository_already_exists ["ref"]
     ~doc:"The repository already exists." () ;
   error Api_errors.repository_is_in_use [] ~doc:"The repository is in use." () ;
-  error Api_errors.reposync_in_progress []
-    ~doc:"The pool is syncing with the enabled remote YUM repository." () ;
   error Api_errors.repository_cleanup_failed []
     ~doc:"Failed to clean up local repository on coordinator." () ;
   error Api_errors.no_repository_enabled []
@@ -1933,8 +1932,6 @@ let _ =
       "The hash of updateinfo doesn't match with current one. There may be \
        newer available updates."
     () ;
-  error Api_errors.updates_require_sync []
-    ~doc:"A call to pool.sync_updates is required before this operation." () ;
   error Api_errors.cannot_restart_device_model ["ref"]
     ~doc:"Cannot restart device models of paused VMs residing on the host." () ;
   error Api_errors.invalid_repository_proxy_url ["url"]
@@ -1943,11 +1940,26 @@ let _ =
     ~doc:"The repository proxy username/password is invalid." () ;
   error Api_errors.apply_livepatch_failed ["livepatch"]
     ~doc:"Failed to apply a livepatch." () ;
+  error Api_errors.updates_require_recommended_guidance ["recommended_guidance"]
+    ~doc:"Requires recommended guidance after applying updates." () ;
   error Api_errors.update_guidance_changed ["guidance"]
     ~doc:"Guidance for the update has changed" () ;
 
   error Api_errors.vtpm_max_amount_reached ["amount"]
     ~doc:"The VM cannot be associated with more VTPMs." () ;
+
+  error Api_errors.telemetry_next_collection_too_late ["timestamp"]
+    ~doc:
+      "The next scheduled telemetry data collection is too far into the \
+       future. Pick a timestamp within two telemetry intervals starting from \
+       now."
+    () ;
+
+  error Api_errors.invalid_update_sync_day ["day"]
+    ~doc:"Invalid day of the week chosen for weekly update sync." () ;
+
+  error Api_errors.no_repositories_configured []
+    ~doc:"No update repositories have been configured." () ;
 
   message
     (fst Api_messages.ha_pool_overcommitted)

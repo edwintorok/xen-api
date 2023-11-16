@@ -43,7 +43,8 @@ let run_vhd_tool progress_cb args s s' _path =
       match
         with_logfile_fd "vhd-tool" (fun log_fd ->
             let pid =
-              safe_close_and_exec None (Some pipe_write) (Some log_fd) [(s', s)]
+              safe_close_and_exec None (Some pipe_write) (Some log_fd)
+                [(s', s)]
                 vhd_tool args
             in
             close pipe_write ;
@@ -182,13 +183,17 @@ let vhd_of_device path =
   find_backend_device path |> Option.value ~default:path |> tapdisk_of_path
 
 let send progress_cb ?relative_to (protocol : string) (dest_format : string)
-    (s : Unix.file_descr) (path : string) (prefix : string) =
+    (s : Unix.file_descr) (path : string) (size : Int64.t) (prefix : string) =
   let s' = Uuidx.(to_string (make ())) in
   let source_format, source =
-    match vhd_of_device path with
-    | Some vhd ->
+    match (Stream_vdi.get_nbd_device path, vhd_of_device path) with
+    | Some (nbd_server, exportname), _ ->
+        ( "nbdhybrid"
+        , Printf.sprintf "%s:%s:%s:%Ld" path nbd_server exportname size
+        )
+    | None, Some vhd ->
         ("hybrid", path ^ ":" ^ vhd)
-    | None ->
+    | None, None ->
         ("raw", path)
   in
   let relative_to =

@@ -274,11 +274,11 @@ let assert_can_live_import __context vm_record =
            )
         )
   in
-  match vm_record.API.vM_power_state with
-  | `Running | `Paused ->
-      assert_memory_available ()
-  | _other ->
-      ()
+  if
+    vm_record.API.vM_power_state = `Running
+    || vm_record.API.vM_power_state = `Paused
+  then
+    assert_memory_available ()
 
 (* Assert that the local host, which is the host we are live-migrating the VM to,
  * has free capacity on a PGPU from the given VGPU's GPU group. *)
@@ -418,21 +418,6 @@ module VM : HandlerTools = struct
 
   let precheck __context config _rpc _session_id _state x =
     let vm_record = get_vm_record x.snapshot in
-
-    (* we can't import a VM if it is not in a resting state and requires
-       DMC *)
-    let is_dmc_compatible =
-      match vm_record.API.vM_power_state with
-      | (`Running | `Suspended | `Paused)
-        when not
-             @@ Xapi_vm_helpers.is_dmc_compatible_vmr ~__context ~vmr:vm_record
-        ->
-          false
-      | _ ->
-          true
-      (* but might require memory adjustments *)
-    in
-
     let is_default_template =
       vm_record.API.vM_is_default_template
       || vm_record.API.vM_is_a_template
@@ -442,88 +427,94 @@ module VM : HandlerTools = struct
               vm_record.API.vM_other_config
             = "true"
     in
-    if not @@ is_dmc_compatible then
-      Fail
-        Api_errors.(
-          Server_error
-            (dynamic_memory_control_unavailable, [vm_record.API.vM_uuid])
-        )
-    else if is_default_template then
-      (* If the VM is a default template, then pick up the one with the same name. *)
-      let template =
-        try
-          List.hd
-            (Db.VM.get_by_name_label ~__context
-               ~label:vm_record.API.vM_name_label
-            )
-        with _ -> Ref.null
-      in
-      Default_template template
-    else
-      let import_action =
-        (* Check for an existing VM with the same UUID - if one exists, what we do next *)
-        (* will depend on the state of the VM and whether the import is forced. *)
-        let get_vm_by_uuid () =
-          Db.VM.get_by_uuid ~__context ~uuid:vm_record.API.vM_uuid
-        in
-        let vm_uuid_exists () =
-          try
-            ignore (get_vm_by_uuid ()) ;
-            true
-          with _ -> false
-        in
-        (* If full_restore is true then we want to keep the VM uuid - this may involve replacing an existing VM. *)
-        if config.full_restore && vm_uuid_exists () then
-          let vm = get_vm_by_uuid () in
-          (* The existing VM cannot be replaced if it is running. *)
-          (* If import is forced then skip the VM, else throw an error. *)
-          let power_state = Db.VM.get_power_state ~__context ~self:vm in
-          if power_state <> `Halted then
-            if config.force then (
-              debug
-                "Forced import skipping VM %s as VM to replace was not halted."
-                vm_record.API.vM_uuid ;
-              Skip
-            ) else
-              Fail
-                (Api_errors.Server_error
-                   ( Api_errors.vm_bad_power_state
-                   , [
-                       Ref.string_of vm
-                     ; Record_util.power_state_to_string `Halted
-                     ; Record_util.power_state_to_string power_state
-                     ]
-                   )
-                )
-          else
-            (* The existing VM should not be replaced if the version to be imported is no newer, *)
-            (* unless the import is forced. *)
-            let existing_version = Db.VM.get_version ~__context ~self:vm in
-            let version_to_import = vm_record.API.vM_version in
-            if existing_version >= version_to_import && config.force = false
-            then
-              Fail
-                (Api_errors.Server_error
-                   ( Api_errors.vm_to_import_is_not_newer_version
-                   , [
-                       Ref.string_of vm
-                     ; Int64.to_string existing_version
-                     ; Int64.to_string version_to_import
-                     ]
-                   )
-                )
+
+    let maybe_template =
+      List.nth_opt
+        (Db.VM.get_by_name_label ~__context ~label:vm_record.API.vM_name_label)
+        0
+    in
+    match (is_default_template, maybe_template) with
+    | true, Some template ->
+        Default_template template
+    | _ -> (
+        let import_action =
+          (* Check for an existing VM with the same UUID - if one exists, what we do next *)
+          (* will depend on the state of the VM and whether the import is forced. *)
+          let get_vm_by_uuid () =
+            Db.VM.get_by_uuid ~__context ~uuid:vm_record.API.vM_uuid
+          in
+          let vm_uuid_exists () =
+            try
+              ignore (get_vm_by_uuid ()) ;
+              true
+            with _ -> false
+          in
+          (* If full_restore is true then we want to keep the VM uuid - this may involve replacing an existing VM. *)
+          if config.full_restore && vm_uuid_exists () then
+            let vm = get_vm_by_uuid () in
+            (* The existing VM cannot be replaced if it is running. *)
+            (* If import is forced then skip the VM, else throw an error. *)
+            let power_state = Db.VM.get_power_state ~__context ~self:vm in
+            if power_state <> `Halted then
+              if config.force then (
+                debug
+                  "Forced import skipping VM %s as VM to replace was not \
+                   halted."
+                  vm_record.API.vM_uuid ;
+                Skip
+              ) else
+                Fail
+                  (Api_errors.Server_error
+                     ( Api_errors.vm_bad_power_state
+                     , [
+                         Ref.string_of vm
+                       ; Record_util.power_state_to_string `Halted
+                       ; Record_util.power_state_to_string power_state
+                       ]
+                     )
+                  )
             else
-              Replace (vm, vm_record)
-        else
-          Clean_import vm_record
-      in
-      match import_action with
-      | Replace (_, vm_record) | Clean_import vm_record ->
-          if is_live config then
-            assert_can_live_import __context vm_record ;
-          import_action
-      | _ ->
-          import_action
+              (* The existing VM should not be replaced if the version to be imported is no newer, *)
+              (* unless the import is forced. *)
+              let existing_version = Db.VM.get_version ~__context ~self:vm in
+              let version_to_import = vm_record.API.vM_version in
+              if existing_version >= version_to_import && config.force = false
+              then
+                Fail
+                  (Api_errors.Server_error
+                     ( Api_errors.vm_to_import_is_not_newer_version
+                     , [
+                         Ref.string_of vm
+                       ; Int64.to_string existing_version
+                       ; Int64.to_string version_to_import
+                       ]
+                     )
+                  )
+              else
+                Replace (vm, vm_record)
+          else
+            let vm_record =
+              if not config.force then
+                {
+                  vm_record with
+                  API.vM_is_default_template= false
+                ; vM_other_config=
+                    List.remove_assoc Xapi_globs.default_template_key
+                      vm_record.API.vM_other_config
+                }
+              else
+                vm_record
+            in
+            Clean_import vm_record
+        in
+        match import_action with
+        | Replace (_, vm_record) | Clean_import vm_record ->
+            if is_live config then
+              assert_can_live_import __context vm_record ;
+            import_action
+        | _ ->
+            import_action
+      )
 
   let handle_dry_run __context _config _rpc _session_id state x precheck_result
       =
@@ -575,28 +566,23 @@ module VM : HandlerTools = struct
           }
       in
       let vm_record =
-        match vm_record.API.vM_power_state with
-        | `Halted ->
-            (* make sure we don't use DMC *)
-            let safe_constraints =
-              Vm_memory_constraints.reset_to_safe_defaults
-                ~constraints:(Vm_memory_constraints.extract ~vm_record)
-            in
-            debug "Disabling DMC for VM %s; dynamic_{min,max},target <- %Ld"
-              vm_record.API.vM_uuid safe_constraints.dynamic_max ;
-            {
-              vm_record with
-              API.vM_memory_static_min= safe_constraints.static_min
-            ; vM_memory_dynamic_min= safe_constraints.dynamic_min
-            ; vM_memory_target= safe_constraints.target
-            ; vM_memory_dynamic_max= safe_constraints.dynamic_max
-            ; vM_memory_static_max= safe_constraints.static_max
-            }
-        | _otherwise ->
-            (* the precheck should make sure we don't have a VM that
-               requires DMC. But just to be safe, we don't update
-               memory settings on any VM that is not in rest *)
-            vm_record
+        if vm_exported_pre_dmc x then (
+          let safe_constraints =
+            Vm_memory_constraints.reset_to_safe_defaults
+              ~constraints:(Vm_memory_constraints.extract ~vm_record)
+          in
+          debug "VM %s was exported pre-DMC; dynamic_{min,max},target <- %Ld"
+            vm_record.API.vM_name_label safe_constraints.static_max ;
+          {
+            vm_record with
+            API.vM_memory_static_min= safe_constraints.static_min
+          ; vM_memory_dynamic_min= safe_constraints.dynamic_min
+          ; vM_memory_target= safe_constraints.target
+          ; vM_memory_dynamic_max= safe_constraints.dynamic_max
+          ; vM_memory_static_max= safe_constraints.static_max
+          }
+        ) else
+          vm_record
       in
       let vm_record =
         if vm_has_field ~x ~name:"has_vendor_device" then
@@ -805,6 +791,8 @@ module GuestMetrics : HandlerTools = struct
       ~pV_drivers_version:gm_record.API.vM_guest_metrics_PV_drivers_version
       ~pV_drivers_up_to_date:
         gm_record.API.vM_guest_metrics_PV_drivers_up_to_date
+      ~memory:gm_record.API.vM_guest_metrics_memory
+      ~disks:gm_record.API.vM_guest_metrics_disks
       ~networks:gm_record.API.vM_guest_metrics_networks
       ~pV_drivers_detected:gm_record.API.vM_guest_metrics_PV_drivers_detected
       ~other:gm_record.API.vM_guest_metrics_other
@@ -1836,6 +1824,85 @@ module PVS_Site : HandlerTools = struct
   let handle __context _ _ _ _ _ () = ()
 end
 
+module VTPM : HandlerTools = struct
+  (* We expect a VTPM to be part of a VM's meta data and not to exist
+     independently. Hence, we never look for the the VTPM to exist
+     already but always create it *)
+
+  type precheck_t = Import of vtpm'
+
+  let fail fmt =
+    Printf.kprintf
+      (fun msg -> raise Api_errors.(Server_error (import_error_generic, [msg])))
+      fmt
+
+  let colliding ~__context ~uuid =
+    try
+      ignore (Db.VTPM.get_by_uuid ~__context ~uuid) ;
+      true
+    with
+    | Not_found ->
+        false
+    | e ->
+        debug "%s: VTPM %s not found: %s" __FUNCTION__ uuid
+          (Printexc.to_string e) ;
+        false
+
+  (* Compare the state of the database with the metadata to be imported.
+     Returns a result which signals what we should do to import the
+     metadata. *)
+
+  let precheck __context config _rpc _session _state obj =
+    let vtpm' = vtpm'_of_rpc obj.snapshot in
+    debug "%s: importing VTPM" __FUNCTION__ ;
+    match config.full_restore with
+    | false ->
+        Import vtpm'
+    | true ->
+        let uuid = vtpm'.vTPM'_uuid in
+        if colliding ~__context ~uuid then
+          fail "A VTPM with UUID %s already exists" uuid
+        else
+          Import vtpm'
+
+  (* Handle the result of the precheck function, but don't create any
+     database objects.  Add objects to the state table if necessary, to
+     keep track of what would have been imported.*)
+  let handle_dry_run __context _config _rpc _session state obj = function
+    | Import _vtpm' ->
+        debug "%s: importing VTPM" __FUNCTION__ ;
+        let ref = Ref.make () in
+        state.table <- (obj.cls, obj.id, Ref.string_of ref) :: state.table
+
+  (* Handle the result of the check function, creating database objects
+     if necessary.  For certain combinations of result and object type,
+     this can be aliased to handle_dry_run. *)
+  let handle __context config _rpc _session state _obj = function
+    | Import vtpm' -> (
+        debug "%s: importing VTPM" __FUNCTION__ ;
+        let vm =
+          log_reraise
+            ("Failed to find VTPM's VM: " ^ Ref.string_of vtpm'.vTPM'_VM)
+            (lookup vtpm'.vTPM'_VM) state.table
+        in
+        let self =
+          Xapi_vtpm.create ~__context ~vM:vm ~is_unique:vtpm'.vTPM'_is_unique
+        in
+        (* there is no API to set the protected field *)
+        Db.VTPM.set_is_protected ~__context ~self
+          ~value:vtpm'.vTPM'_is_protected ;
+        Xapi_vtpm.set_contents ~__context ~self ~contents:vtpm'.vTPM'_content ;
+        match config.full_restore with
+        | false ->
+            (* we get a new UUID *)
+            ()
+        | true ->
+            (* we restore the UUID; precheck made sure this is not
+               colliding *)
+            Db.VTPM.set_uuid ~__context ~self ~value:vtpm'.vTPM'_uuid
+      )
+end
+
 (** Create a handler for each object type. *)
 module HostHandler = MakeHandler (Host)
 
@@ -1851,6 +1918,7 @@ module VGPUTypeHandler = MakeHandler (VGPUType)
 module VGPUHandler = MakeHandler (VGPU)
 module PVS_SiteHandler = MakeHandler (PVS_Site)
 module PVS_ProxyHandler = MakeHandler (PVS_Proxy)
+module VTPMHandler = MakeHandler (VTPM)
 
 (** Table mapping datamodel class names to handlers, in order we have to run them *)
 let handlers =
@@ -1868,6 +1936,7 @@ let handlers =
   ; (Datamodel_common._vgpu, VGPUHandler.handle)
   ; (Datamodel_common._pvs_site, PVS_SiteHandler.handle)
   ; (Datamodel_common._pvs_proxy, PVS_ProxyHandler.handle)
+  ; (Datamodel_common._vtpm, VTPMHandler.handle)
   ]
 
 let update_snapshot_and_parent_links ~__context state =

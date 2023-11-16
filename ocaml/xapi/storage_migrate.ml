@@ -291,7 +291,6 @@ module State = struct
     | sr :: rest ->
         Storage_interface.
           (Sr.of_string sr, Vdi.of_string (String.concat "/" rest))
-        
     | _ ->
         failwith "Bad id"
 
@@ -305,7 +304,6 @@ module State = struct
     | op :: sr :: rest when op = "copy" ->
         Storage_interface.
           (Sr.of_string sr, Vdi.of_string (String.concat "/" rest))
-        
     | _ ->
         failwith "Bad id"
 end
@@ -325,12 +323,12 @@ module Local = StorageAPI (Idl.Exn.GenClient (struct
 end))
 
 let tapdisk_of_attach_info (backend : Storage_interface.backend) =
-  let xendisks, _, _, _ =
+  let _, blockdevices, _, nbds =
     Storage_interface.implementations_of_backend backend
   in
-  match xendisks with
-  | xendisk :: _ -> (
-      let path = xendisk.Storage_interface.params in
+  match (blockdevices, nbds) with
+  | blockdevice :: _, _ -> (
+      let path = blockdevice.Storage_interface.path in
       try
         match Tapctl.of_device (Tapctl.create ()) path with
         | tapdev, _, _ ->
@@ -346,8 +344,19 @@ let tapdisk_of_attach_info (backend : Storage_interface.backend) =
           debug "Device %s has an unknown driver" path ;
           None
     )
-  | [] ->
-      debug "No XenDisk implementation in backend: %s"
+  | _, nbd :: _ -> (
+    try
+      let path, _ = Storage_interface.parse_nbd_uri nbd in
+      let filename = Unix.realpath path |> Filename.basename in
+      Scanf.sscanf filename "nbd%d.%d" (fun pid minor ->
+          Some (Tapctl.tapdev_of ~pid ~minor)
+      )
+    with _ ->
+      debug "No tapdisk found for NBD backend: %s" nbd.Storage_interface.uri ;
+      None
+  )
+  | _ ->
+      debug "No tapdisk found for backend: %s"
         (Storage_interface.(rpc_of backend) backend |> Rpc.to_string) ;
       None
 
@@ -362,23 +371,32 @@ let with_activated_disk ~dbg ~sr ~vdi ~dp f =
   in
   finally
     (fun () ->
-      let path =
+      let path_and_nbd =
         Option.map
           (fun (vdi, backend) ->
-            let _, blockdevs, files, _ =
+            let _xendisks, blockdevs, files, nbds =
               Storage_interface.implementations_of_backend backend
             in
-            match (blockdevs, files) with
-            | {path} :: _, _ | _, {path} :: _ ->
+            match (files, blockdevs, nbds) with
+            | {path} :: _, _, _ | _, {path} :: _, _ ->
                 Local.VDI.activate3 dbg dp sr vdi (vm_of_s "0") ;
-                path
-            | [], [] ->
+                (path, false)
+            | _, _, nbd :: _ ->
+                Local.VDI.activate3 dbg dp sr vdi (vm_of_s "0") ;
+                let unix_socket_path, export_name =
+                  Storage_interface.parse_nbd_uri nbd
+                in
+                ( Attach_helpers.NbdClient.start_nbd_client ~unix_socket_path
+                    ~export_name
+                , true
+                )
+            | [], [], [] ->
                 raise
                   (Storage_interface.Storage_error
                      (Backend_error
                         ( Api_errors.internal_error
                         , [
-                            "No BlockDevice or File implementation in \
+                            "No File, BlockDevice or Nbd implementation in \
                              Datapath.attach response: "
                             ^ (Storage_interface.(rpc_of backend) backend
                               |> Jsonrpc.to_string
@@ -391,8 +409,16 @@ let with_activated_disk ~dbg ~sr ~vdi ~dp f =
           attached_vdi
       in
       finally
-        (fun () -> f path)
+        (fun () -> f (Option.map (function path, _ -> path) path_and_nbd))
         (fun () ->
+          Option.iter
+            (function
+              | path, true ->
+                  Attach_helpers.NbdClient.stop_nbd_client ~nbd_device:path
+              | _ ->
+                  ()
+              )
+            path_and_nbd ;
           Option.iter
             (fun vdi -> Local.VDI.deactivate dbg dp sr vdi (vm_of_s "0"))
             vdi
@@ -506,7 +532,6 @@ let copy' ~task ~dbg ~sr ~vdi ~url ~dest ~dest_vdi ~verify_dest =
             ; remote_url= url
             ; verify_dest
             }
-          
       ) ;
     SMPERF.debug "mirror.copy: copy initiated local_vdi:%s dest_vdi:%s"
       (Storage_interface.Vdi.string_of vdi)
@@ -628,7 +653,13 @@ let stop ~dbg ~id =
   | None ->
       raise (Storage_interface.Storage_error (Does_not_exist ("mirror", id)))
 
-let start' ~task ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest =
+let dbg_and_tracing_of_task task =
+  Debuginfo.make
+    ~log:(Storage_task.get_dbg task)
+    ~tracing:(Storage_task.tracing task)
+  |> Debuginfo.to_string
+
+let start' ~task ~dbg:_ ~sr ~vdi ~dp ~url ~dest ~verify_dest =
   debug "Mirror.start sr:%s vdi:%s url:%s dest:%s verify_dest:%B"
     (Storage_interface.Sr.string_of sr)
     (Storage_interface.Vdi.string_of vdi)
@@ -648,6 +679,7 @@ let start' ~task ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest =
         (Storage_utils.connection_args_of_uri ~verify_dest url)
   end)) in
   (* Find the local VDI *)
+  let dbg = dbg_and_tracing_of_task task in
   let vdis = Local.SR.scan dbg sr in
   let local_vdi =
     try List.find (fun x -> x.vdi = vdi) vdis
@@ -666,7 +698,6 @@ let start' ~task ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest =
       ; failed= false
       ; watchdog= None
       }
-    
   in
 
   State.add id (State.Send_op alm) ;
@@ -761,7 +792,6 @@ let start' ~task ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest =
         ; failed= false
         ; watchdog= None
         }
-      
     in
 
     State.add id (State.Send_op alm) ;
@@ -806,7 +836,7 @@ let start' ~task ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest =
      in
      inner ()
     ) ;
-    on_fail := (fun () -> stop ~dbg ~id) :: !on_fail ;
+    on_fail := (fun () -> Local.DATA.MIRROR.stop dbg id) :: !on_fail ;
     (* Copy the snapshot to the remote *)
     let new_parent =
       Storage_task.with_subtask task "copy" (fun () ->
@@ -1044,7 +1074,6 @@ let receive_start ~dbg ~sr ~vdi_info ~id ~similar =
             ; parent_vdi= parent.vdi
             ; remote_vdi= vdi_info.vdi
             }
-          
       ) ;
     let nearest_content_id = Option.map (fun x -> x.content_id) nearest in
     Mirror.Vhd_mirror
@@ -1084,9 +1113,11 @@ let receive_cancel ~dbg ~id =
     receive_state ;
   State.remove_receive_mirror id
 
-exception Timeout
+exception Timeout of Mtime.Span.t
 
-let reqs_outstanding_timeout = 150.0
+let reqs_outstanding_timeout = Mtime.Span.(150 * s)
+
+let pp_time () = Fmt.str "%a" Mtime.Span.pp
 
 (* Tapdisk should time out after 2 mins. We can wait a little longer *)
 
@@ -1094,7 +1125,6 @@ let pre_deactivate_hook ~dbg:_ ~dp:_ ~sr ~vdi =
   let open State.Send_state in
   let id = State.mirror_id_of (sr, vdi) in
   let start = Mtime_clock.counter () in
-  let get_delta () = Mtime_clock.count start |> Mtime.Span.to_s in
   State.find_active_local_mirror id
   |> Option.iter (fun s ->
          (* We used to pause here and then check the nbd_mirror_failed key. Now, we poll
@@ -1108,25 +1138,27 @@ let pre_deactivate_hook ~dbg:_ ~dp:_ ~sr ~vdi =
                let open Tapctl in
                let ctx = create () in
                let rec wait () =
-                 if get_delta () > reqs_outstanding_timeout then raise Timeout ;
+                 let elapsed = Mtime_clock.count start in
+                 if Mtime.Span.compare elapsed reqs_outstanding_timeout > 0 then
+                   raise (Timeout elapsed) ;
                  let st = stats ctx tapdev in
                  if st.Stats.reqs_outstanding > 0 then (
                    Thread.delay 1.0 ; wait ()
                  ) else
-                   st
+                   (st, elapsed)
                in
-               let st = wait () in
-               debug "Got final stats after waiting %f seconds" (get_delta ()) ;
+               let st, elapsed = wait () in
+               debug "Got final stats after waiting %a" pp_time elapsed ;
                if st.Stats.nbd_mirror_failed = 1 then (
                  error "tapdisk reports mirroring failed" ;
                  s.failed <- true
                )
          with
-         | Timeout ->
+         | Timeout elapsed ->
              error
-               "Timeout out after %f seconds waiting for tapdisk to complete \
-                all outstanding requests"
-               (get_delta ()) ;
+               "Timeout out after %a waiting for tapdisk to complete all \
+                outstanding requests"
+               pp_time elapsed ;
              s.failed <- true
          | e ->
              error "Caught exception while finally checking mirror state: %s"
@@ -1302,9 +1334,10 @@ let copy ~task ~dbg ~sr ~vdi ~dp:_ ~url ~dest ~verify_dest =
   | e ->
       raise (Storage_error (Internal_error (Printexc.to_string e)))
 
-let wrap ~dbg f =
+let with_task_and_thread ~dbg f =
   let task =
-    Storage_task.add tasks dbg (fun task ->
+    Storage_task.add tasks dbg.Debuginfo.log (fun task ->
+        Storage_task.set_tracing task dbg.Debuginfo.tracing ;
         try f task with
         | Storage_error (Backend_error (code, params))
         | Api_errors.Server_error (code, params) ->
@@ -1317,24 +1350,28 @@ let wrap ~dbg f =
   in
   let _ =
     Thread.create
-      (Debug.with_thread_associated ?client:None dbg (fun () ->
-           Storage_task.run task ;
-           signal (Storage_task.id_of_handle task)
-       )
+      (fun () ->
+        Storage_task.run task ;
+        signal (Storage_task.id_of_handle task)
       )
       ()
   in
   Storage_task.id_of_handle task
 
 let start ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest =
-  wrap ~dbg (fun task -> start' ~task ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest)
+  with_task_and_thread ~dbg (fun task ->
+      start' ~task ~dbg:dbg.Debuginfo.log ~sr ~vdi ~dp ~url ~dest ~verify_dest
+  )
 
 let copy ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest =
-  wrap ~dbg (fun task -> copy ~task ~dbg ~sr ~vdi ~dp ~url ~dest ~verify_dest)
+  with_task_and_thread ~dbg (fun task ->
+      copy ~task ~dbg:dbg.Debuginfo.log ~sr ~vdi ~dp ~url ~dest ~verify_dest
+  )
 
 let copy_into ~dbg ~sr ~vdi ~url ~dest ~dest_vdi ~verify_dest =
-  wrap ~dbg (fun task ->
-      copy_into ~task ~dbg ~sr ~vdi ~url ~dest ~dest_vdi ~verify_dest
+  with_task_and_thread ~dbg (fun task ->
+      copy_into ~task ~dbg:dbg.Debuginfo.log ~sr ~vdi ~url ~dest ~dest_vdi
+        ~verify_dest
   )
 
 (* The remote end of this call, SR.update_snapshot_info_dest, is implemented in

@@ -25,31 +25,49 @@ let count_vdis rpc session_id sr =
   in
   List.length managed_vdis
 
+let get_test_sr_uuid () =
+  match (!A.use_default_sr, !A.sr) with
+  | true, _ ->
+      let pool = Qt.get_pool !A.rpc !session_id in
+      let sr =
+        Client.Client.Pool.get_default_SR ~rpc:!A.rpc ~session_id:!session_id
+          ~self:pool
+      in
+      Client.Client.SR.get_uuid ~rpc:!A.rpc ~session_id:!session_id ~self:sr
+  | _, uuid when uuid <> "" ->
+      uuid
+  | _, _ ->
+      ""
+
 (** Called before the quicktests start to save the original state.
     This data will be used by [finish] to check for any resource leaks. *)
 let init () =
   session_id := Qt.init_session !A.rpc !A.username !A.password ;
+  let test_sr_uuid = get_test_sr_uuid () in
   Client.Client.SR.get_all_records ~rpc:!A.rpc ~session_id:!session_id
   |> List.iter (fun (ref, sr) ->
-         if List.mem `scan sr.API.sR_allowed_operations then
-           let before = count_vdis !A.rpc !session_id ref in
-           Hashtbl.add vdi_count sr.API.sR_uuid before
+         if test_sr_uuid = "" || sr.API.sR_uuid = test_sr_uuid then
+           if List.mem `scan sr.API.sR_allowed_operations then
+             let before = count_vdis !A.rpc !session_id ref in
+             Hashtbl.add vdi_count sr.API.sR_uuid before
      )
 
 (** Called at the end of the quicktests to check that no resources leaked
     during the test run *)
 let finish () =
+  let test_sr_uuid = get_test_sr_uuid () in
   Client.Client.SR.get_all_records ~rpc:!A.rpc ~session_id:!session_id
   |> List.iter (fun (ref, sr) ->
          match Hashtbl.find_opt vdi_count sr.API.sR_uuid with
          | Some before ->
-             if List.mem `scan sr.API.sR_allowed_operations then
-               let after = count_vdis !A.rpc !session_id ref in
-               if after <> before then
-                 failwith
-                   (Printf.sprintf "VDIs leaked on SR %s: before=%d, after=%d"
-                      sr.API.sR_uuid before after
-                   )
+             if test_sr_uuid = "" || sr.API.sR_uuid = test_sr_uuid then
+               if List.mem `scan sr.API.sR_allowed_operations then
+                 let after = count_vdis !A.rpc !session_id ref in
+                 if after <> before then
+                   failwith
+                     (Printf.sprintf "VDIs leaked on SR %s: before=%d, after=%d"
+                        sr.API.sR_uuid before after
+                     )
          | None ->
              ()
      )
@@ -180,13 +198,29 @@ module SR = struct
            ~self:pool
         )
         ()
-    else
+    else if !A.sr <> "" then (
+      let sr =
+        Client.Client.SR.get_by_uuid ~rpc:!A.rpc ~session_id:!session_id
+          ~uuid:!A.sr
+      in
+      let local_srs =
+        list_srs_connected_to_localhost !A.rpc !session_id
+        |> List.map (fun sr_info -> sr_info.Qt.sr)
+      in
+      if not (List.mem sr local_srs) then
+        failwith
+          (Printf.sprintf "Specified sr %s is not available on the host" !A.sr) ;
+      only sr ()
+    ) else
       Lazy.force all_srs
 
   let random srs () =
     let srs = srs () in
-    let index = Random.int @@ List.length srs in
-    [List.nth srs index]
+    if srs = [] then
+      []
+    else
+      let index = Random.int @@ List.length srs in
+      [List.nth srs index]
 
   let sr_filter f srs () = List.filter f (srs ())
 

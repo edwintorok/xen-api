@@ -76,6 +76,10 @@ val forwarded_task : t -> bool
 
 val string_of_task : t -> string
 
+val string_of_task_and_tracing : t -> string
+
+val tracing_of_dbg : string -> string * Tracing.Span.t option
+
 val task_in_database : t -> bool
 (** [task_in_database __context] indicates if [get_task_id __context] corresponds to a task stored in database or
     to a dummy task. *)
@@ -91,8 +95,6 @@ val database_of : t -> Db_ref.t
 val destroy : t -> unit
 
 (** {6 Auxiliary functions } *)
-
-val _client_of_rq : Http.Request.t -> Ipaddr.t option
 
 val is_unix_socket : Unix.file_descr -> bool
 (** [is_unix_socket fd] *)
@@ -139,3 +141,13 @@ val get_client : t -> string option
 val get_client_ip : t -> string option
 
 val get_user_agent : t -> string option
+
+val complete_tracing : t -> unit
+
+val complete_tracing_with_exn : t -> exn * string -> unit
+
+val tracing_of : t -> Tracing.Span.t option
+
+val with_tracing : t -> string -> (t -> 'a) -> 'a
+
+val set_client_span : t -> Tracing.Span.t option

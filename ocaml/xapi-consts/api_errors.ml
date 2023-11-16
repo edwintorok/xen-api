@@ -143,6 +143,9 @@ let host_master_cannot_talk_back = "HOST_MASTER_CANNOT_TALK_BACK"
 
 let host_unknown_to_master = "HOST_UNKNOWN_TO_MASTER"
 
+let host_xapi_version_higher_than_coordinator =
+  "HOST_XAPI_VERSION_HIGHER_THAN_COORDINATOR"
+
 (* should be fenced *)
 let host_broken = "HOST_BROKEN"
 
@@ -602,6 +605,8 @@ let pgpu_insufficient_capacity_for_vgpu = "PGPU_INSUFFICIENT_CAPACITY_FOR_VGPU"
 let vgpu_type_not_enabled = "VGPU_TYPE_NOT_ENABLED"
 
 let vgpu_type_not_supported = "VGPU_TYPE_NOT_SUPPORTED"
+
+let vgpu_type_no_longer_supported = "VGPU_TYPE_NO_LONGER_SUPPORTED"
 
 let vgpu_type_not_compatible_with_running_type =
   "VGPU_TYPE_NOT_COMPATIBLE_WITH_RUNNING_TYPE"
@@ -1235,8 +1240,6 @@ let repository_already_exists = "REPOSITORY_ALREADY_EXISTS"
 
 let repository_is_in_use = "REPOSITORY_IS_IN_USE"
 
-let reposync_in_progress = "REPOSYNC_IN_PROGRESS"
-
 let repository_cleanup_failed = "REPOSITORY_CLEANUP_FAILED"
 
 let no_repository_enabled = "NO_REPOSITORY_ENABLED"
@@ -1268,20 +1271,29 @@ let apply_guidance_failed = "APPLY_GUIDANCE_FAILED"
 
 let updateinfo_hash_mismatch = "UPDATEINFO_HASH_MISMATCH"
 
-let updates_require_sync = "UPDATES_REQUIRE_SYNC"
-
 let cannot_restart_device_model = "CANNOT_RESTART_DEVICE_MODEL"
 
 let invalid_repository_proxy_url = "INVALID_REPOSITORY_PROXY_URL"
 
 let invalid_repository_proxy_credential = "INVALID_REPOSITORY_PROXY_CREDENTIAL"
 
-let dynamic_memory_control_unavailable = "DYNAMIC_MEMORY_CONTROL_UNAVAILABLE"
-
 let apply_livepatch_failed = "APPLY_LIVEPATCH_FAILED"
 
+let updates_require_recommended_guidance =
+  "UPDATES_REQUIRE_RECOMMENDED_GUIDANCE"
+
 let update_guidance_changed = "UPDATE_GUIDANCE_CHANGED"
+
+let invalid_update_sync_day = "INVALID_UPDATE_SYNC_DAY"
+
+let no_repositories_configured = "NO_REPOSITORIES_CONFIGURED"
 
 (* VTPMs *)
 
 let vtpm_max_amount_reached = "VTPM_MAX_AMOUNT_REACHED"
+
+(* Telemetry *)
+let telemetry_next_collection_too_late = "TELEMETRY_NEXT_COLLECTION_TOO_LATE"
+
+(* FIPS/CC_PREPARATIONS *)
+let illegal_in_fips_mode = "ILLEGAL_IN_FIPS_MODE"

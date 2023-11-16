@@ -23,7 +23,7 @@ module Stats : sig
       name: string
     ; secs: int64 * int64
     ; images: Image.t list
-    ; tap: Tap.t
+    ; tap: Tap.t option
     ; nbd_mirror_failed: int
     ; reqs_outstanding: int
   }
@@ -32,6 +32,8 @@ end
 val tapdev_of_rpc : Rpc.t -> tapdev
 
 val rpc_of_tapdev : tapdev -> Rpc.t
+
+val tapdev_of : pid:int -> minor:int -> tapdev
 
 val get_minor : tapdev -> int
 
@@ -91,3 +93,6 @@ exception Not_a_device
 
 val of_device : context -> string -> t
 (** Given a path to a device, return the corresponding tap information *)
+
+val find : context -> pid:int -> minor:int -> t
+(** Find tap given a tapdisk pid and a minor number *)

@@ -500,8 +500,9 @@ module Vbd_Common = struct
 
     (* We don't watch for error nodes *)
     let (_ : bool) =
-      cancellable_watch (Device x) [shutdown_done ~xs x] [] task ~xs
-        ~timeout:!Xenopsd.hotplug_timeout ()
+      cancellable_watch (Device x)
+        [shutdown_done ~xs x]
+        [] task ~xs ~timeout:!Xenopsd.hotplug_timeout ()
     in
     Generic.rm_device_state ~xs x ;
     debug "Device.Vbd.hard_shutdown complete"
@@ -1884,7 +1885,6 @@ module Vusb = struct
                   driver= "usb-host"
                 ; device= USB {USB.id; params= Some {bus; hostbus; hostport}}
                 }
-              
           )
         in
         qmp_send_cmd domid cmd |> ignore
@@ -2091,9 +2091,11 @@ module Dm_Common = struct
   let cmdline_of_disp ?domid info =
     let vga_type_opts x =
       let open Xenops_interface.Vgpu in
+      (* We can match on the implementation details to detect the VCS
+         case. Don't pass -vgpu for a compute vGPU. *)
       match x with
-      | Vgpu [{implementation= Nvidia _; _}] ->
-          ["-vgpu"]
+      | Vgpu ({implementation= Nvidia {vclass= Some "Compute"; _}; _} :: _) ->
+          [] (* don't pass flags for VCS (compute) vGPU *)
       | Vgpu ({implementation= Nvidia _; _} :: _) ->
           ["-vgpu"]
       | Vgpu [{implementation= GVT_g gvt_g; _}] ->
@@ -3048,7 +3050,6 @@ module Backend = struct
                         ; medium_filename= path
                         ; medium_format= Some "raw"
                         }
-                      
                     in
 
                     let cmd = Qmp.(Blockdev_change_medium medium) in
@@ -3116,7 +3117,6 @@ module Backend = struct
                       driver= VCPU.Driver.(string_of QEMU32_I386_CPU)
                     ; device= VCPU {VCPU.id; socket_id; core_id; thread_id}
                     }
-                  
               )
             |> ignore
         | false ->
@@ -3275,7 +3275,7 @@ module Backend = struct
         (* unmounts devices in /var/xen/qemu/root-* *)
         let path = Printf.sprintf "/var/xen/qemu/root-%d" domid in
         Generic.best_effort (Printf.sprintf "removing %s" path) (fun () ->
-            Xenops_utils.FileFS.rmtree path
+            Xapi_stdext_unix.Unixext.rm_rec path
         )
 
       let tap_open ifname =
@@ -3503,7 +3503,6 @@ module Backend = struct
                   common.argv @ misc @ disks' @ pv_device pv_device_addr @ none
               ; fd_map= common.fd_map
               }
-            
         | _, fds, argv ->
             Dm_Common.
               {
@@ -3511,7 +3510,6 @@ module Backend = struct
                   common.argv @ misc @ disks' @ pv_device pv_device_addr @ argv
               ; fd_map= common.fd_map @ fds
               }
-            
 
       let after_suspend_image ~xs ~qemu_domid ~vtpm domid =
         (* device model not needed anymore after suspend image has been created *)
@@ -3639,7 +3637,9 @@ module Dm = struct
   let start_vgpu ~xc:_ ~xs task ?(restore = false) domid vgpus vcpus profile =
     let open Xenops_interface.Vgpu in
     match vgpus with
-    | {implementation= Nvidia _; _} :: _ ->
+    | {implementation= Nvidia {vclass; _}; _} :: _ ->
+        let vclass = Option.value ~default:"unknown" vclass in
+        info "NVidia vgpu vclass=%s" vclass ;
         (* Start DEMU and wait until it has reached the desired state *)
         if not (Service.Vgpu.is_running ~xs domid) then (
           let pcis = List.map (fun x -> x.physical_pci_address) vgpus in
@@ -3691,6 +3691,8 @@ module Dm = struct
 
   type action = Start | Restore
 
+  let action_to_string = function Start -> "Start" | Restore -> "Restore"
+
   let __start (task : Xenops_task.task_handle) ~xc ~xs ~dm
       ?(timeout = !Xenopsd.qemu_dm_ready_timeout) action info domid =
     let args =
@@ -3700,7 +3702,8 @@ module Dm = struct
       | Restore ->
           qemu_args ~xs ~dm info true domid
     in
-    debug "Device.Dm.start domid=%d args: [%s]" domid
+    debug "Device.Dm.start domid=%d action=%s qemu args: [%s]" domid
+      (action_to_string action)
       (String.concat " " args.argv) ;
     (* start vgpu emulation if appropriate *)
     let () =
@@ -3721,19 +3724,22 @@ module Dm = struct
 
     (* start swtpm-wrapper if appropriate and modify QEMU arguments as needed *)
     let tpmargs =
+      let mk_args vtpm_uuid =
+        let tpm_socket_path =
+          Service.Swtpm.start ~xs task domid ~vtpm_uuid ~index:0
+        in
+        [
+          "-chardev"
+        ; Printf.sprintf "socket,id=chrtpm,path=%s" tpm_socket_path
+        ; "-tpmdev"
+        ; "emulator,id=tpm0,chardev=chrtpm"
+        ; "-device"
+        ; "tpm-crb,tpmdev=tpm0"
+        ]
+      in
       match info.tpm with
       | Some (Vtpm vtpm_uuid) ->
-          let tpm_socket_path =
-            Service.Swtpm.start ~xs task domid ~vtpm_uuid ~index:0
-          in
-          [
-            "-chardev"
-          ; Printf.sprintf "socket,id=chrtpm,path=%s" tpm_socket_path
-          ; "-tpmdev"
-          ; "emulator,id=tpm0,chardev=chrtpm"
-          ; "-device"
-          ; "tpm-crb,tpmdev=tpm0"
-          ]
+          mk_args vtpm_uuid
       | None ->
           D.debug "VM domid %d has no vTPM" domid ;
           []
@@ -3857,20 +3863,25 @@ module Dm = struct
     Unixext.write_string_to_file path efivars ;
     debug "Wrote EFI variables to %s (domid=%d)" path domid
 
-  let suspend_vtpms (_task : Xenops_task.task_handle) ~xs domid ~vm_uuid ~vtpm =
-    debug "Called Dm.suspend_vtpms (domid=%d)" domid ;
+  let suspend_vtpm (task : Xenops_task.task_handle) ~xs domid ~vtpm =
+    debug "Called Dm.suspend_vtpm (domid=%d)" domid ;
+    let dbg = Xenops_task.get_dbg task in
     Option.map
-      (fun (Xenops_interface.Vm.Vtpm _vtpm_uuid) ->
-        Service.Swtpm.suspend ~xs ~domid ~vm_uuid
+      (fun (Xenops_interface.Vm.Vtpm vtpm_uuid) ->
+        Service.Swtpm.suspend dbg ~xs ~domid ~vtpm_uuid
       )
       vtpm
     |> Option.to_list
 
-  let restore_vtpm (_task : Xenops_task.task_handle) ~xs ~contents domid =
-    debug "Called Dm.restore_vtpms (domid=%d)" domid ;
-    let vm_uuid = Uuidx.to_string (Xenops_helpers.uuid_of_domid ~xs domid) in
-    (* TODO: multiple vTPM support? *)
-    Service.Swtpm.restore ~domid ~vm_uuid contents
+  let restore_vtpm (task : Xenops_task.task_handle) ~xs:_ ~contents ~vtpm domid
+      =
+    debug "Called Dm.restore_vtpm (domid=%d)" domid ;
+    let dbg = Xenops_task.get_dbg task in
+    Option.iter
+      (fun (Xenops_interface.Vm.Vtpm vtpm_uuid) ->
+        Service.Swtpm.restore dbg ~domid ~vtpm_uuid contents
+      )
+      vtpm
 end
 
 (* Dm *)

@@ -32,7 +32,8 @@ let verify_libxc_v2_record fd =
   ) ;
   let pid =
     Forkhelpers.safe_close_and_exec None (Some Unix.stdout) (Some Unix.stderr)
-      [(fd_uuid, fd)] path args
+      [(fd_uuid, fd)]
+      path args
   in
   match Forkhelpers.waitpid pid with
   | _, Unix.WEXITED 0 ->
@@ -56,18 +57,13 @@ let parse_layout fd =
         debug "Read header <%s>" (string_of_header h) ;
         debug "Dummy-processing record..." ;
         match h with
-        | Xenops, len ->
-            Io.read fd (Io.int_of_int64_exn len) |> ignore ;
-            aux (h :: acc)
         | Libxc, _ ->
             verify_libxc_v2_record fd ;
             aux (h :: acc)
-        | Qemu_trad, len ->
-            Io.read fd (Io.int_of_int64_exn len) |> ignore ;
-            aux (h :: acc)
-        | Varstored, len ->
-            Io.read fd (Io.int_of_int64_exn len) |> ignore ;
-            aux (h :: acc)
+        | Xenops, len
+        | Qemu_trad, len
+        | Varstored, len
+        | Swtpm0, len
         | Swtpm, len ->
             Io.read fd (Io.int_of_int64_exn len) |> ignore ;
             aux (h :: acc)

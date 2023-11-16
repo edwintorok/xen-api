@@ -19,6 +19,8 @@ let ( +++ ) = Int64.add
 
 let ( --- ) = Int64.sub
 
+let ( /// ) = Int64.div
+
 (** Calculates the amounts of 'normal' and 'shadow' host memory needed
     to run the given guest with the given amount of guest memory. *)
 let vm_compute_required_memory vm_record guest_memory_kib =
@@ -29,7 +31,7 @@ let vm_compute_required_memory vm_record guest_memory_kib =
   (* unused in this function *)
   let multiplier, full_config =
     match Helpers.check_domain_type vm_record.API.vM_domain_type with
-    | `hvm ->
+    | `hvm | `pvh ->
         (vm_record.API.vM_HVM_shadow_multiplier, Memory.HVM.full_config)
     | `pv_in_pvh ->
         (vm_record.API.vM_HVM_shadow_multiplier, Memory.PVinPVH.full_config)
@@ -53,13 +55,6 @@ type accounting_policy =
   | Dynamic_min
       (** use dynamic_min: liberal: assumes that guests always co-operate. *)
 
-let default_policy ~__context =
-  match Pool_features.is_enabled ~__context Features.DMC with
-  | true ->
-      Dynamic_min
-  | false ->
-      Dynamic_max
-
 (** Common logic of vm_compute_start_memory and vm_compute_used_memory *)
 let choose_memory_required ~policy ~memory_dynamic_min ~memory_dynamic_max
     ~memory_static_max =
@@ -78,8 +73,7 @@ let choose_memory_required ~policy ~memory_dynamic_min ~memory_dynamic_max
     ballooning is not enabled or if the VM is an HVM guest, this function returns
     values derived from the VM's static memory maximum (since currently HVM guests
     are not able to start in a pre-ballooned state). *)
-let vm_compute_start_memory ~__context ?(policy = default_policy ~__context)
-    vm_record =
+let vm_compute_start_memory ~__context ?(policy = Dynamic_min) vm_record =
   if Xapi_fist.disable_memory_checks () then
     (0L, 0L)
   else
@@ -103,8 +97,7 @@ let vm_compute_used_memory ~__context policy vm_ref =
     let vm_record = Db.VM.get_record ~__context ~self:vm_ref in
     let memory_required =
       choose_memory_required ~policy
-        ~memory_dynamic_min:
-          vm_record.API.vM_memory_dynamic_min
+        ~memory_dynamic_min:vm_record.API.vM_memory_dynamic_min
           (* ToDo: Is vm_main_record or vm_boot_record the right thing for dynamic_max? *)
         ~memory_dynamic_max:vm_record.API.vM_memory_dynamic_max
         ~memory_static_max:vm_record.API.vM_memory_static_max
@@ -192,17 +185,15 @@ let host_compute_free_memory_with_policy ~__context summary policy =
 *)
 let host_compute_free_memory_with_maximum_compression ?(dump_stats = false)
     ~__context ~host ignore_scheduled_vm =
-  (*
-		Compute host free memory from what is actually running. Don't rely on
-		reported free memory, since this is an asychronously-computed metric
-		that's liable to change or be out of date.
-	*)
+  (* Compute host free memory from what is actually running. Don't rely on
+     reported free memory, since this is an asychronously-computed metric
+     that's liable to change or be out of date.
+  *)
   let summary = get_host_memory_summary ~__context ~host in
-  (*
-		When we're considering starting ourselves, and the host has reserved
-		resources ready for us, then we need to make sure we don't count these
-		reserved resources twice.
-	*)
+  (* When we're considering starting ourselves, and the host has reserved
+     resources ready for us, then we need to make sure we don't count these
+     reserved resources twice.
+  *)
   let summary =
     {
       summary with
@@ -216,12 +207,11 @@ let host_compute_free_memory_with_maximum_compression ?(dump_stats = false)
     }
   in
   let host_mem_available =
-    host_compute_free_memory_with_policy ~__context summary
-      (default_policy ~__context)
+    host_compute_free_memory_with_policy ~__context summary Dynamic_min
     (* consider ballooning *)
   in
   if dump_stats then (
-    let mib x = Int64.div (Int64.div x 1024L) 1024L in
+    let mib x = x /// 1024L /// 1024L in
     debug "Memory_check: total host memory: %Ld (%Ld MiB)"
       summary.host_maximum_guest_memory_bytes
       (mib summary.host_maximum_guest_memory_bytes) ;
@@ -255,7 +245,7 @@ let vm_compute_memory_overhead ~vm_record =
   let vcpu_count = Int64.to_int vm_record.API.vM_VCPUs_max in
   let model =
     match Helpers.check_domain_type vm_record.API.vM_domain_type with
-    | `hvm ->
+    | `hvm | `pvh ->
         Memory.HVM.overhead_mib
     | `pv_in_pvh ->
         Memory.PVinPVH.overhead_mib

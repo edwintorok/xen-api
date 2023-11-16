@@ -29,11 +29,17 @@ lint:
 	pycodestyle --ignore=E501 _build/default/xapi-storage/python/xapi/storage/api/v5/*.py
 
 test:
-	dune runtest --profile=$(PROFILE) --no-buffer -j $(JOBS)
+	dune runtest --profile=$(PROFILE) --error-reporting=twice -j $(JOBS)
+ifneq ($(PY_TEST), NO)
 	dune build @runtest-python --profile=$(PROFILE)
+endif
 
 stresstest:
 	dune build @stresstest --profile=$(PROFILE) --no-buffer -j $(JOBS)
+
+# check that the IDL hash is current
+schema:
+	dune runtest ocaml/idl
 
 doc:
 	dune build --profile=$(PROFILE) ocaml/idl/datamodel_main.exe
@@ -112,6 +118,8 @@ install: build doc sdk doc-json
 	scripts/install.sh 755 _build/install/default/bin/vncproxy $(DESTDIR)$(OPTDIR)/debug/vncproxy
 # ocaml/perftest
 	scripts/install.sh 755 _build/install/default/bin/perftest $(DESTDIR)$(OPTDIR)/debug/perftest
+# ocaml/suspend-image-viewer
+	scripts/install.sh 755 _build/install/default/bin/suspend-image-viewer $(DESTDIR)$(OPTDIR)/debug/suspend-image-viewer
 # ocaml/mpathalert
 	scripts/install.sh 755 _build/install/default/bin/mpathalert $(DESTDIR)$(OPTDIR)/bin/mpathalert
 # ocaml/license
@@ -131,9 +139,13 @@ install: build doc sdk doc-json
 # ocaml/rrd2csv
 	scripts/install.sh 755 _build/install/default/bin/rrd2csv $(DESTDIR)$(OPTDIR)/bin/rrd2csv
 	scripts/install.sh 644 ocaml/rrd2csv/man/rrd2csv.1.man $(DESTDIR)$(OPTMANDIR)/rrd2csv.1
+# ocaml/xs-trace
+	scripts/install.sh 755 _build/install/default/bin/xs-trace $(DESTDIR)/usr/bin/xs-trace
 # xcp-rrdd
 	install -D _build/install/default/bin/xcp-rrdd $(DESTDIR)/usr/sbin/xcp-rrdd
 	install -D _build/install/default/bin/rrddump $(DESTDIR)/usr/bin/rrddump
+# rrd-cli
+	install -D _build/install/default/bin/rrd-cli $(DESTDIR)/usr/bin/rrd-cli
 # rrd-transport
 	install -D _build/install/default/bin/rrdreader $(DESTDIR)/usr/bin/rrdreader
 	install -D _build/install/default/bin/rrdwriter $(DESTDIR)/usr/bin/rrdwriter
@@ -174,6 +186,7 @@ install: build doc sdk doc-json
 	install -D ./ocaml/xenopsd/scripts/igmp_query_injector.py $(DESTDIR)/$(XENOPSD_LIBEXECDIR)/igmp_query_injector.py
 	install -D ./ocaml/xenopsd/scripts/qemu-wrapper $(DESTDIR)/$(QEMU_WRAPPER_DIR)/qemu-wrapper
 	install -D ./ocaml/xenopsd/scripts/swtpm-wrapper $(DESTDIR)/$(QEMU_WRAPPER_DIR)/swtpm-wrapper
+	install -D ./ocaml/xenopsd/scripts/pygrub-wrapper $(DESTDIR)/$(QEMU_WRAPPER_DIR)/pygrub-wrapper
 	DESTDIR=$(DESTDIR) SBINDIR=$(SBINDIR) QEMU_WRAPPER_DIR=$(QEMU_WRAPPER_DIR) XENOPSD_LIBEXECDIR=$(XENOPSD_LIBEXECDIR) ETCDIR=$(ETCDIR) ./ocaml/xenopsd/scripts/make-custom-xenopsd.conf
 # squeezed
 	install -D _build/install/default/bin/squeezed $(DESTDIR)/$(SBINDIR)/squeezed
@@ -185,14 +198,12 @@ install: build doc sdk doc-json
 	install -m 755 _build/install/default/bin/wsproxy $(DESTDIR)$(LIBEXECDIR)/wsproxy
 # dune can install libraries and several other files into the right locations
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
-		xapi-client xapi-database xapi-schema xapi-consts xapi-cli-protocol xapi-datamodel xapi-types \
+		xapi-client xapi-schema xapi-consts xapi-cli-protocol xapi-datamodel xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
-		gzip http-svr pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
+		gzip http-lib pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
 		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
-		xapi-nbd varstored-guard xapi-log xapi-open-uri
-	make -C _build/default/ocaml/xapi-storage/python
-	make -C _build/default/ocaml/xapi-storage/python install DESTDIR=$(DESTDIR)
+		xapi-nbd varstored-guard xapi-log xapi-open-uri xapi-tracing xapi-expiry-alerts cohttp-posix
 # docs
 	mkdir -p $(DESTDIR)$(DOCDIR)
 	cp -r $(XAPIDOC)/jekyll $(DESTDIR)$(DOCDIR)
@@ -207,9 +218,16 @@ install: build doc sdk doc-json
 uninstall:
 	# only removes what was installed with `dune install`
 	dune uninstall --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
-		xapi-client xapi-database xapi-schema xapi-consts xapi-cli-protocol xapi-datamodel xapi-types \
+		xapi-client xapi-schema xapi-consts xapi-cli-protocol xapi-datamodel xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
-		gzip http-svr pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
+		gzip http-lib pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
 		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
-		xapi-open-uri
+		xapi-open-uri xapi-tracing xapi-expiry-alerts cohttp-posix
+
+compile_flags.txt: Makefile
+	(ocamlc -config-var ocamlc_cflags;\
+	ocamlc -config-var ocamlc_cppflags;\
+	echo -I$(shell ocamlc -where);\
+	echo -Wall -Wextra -Wstrict-prototypes -D_FORTIFY_SOURCE=2\
+	) | xargs -n1 echo >$@

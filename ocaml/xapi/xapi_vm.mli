@@ -189,6 +189,7 @@ val create :
   -> tags:string list
   -> blocked_operations:'a
   -> protection_policy:[`VMPP] Ref.t
+  -> is_snapshot_from_vmpp:bool
   -> snapshot_schedule:[`VMSS] Ref.t
   -> is_vmss_snapshot:bool
   -> appliance:API.ref_VM_appliance
@@ -419,3 +420,5 @@ val set_HVM_boot_policy :
 
 val set_NVRAM_EFI_variables :
   __context:Context.t -> self:API.ref_VM -> value:string -> unit
+
+val restart_device_models : __context:Context.t -> self:API.ref_VM -> unit

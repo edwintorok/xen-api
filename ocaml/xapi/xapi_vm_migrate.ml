@@ -111,10 +111,10 @@ let remote_of_dest ~__context dest =
   let rpc =
     match Db.Host.get_uuid ~__context ~self:dest_host with
     | _ ->
-        Helpers.make_remote_rpc remote_master_ip
+        Helpers.make_remote_rpc ~__context remote_master_ip
     | exception _ ->
         (* host unknown - this is a cross-pool migration *)
-        Helpers.make_remote_rpc ~verify_cert:None remote_master_ip
+        Helpers.make_remote_rpc ~__context ~verify_cert:None remote_master_ip
   in
   let sm_url =
     let url = List.assoc _sm dest in
@@ -246,11 +246,12 @@ let assert_can_migrate_vdis ~__context ~vdi_map =
 let assert_licensed_storage_motion ~__context =
   Pool_features.assert_enabled ~__context ~f:Features.Storage_motion
 
-let rec migrate_with_retries ~__context ~queue_name ~max ~try_no ~dbg ~vm_uuid
+let rec migrate_with_retries ~__context ~queue_name ~max ~try_no ~dbg:_ ~vm_uuid
     ~xenops_vdi_map ~xenops_vif_map ~xenops_vgpu_map ~xenops_url ~compress
     ~verify_cert =
   let open Xapi_xenops_queue in
   let module Client = (val make_client queue_name : XENOPS) in
+  let dbg = Context.string_of_task_and_tracing __context in
   let verify_dest = verify_cert <> None in
   let progress = ref "(none yet)" in
   let f () =
@@ -347,21 +348,24 @@ let infer_vgpu_map ~__context ?remote vm =
   | Some {rpc; session; _} -> (
       let session_id = session in
       let f vgpu =
-        let vgpu = XenAPI.VGPU.get_record ~rpc ~session_id ~self:vgpu in
+        (* avoid using get_record, allows to cross-pool migration to versions
+           that may have removed fields in the vgpu record *)
+        let pci = XenAPI.VGPU.get_PCI ~rpc ~session_id ~self:vgpu in
         let pf () =
-          vgpu.API.vGPU_scheduled_to_be_resident_on |> fun self ->
+          XenAPI.VGPU.get_scheduled_to_be_resident_on ~rpc ~session_id
+            ~self:vgpu
+          |> fun self ->
           XenAPI.PGPU.get_PCI ~rpc ~session_id ~self |> fun self ->
           XenAPI.PCI.get_pci_id ~rpc ~session_id ~self
           |> Xenops_interface.Pci.address_of_string
         in
         let vf () =
-          vgpu.API.vGPU_PCI |> fun self ->
-          XenAPI.PCI.get_pci_id ~rpc ~session_id ~self
+          XenAPI.PCI.get_pci_id ~rpc ~session_id ~self:pci
           |> Xenops_interface.Pci.address_of_string
         in
-        let pf_device = vgpu.API.vGPU_device in
+        let pf_device = XenAPI.VGPU.get_device ~rpc ~session_id ~self:vgpu in
         let vf_device = vf_device_of pf_device in
-        if vgpu.API.vGPU_PCI <> API.Ref.null then
+        if pci <> API.Ref.null then
           [(pf_device, pf ()); (vf_device, vf ())]
         else
           [(pf_device, pf ())]
@@ -1332,7 +1336,7 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
   (* This is a good time to check our VDIs, because the vdi_map should be
      complete at this point; it should include all the VDIs in the all_vdis list. *)
   assert_can_migrate_vdis ~__context ~vdi_map ;
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let open Xapi_xenops_queue in
   let queue_name = queue_of_vm ~__context ~self:vm in
   let module XenopsAPI = (val make_client queue_name : XENOPS) in
@@ -1476,17 +1480,22 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
         in
         List.map
           (fun vif ->
-            let vifr =
-              XenAPI.VIF.get_record ~rpc:remote.rpc ~session_id:remote.session
+            (* Avoid using get_record to allow judicious field removals in the future *)
+            let network =
+              XenAPI.VIF.get_network ~rpc:remote.rpc ~session_id:remote.session
+                ~self:vif
+            in
+            let device =
+              XenAPI.VIF.get_device ~rpc:remote.rpc ~session_id:remote.session
                 ~self:vif
             in
             let bridge =
               Xenops_interface.Network.Local
                 (XenAPI.Network.get_bridge ~rpc:remote.rpc
-                   ~session_id:remote.session ~self:vifr.API.vIF_network
+                   ~session_id:remote.session ~self:network
                 )
             in
-            (vifr.API.vIF_device, bridge)
+            (device, bridge)
           )
           vifs
       in
@@ -1523,6 +1532,7 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
               let verify_cert =
                 if is_intra_pool then Stunnel_client.pool () else None
               in
+              let dbg = Context.string_of_task __context in
               migrate_with_retry ~__context ~queue_name ~dbg ~vm_uuid
                 ~xenops_vdi_map ~xenops_vif_map ~xenops_vgpu_map
                 ~xenops_url:remote.xenops_url ~compress ~verify_cert ;
@@ -1676,8 +1686,8 @@ let migration_type ~__context ~remote =
 
 let assert_can_migrate ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~options
     ~vgpu_map =
+  Xapi_vm_helpers.assert_no_legacy_hardware ~__context ~vm ;
   assert_licensed_storage_motion ~__context ;
-  Xapi_vm_helpers.assert_dmc_compatible ~__context ~vm ;
   let remote = remote_of_dest ~__context dest in
   let force =
     try bool_of_string (List.assoc "force" options) with _ -> false
@@ -1748,15 +1758,10 @@ let assert_can_migrate ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~options
              , [Ref.string_of vm; Ref.string_of remote.dest_host]
              )
           ) ;
-      (* VTPMs can't be exported currently, which will make the migration fail *)
-      ( if Db.VM.get_VTPMs ~__context ~self:vm <> [] then
-          let message = "Cross-pool VM migration with VTPMs attached" in
-          Helpers.maybe_raise_vtpm_unimplemented __FUNCTION__ message
-      ) ;
+      let power_state = Db.VM.get_power_state ~__context ~self:vm in
       (* Check VDIs are not migrating to or from an SR which doesn't have required_sr_operations *)
       assert_sr_support_operations ~__context ~vdi_map ~remote
         ~ops:required_sr_operations ;
-      let power_state = Db.VM.get_power_state ~__context ~self:vm in
       (* The copy mode is only allow on stopped VM *)
       if (not force) && copy && power_state <> `Halted then
         raise

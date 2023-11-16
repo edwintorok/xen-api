@@ -42,7 +42,7 @@ type feature =
   | DR  (** Enable disaster recovery *)
   | VIF_locking
       (** Enable locking of VIFs to specific MAC addresses and IP addresses. *)
-  | Storage_motion  (** Enable Storage XenMotion feature *)
+  | Storage_motion  (** Enable Storage Live Migration feature *)
   | VGPU  (** Enable use of virtual GPUs *)
   | Integrated_GPU  (** Enable use of integrated GPU passthrough *)
   | VSS  (** Enable use of VSS *)
@@ -50,7 +50,7 @@ type feature =
       (** Enable use of the Windows guest agent auto-update feature. *)
   | PCI_device_for_auto_update
       (** Enable making new VMs with the PCI device that triggers Windows Update. *)
-  | Xen_motion  (** Enable XenMotion feature *)
+  | Xen_motion  (** Enable live migration feature *)
   | Guest_ip_setting  (** Enable use of Guest ip seting *)
   | AD  (** Enable use of Active Directory *)
   | Nested_virt  (** Enable the use of nested virtualisation *)
@@ -71,6 +71,7 @@ type feature =
   | Updates  (** Enable host updates from a repository *)
   | Internal_repo_access
       (** Enable restriction on repository access to pool members only *)
+  | VTPM  (** Support VTPM device required by Win11 guests *)
 
 val feature_of_rpc : Rpc.t -> feature
 (** Convert RPC into {!feature}s *)

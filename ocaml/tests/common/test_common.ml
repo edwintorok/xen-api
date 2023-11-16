@@ -55,6 +55,8 @@ let default_cpu_info =
   ; ("features_hvm_host", "")
   ]
 
+let cpu_policy_of_string = Xenops_interface.CPU_policy.of_string `host
+
 let make_localhost ~__context ?(features = Features.all_features) () =
   let host_info =
     {
@@ -83,11 +85,11 @@ let make_localhost ~__context ?(features = Features.all_features) () =
           ; model= ""
           ; stepping= ""
           ; flags= ""
-          ; features= [||]
-          ; features_pv= [||]
-          ; features_hvm= [||]
-          ; features_pv_host= [||]
-          ; features_hvm_host= [||]
+          ; features= cpu_policy_of_string ""
+          ; features_pv= cpu_policy_of_string ""
+          ; features_hvm= cpu_policy_of_string ""
+          ; features_pv_host= cpu_policy_of_string ""
+          ; features_hvm_host= cpu_policy_of_string ""
           }
     ; hypervisor= None
     ; chipset_info= None
@@ -138,13 +140,14 @@ let make_vm ~__context ?(name_label = "name_label")
     ?(pCI_bus = "") ?(other_config = []) ?(xenstore_data = [])
     ?(recommendations = "") ?(ha_always_run = false) ?(ha_restart_priority = "")
     ?(tags = []) ?(blocked_operations = []) ?(protection_policy = Ref.null)
-    ?(appliance = Ref.null) ?(start_delay = 0L) ?(snapshot_schedule = Ref.null)
-    ?(is_vmss_snapshot = false) ?(shutdown_delay = 0L) ?(order = 0L)
-    ?(suspend_SR = Ref.null) ?(suspend_VDI = Ref.null) ?(version = 0L)
-    ?(generation_id = "0:0") ?(hardware_platform_version = 0L)
-    ?has_vendor_device:_ ?(has_vendor_device = false) ?(reference_label = "")
-    ?(domain_type = `hvm) ?(nVRAM = []) ?(last_booted_record = "")
-    ?(last_boot_CPU_flags = []) ?(power_state = `Halted) () =
+    ?(is_snapshot_from_vmpp = false) ?(appliance = Ref.null) ?(start_delay = 0L)
+    ?(snapshot_schedule = Ref.null) ?(is_vmss_snapshot = false)
+    ?(shutdown_delay = 0L) ?(order = 0L) ?(suspend_SR = Ref.null)
+    ?(suspend_VDI = Ref.null) ?(version = 0L) ?(generation_id = "0:0")
+    ?(hardware_platform_version = 0L) ?has_vendor_device:_
+    ?(has_vendor_device = false) ?(reference_label = "") ?(domain_type = `hvm)
+    ?(nVRAM = []) ?(last_booted_record = "") ?(last_boot_CPU_flags = [])
+    ?(power_state = `Halted) () =
   Xapi_vm.create ~__context ~name_label ~name_description ~user_version
     ~is_a_template ~affinity ~memory_target ~memory_static_max
     ~memory_dynamic_max ~memory_dynamic_min ~memory_static_min ~vCPUs_params
@@ -154,23 +157,24 @@ let make_vm ~__context ?(name_label = "name_label")
     ~pV_legacy_args ~hVM_boot_policy ~hVM_boot_params ~hVM_shadow_multiplier
     ~platform ~nVRAM ~pCI_bus ~other_config ~xenstore_data ~recommendations
     ~ha_always_run ~ha_restart_priority ~tags ~blocked_operations
-    ~protection_policy ~appliance ~start_delay ~shutdown_delay ~order
-    ~suspend_SR ~suspend_VDI ~snapshot_schedule ~is_vmss_snapshot ~version
-    ~generation_id ~hardware_platform_version ~has_vendor_device
-    ~reference_label ~domain_type ~last_booted_record ~last_boot_CPU_flags
-    ~power_state
+    ~protection_policy ~is_snapshot_from_vmpp ~appliance ~start_delay
+    ~shutdown_delay ~order ~suspend_SR ~suspend_VDI ~snapshot_schedule
+    ~is_vmss_snapshot ~version ~generation_id ~hardware_platform_version
+    ~has_vendor_device ~reference_label ~domain_type ~last_booted_record
+    ~last_boot_CPU_flags ~power_state
 
 let make_host ~__context ?(uuid = make_uuid ()) ?(name_label = "host")
     ?(name_description = "description") ?(hostname = "localhost")
     ?(address = "127.0.0.1") ?(external_auth_type = "")
     ?(external_auth_service_name = "") ?(external_auth_configuration = [])
     ?(license_params = []) ?(edition = "free") ?(license_server = [])
-    ?(local_cache_sr = Ref.null) ?(chipset_info = []) ?(ssl_legacy = false) () =
+    ?(local_cache_sr = Ref.null) ?(chipset_info = []) ?(ssl_legacy = false)
+    ?(last_software_update = Date.epoch) () =
   let host =
     Xapi_host.create ~__context ~uuid ~name_label ~name_description ~hostname
       ~address ~external_auth_type ~external_auth_service_name
       ~external_auth_configuration ~license_params ~edition ~license_server
-      ~local_cache_sr ~chipset_info ~ssl_legacy
+      ~local_cache_sr ~chipset_info ~ssl_legacy ~last_software_update
   in
   Db.Host.set_cpu_info ~__context ~self:host ~value:default_cpu_info ;
   host
@@ -206,7 +210,8 @@ let make_host2 ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
     ~control_domain:Ref.null ~updates_requiring_reboot:[] ~iscsi_iqn:""
     ~multipathing:false ~uefi_certificates:"" ~editions:[] ~pending_guidances:[]
     ~tls_verification_enabled
-    ~last_software_update:(Xapi_host.get_servertime ~__context ~host:ref) ;
+    ~last_software_update:(Xapi_host.get_servertime ~__context ~host:ref)
+    ~recommended_guidances:[] ~latest_synced_updates_applied:`unknown ;
   ref
 
 let make_pif ~__context ~network ~host ?(device = "eth0")
@@ -252,8 +257,8 @@ let make_vif ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
     ?(qos_algorithm_type = "") ?(qos_algorithm_params = [])
     ?(qos_supported_algorithms = []) ?(currently_attached = false)
     ?(status_code = 0L) ?(status_detail = "") ?(runtime_properties = [])
-    ?(other_config = []) ?(locking_mode = `unlocked) ?(ipv4_allowed = [])
-    ?(ipv6_allowed = []) ?(ipv4_configuration_mode = `None)
+    ?(other_config = []) ?(metrics = Ref.null) ?(locking_mode = `unlocked)
+    ?(ipv4_allowed = []) ?(ipv6_allowed = []) ?(ipv4_configuration_mode = `None)
     ?(ipv4_addresses = []) ?(ipv4_gateway = "")
     ?(ipv6_configuration_mode = `None) ?(ipv6_addresses = [])
     ?(ipv6_gateway = "") () =
@@ -261,7 +266,7 @@ let make_vif ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
     ~reserved ~device ~network ~vM ~mAC ~mAC_autogenerated ~mTU
     ~qos_algorithm_type ~qos_algorithm_params ~qos_supported_algorithms
     ~currently_attached ~status_code ~status_detail ~runtime_properties
-    ~other_config ~locking_mode ~ipv4_allowed ~ipv6_allowed
+    ~other_config ~metrics ~locking_mode ~ipv4_allowed ~ipv6_allowed
     ~ipv4_configuration_mode ~ipv4_addresses ~ipv4_gateway
     ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway
     ~reserved_pci:Ref.null ;
@@ -286,7 +291,11 @@ let make_pool ~__context ~master ?(name_label = "") ?(name_description = "")
     ?(client_certificate_auth_enabled = false)
     ?(client_certificate_auth_name = "") ?(repository_proxy_url = "")
     ?(repository_proxy_username = "") ?(repository_proxy_password = Ref.null)
-    ?(migration_compression = false) ?(coordinator_bias = true) () =
+    ?(migration_compression = false) ?(coordinator_bias = true)
+    ?(telemetry_uuid = Ref.null) ?(telemetry_frequency = `weekly)
+    ?(telemetry_next_collection = API.Date.never)
+    ?(last_update_sync = API.Date.epoch) ?(update_sync_frequency = `daily)
+    ?(update_sync_day = 0L) ?(update_sync_enabled = false) () =
   let pool_ref = Ref.make () in
   Db.Pool.create ~__context ~ref:pool_ref ~uuid:(make_uuid ()) ~name_label
     ~name_description ~master ~default_SR ~suspend_image_SR ~crash_dump_SR
@@ -301,7 +310,10 @@ let make_pool ~__context ~master ?(name_label = "") ?(name_description = "")
     ~tls_verification_enabled:false ~repositories
     ~client_certificate_auth_enabled ~client_certificate_auth_name
     ~repository_proxy_url ~repository_proxy_username ~repository_proxy_password
-    ~migration_compression ~coordinator_bias ;
+    ~migration_compression ~coordinator_bias ~telemetry_uuid
+    ~telemetry_frequency ~telemetry_next_collection ~last_update_sync
+    ~local_auth_max_threads:8L ~ext_auth_max_threads:8L ~update_sync_frequency
+    ~update_sync_day ~update_sync_enabled ;
   pool_ref
 
 let default_sm_features =
@@ -361,12 +373,13 @@ let make_vbd ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
     ?(storage_lock = false) ?(empty = false) ?(reserved = false)
     ?(other_config = []) ?(currently_attached = false) ?(status_code = 0L)
     ?(status_detail = "") ?(runtime_properties = []) ?(qos_algorithm_type = "")
-    ?(qos_algorithm_params = []) ?(qos_supported_algorithms = []) () =
+    ?(qos_algorithm_params = []) ?(qos_supported_algorithms = [])
+    ?(metrics = Ref.make ()) () =
   Db.VBD.create ~__context ~ref ~uuid ~allowed_operations ~current_operations
     ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type ~unpluggable
     ~storage_lock ~empty ~reserved ~other_config ~currently_attached
     ~status_code ~status_detail ~runtime_properties ~qos_algorithm_type
-    ~qos_algorithm_params ~qos_supported_algorithms ;
+    ~qos_algorithm_params ~qos_supported_algorithms ~metrics ;
   ref
 
 let make_vdi ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
@@ -492,7 +505,6 @@ let make_pool_update ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
       ; after_apply_guidance
       ; enforce_homogeneity
       }
-    
   in
 
   Xapi_pool_update.create_update_record ~__context ~update:ref ~update_info ~vdi ;
@@ -648,3 +660,10 @@ let make_cluster_and_hosts ~__context extra_hosts =
     make_cluster_host ~__context ~cluster ~host ~pIF ()
   in
   (cluster, cluster_host :: List.mapi build_cluster_host extra_hosts)
+
+let make_observer ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+    ?(name_label = "") ?(name_description = "") ?(hosts = []) ?(enabled = false)
+    ?(attributes = []) ?(endpoints = []) ?(components = []) () =
+  Db.Observer.create ~__context ~ref ~uuid ~name_label ~name_description ~hosts
+    ~attributes ~endpoints ~components ~enabled ;
+  ref

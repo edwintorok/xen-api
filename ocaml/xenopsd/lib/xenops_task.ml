@@ -69,3 +69,23 @@ let is_task task = function
       Some Xenops_task.(get_state (handle_of_id tasks id))
   | _ ->
       None
+
+let parallel_id_with_tracing parallel_id t =
+  Debuginfo.make ~log:parallel_id ~tracing:(Xenops_task.tracing t)
+  |> Debuginfo.to_string
+
+let dbg_with_traceparent_of_task t =
+  Debuginfo.make ~log:(Xenops_task.get_dbg t) ~tracing:(Xenops_task.tracing t)
+  |> Debuginfo.to_string
+
+let traceparent_header_of_task t =
+  Option.map
+    (fun tracing ->
+      ( "traceparent"
+      , tracing
+        |> Tracing.Span.get_context
+        |> Tracing.SpanContext.to_traceparent
+      )
+    )
+    (Xenops_task.tracing t)
+  |> Option.to_list

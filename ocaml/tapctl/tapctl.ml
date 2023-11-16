@@ -45,7 +45,7 @@ module Stats = struct
       name: string
     ; secs: int64 * int64
     ; images: Image.t list
-    ; tap: Tap.t
+    ; tap: Tap.t option
     ; nbd_mirror_failed: int
     ; reqs_outstanding: int
   }
@@ -72,6 +72,8 @@ let get_tapdevstem ctx =
 type driver = Vhd | Aio
 
 let string_of_driver = function Vhd -> "vhd" | Aio -> "aio"
+
+let tapdev_of ~pid ~minor = {minor; tapdisk_pid= pid}
 
 (* DUMMY MODE FUNCTIONS *)
 
@@ -316,13 +318,13 @@ module Dummy = struct
           list
     )
 
-  let stats t =
+  let stats _t =
     let open Stats in
     {
       name= "none"
     ; secs= (0L, 0L)
     ; images= []
-    ; tap= {Tap.minor= t.minor; reqs= (0L, 0L); kicks= (0L, 0L)}
+    ; tap= None
     ; nbd_mirror_failed= 0
     ; reqs_outstanding= 0
     }
@@ -528,6 +530,13 @@ let of_device ctx path =
   let minor = stat.Unix.st_rdev mod 256 in
   if driver_of_major major <> "tapdev" then raise Not_blktap ;
   match List.filter (fun (tapdev, _, _) -> tapdev.minor = minor) (list ctx) with
+  | [t] ->
+      t
+  | _ ->
+      raise Not_found
+
+let find ctx ~pid ~minor =
+  match list ~t:{minor; tapdisk_pid= pid} ctx with
   | [t] ->
       t
   | _ ->

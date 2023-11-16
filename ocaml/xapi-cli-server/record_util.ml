@@ -131,6 +131,7 @@ let vm_operation_table =
   ; (`power_state_reset, "power_state_reset")
   ; (`csvm, "csvm")
   ; (`call_plugin, "call_plugin")
+  ; (`create_vtpm, "create_vtpm")
   ]
 
 let vm_operation_to_string x =
@@ -206,6 +207,14 @@ let update_guidance_to_string = function
       "restart_toolstack"
   | `restart_device_model ->
       "restart_device_model"
+
+let latest_synced_updates_applied_state_to_string = function
+  | `yes ->
+      "yes"
+  | `no ->
+      "no"
+  | `unknown ->
+      "unknown"
 
 let vdi_operation_to_string : API.vdi_operations -> string = function
   | `clone ->
@@ -570,6 +579,14 @@ let protocol_to_string = function
       "RFB"
   | `rdp ->
       "RDP"
+
+let telemetry_frequency_to_string = function
+  | `daily ->
+      "daily"
+  | `weekly ->
+      "weekly"
+  | `monthly ->
+      "monthly"
 
 let task_allowed_operations_to_string s =
   match s with `cancel -> "Cancel" | `destroy -> "Destroy"
@@ -987,6 +1004,8 @@ let domain_type_to_string = function
       "pv"
   | `pv_in_pvh ->
       "pv-in-pvh"
+  | `pvh ->
+      "pvh"
   | `unspecified ->
       "unspecified"
 
@@ -998,8 +1017,13 @@ let domain_type_of_string x =
       `pv
   | "pv-in-pvh" ->
       `pv_in_pvh
+  | "pvh" ->
+      `pvh
   | s ->
       raise (Record_failure ("Invalid domain type. Got " ^ s))
+
+let vtpm_operation_to_string (op : API.vtpm_operations) =
+  match op with `destroy -> "destroy"
 
 (** Parse a string which might have a units suffix on the end *)
 let bytes_of_string field x =
@@ -1118,3 +1142,18 @@ let mac_from_int_array macs =
 
 (* generate a random mac that is locally administered *)
 let random_mac_local () = mac_from_int_array (Array.make 6 (Random.int 0x100))
+
+let update_sync_frequency_to_string = function
+  | `daily ->
+      "daily"
+  | `weekly ->
+      "weekly"
+
+let update_sync_frequency_of_string s =
+  match String.lowercase_ascii s with
+  | "daily" ->
+      `daily
+  | "weekly" ->
+      `weekly
+  | _ ->
+      raise (Record_failure ("Expected 'daily', 'weekly', got " ^ s))

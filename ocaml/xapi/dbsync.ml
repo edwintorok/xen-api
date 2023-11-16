@@ -41,16 +41,16 @@ let create_host_metrics ~__context =
         let r = Ref.make () in
         Db.Host_metrics.create ~__context ~ref:r
           ~uuid:(Uuidx.to_string (Uuidx.make ()))
-          ~live:false ~memory_total:0L ~last_updated:Xapi_stdext_date.Date.never
-          ~other_config:[] ;
+          ~live:false ~memory_total:0L ~memory_free:0L
+          ~last_updated:Xapi_stdext_date.Date.never ~other_config:[] ;
         Db.Host.set_metrics ~__context ~self ~value:r
       )
     )
     (Db.Host.get_all ~__context)
 
-let update_env () =
-  Server_helpers.exec_with_new_task "dbsync (update_env)" ~task_in_database:true
-    (fun __context ->
+let update_env ~__context =
+  Server_helpers.exec_with_subtask ~__context "dbsync (update_env)"
+    ~task_in_database:true (fun ~__context ->
       let other_config =
         match Db.Pool.get_all ~__context with
         | [pool] ->
@@ -73,8 +73,8 @@ let update_env () =
       if not (Pool_role.is_master ()) then resync_dom0_config_files ()
   )
 
-let setup () =
-  try update_env ()
+let setup ~__context =
+  try update_env ~__context
   with exn ->
     Backtrace.is_important exn ;
     debug "dbsync caught an exception: %s" (ExnHelper.string_of_exn exn) ;

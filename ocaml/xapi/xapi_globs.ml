@@ -15,7 +15,6 @@
 (** A central location for settings related to xapi *)
 
 module String_plain = String (* For when we don't want the Xstringext version *)
-
 open Xapi_stdext_std.Xstringext
 
 module D = Debug.Make (struct let name = "xapi_globs" end)
@@ -457,6 +456,9 @@ let xapi_extensions_root = ref "/etc/xapi.d/extensions"
 
 let host_operations_miami = [`evacuate; `provision]
 
+(* Whether still support intel gvt-g vGPU *)
+let gvt_g_supported = ref true
+
 let rpu_allowed_vm_operations =
   [
     `assert_operation_valid
@@ -533,6 +535,9 @@ let pass_through_pif_carrier_key = "pass_through_pif_carrier"
 let pass_through_pif_carrier = ref false
 
 let vgpu_type_id = "type_id"
+
+(** key for NVidia vgpu "class" attribute in vgpuConfig.xml *)
+let vgpu_type_vclass = "vclass"
 
 let igd_passthru_key = "igd_passthrough"
 
@@ -749,6 +754,9 @@ let pool_secret_path = ref (Filename.concat "/etc/xensource" "ptoken")
 (* Path to server ssl certificate *)
 let server_cert_path = ref (Filename.concat "/etc/xensource" "xapi-ssl.pem")
 
+(* The group id of server ssl certificate file *)
+let server_cert_group_id = ref (-1)
+
 (* Path to server certificate used for host-to-host TLS connections *)
 let server_cert_internal_path =
   ref (Filename.concat "/etc/xensource" "xapi-pool-tls.pem")
@@ -815,9 +823,11 @@ let sm_dir = ref "/opt/xensource/sm"
 
 let web_dir = ref "/opt/xensource/www"
 
+let hsts_max_age = ref (-1)
+
 let website_https_only = ref true
 
-let migration_https_only = ref false
+let migration_https_only = ref true
 
 let cluster_stack_root = ref "/usr/libexec/xapi/cluster-stack"
 
@@ -844,7 +854,11 @@ let nbd_client_manager_script =
 
 let varstore_rm = ref "/usr/bin/varstore-rm"
 
-let varstore_dir = ref "/usr/share/varstored"
+let varstore_dir = ref "/var/lib/varstored"
+
+let default_auth_dir = ref "/usr/share/varstored"
+
+let override_uefi_certs = ref false
 
 let disable_logging_for = ref []
 
@@ -951,6 +965,8 @@ let winbind_allow_kerberos_auth_fallback = ref false
 
 let winbind_keep_configuration = ref false
 
+let winbind_ldap_query_subject_timeout = ref 20.
+
 let tdb_tool = ref "/usr/bin/tdbtool"
 
 let sqlite3 = ref "/usr/bin/sqlite3"
@@ -971,6 +987,21 @@ let conn_limit_tcp = ref 800
 let conn_limit_unix = ref 1024
 
 let conn_limit_clientcert = ref 800
+
+let trace_log_dir = ref "/var/log/dt/zipkinv2/json"
+
+let export_interval = ref 30.
+
+let max_spans = ref 1000
+
+let max_traces = ref 10000
+
+let compress_tracing_files = ref true
+
+let prefer_nbd_attach = ref false
+
+(** 1 MiB *)
+let max_observer_file_size = ref (1 lsl 20)
 
 let xapi_globs_spec =
   [
@@ -1051,6 +1082,10 @@ let xapi_globs_spec =
   ; ("conn_limit_tcp", Int conn_limit_tcp)
   ; ("conn_limit_unix", Int conn_limit_unix)
   ; ("conn_limit_clientcert", Int conn_limit_clientcert)
+  ; ("export_interval", Float export_interval)
+  ; ("max_spans", Int max_spans)
+  ; ("max_traces", Int max_traces)
+  ; ("max_observer_file_size", Int max_observer_file_size)
   ]
 
 let options_of_xapi_globs_spec =
@@ -1128,6 +1163,10 @@ let nvidia_default_host_driver_version = "0.0"
 type nvidia_t4_sriov = Nvidia_T4_SRIOV | Nvidia_LEGACY | Nvidia_DEFAULT
 
 let nvidia_t4_sriov = ref Nvidia_DEFAULT
+
+(** CP-41126. true - we are detaching the NVML library in gpumon; false -
+    we stop gpumon. *)
+let nvidia_gpumon_detach = ref false
 
 let failed_login_alert_freq = ref 3600
 
@@ -1217,6 +1256,11 @@ let other_options =
     , Arg.Set_string gvt_g_whitelist
     , (fun () -> !gvt_g_whitelist)
     , "path to the GVT-g whitelist file"
+    )
+  ; ( "gvt-g-supported"
+    , Arg.Set gvt_g_supported
+    , (fun () -> string_of_bool !gvt_g_supported)
+    , "indicates that this server still support intel gvt_g vGPU"
     )
   ; ( "mxgpu-whitelist"
     , Arg.Set_string mxgpu_whitelist
@@ -1335,6 +1379,17 @@ let other_options =
     , "Whether to clear winbind configuration when join domain failed or leave \
        domain"
     )
+  ; ( "winbind_ldap_query_subject_timeout"
+    , Arg.Set_float winbind_ldap_query_subject_timeout
+    , (fun () -> string_of_float !winbind_ldap_query_subject_timeout)
+    , "Timeout to perform ldap query for subject information"
+    )
+  ; ( "hsts_max_age"
+    , Arg.Set_int hsts_max_age
+    , (fun () -> string_of_int !hsts_max_age)
+    , "number of seconds after the reception of the STS header field, during \
+       which the UA as a known HSTS Host (default = -1 means HSTS is disabled)"
+    )
   ; ( "website-https-only"
     , Arg.Set website_https_only
     , (fun () -> string_of_bool !website_https_only)
@@ -1387,6 +1442,52 @@ let other_options =
     , Arg.Set ignore_vtpm_unimplemented
     , (fun () -> string_of_bool !ignore_vtpm_unimplemented)
     , "Do not raise errors on use-cases where VTPM codepaths are not finished."
+    )
+  ; ( "override-uefi-certs"
+    , Arg.Set override_uefi_certs
+    , (fun () -> string_of_bool !override_uefi_certs)
+    , "Enable (true) or Disable (false) overriding location for varstored UEFI \
+       certificates"
+    )
+  ; ( "server-cert-group-id"
+    , Arg.Set_int server_cert_group_id
+    , (fun () -> string_of_int !server_cert_group_id)
+    , "The group id of server ssl certificate file."
+    )
+  ; ( "export-interval"
+    , Arg.Set_float export_interval
+    , (fun () -> string_of_float !export_interval)
+    , "The interval for exports in Tracing"
+    )
+  ; ( "max-spans"
+    , Arg.Set_int max_spans
+    , (fun () -> string_of_int !max_spans)
+    , "The maximum amount of spans that can be in a trace in Tracing"
+    )
+  ; ( "max-traces"
+    , Arg.Set_int max_traces
+    , (fun () -> string_of_int !max_traces)
+    , "The maximum number of active traces going on in Tracing"
+    )
+  ; ( "prefer-nbd-attach"
+    , Arg.Set prefer_nbd_attach
+    , (fun () -> string_of_bool !prefer_nbd_attach)
+    , "Use NBD to attach disks to the control domain."
+    )
+  ; ( "observer-max-file-size"
+    , Arg.Set_int max_observer_file_size
+    , (fun () -> string_of_int !max_observer_file_size)
+    , "The maximum size of log files for saving spans"
+    )
+  ; ( "nvidia-gpumon-detach"
+    , Arg.Set nvidia_gpumon_detach
+    , (fun () -> string_of_bool !nvidia_gpumon_detach)
+    , "On VM start, detach the NVML library rather than stopping gpumon"
+    )
+  ; ( "compress-tracing-files"
+    , Arg.Set compress_tracing_files
+    , (fun () -> string_of_bool !compress_tracing_files)
+    , "Enable compression of the tracing log files"
     )
   ]
 
@@ -1487,15 +1588,9 @@ module Resources = struct
       , set_iSCSI_initiator_script
       , "Path to set-iscsi-initiator script"
       )
-    ; ("yum-cmd", yum_cmd, "Path to yum command")
-    ; ("reposync-cmd", reposync_cmd, "Path to reposync command")
     ; ("createrepo-cmd", createrepo_cmd, "Path to createrepo command")
     ; ("modifyrepo-cmd", modifyrepo_cmd, "Path to modifyrepo command")
     ; ("rpm-cmd", rpm_cmd, "Path to rpm command")
-    ; ( "yum-config-manager-cmd"
-      , yum_config_manager_cmd
-      , "Path to yum-config-manager command"
-      )
     ; ("c_rehash", c_rehash, "Path to Regenerate CA store")
     ]
 
@@ -1564,6 +1659,12 @@ module Resources = struct
     ; ( "SQLite database  management tool"
       , sqlite3
       , "Executed to manage SQlite Database, like PBIS database"
+      )
+    ; ("yum-cmd", yum_cmd, "Path to yum command")
+    ; ("reposync-cmd", reposync_cmd, "Path to reposync command")
+    ; ( "yum-config-manager-cmd"
+      , yum_config_manager_cmd
+      , "Path to yum-config-manager command"
       )
     ]
 
@@ -1644,6 +1745,10 @@ module Resources = struct
     ; ( "trusted-certs-dir"
       , trusted_certs_dir
       , "Directory containing certs of other trusted entities"
+      )
+    ; ( "trace-log-dir"
+      , trace_log_dir
+      , "Directory for storing traces exported to logs"
       )
     ]
 

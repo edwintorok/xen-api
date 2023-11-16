@@ -28,6 +28,8 @@ open D
 
 let my_connection : Stunnel.t option ref = ref None
 
+let delay = Scheduler.PipeDelay.make ()
+
 exception Uninitialised
 
 let is_slave : (unit -> bool) ref =
@@ -69,7 +71,7 @@ let force_connection_reset () =
        		   host and port are fixed values. *)
     let rec purge_stunnels verify_cert =
       match
-        Stunnel_cache.with_remove host port verify_cert @@ fun st ->
+        Stunnel_cache.with_remove ~host ~port verify_cert @@ fun st ->
         try Stunnel.disconnect ~wait:false ~force:true st with _ -> ()
       with
       | None ->
@@ -220,7 +222,7 @@ let do_db_xml_rpc_persistent_with_reopen ~host:_ ~path (req : string) :
       let req_string = req in
       let length = String.length req_string in
       if length > Db_globs.http_limit_max_rpc_size then
-        raise Http_svr.Client_requested_size_over_limit ;
+        raise Http.Client_requested_size_over_limit ;
       (* The pool_secret is added here and checked by the Xapi_http.add_handler RBAC code. *)
       let open Xmlrpc_client in
       let request =
@@ -255,11 +257,11 @@ let do_db_xml_rpc_persistent_with_reopen ~host:_ ~path (req : string) :
                 Unixfd.(!fd)
           )
     with
-    | Http_svr.Client_requested_size_over_limit ->
+    | Http.Client_requested_size_over_limit ->
         error "Content length larger than known limit (%d)."
           Db_globs.http_limit_max_rpc_size ;
         debug "Re-raising exception to caller." ;
-        raise Http_svr.Client_requested_size_over_limit
+        raise Http.Client_requested_size_over_limit
     (* TODO: This http exception handler caused CA-36936 and can probably be removed now that there's backoff delay in the generic handler _ below *)
     | Http_client.Http_error (http_code, err_msg) ->
         error
@@ -315,7 +317,10 @@ let do_db_xml_rpc_persistent_with_reopen ~host:_ ~path (req : string) :
           ) ;
         debug "Sleeping %f seconds before retrying master connection..."
           !backoff_delay ;
-        Thread.delay !backoff_delay ;
+        let timed_out = Scheduler.PipeDelay.wait delay !backoff_delay in
+        if not timed_out then
+          debug "%s: Sleep interrupted, retrying master connection now"
+            __FUNCTION__ ;
         update_backoff_delay () ;
         try open_secure_connection () with _ -> ()
         (* oh well, maybe nextime... *)

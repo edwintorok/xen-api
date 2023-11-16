@@ -29,8 +29,6 @@ val cleanup_all_pool_repositories : unit -> unit
 val cleanup_pool_repo :
   __context:Context.t -> self:[`Repository] API.Ref.t -> unit
 
-val with_reposync_lock : (unit -> 'a) -> 'a
-
 val sync :
      __context:Context.t
   -> self:[`Repository] API.Ref.t
@@ -67,12 +65,6 @@ val apply_updates :
   -> host:[`host] API.Ref.t
   -> hash:string
   -> Updateinfo.Guidance.t list * string list list
-
-val apply_immediate_guidances :
-     __context:Context.t
-  -> host:[`host] API.Ref.t
-  -> guidances:Updateinfo.Guidance.t list
-  -> unit
 
 val set_available_updates : __context:Context.t -> string
 

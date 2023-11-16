@@ -1308,7 +1308,20 @@ let gen_cmds rpc session_id =
       )
     ; Client.VTPM.(
         mk get_all_records_where get_by_uuid vtpm_record "vtpm" []
-          ["uuid"; "vm"; "profile"] rpc session_id
+          ["uuid"; "vm-uuid"; "profile"]
+          rpc session_id
+      )
+    ; Client.Observer.(
+        mk get_all_records_where get_by_uuid observer_record "observer" []
+          [
+            "uuid"
+          ; "name-label"
+          ; "name-description"
+          ; "host-uuids"
+          ; "endpoints"
+          ; "enabled"
+          ]
+          rpc session_id
       )
     ]
 
@@ -1823,6 +1836,42 @@ let pool_configure_repository_proxy _printer rpc session_id params =
 let pool_disable_repository_proxy _printer rpc session_id params =
   let pool = get_pool_with_default rpc session_id params "uuid" in
   Client.Pool.disable_repository_proxy ~rpc ~session_id ~self:pool
+
+let pool_reset_telemetry_uuid _printer rpc session_id params =
+  let pool = get_pool_with_default rpc session_id params "uuid" in
+  Client.Pool.reset_telemetry_uuid ~rpc ~session_id ~self:pool
+
+let pool_configure_update_sync _printer rpc session_id params =
+  let pool = get_pool_with_default rpc session_id params "uuid" in
+  let update_sync_frequency =
+    Record_util.update_sync_frequency_of_string
+      (List.assoc "update-sync-frequency" params)
+  in
+  let day = List.assoc_opt "update-sync-day" params in
+  let update_sync_day =
+    match (update_sync_frequency, day) with
+    | `daily, _ ->
+        0L
+    | `weekly, d ->
+        let invalid_day_msg =
+          "Invalid value for day picked, must be an integer from 0 to 6"
+        in
+        let day_int =
+          try Option.(map Int64.of_string d |> get)
+          with _ -> failwith invalid_day_msg
+        in
+        if day_int < 0L || day_int > 6L then
+          failwith invalid_day_msg
+        else
+          day_int
+  in
+  Client.Pool.configure_update_sync ~rpc ~session_id ~self:pool
+    ~update_sync_frequency ~update_sync_day
+
+let pool_set_update_sync_enabled _printer rpc session_id params =
+  let pool = get_pool_with_default rpc session_id params "uuid" in
+  let value = get_bool_param params "value" in
+  Client.Pool.set_update_sync_enabled ~rpc ~session_id ~self:pool ~value
 
 let vdi_type_of_string = function
   | "system" ->
@@ -2754,15 +2803,14 @@ let vm_create printer rpc session_id params =
       ~hVM_boot_policy:"" ~hVM_boot_params:[] ~hVM_shadow_multiplier:1.
       ~platform:[] ~pCI_bus:"" ~other_config:[] ~xenstore_data:[]
       ~recommendations:"" ~ha_always_run:false ~ha_restart_priority:"" ~tags:[]
-      ~protection_policy:Ref.null ~snapshot_schedule:Ref.null
-      ~is_vmss_snapshot:false ~appliance:Ref.null ~start_delay:0L
-      ~shutdown_delay:0L ~order:0L ~suspend_SR:Ref.null ~suspend_VDI:Ref.null
-      ~version:0L ~generation_id:"" ~hardware_platform_version:0L
-      ~has_vendor_device:false ~reference_label:"" ~domain_type:`unspecified
-      ~nVRAM:[] ~last_booted_record:"" ~last_boot_CPU_flags:[]
-      ~power_state:`Halted
+      ~protection_policy:Ref.null ~is_snapshot_from_vmpp:false
+      ~snapshot_schedule:Ref.null ~is_vmss_snapshot:false ~appliance:Ref.null
+      ~start_delay:0L ~shutdown_delay:0L ~order:0L ~suspend_SR:Ref.null
+      ~suspend_VDI:Ref.null ~version:0L ~generation_id:""
+      ~hardware_platform_version:0L ~has_vendor_device:false ~reference_label:""
+      ~domain_type:`unspecified ~nVRAM:[] ~last_booted_record:""
+      ~last_boot_CPU_flags:[] ~power_state:`Halted
   in
-
   let uuid = Client.VM.get_uuid ~rpc ~session_id ~self:vm in
   printer (Cli_printer.PList [uuid])
 
@@ -3767,6 +3815,15 @@ let vm_resume printer rpc session_id params =
        params ["on"; "progress"]
     )
 
+let vm_restart_device_models printer rpc session_id params =
+  ignore
+    (do_vm_op printer rpc session_id
+       (fun vm ->
+         Client.VM.restart_device_models ~rpc ~session_id ~self:(vm.getref ())
+       )
+       params []
+    )
+
 let vm_pause printer rpc session_id params =
   ignore
     (do_vm_op printer rpc session_id
@@ -4474,8 +4531,8 @@ let vm_migrate printer rpc session_id params =
   if use_sxm_migration then (
     printer
       (Cli_printer.PMsg
-         "Performing a Storage XenMotion migration. Your VM's VDIs will be \
-          migrated with the VM."
+         "Performing a storage live migration. Your VM's VDIs will be migrated \
+          with the VM."
       ) ;
     if
       not
@@ -4485,7 +4542,7 @@ let vm_migrate printer rpc session_id params =
         )
     then
       failwith
-        "Storage XenMotion requires remote-master, remote-username, and \
+        "Storage live migration requires remote-master, remote-username, and \
          remote-password to be specified. Please see 'xe help vm-migrate' for \
          help." ;
     let ip = List.assoc "remote-master" params in
@@ -5279,6 +5336,7 @@ let host_evacuate _printer rpc session_id params =
     (do_host_op rpc session_id ~multiple:false
        (fun _ host ->
          Client.Host.evacuate ~rpc ~session_id ~host:(host.getref ()) ~network
+           ~evacuate_batch_size:0L
        )
        params ["network-uuid"]
     )
@@ -5805,13 +5863,6 @@ let export_common fd _printer rpc session_id params filename num ?task_uuid
   in
   let vm_metadata_only = get_bool_param params "metadata" in
   let vm_record = vm.record () in
-  (* disallow exports and cross-pool migrations of VMs with VTPMs *)
-  ( if vm_record.API.vM_VTPMs <> [] then
-      let message = "Exporting VM metadata with VTPMs attached" in
-      (* Helpers.maybe_raise_vtpm_unimplemented cannot be used due to the
-         xapi_globs dependence *)
-      raise Api_errors.(Server_error (not_implemented, [message]))
-  ) ;
   let exporttask, task_destroy_fn =
     match task_uuid with
     | None ->
@@ -7875,4 +7926,56 @@ module VTPM = struct
     fail_without_force params ;
     let ref = Client.VTPM.get_by_uuid ~rpc ~session_id ~uuid in
     Client.VTPM.destroy ~rpc ~session_id ~self:ref
+end
+
+module Observer = struct
+  let create printer rpc session_id params =
+    let name_label = List.assoc "name-label" params in
+    let hosts =
+      List.assoc_opt "host-uuids" params
+      |> Option.fold ~none:[] ~some:(fun host_uuids ->
+             List.map
+               (fun uuid -> Client.Host.get_by_uuid ~rpc ~session_id ~uuid)
+               (String.split_on_char ',' host_uuids)
+         )
+    in
+    let name_description =
+      List.assoc_opt "name-description" params |> Option.value ~default:""
+    in
+    let enabled =
+      List.assoc_opt "enabled" params
+      |> Option.fold ~none:false ~some:(fun s ->
+             try Stdlib.bool_of_string s with _ -> false
+         )
+    in
+    let attributes =
+      List.assoc_opt "attributes" params
+      |> Option.fold ~none:[] ~some:(String.split_on_char ',')
+      |> List.filter_map (fun kv ->
+             match String.split_on_char ':' kv with
+             | [k; v] ->
+                 Some (k, v)
+             | _ ->
+                 None
+         )
+    in
+    let endpoints =
+      List.assoc_opt "endpoints" params
+      |> Option.fold ~none:["bugtool"] ~some:(String.split_on_char ',')
+    in
+    let components =
+      List.assoc_opt "components" params
+      |> Option.fold ~none:[] ~some:(String.split_on_char ',')
+    in
+    let observer =
+      Client.Observer.create ~rpc ~session_id ~name_label ~name_description
+        ~hosts ~attributes ~endpoints ~components ~enabled
+    in
+    let uuid = Client.Observer.get_uuid ~rpc ~session_id ~self:observer in
+    printer (Cli_printer.PList [uuid])
+
+  let destroy _printer rpc session_id params =
+    let uuid = List.assoc "uuid" params in
+    let self = Client.Observer.get_by_uuid ~rpc ~session_id ~uuid in
+    Client.Observer.destroy ~rpc ~session_id ~self
 end

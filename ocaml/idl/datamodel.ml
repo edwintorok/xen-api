@@ -459,16 +459,16 @@ end
 let iobandwidth =
   let msg = "Disabled and replaced by RRDs" in
   [
-    field ~persist:false ~qualifier:DynamicRO ~ty:Float "read_kbs"
-      "Read bandwidth (KiB/s)"
+    field ~persist:false ~qualifier:DynamicRO ~ty:Float
+      ~default_value:(Some (VFloat 0.)) "read_kbs" "Read bandwidth (KiB/s)"
       ~lifecycle:
         [
           (Published, rel_rio, "")
         ; (Deprecated, rel_tampa, "Dummy transition")
         ; (Removed, rel_tampa, msg)
         ]
-  ; field ~persist:false ~qualifier:DynamicRO ~ty:Float "write_kbs"
-      "Write bandwidth (KiB/s)"
+  ; field ~persist:false ~qualifier:DynamicRO ~ty:Float
+      ~default_value:(Some (VFloat 0.)) "write_kbs" "Write bandwidth (KiB/s)"
       ~lifecycle:
         [
           (Published, rel_rio, "")
@@ -922,7 +922,7 @@ module Host_metrics = struct
     [
       field ~qualifier:DynamicRO "total" "Total host memory (bytes)"
         ~doc_tags:[Memory]
-    ; field "free" "Free host memory (bytes)"
+    ; field "free" "Free host memory (bytes)" ~default_value:(Some (VInt 0L))
         ~lifecycle:
           [
             (Published, rel_rio, "")
@@ -1233,8 +1233,8 @@ module Network = struct
     create_obj ~in_db:true ~in_product_since:rel_rio ~in_oss_since:oss_since_303
       ~persist:PersistEverything ~gen_constructor_destructor:true ~name:_network
       ~descr:"A virtual network" ~gen_events:true ~doccomments:[]
-      ~messages_default_allowed_roles:
-        _R_VM_ADMIN (* vm admins can create/destroy networks without PIFs *)
+      ~messages_default_allowed_roles:_R_VM_ADMIN
+        (* vm admins can create/destroy networks without PIFs *)
       ~doc_tags:[Networking]
       ~messages:
         [
@@ -2670,6 +2670,7 @@ module VIF = struct
         @ [namespace ~name:"qos" ~contents:(qos "VIF") ()]
         @ [
             field ~qualifier:DynamicRO ~ty:(Ref _vif_metrics)
+              ~default_value:(Some (VRef null_ref))
               ~lifecycle:
                 [
                   (Published, rel_rio, "")
@@ -2799,8 +2800,8 @@ module Sr_stat = struct
       ~name:_sr_stat
       ~descr:"A set of high-level properties associated with an SR."
       ~gen_events:false ~messages:[] ~doccomments:[]
-      ~messages_default_allowed_roles:
-        (Some []) (* No messages, so no roles allowed to use them *)
+      ~messages_default_allowed_roles:(Some [])
+        (* No messages, so no roles allowed to use them *)
       ~contents:
         [
           field ~qualifier:DynamicRO ~lifecycle ~ty:(Option String) "uuid"
@@ -2836,8 +2837,8 @@ module Probe_result = struct
          Result elements and properties can change dynamically based on \
          changes to the the SR.probe input-parameters or the target."
       ~gen_events:false ~messages:[] ~doccomments:[]
-      ~messages_default_allowed_roles:
-        (Some []) (* No messages, so no roles allowed to use them *)
+      ~messages_default_allowed_roles:(Some [])
+        (* No messages, so no roles allowed to use them *)
       ~contents:
         [
           field ~qualifier:DynamicRO ~lifecycle
@@ -3506,7 +3507,9 @@ module LVHD = struct
       ~persist:PersistEverything ~gen_constructor_destructor:false ~name:_lvhd
       ~descr:"LVHD SR specific operations" ~gen_events:true ~doccomments:[]
       ~messages_default_allowed_roles:_R_POOL_ADMIN
-      ~messages:[enable_thin_provisioning] ~contents:[uid _lvhd] ()
+      ~messages:[enable_thin_provisioning]
+      ~contents:[uid _lvhd]
+      ()
 end
 
 (* --- rws: removed this after talking to Andy and Julian
@@ -3534,8 +3537,8 @@ module Vdi_nbd_server_info = struct
         "Details for connecting to a VDI using the Network Block Device \
          protocol"
       ~gen_events:false ~messages:[] ~doccomments:[]
-      ~messages_default_allowed_roles:
-        (Some []) (* No messages, so no roles allowed to use them *)
+      ~messages_default_allowed_roles:(Some [])
+        (* No messages, so no roles allowed to use them *)
       ~contents:
         [
           (* uid _vdi_nbd_server_info; The uuid is not needed here and only adds inconvenience. *)
@@ -4697,6 +4700,7 @@ module VBD = struct
         @ [namespace ~name:"qos" ~contents:(qos "VBD") ()]
         @ [
             field ~qualifier:DynamicRO ~ty:(Ref _vbd_metrics)
+              ~default_value:(Some (VRef null_ref))
               ~lifecycle:
                 [
                   (Published, rel_rio, "")
@@ -4731,6 +4735,7 @@ module VBD_metrics = struct
           uid _vbd_metrics
         ; namespace ~name:"io" ~contents:iobandwidth ()
         ; field ~qualifier:DynamicRO ~ty:DateTime
+            ~default_value:(Some (VDateTime Date.never))
             ~lifecycle:
               [
                 (Published, rel_rio, "")
@@ -4923,7 +4928,7 @@ module Subject = struct
           field ~in_product_since:rel_midnight_ride
             ~default_value:
               (Some (VSet [VRef ("OpaqueRef:" ^ Constants.rbac_pool_admin_uuid)])
-              )
+            )
               (* pool-admin, according to rbac_static.ml, used during upgrade from pre-rbac xapis *)
             ~ignore_foreign_key:true ~qualifier:DynamicRO ~ty:(Set (Ref _role))
             "roles" "the roles associated with this subject"
@@ -4976,9 +4981,9 @@ module Role = struct
       ~in_oss_since:None ~internal_deprecated_since:None
       ~persist:PersistEverything ~gen_constructor_destructor:false ~name:_role
       ~descr:"A set of permissions associated with a subject" ~gen_events:true
-      ~force_custom_actions:
-        (Some StaticRO) (* force custom actions for getters *) ~doccomments:[]
-      ~messages_default_allowed_roles:_R_POOL_ADMIN
+      ~force_custom_actions:(Some StaticRO)
+        (* force custom actions for getters *)
+      ~doccomments:[] ~messages_default_allowed_roles:_R_POOL_ADMIN
       ~messages:
         [
           get_permissions
@@ -5064,6 +5069,7 @@ module VM_metrics = struct
         ~ty:(Map (Int, Float))
         ~persist:false "utilisation"
         "Utilisation for all of guest's current VCPUs"
+        ~default_value:(Some (VMap []))
         ~lifecycle:
           [
             (Published, rel_rio, "")
@@ -5175,6 +5181,7 @@ module VM_guest_metrics = struct
             "Logically equivalent to PV_drivers_detected"
         ; field ~qualifier:DynamicRO
             ~ty:(Map (String, String))
+            ~default_value:(Some (VMap []))
             ~lifecycle:
               [
                 (Published, rel_rio, "free/used/total")
@@ -5189,6 +5196,7 @@ module VM_guest_metrics = struct
              memory_internal_free RRD data-sources instead."
         ; field ~qualifier:DynamicRO
             ~ty:(Map (String, String))
+            ~default_value:(Some (VMap []))
             ~lifecycle:
               [
                 (Published, rel_rio, "Disk configuration/free space")
@@ -7802,6 +7810,7 @@ let all_system =
   ; Datamodel_certificate.t
   ; Datamodel_diagnostics.t
   ; Datamodel_repository.t
+  ; Datamodel_observer.t
   ]
 
 (* If the relation is one-to-many, the "many" nodes (one edge each) must come before the "one" node (many edges) *)
@@ -8034,6 +8043,7 @@ let expose_get_all_messages_for =
   ; _certificate
   ; _repository
   ; _vtpm
+  ; _observer
   ]
 
 let no_task_id_for = [_task; (* _alert; *) _event]
@@ -8247,7 +8257,7 @@ let http_actions =
     , ( Get
       , Constants.get_vm_rrd_uri
       , true
-      , [String_query_arg "uuid"]
+      , [String_query_arg "uuid"; Bool_query_arg "json"]
       , _R_READ_ONLY
       , []
       )

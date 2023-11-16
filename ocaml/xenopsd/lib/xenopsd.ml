@@ -37,7 +37,7 @@ let vgpu_ready_timeout = ref 30.
 
 let varstored_ready_timeout = ref 30.
 
-let swtpm_ready_timeout = ref 30.
+let swtpm_ready_timeout = ref 60
 
 let use_upstream_qemu = ref false
 
@@ -307,7 +307,6 @@ let rpc_fn call =
               [Rpc.Dict [("debug_info", debug_info); ("metadata", metadata)]]
           ; is_notification= false
           }
-        
     | "query", [debug_info; unit_p] ->
         debug "Upgrading query" ;
         Rpc.
@@ -316,7 +315,6 @@ let rpc_fn call =
           ; params= [Rpc.Dict [("debug_info", debug_info); ("unit", unit_p)]]
           ; is_notification= false
           }
-        
     | _ ->
         call
   in
@@ -358,8 +356,11 @@ let handle_received_fd this_connection =
       let do_receive fn =
         let context = {Xenops_server.transferred_fd= Some received_fd} in
         let uri = Uri.of_string req.Xenops_migrate.Forwarded_http_request.uri in
-        fn uri req.Xenops_migrate.Forwarded_http_request.cookie this_connection
-          context
+        let traceparent =
+          req.Xenops_migrate.Forwarded_http_request.traceparent
+        in
+        fn uri req.Xenops_migrate.Forwarded_http_request.cookie traceparent
+          this_connection context
       in
       let uri = req.Xenops_migrate.Forwarded_http_request.uri in
       if has_prefix uri memory_prefix then
@@ -433,6 +434,8 @@ let log_uncaught_exception e bt =
 let main backend =
   Printexc.record_backtrace true ;
   Printexc.set_uncaught_exception_handler log_uncaught_exception ;
+  (* Set service name for Tracing *)
+  Tracing.Export.set_service_name "xenopsd" ;
   (* Listen for transferred file descriptors *)
   let forwarded_server =
     Xcp_service.make_socket_server (forwarded_path ()) handle_received_fd

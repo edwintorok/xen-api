@@ -1,0 +1,32 @@
+(library
+ (name xapi_idl_guard_varstored)
+ (public_name xapi-idl.guard.varstored)
+ (modules (:standard \ varstored_cli))
+ (libraries
+   rpclib.core
+   threads
+   xapi-idl.xen
+   xapi-idl.xen.interface
+   xcp
+ )
+ (preprocess (pps ppx_deriving_rpc)))
+
+(executable
+ (name varstored_cli)
+ (modes exe)
+ (modules varstored_cli)
+ (libraries
+   cmdliner
+   dune-build-info
+   rpclib.cmdliner
+   rpclib.core
+   rpclib.markdown
+   xapi-idl
+   xapi-idl.guard.varstored
+ ))
+
+(rule
+ (alias runtest)
+ (deps varstored_cli.exe)
+ (package xapi-idl)
+ (action (run %{deps} --help=plain)))

@@ -89,7 +89,7 @@ let client_api ~sync api =
 let ctor_fields (obj : obj) =
   List.filter
     (function {DT.qualifier= DT.StaticRO | DT.RW; _} -> true | _ -> false)
-    (DU.active_fields_of_obj obj)
+    (DU.fields_of_obj obj)
 
 (* Compute a message parameter list from a message suitable for the client (only!) *)
 let args_of_message ?(expand_record = true) (obj : obj)
@@ -195,8 +195,7 @@ let gen_module api : O.Module.t =
         OU.alias_of_ty task
     in
     O.Let.make
-      ~name:
-        x.msg_name
+      ~name:x.msg_name
         (* Plus ~rpc:(xml -> xml) function (alternative to using functor) *)
       ~params:(_rpc :: args) ~ty:return_type
       ~body:

@@ -20,6 +20,7 @@ module UpdateIdSet = Set.Make (String)
 open Rpm
 open Updateinfo
 module LivePatchSet = Set.Make (LivePatch)
+module RpmFullNameSet = Set.Make (String)
 
 let exposing_pool_repo_mutex = Mutex.create ()
 
@@ -131,7 +132,7 @@ module GuidanceSet = struct
     ; (EvacuateHost, of_list [RestartDeviceModel])
     ]
 
-  let resort_guidances ~kind gs =
+  let resort_guidances ~remove_evacuations gs =
     let gs' =
       List.fold_left
         (fun acc (higher, lowers) ->
@@ -142,7 +143,10 @@ module GuidanceSet = struct
         )
         gs precedences
     in
-    match kind with Recommended -> gs' | Absolute -> remove EvacuateHost gs'
+    if remove_evacuations then
+      remove EvacuateHost gs'
+    else
+      gs'
 end
 
 let create_repository_record ~__context ~name_label ~name_description
@@ -646,8 +650,18 @@ let eval_guidances ~updates_info ~updates ~kind ~livepatches ~failed_livepatches
     )
     GuidanceSet.empty updates
   |> append_livepatch_guidances ~updates_info ~upd_ids_of_livepatches
-  |> GuidanceSet.resort_guidances ~kind
+  |> GuidanceSet.resort_guidances ~remove_evacuations:(kind = Guidance.Absolute)
   |> GuidanceSet.elements
+
+let merge_with_unapplied_guidances ~__context ~host ~guidances =
+  let open GuidanceSet in
+  Db.Host.get_pending_guidances ~__context ~self:host
+  |> List.map (fun g -> Guidance.of_update_guidance g)
+  |> List.filter (fun g -> g <> Guidance.RebootHostOnLivePatchFailure)
+  |> of_list
+  |> union (of_list guidances)
+  |> resort_guidances ~remove_evacuations:false
+  |> elements
 
 let repoquery_sep = ":|"
 
@@ -716,6 +730,255 @@ let get_updates_from_repoquery repositories =
     |> List.filter (fun (pkg, _) -> not (is_obsoleted pkg.Pkg.name repositories))
   in
   new_updates @ updates
+
+(* Parser module for the output of command yum upgrade *)
+module YumUpgradeOutput = struct
+  open Angstrom
+
+  let consume = Consume.Prefix
+
+  let is_eol = function '\n' -> true | _ -> false
+
+  let is_white = Astring.Char.Ascii.is_white
+
+  let rec line ~section ~section_acc ~acc =
+    let rec line_after_txn_summary sections =
+      at_end_of_input >>= function
+      | false -> (
+          take_till is_eol <* end_of_line >>= function
+          | l
+            when String.starts_with
+                   ~prefix:" yum load-transaction /tmp/yum_save_tx." l
+                 && String.ends_with ~suffix:".yumtx" l ->
+              return (sections, Some l)
+          | _ ->
+              line_after_txn_summary sections
+        )
+      | true ->
+          return (sections, None)
+    in
+    (* The following sections/separators come from
+     * https://github.com/rpm-software-management/yum/blob/master/output.py#L1569-L1576
+     *)
+    at_end_of_input >>= function
+    | false -> (
+        take_till is_eol <* end_of_line >>= function
+        | ( "Installing:"
+          | "Updating:"
+          | "Upgrading:"
+          | "Removing:"
+          | "Reinstalling:"
+          | "Downgrading:"
+          | "Installing for dependencies:"
+          | "Updating for dependencies:"
+          | "Removing for dependencies:" ) as section' -> (
+          (* a new section *)
+          match section with
+          | Some s ->
+              (* wrap up the old seciton and save it to the final accumulation *)
+              line ~section:(Some section') ~section_acc:[]
+                ~acc:((s, section_acc) :: acc)
+          | None ->
+              (* this new section is the first one *)
+              line ~section:(Some section') ~section_acc:[] ~acc
+        )
+        | "Transaction Summary" -> (
+          match section with
+          | Some s ->
+              (* save the last section to the final accumulation *)
+              line_after_txn_summary ((s, section_acc) :: acc)
+          | None ->
+              line_after_txn_summary acc
+        )
+        | l -> (
+          match
+            ( section
+            , String.starts_with ~prefix:"     replacing " l
+            , String.starts_with ~prefix:"Error: " l
+            )
+          with
+          | Some s, true, false ->
+              (* in a section, but starting with 'replacing', ignoring the line.
+               * https://github.com/rpm-software-management/yum/blob/master/output.py#L1622
+               *)
+              line ~section:(Some s) ~section_acc ~acc
+          | Some s, false, false ->
+              (* in a section, append to the section's list *)
+              line ~section:(Some s) ~section_acc:(l :: section_acc) ~acc
+          | None, false, true ->
+              (* error reported from yum upgrade *)
+              fail l
+          | None, false, false ->
+              (* not in any section, ignoring the line *)
+              line ~section:None ~section_acc:[] ~acc
+          | _ ->
+              fail
+                (Printf.sprintf
+                   "Unexpected output from yum upgrade (dry run): %s" l
+                )
+        )
+      )
+    | true ->
+        return ([], None)
+
+  let word =
+    skip_while is_white >>= fun () ->
+    take_while1 (fun x -> not (is_white x)) >>= fun s ->
+    skip_while is_white >>= fun () -> return s
+
+  let package =
+    word >>= fun name ->
+    word >>= fun arch ->
+    word >>= fun epoch_version_release ->
+    word >>= fun repo ->
+    word >>= fun _ ->
+    word >>= fun _ ->
+    match Pkg.parse_epoch_version_release epoch_version_release with
+    | epoch, version, release ->
+        return (Pkg.{name; epoch; version; release; arch}, repo)
+    | exception e ->
+        let msg =
+          Printf.sprintf "parse_epoch_version_release: %s"
+            (ExnHelper.string_of_exn e)
+        in
+        fail msg
+
+  let packages = many_till package end_of_input
+
+  let parse_yum_txn_file txn_line_opt =
+    let txn_line =
+      skip_while is_white >>= fun () ->
+      string "yum load-transaction " >>= fun _ ->
+      take_till is_white >>= fun s -> return s
+    in
+    match txn_line_opt with
+    | Some line -> (
+      match parse_string ~consume txn_line line with
+      | Ok txn_file_path ->
+          Some txn_file_path
+      | Error msg ->
+          warn "Can't parse transaction file from line %s: %s." line msg ;
+          None
+    )
+    | None ->
+        None
+
+  let parse_output_of_dry_run output =
+    Astring.String.cuts ~sep:"\n" output
+    |> List.iter (fun x -> debug "yum upgrade (dry run): %s" x) ;
+
+    match
+      (parse_string ~consume (line ~section:None ~section_acc:[] ~acc:[]))
+        output
+    with
+    | Ok ((_ :: _ as sections), txn_line_opt) -> (
+        let txn_file = parse_yum_txn_file txn_line_opt in
+        let get_pkgs lines =
+          let s = String.concat "\n" (List.rev_append lines []) in
+          parse_string ~consume packages s
+        in
+        sections
+        |> List.filter (fun (section, _) ->
+               match section with
+               | "Installing:"
+               | "Updating:"
+               | "Upgrading:"
+               | "Installing for dependencies:"
+               | "Updating for dependencies:" ->
+                   true
+               | _ ->
+                   false
+           )
+        |> List.fold_left
+             (fun acc (section, lines) ->
+               match (acc, get_pkgs lines) with
+               | Ok acc', Ok pkgs ->
+                   Ok (List.rev_append pkgs acc')
+               | Error msg, _ ->
+                   Error msg
+               | _, Error msg ->
+                   error "Failed to parse packages for '%s': %s" section msg ;
+                   Error msg
+             )
+             (Ok [])
+        |> function
+        | Ok pkgs ->
+            let pkgs' =
+              List.fast_sort
+                (fun (x, _) (y, _) -> String.compare x.Pkg.name y.Pkg.name)
+                pkgs
+            in
+            Ok (pkgs', txn_file)
+        | Error msg ->
+            Error msg
+      )
+    | Ok ([], None) ->
+        debug "No updates from yum upgrade (dry run)" ;
+        Ok ([], None)
+    | Ok ([], Some _) ->
+        Error "Unexpected output from yum upgrade (dry run)"
+    | Error msg ->
+        Error
+          (Printf.sprintf "Can't parse output from yum upgrade (dry run): %s"
+             msg
+          )
+end
+
+let get_updates_from_yum_upgrade_dry_run repositories =
+  let params =
+    [
+      "--disablerepo=*"
+    ; Printf.sprintf "--enablerepo=%s" (String.concat "," repositories)
+    ; "--assumeno"
+    ; "--quiet"
+    ; "upgrade"
+    ]
+  in
+  match Forkhelpers.execute_command_get_output !Xapi_globs.yum_cmd params with
+  | _, _ ->
+      Some []
+  | exception Forkhelpers.Spawn_internal_error (stderr, _, Unix.WEXITED 1) -> (
+      stderr |> YumUpgradeOutput.parse_output_of_dry_run |> function
+      | Ok (pkgs, Some txn_file) ->
+          Unixext.unlink_safe txn_file ;
+          Some pkgs
+      | Ok (pkgs, None) ->
+          Some pkgs
+      | Error msg ->
+          error "%s" msg ; None
+    )
+  | exception e ->
+      error "%s" (ExnHelper.string_of_exn e) ;
+      None
+
+let get_latest_updates_from_redundancy ~fail_on_error ~pkgs ~fallback_pkgs =
+  let err = "Failed to parse output of 'yum upgrade (dry run)' correctly" in
+  let get_latest_updates_from_redundancy' ~fail_on_error ~pkgs ~fallback_pkgs =
+    let to_set l =
+      List.map (fun (pkg, _) -> Rpm.Pkg.to_fullname pkg) l
+      |> RpmFullNameSet.of_list
+    in
+    let is_subset l' l'' = RpmFullNameSet.subset (to_set l') (to_set l'') in
+    match (fail_on_error, is_subset pkgs fallback_pkgs) with
+    | _, true ->
+        debug "Use 'yum upgrade (dry run)'" ;
+        pkgs
+    | true, false ->
+        raise Api_errors.(Server_error (internal_error, [err]))
+    | false, false ->
+        (* falling back *)
+        warn "%s" err ; fallback_pkgs
+  in
+  match (fail_on_error, pkgs) with
+  | true, None ->
+      raise Api_errors.(Server_error (internal_error, [err]))
+  | false, None ->
+      (* falling back *)
+      warn "%s" err ; fallback_pkgs
+  | _, Some pkgs' ->
+      debug "Checking both 'yum upgrade' and 'repoquery' ..." ;
+      get_latest_updates_from_redundancy' ~fail_on_error ~pkgs:pkgs'
+        ~fallback_pkgs
 
 let validate_latest_updates ~latest_updates ~accumulative_updates =
   List.map
@@ -970,7 +1233,6 @@ let consolidate_updates_of_host ~repository_name ~updates_info host
           ; version= u.Update.new_version
           ; release= u.Update.new_release
           }
-        
       )
       latest_updates
   in
@@ -1011,7 +1273,6 @@ let consolidate_updates_of_host ~repository_name ~updates_info host
       ; update_ids= UpdateIdSet.elements upd_ids
       ; livepatches= lps
       }
-    
   in
 
   (host_updates, upd_ids)
@@ -1028,8 +1289,7 @@ let append_by_key l k v =
         else
           (acc_vals_of_k, (x, y) :: acc_others)
       )
-      ([v], [])
-      l
+      ([v], []) l
   in
   (k, vals) :: others
 
@@ -1076,3 +1336,16 @@ let prune_updateinfo_for_livepatches livepatches updateinfo =
     List.filter (fun x -> LivePatchSet.mem x livepatches) updateinfo.livepatches
   in
   {updateinfo with livepatches= lps}
+
+let do_with_device_models ~__context ~host f =
+  (* Call f with device models of all running HVM VMs on the host *)
+  Db.Host.get_resident_VMs ~__context ~self:host
+  |> List.map (fun self -> (self, Db.VM.get_record ~__context ~self))
+  |> List.filter (fun (_, record) -> not record.API.vM_is_control_domain)
+  |> List.filter_map f
+  |> function
+  | [] ->
+      ()
+  | _ :: _ ->
+      let host' = Ref.string_of host in
+      raise Api_errors.(Server_error (cannot_restart_device_model, [host']))

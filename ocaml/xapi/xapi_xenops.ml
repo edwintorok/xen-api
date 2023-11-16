@@ -263,7 +263,7 @@ let firmware_of_vm vm =
       default_firmware
 
 let varstore_rm_with_sandbox ~__context ~vm_uuid f =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let domid = 0 in
   let chroot, socket_path =
     Xenops_sandbox.Varstore_guard.start dbg ~domid ~vm_uuid ~paths:[]
@@ -339,12 +339,15 @@ let rtc_timeoffset_of_vm ~__context (vm, vm_t) vbds =
 
 (* /boot/ contains potentially sensitive files like xen-initrd, so we will only*)
 (* allow directly booting guests from the subfolder /boot/guest/ *)
-let allowed_dom0_directory_for_boot_files = "/boot/guest/"
+let allowed_dom0_directories_for_boot_files =
+  ["/boot/guest/"; "/var/lib/xcp/guest"]
 
 let is_boot_file_whitelisted filename =
   let safe_str str = not (String.has_substr str "..") in
   (* make sure the script prefix is the allowed dom0 directory *)
-  String.startswith allowed_dom0_directory_for_boot_files filename
+  List.exists
+    (fun allowed -> String.starts_with ~prefix:allowed filename)
+    allowed_dom0_directories_for_boot_files
   (* avoid ..-style attacks and other weird things *)
   && safe_str filename
 
@@ -486,48 +489,29 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
     {
       boot= Direct {kernel= k; cmdline= ka; ramdisk= initrd}
     ; framebuffer= bool vm.API.vM_platform false "pvfb"
-    ; framebuffer_ip= None
-    ; (* None PR-1255 *)
-      vncterm=
-        ( match List.mem_assoc "disable_pv_vnc" vm.API.vM_other_config with
-        | true ->
-            false
-        | false ->
-            true
-        )
+    ; framebuffer_ip= None (* None PR-1255 *)
+    ; vncterm= not (List.mem_assoc "disable_pv_vnc" vm.API.vM_other_config)
     ; vncterm_ip= None (*None PR-1255*)
     ; pci_passthrough= List.mem_assoc "pci" vm.API.vM_other_config
     }
   in
   let make_indirect_boot_record
-      {
-        Helpers.bootloader= b
-      ; extra_args= e
-      ; legacy_args= l
-      ; pv_bootloader_args= p
-      ; vdis
-      } =
+      {Helpers.bootloader; extra_args; legacy_args; pv_bootloader_args= p; vdis}
+      =
     {
       boot=
         Indirect
           {
-            bootloader= b
-          ; extra_args= e
-          ; legacy_args= l
+            bootloader
+          ; extra_args
+          ; legacy_args
           ; bootloader_args= p
           ; devices=
               List.filter_map (fun x -> disk_of_vdi ~__context ~self:x) vdis
           }
     ; framebuffer= bool vm.API.vM_platform false "pvfb"
-    ; framebuffer_ip= None
-    ; (* None PR-1255 *)
-      vncterm=
-        ( match List.mem_assoc "disable_pv_vnc" vm.API.vM_other_config with
-        | true ->
-            false
-        | false ->
-            true
-        )
+    ; framebuffer_ip= None (* None PR-1255 *)
+    ; vncterm= not (List.mem_assoc "disable_pv_vnc" vm.API.vM_other_config)
     ; vncterm_ip= None (*None PR-1255*)
     ; pci_passthrough= List.mem_assoc "pci" vm.API.vM_other_config
     }
@@ -535,7 +519,6 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
   match
     Helpers.
       (check_domain_type vm.API.vM_domain_type, boot_method_of_vm ~__context ~vm)
-    
   with
   | `hvm, Helpers.Hvmloader _ ->
       HVM (make_hvmloader_boot_record ())
@@ -547,11 +530,13 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
       PVinPVH (make_direct_boot_record options)
   | `pv_in_pvh, Helpers.Indirect options ->
       PVinPVH (make_indirect_boot_record options)
+  | `pvh, Helpers.Direct options ->
+      PVH (make_direct_boot_record options)
+  | `pvh, Helpers.Indirect options ->
+      PVH (make_indirect_boot_record options)
   | _ ->
-      raise
-        Api_errors.(
-          Server_error (internal_error, ["invalid boot configuration"])
-        )
+      let msg = "invalid boot configuration" in
+      raise Api_errors.(Server_error (internal_error, [msg]))
 
 let list_net_sriov_vf_pcis ~__context ~vm =
   vm.API.vM_VIFs
@@ -572,7 +557,7 @@ module MD = struct
       match vm.API.vM_domain_type with
       | `hvm ->
           true
-      | `pv_in_pvh | `pv | `unspecified ->
+      | `pv_in_pvh | `pv | `pvh | `unspecified ->
           false
     in
     let device_number = Device_number.of_string hvm vbd.API.vBD_userdevice in
@@ -661,9 +646,8 @@ module MD = struct
     in
     let backend_kind_keys = other_config_keys Xapi_globs.vbd_backend_key in
     let poll_duration_keys =
-      in_range ~min:0 ~max:max_int
-        ~fallback:
-          0 (* if user provides invalid integer, use 0 = disable polling *)
+      in_range ~min:0 ~max:max_int ~fallback:0
+        (* if user provides invalid integer, use 0 = disable polling *)
         (other_config_keys Xapi_globs.vbd_polling_duration_key
            ~default:
              (Some (string_of_int !Xapi_globs.default_vbd3_polling_duration))
@@ -962,10 +946,11 @@ module MD = struct
     let physical_pci_address = get_target_pci_address ~__context vgpu in
     let virtual_pci_address = get_virtual_pci_address ~__context vgpu in
     let vgpu_type = vgpu.Db_actions.vGPU_type in
-    let type_id, config_file =
-      Db.VGPU_type.get_internal_config ~__context ~self:vgpu_type |> fun x ->
-      ( List.assoc_opt Xapi_globs.vgpu_type_id x
-      , List.assoc_opt Xapi_globs.nvidia_compat_config_file_key x
+    let type_id, config_file, vclass =
+      Db.VGPU_type.get_internal_config ~__context ~self:vgpu_type |> fun kv ->
+      ( List.assoc_opt Xapi_globs.vgpu_type_id kv
+      , List.assoc_opt Xapi_globs.nvidia_compat_config_file_key kv
+      , List.assoc_opt Xapi_globs.vgpu_type_vclass kv
       )
     in
     let uuid = vgpu.Db_actions.vGPU_uuid in
@@ -980,6 +965,7 @@ module MD = struct
         ; type_id
         ; uuid= Some uuid
         ; extra_args
+        ; vclass (* from vgpuType class attribute in vgpuConfig.xml *)
         }
     in
     {
@@ -1138,10 +1124,10 @@ module MD = struct
     let open Vm in
     let scheduler_params =
       (* vcpu <-> pcpu affinity settings are stored here.
-         			   Format is either:
-         			   1,2,3         ::  all vCPUs receive this mask
-         			   1,2,3; 4,5,6  ::  vCPU n receives mask n. Unlisted vCPUs
-         			                     receive first mask *)
+         Format is either:
+         1,2,3         ::  all vCPUs receive this mask
+         1,2,3; 4,5,6  ::  vCPU n receives mask n. Unlisted vCPUs
+                           receive first mask *)
       let affinity =
         try
           List.map
@@ -1394,7 +1380,7 @@ module Guest_agent_features = struct
 end
 
 let apply_guest_agent_config ~__context config =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let features = Guest_agent_features.of_config ~__context config in
   let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
   Client.HOST.update_guest_agent_features dbg features
@@ -1671,7 +1657,7 @@ module Xenopsd_metadata = struct
         let md = create_metadata ~__context ~self in
         let txt = md |> rpc_of Metadata.t |> Jsonrpc.to_string in
         info "xenops: VM.import_metadata %s" txt ;
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client (queue_of_vm ~__context ~self)
                                 : XENOPS
                             )
@@ -1684,7 +1670,7 @@ module Xenopsd_metadata = struct
     )
 
   let delete_nolock ~__context id =
-    let dbg = Context.string_of_task __context in
+    let dbg = Context.string_of_task_and_tracing __context in
     info "xenops: VM.remove %s" id ;
     try
       let module Client = ( val make_client
@@ -1711,7 +1697,7 @@ module Xenopsd_metadata = struct
   let pull ~__context id =
     with_lock metadata_m (fun () ->
         info "xenops: VM.export_metadata %s" id ;
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client
                                     (queue_of_vm ~__context
                                        ~self:(vm_of_id ~__context id)
@@ -1745,7 +1731,7 @@ module Xenopsd_metadata = struct
     let id = id_of_vm ~__context ~self in
     let queue_name = queue_of_vm ~__context ~self in
     with_lock metadata_m (fun () ->
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         if vm_exists_in_xenopsd queue_name dbg id then
           let txt =
             create_metadata ~__context ~self
@@ -1827,21 +1813,19 @@ module Events_from_xenopsd = struct
     let module Client = (val make_client queue_name : XENOPS) in
     Client.UPDATES.remove_barrier dbg id ;
     let t =
-      with_lock active_m (fun () ->
-          if not (Hashtbl.mem active id) then (
-            warn "Events_from_xenopsd.wakeup: unknown id %d" id ;
-            None
-          ) else
-            let t = Hashtbl.find active id in
-            Hashtbl.remove active id ; Some t
-      )
+      with_lock active_m @@ fun () ->
+      if not (Hashtbl.mem active id) then (
+        warn "Events_from_xenopsd.wakeup: unknown id %d" id ;
+        None
+      ) else
+        let t = Hashtbl.find active id in
+        Hashtbl.remove active id ; Some t
     in
     Option.iter
       (fun t ->
-        with_lock t.m (fun () ->
-            t.finished <- true ;
-            Condition.signal t.c
-        )
+        with_lock t.m @@ fun () ->
+        t.finished <- true ;
+        Condition.signal t.c
       )
       t
 
@@ -1887,7 +1871,7 @@ let update_vm ~__context id =
         debug "xenopsd event: ignoring event for VM (VM %s not resident)" id
       else
         let previous = Xenops_cache.find_vm id in
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client (queue_of_vm ~__context ~self)
                                 : XENOPS
                             )
@@ -1908,12 +1892,7 @@ let update_vm ~__context id =
             a <> b
           in
           (* Helpers to create and update guest metrics when needed *)
-          let lookup state key =
-            if List.mem_assoc key state.Vm.guest_agent then
-              Some (List.assoc key state.Vm.guest_agent)
-            else
-              None
-          in
+          let lookup state key = List.assoc_opt key state.Vm.guest_agent in
           let list state dir =
             let dir =
               if dir.[0] = '/' then
@@ -2047,6 +2026,8 @@ let update_vm ~__context id =
                     update `pv
                 | Domain_PVinPVH ->
                     update `pv_in_pvh
+                | Domain_PVH ->
+                    update `pvh
                 | Domain_undefined ->
                     if power_state <> `Halted then
                       debug
@@ -2447,7 +2428,7 @@ let update_vbd ~__context (id : string * string) =
           (fst id)
       else
         let previous = Xenops_cache.find_vbd id in
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client (queue_of_vm ~__context ~self:vm)
                                 : XENOPS
                             )
@@ -2559,7 +2540,7 @@ let update_vif ~__context id =
           (fst id)
       else
         let previous = Xenops_cache.find_vif id in
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client (queue_of_vm ~__context ~self:vm)
                                 : XENOPS
                             )
@@ -2606,7 +2587,9 @@ let update_vif ~__context id =
                                  (fst id) (snd id)
                               )
                         | Some device ->
-                            let dbg = Context.string_of_task __context in
+                            let dbg =
+                              Context.string_of_task_and_tracing __context
+                            in
                             let mtu = Net.Interface.get_mtu dbg device in
                             Db.VIF.set_MTU ~__context ~self:vif
                               ~value:(Int64.of_int mtu)
@@ -2673,7 +2656,7 @@ let update_pci ~__context id =
           (fst id)
       else
         let previous = Xenops_cache.find_pci id in
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client (queue_of_vm ~__context ~self:vm)
                                 : XENOPS
                             )
@@ -2749,7 +2732,7 @@ let update_vgpu ~__context id =
           (fst id)
       else
         let previous = Xenops_cache.find_vgpu id in
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client (queue_of_vm ~__context ~self:vm)
                                 : XENOPS
                             )
@@ -2821,7 +2804,7 @@ let update_vusb ~__context (id : string * string) =
           (fst id)
       else
         let previous = Xenops_cache.find_vusb id in
-        let dbg = Context.string_of_task __context in
+        let dbg = Context.string_of_task_and_tracing __context in
         let module Client = ( val make_client (queue_of_vm ~__context ~self:vm)
                                 : XENOPS
                             )
@@ -2883,7 +2866,7 @@ let update_task ~__context queue_name id =
   try
     let self = TaskHelper.id_to_task_exn (TaskHelper.Xenops (queue_name, id)) in
     (* throws Not_found *)
-    let dbg = Context.string_of_task __context in
+    let dbg = Context.string_of_task_and_tracing __context in
     let module Client = (val make_client queue_name : XENOPS) in
     let task_t = Client.TASK.stat dbg id in
     match task_t.Task.state with
@@ -2913,7 +2896,7 @@ let update_task ~__context queue_name id =
       error "xenopsd event: Caught %s while updating task" (string_of_exn e)
 
 let rec events_watch ~__context cancel queue_name from =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   if Xapi_fist.delay_xenopsd_event_threads () then Thread.delay 30.0 ;
   let module Client = (val make_client queue_name : XENOPS) in
   let barriers, events, next = Client.UPDATES.get dbg from None in
@@ -2982,14 +2965,14 @@ let events_from_xenopsd queue_name =
 let refresh_vm ~__context ~self =
   let id = id_of_vm ~__context ~self in
   info "xenops: UPDATES.refresh_vm %s" id ;
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let queue_name = queue_of_vm ~__context ~self in
   let module Client = (val make_client queue_name : XENOPS) in
   Client.UPDATES.refresh_vm dbg id ;
   Events_from_xenopsd.wait queue_name dbg id ()
 
 let resync_resident_on ~__context =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let localhost = Helpers.get_localhost ~__context in
   let domain0 = Helpers.get_domain_zero ~__context in
   (* Get a list of all the ids of VMs that Xapi thinks are resident here
@@ -3510,7 +3493,9 @@ let set_resident_on ~__context ~self =
   !trigger_xenapi_reregister () ;
   (* Any future XenAPI updates will trigger events, but we might have missed one so: *)
   Xenopsd_metadata.update ~__context ~self ;
-  Db.VM.remove_pending_guidances ~__context ~self ~value:`restart_device_model
+  Db.VM.remove_pending_guidances ~__context ~self ~value:`restart_device_model ;
+  Db.VM.remove_recommended_guidances ~__context ~self
+    ~value:`restart_device_model
 
 let update_debug_info __context t =
   let task = Context.get_task_id __context in
@@ -3527,7 +3512,7 @@ let update_debug_info __context t =
     debug_info
 
 let sync_with_task_result __context ?cancellable queue_name x =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   x
   |> register_task __context ?cancellable queue_name
   |> wait_for_task queue_name dbg
@@ -3538,7 +3523,7 @@ let sync_with_task __context ?cancellable queue_name x =
   sync_with_task_result __context ?cancellable queue_name x |> ignore
 
 let sync __context queue_name x =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   x
   |> wait_for_task queue_name dbg
   |> success_task queue_name (update_debug_info __context) dbg
@@ -3549,7 +3534,7 @@ let pause ~__context ~self =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.pause %s" id ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VM.pause dbg id |> sync_with_task __context queue_name ;
       Events_from_xenopsd.wait queue_name dbg id () ;
@@ -3562,7 +3547,7 @@ let unpause ~__context ~self =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.unpause %s" id ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VM.unpause dbg id |> sync_with_task __context queue_name ;
       Events_from_xenopsd.wait queue_name dbg id () ;
@@ -3574,7 +3559,7 @@ let request_rdp ~__context ~self enabled =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.request_rdp %s %b" id enabled ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VM.request_rdp dbg id enabled
       |> sync_with_task __context queue_name ;
@@ -3586,7 +3571,7 @@ let run_script ~__context ~self script =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.run_script %s %s" id script ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       let r =
         Client.VM.run_script dbg id script
@@ -3602,7 +3587,7 @@ let set_xenstore_data ~__context ~self xsdata =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.set_xenstore_data %s" id ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VM.set_xsdata dbg id xsdata |> sync_with_task __context queue_name ;
       Events_from_xenopsd.wait queue_name dbg id ()
@@ -3613,7 +3598,7 @@ let set_vcpus ~__context ~self n =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.set_vcpus %s" id ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       try
         Client.VM.set_vcpus dbg id (Int64.to_int n)
@@ -3640,7 +3625,7 @@ let set_shadow_multiplier ~__context ~self target =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.set_shadow_multiplier %s" id ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       try
         Client.VM.set_shadow_multiplier dbg id target
@@ -3669,7 +3654,7 @@ let set_memory_dynamic_range ~__context ~self min max =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
       debug "xenops: VM.set_memory_dynamic_range %s" id ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VM.set_memory_dynamic_range dbg id min max
       |> sync_with_task __context queue_name ;
@@ -3677,7 +3662,7 @@ let set_memory_dynamic_range ~__context ~self min max =
   )
 
 let maybe_refresh_vm ~__context ~self =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let queue_name = queue_of_vm ~__context ~self in
   let id = id_of_vm ~__context ~self in
   if vm_exists_in_xenopsd queue_name dbg id then (
@@ -3689,7 +3674,7 @@ let maybe_refresh_vm ~__context ~self =
   )
 
 let start ~__context ~self paused force =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let queue_name = queue_of_vm ~__context ~self in
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       maybe_refresh_vm ~__context ~self ;
@@ -3779,7 +3764,7 @@ let reboot ~__context ~self timeout =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       assert_resident_on ~__context ~self ;
       let id = id_of_vm ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       maybe_refresh_vm ~__context ~self ;
       (* Ensure we have the latest version of the VM metadata before the reboot *)
       Events_from_xapi.wait ~__context ~self ;
@@ -3801,7 +3786,7 @@ let shutdown ~__context ~self timeout =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       assert_resident_on ~__context ~self ;
       let id = id_of_vm ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       info "xenops: VM.shutdown %s" id ;
       let module Client = (val make_client queue_name : XENOPS) in
       let () =
@@ -3850,7 +3835,7 @@ let suspend ~__context ~self =
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       assert_resident_on ~__context ~self ;
       let id = id_of_vm ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       let vm_t, _state = Client.VM.stat dbg id in
       (* XXX: this needs to be at boot time *)
@@ -3887,7 +3872,7 @@ let suspend ~__context ~self =
           let d = disk_of_vdi ~__context ~self:vdi |> Option.get in
           Db.VM.set_suspend_VDI ~__context ~self ~value:vdi ;
           try
-            let dbg = Context.string_of_task __context in
+            let dbg = Context.string_of_task_and_tracing __context in
             info "xenops: VM.suspend %s to %s" id
               (d |> rpc_of disk |> Jsonrpc.to_string) ;
             Client.VM.suspend dbg id d
@@ -3930,67 +3915,63 @@ let suspend ~__context ~self =
   )
 
 let resume ~__context ~self ~start_paused ~force:_ =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let queue_name = queue_of_vm ~__context ~self in
   let vm_id = id_of_vm ~__context ~self in
-  transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
-      maybe_refresh_vm ~__context ~self ;
-      let vdi = Db.VM.get_suspend_VDI ~__context ~self in
-      if vdi = Ref.null then (
-        info "VM suspend VDI not found; Performing VM hard_shutdown" ;
-        Xapi_vm_lifecycle.force_state_reset ~__context ~self ~value:`Halted ;
-        raise
-          Api_errors.(
-            Server_error (vm_has_no_suspend_vdi, ["VM"; Ref.string_of self])
-          )
-      ) ;
-      let d = disk_of_vdi ~__context ~self:vdi |> Option.get in
-      let module Client = (val make_client queue_name : XENOPS) in
-      (* NB we don't set resident_on because we don't want to
-         			   modify the VM.power_state, {VBD,VIF}.currently_attached in the
-         			   failures cases. This means we must remove the metadata from
-         			   xenopsd on failure. *)
-      ( try
-          Events_from_xenopsd.with_suppressed queue_name dbg vm_id (fun () ->
-              debug "Sending VM %s configuration to xenopsd" (Ref.string_of self) ;
-              let id = Xenopsd_metadata.push ~__context ~self in
-              Xapi_network.with_networks_attached_for_vm ~__context ~vm:self
-                (fun () ->
-                  info "xenops: VM.resume %s from %s" id
-                    (d |> rpc_of disk |> Jsonrpc.to_string) ;
-                  Client.VM.resume dbg id d
-                  |> sync_with_task __context ~cancellable:false queue_name ;
-                  if not start_paused then (
-                    info "xenops: VM.unpause %s" id ;
-                    Client.VM.unpause dbg id
-                    |> sync_with_task __context ~cancellable:false queue_name
-                  )
-              )
-          )
-        with e ->
-          error "Caught exception resuming VM: %s" (string_of_exn e) ;
-          let id = id_of_vm ~__context ~self in
-          Xenopsd_metadata.delete ~__context id ;
-          raise e
-      ) ;
-      set_resident_on ~__context ~self ;
-      Db.VM.set_suspend_VDI ~__context ~self ~value:Ref.null ;
-      (* Clearing vGPU metadata should happen as late as possible
-       * to make sure we only do it on a successful resume
-       *)
-      Xapi_gpumon.clear_vgpu_metadata ~__context ~vm:self ;
-      Helpers.call_api_functions ~__context (fun rpc session_id ->
-          XenAPI.VDI.destroy ~rpc ~session_id ~self:vdi
-      ) ;
-      check_power_state_is ~__context ~self
-        ~expected:(if start_paused then `Paused else `Running)
-  )
+  transform_xenops_exn ~__context ~vm:self queue_name @@ fun () ->
+  maybe_refresh_vm ~__context ~self ;
+  let vdi = Db.VM.get_suspend_VDI ~__context ~self in
+  if vdi = Ref.null then (
+    info "VM suspend VDI not found; Performing VM hard_shutdown" ;
+    Xapi_vm_lifecycle.force_state_reset ~__context ~self ~value:`Halted ;
+    let err_content = ["VM"; Ref.string_of self] in
+    raise Api_errors.(Server_error (vm_has_no_suspend_vdi, err_content))
+  ) ;
+  let d = disk_of_vdi ~__context ~self:vdi |> Option.get in
+  let module Client = (val make_client queue_name : XENOPS) in
+  (* NB we don't set resident_on because we don't want to
+     modify the VM.power_state, {VBD,VIF}.currently_attached in the
+     failures cases. This means we must remove the metadata from
+     xenopsd on failure. *)
+  ( try
+      Events_from_xenopsd.with_suppressed queue_name dbg vm_id @@ fun () ->
+      debug "Sending VM %s configuration to xenopsd" (Ref.string_of self) ;
+      let id = Xenopsd_metadata.push ~__context ~self in
+
+      Xapi_network.with_networks_attached_for_vm ~__context ~vm:self
+      @@ fun () ->
+      info "%s: VM.resume %s from %s" __FUNCTION__ id
+        (d |> rpc_of disk |> Jsonrpc.to_string) ;
+      Client.VM.resume dbg id d
+      |> sync_with_task __context ~cancellable:false queue_name ;
+      if not start_paused then (
+        info "%s: VM.unpause %s" __FUNCTION__ id ;
+        Client.VM.unpause dbg id
+        |> sync_with_task __context ~cancellable:false queue_name
+      )
+    with e ->
+      error "Caught exception resuming VM: %s" (string_of_exn e) ;
+      let id = id_of_vm ~__context ~self in
+      Xenopsd_metadata.delete ~__context id ;
+      raise e
+  ) ;
+  set_resident_on ~__context ~self ;
+  Db.VM.set_suspend_VDI ~__context ~self ~value:Ref.null ;
+  (* Clearing vGPU metadata should happen as late as possible
+   * to make sure we only do it on a successful resume
+   *)
+  Xapi_gpumon.clear_vgpu_metadata ~__context ~vm:self ;
+  Helpers.call_api_functions ~__context (fun rpc session_id ->
+      XenAPI.VDI.destroy ~rpc ~session_id ~self:vdi
+  ) ;
+  check_power_state_is ~__context ~self
+    ~expected:(if start_paused then `Paused else `Running)
 
 let s3suspend ~__context ~self =
   let queue_name = queue_of_vm ~__context ~self in
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       debug "xenops: VM.s3suspend %s" id ;
       Client.VM.s3suspend dbg id |> sync_with_task __context queue_name ;
@@ -4001,7 +3982,7 @@ let s3resume ~__context ~self =
   let queue_name = queue_of_vm ~__context ~self in
   transform_xenops_exn ~__context ~vm:self queue_name (fun () ->
       let id = id_of_vm ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       debug "xenops: VM.s3resume %s" id ;
       Client.VM.s3resume dbg id |> sync_with_task __context queue_name ;
@@ -4027,7 +4008,7 @@ let vbd_plug ~__context ~self =
       Db.VBD.set_currently_attached ~__context ~self ~value:true ;
       Events_from_xapi.wait ~__context ~self:vm ;
       let vbd = md_of_vbd ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Events_from_xenopsd.with_suppressed queue_name dbg vm_id (fun () ->
           info "xenops: VBD.add %s.%s" (fst vbd.Vbd.id) (snd vbd.Vbd.id) ;
@@ -4054,7 +4035,7 @@ let vbd_unplug ~__context ~self force =
   transform_xenops_exn ~__context ~vm queue_name (fun () ->
       assert_resident_on ~__context ~self:vm ;
       let vbd = md_of_vbd ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       ( try
           info "xenops: VBD.unplug %s.%s" (fst vbd.Vbd.id) (snd vbd.Vbd.id) ;
@@ -4092,7 +4073,7 @@ let vbd_eject_hvm ~__context ~self =
       assert_resident_on ~__context ~self:vm ;
       let vbd = md_of_vbd ~__context ~self in
       info "xenops: VBD.eject %s.%s" (fst vbd.Vbd.id) (snd vbd.Vbd.id) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VBD.eject dbg vbd.Vbd.id |> sync_with_task __context queue_name ;
       Events_from_xenopsd.wait queue_name dbg (fst vbd.Vbd.id) () ;
@@ -4133,7 +4114,7 @@ let vbd_insert_hvm ~__context ~self ~vdi =
       let d = disk_of_vdi ~__context ~self:vdi |> Option.get in
       info "xenops: VBD.insert %s.%s %s" (fst vbd.Vbd.id) (snd vbd.Vbd.id)
         (d |> rpc_of disk |> Jsonrpc.to_string) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VBD.insert dbg vbd.Vbd.id d |> sync_with_task __context queue_name ;
       Events_from_xenopsd.wait queue_name dbg (fst vbd.Vbd.id) () ;
@@ -4166,7 +4147,7 @@ let vbd_insert_hvm ~__context ~self ~vdi =
   )
 
 let has_qemu ~__context ~vm =
-  let dbg = Context.string_of_task __context in
+  let dbg = Context.string_of_task_and_tracing __context in
   let id = Db.VM.get_uuid ~__context ~self:vm in
   let queue_name = queue_of_vm ~__context ~self:vm in
   let module Client = (val make_client queue_name : XENOPS) in
@@ -4214,7 +4195,7 @@ let vif_plug ~__context ~self =
       Db.VIF.set_currently_attached ~__context ~self ~value:true ;
       Events_from_xapi.wait ~__context ~self:vm ;
       let vif = md_of_vif ~__context ~self in
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Xapi_network.with_networks_attached_for_vm ~__context ~vm (fun () ->
           Events_from_xenopsd.with_suppressed queue_name dbg vm_id (fun () ->
@@ -4244,7 +4225,7 @@ let vif_set_locking_mode ~__context ~self =
       assert_resident_on ~__context ~self:vm ;
       let vif = md_of_vif ~__context ~self in
       info "xenops: VIF.set_locking_mode %s.%s" (fst vif.Vif.id) (snd vif.Vif.id) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VIF.set_locking_mode dbg vif.Vif.id vif.Vif.locking_mode
       |> sync_with_task __context queue_name ;
@@ -4259,7 +4240,7 @@ let vif_set_pvs_proxy ~__context ~self creating =
       let vif = md_of_vif ~__context ~self in
       let proxy = if creating then vif.Vif.pvs_proxy else None in
       info "xenops: VIF.set_pvs_proxy %s.%s" (fst vif.Vif.id) (snd vif.Vif.id) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VIF.set_pvs_proxy dbg vif.Vif.id proxy
       |> sync_with_task __context queue_name ;
@@ -4273,7 +4254,7 @@ let vif_unplug ~__context ~self force =
       assert_resident_on ~__context ~self:vm ;
       let vif = md_of_vif ~__context ~self in
       info "xenops: VIF.unplug %s.%s" (fst vif.Vif.id) (snd vif.Vif.id) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       try
         Client.VIF.unplug dbg vif.Vif.id force
@@ -4318,7 +4299,7 @@ let vif_move ~__context ~self _network =
                 )
             )
       | _ ->
-          let dbg = Context.string_of_task __context in
+          let dbg = Context.string_of_task_and_tracing __context in
           let module Client = (val make_client queue_name : XENOPS) in
           (* Nb., at this point, the database shows the vif on the new network *)
           Xapi_network.attach_for_vif ~__context ~vif:self () ;
@@ -4346,7 +4327,7 @@ let vif_set_ipv4_configuration ~__context ~self =
       let vif = md_of_vif ~__context ~self in
       info "xenops: VIF.set_ipv4_configuration %s.%s" (fst vif.Vif.id)
         (snd vif.Vif.id) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VIF.set_ipv4_configuration dbg vif.Vif.id
         vif.Vif.ipv4_configuration
@@ -4362,7 +4343,7 @@ let vif_set_ipv6_configuration ~__context ~self =
       let vif = md_of_vif ~__context ~self in
       info "xenops: VIF.set_ipv6_configuration %s.%s" (fst vif.Vif.id)
         (snd vif.Vif.id) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VIF.set_ipv6_configuration dbg vif.Vif.id
         vif.Vif.ipv6_configuration
@@ -4374,7 +4355,7 @@ let task_cancel ~__context ~self =
   try
     let queue_name, id = TaskHelper.task_to_id_exn self |> unwrap in
     let module Client = (val make_client queue_name : XENOPS) in
-    let dbg = Context.string_of_task __context in
+    let dbg = Context.string_of_task_and_tracing __context in
     info "xenops: TASK.cancel %s" id ;
     Client.TASK.cancel dbg id |> ignore ;
     (* it might actually have completed, we don't care *)
@@ -4399,7 +4380,7 @@ let vusb_unplug_hvm ~__context ~self =
       assert_resident_on ~__context ~self:vm ;
       let vusb = md_of_vusb ~__context ~self in
       info "xenops: VUSB.unplug %s.%s" (fst vusb.Vusb.id) (snd vusb.Vusb.id) ;
-      let dbg = Context.string_of_task __context in
+      let dbg = Context.string_of_task_and_tracing __context in
       let module Client = (val make_client queue_name : XENOPS) in
       Client.VUSB.unplug dbg vusb.Vusb.id |> sync_with_task __context queue_name ;
       Events_from_xenopsd.wait queue_name dbg (fst vusb.Vusb.id) () ;
@@ -4434,3 +4415,70 @@ let vusb_unplug ~__context ~self =
             ]
           )
       )
+
+module Observer = struct
+  let create ~__context ~uuid ~name_label ~attributes ~endpoints ~enabled =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.create dbg uuid name_label attributes endpoints enabled
+
+  let destroy ~__context ~uuid =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.destroy dbg uuid
+
+  let set_enabled ~__context ~uuid ~enabled =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_enabled dbg uuid enabled
+
+  let set_attributes ~__context ~uuid ~attributes =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_attributes dbg uuid attributes
+
+  let set_endpoints ~__context ~uuid ~endpoints =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_endpoints dbg uuid endpoints
+
+  let init ~__context =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.init dbg
+
+  let set_trace_log_dir ~__context ~dir =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_trace_log_dir dbg dir
+
+  let set_export_interval ~__context ~interval =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_export_interval dbg interval
+
+  let set_max_spans ~__context ~spans =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_max_spans dbg spans
+
+  let set_max_traces ~__context ~traces =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_max_traces dbg traces
+
+  let set_max_file_size ~__context ~file_size =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_max_file_size dbg file_size
+
+  let set_host_id ~__context ~host_id =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_host_id dbg host_id
+
+  let set_compress_tracing_files ~__context ~enabled =
+    let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
+    let dbg = Context.string_of_task __context in
+    Client.Observer.set_compress_tracing_files dbg enabled
+end

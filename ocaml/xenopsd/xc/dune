@@ -9,6 +9,7 @@
  (libraries
   astring
   base64
+  cpuid
   ezxenstore.core
   ezxenstore.watch
   fd-send-recv
@@ -35,7 +36,7 @@
   xapi-idl.rrd
   xapi-idl.storage
   xapi-idl.storage.interface
-  xapi-idl.varstore.privileged
+  xapi-idl.guard.privileged
   xapi-idl.xen.interface
   xapi-idl.xen.interface.types
   xapi-log
@@ -49,7 +50,6 @@
   xapi-xenopsd.c_stubs
   xapi-xenopsd-xc.c_stubs
   xenctrl
-  xentoollog
   xenstore
   xenstore_transport.unix
  )
@@ -61,6 +61,7 @@
 )
 (executable
  (name xenops_xc_main)
+ (modes exe)
  (public_name xenopsd-xc)
  (package xapi-xenopsd-xc)
  (modules xenops_xc_main)
@@ -82,6 +83,7 @@
 
 (executable
  (name memory_breakdown)
+ (modes exe)
  (modules memory_breakdown)
  (libraries
   astring
@@ -100,6 +102,7 @@
 
 (executable
  (name memory_summary)
+ (modes exe)
  (modules memory_summary)
  (libraries
   dune-build-info
@@ -112,6 +115,7 @@
 
 (executable
  (name domain_sethandle)
+ (modes exe)
  (modules domain_sethandle)
  (libraries
   cmdliner
@@ -122,6 +126,7 @@
 
 (executable
  (name cancel_utils_test)
+ (modes exe)
  (modules cancel_utils_test)
  (libraries
   cmdliner

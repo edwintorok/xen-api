@@ -240,7 +240,7 @@ end = struct
             let ctor_fields =
               List.filter
                 (function {qualifier= StaticRO | RW; _} -> true | _ -> false)
-                (all_fields_of_obj obj)
+                (fields_of_obj obj)
               |> List.map (fun f ->
                      String.concat "_" f.full_name
                      ^ if f.default_value = None then "*" else ""
@@ -301,7 +301,7 @@ end = struct
                          "The record of the database object that was added, \
                           changed or deleted"
                      )
-                   ; ("type", `String "&lt;object record&gt;")
+                   ; ("type", `String "<class> record")
                    ; ("qualifier", `String (string_of_qualifier DynamicRO))
                    ; ("tag", `String "")
                    ; ( "lifecycle"
@@ -381,7 +381,7 @@ end = struct
     else
       cmp
 
-  let rec list_dedup cmp =
+  let list_dedup cmp =
     let rec loop acc = function
       | [] ->
           List.rev acc

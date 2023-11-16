@@ -47,6 +47,16 @@ let operations =
       ]
     )
 
+let telemetry_frequency =
+  Enum
+    ( "telemetry_frequency"
+    , [
+        ("daily", "Run telemetry task daily")
+      ; ("weekly", "Run telemetry task weekly")
+      ; ("monthly", "Run telemetry task monthly")
+      ]
+    )
+
 let enable_ha =
   call ~in_product_since:rel_miami ~name:"enable_ha" ~in_oss_since:None
     ~versioned_params:
@@ -274,7 +284,8 @@ let hello =
 
 let ping_slave =
   call ~flags:[`Session] ~name:"is_slave" ~in_oss_since:None
-    ~in_product_since:rel_rio ~params:[(Ref _host, "host", "")]
+    ~in_product_since:rel_rio
+    ~params:[(Ref _host, "host", "")]
     ~doc:"Internal use only"
     ~result:
       ( Bool
@@ -1024,6 +1035,84 @@ let set_uefi_certificates =
       ]
     ~allowed_roles:_R_POOL_ADMIN ()
 
+let set_telemetry_next_collection =
+  call ~name:"set_telemetry_next_collection" ~lifecycle:[]
+    ~doc:"Set the timestamp for the next telemetry data collection."
+    ~params:
+      [
+        (Ref _pool, "self", "The pool")
+      ; ( DateTime
+        , "value"
+        , "The earliest timestamp (in UTC) when the next round of telemetry \
+           collection can be carried out."
+        )
+      ]
+    ~allowed_roles:_R_POOL_ADMIN ()
+
+let reset_telemetry_uuid =
+  call ~name:"reset_telemetry_uuid" ~lifecycle:[]
+    ~doc:"Assign a new UUID to telemetry data."
+    ~params:[(Ref _pool, "self", "The pool")]
+    ~allowed_roles:_R_POOL_ADMIN ()
+
+let update_sync_frequency =
+  Enum
+    ( "update_sync_frequency"
+    , [
+        ("daily", "The update synchronizations happen every day")
+      ; ( "weekly"
+        , "The update synchronizations happen every week on the chosen day"
+        )
+      ]
+    )
+
+let configure_update_sync =
+  call ~name:"configure_update_sync"
+    ~doc:
+      "Configure periodic update synchronization to sync updates from a remote \
+       CDN"
+    ~lifecycle:[]
+    ~params:
+      [
+        (Ref _pool, "self", "The pool")
+      ; ( update_sync_frequency
+        , "update_sync_frequency"
+        , "The frequency at which updates are synchronized from a remote CDN: \
+           daily or weekly."
+        )
+      ; ( Int
+        , "update_sync_day"
+        , "The day of the week the update synchronization will happen, based \
+           on pool's local timezone. Valid values are 0 to 6, 0 being Sunday. \
+           For 'daily' schedule, the value is ignored."
+        )
+      ]
+    ~allowed_roles:_R_POOL_OP ()
+
+let set_update_sync_enabled =
+  call ~name:"set_update_sync_enabled" ~lifecycle:[]
+    ~doc:
+      "enable or disable periodic update synchronization depending on the value"
+    ~params:
+      [
+        (Ref _pool, "self", "The pool")
+      ; ( Bool
+        , "value"
+        , "true - enable periodic update synchronization, false - disable it"
+        )
+      ]
+    ~allowed_roles:_R_POOL_OP ()
+
+let set_local_auth_max_threads =
+  call ~flags:[`Session] ~name:"set_local_auth_max_threads" ~lifecycle:[]
+    ~params:[(Ref _pool, "self", "The pool"); (Int, "value", "The new maximum")]
+    ~allowed_roles:_R_POOL_OP ()
+
+let set_ext_auth_max_threads =
+  call ~flags:[`Session] ~name:"set_ext_auth_max_threads" ~lifecycle:[]
+    ~params:[(Ref _pool, "self", "The pool"); (Int, "value", "The new maximum")]
+    ~allowed_roles:_R_POOL_OP ()
+
 (** A pool class *)
 let t =
   create_obj ~in_db:true ~in_product_since:rel_rio ~in_oss_since:None
@@ -1106,6 +1195,12 @@ let t =
       ; disable_repository_proxy
       ; set_uefi_certificates
       ; set_https_only
+      ; set_telemetry_next_collection
+      ; reset_telemetry_uuid
+      ; configure_update_sync
+      ; set_update_sync_enabled
+      ; set_local_auth_max_threads
+      ; set_ext_auth_max_threads
       ]
     ~contents:
       ([uid ~in_oss_since:None _pool]
@@ -1318,9 +1413,14 @@ let t =
             ~default_value:(Some (VString "")) "repository_proxy_username"
             "Username for the authentication of the proxy used in syncing with \
              the enabled repositories"
-        ; field ~in_product_since:"21.3.0" ~internal_only:true
-            ~qualifier:DynamicRO ~ty:(Ref _secret)
-            ~default_value:(Some (VRef null_ref)) "repository_proxy_password"
+        ; field ~qualifier:DynamicRO
+            ~lifecycle:
+              [
+                (Published, "21.3.0", "")
+              ; (Changed, rel_next, "Changed internal_only to false")
+              ]
+            ~ty:(Ref _secret) ~default_value:(Some (VRef null_ref))
+            "repository_proxy_password"
             "Password for the authentication of the proxy used in syncing with \
              the enabled repositories"
         ; field ~qualifier:RW ~lifecycle:[] ~ty:Bool
@@ -1331,6 +1431,38 @@ let t =
             "coordinator_bias"
             "true if bias against pool master when scheduling vms is enabled, \
              false otherwise"
+        ; field ~qualifier:StaticRO ~ty:Int ~default_value:(Some (VInt 8L))
+            ~lifecycle:[] "local_auth_max_threads"
+            "Maximum number of threads to use for PAM authentication"
+        ; field ~qualifier:StaticRO ~ty:Int ~default_value:(Some (VInt 1L))
+            ~lifecycle:[] "ext_auth_max_threads"
+            "Maximum number of threads to use for external (AD) authentication"
+        ; field ~lifecycle:[] ~qualifier:DynamicRO ~ty:(Ref _secret)
+            ~default_value:(Some (VRef null_ref)) "telemetry_uuid"
+            "The UUID of the pool for identification of telemetry data"
+        ; field ~lifecycle:[] ~qualifier:DynamicRO ~ty:telemetry_frequency
+            ~default_value:(Some (VEnum "weekly")) "telemetry_frequency"
+            "How often the telemetry collection will be carried out"
+        ; field ~qualifier:DynamicRO ~lifecycle:[] ~ty:DateTime
+            ~default_value:(Some (VDateTime Date.epoch))
+            "telemetry_next_collection"
+            "The earliest timestamp (in UTC) when the next round of telemetry \
+             collection can be carried out"
+        ; field ~qualifier:DynamicRO ~lifecycle:[] ~ty:DateTime
+            ~default_value:(Some (VDateTime Date.epoch)) "last_update_sync"
+            "time of the last update sychronization"
+        ; field ~qualifier:DynamicRO ~lifecycle:[] ~ty:update_sync_frequency
+            ~default_value:(Some (VEnum "weekly")) "update_sync_frequency"
+            "The frequency at which updates are synchronized from a remote \
+             CDN: daily or weekly."
+        ; field ~qualifier:DynamicRO ~lifecycle:[] ~ty:Int "update_sync_day"
+            ~default_value:(Some (VInt 0L))
+            "The day of the week the update synchronizations will be \
+             scheduled, based on pool's local timezone. Ignored when \
+             update_sync_frequency is daily"
+        ; field ~qualifier:DynamicRO ~lifecycle:[] ~ty:Bool
+            ~default_value:(Some (VBool false)) "update_sync_enabled"
+            "Whether periodic update synchronization is enabled or not"
         ]
       )
     ()

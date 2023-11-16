@@ -64,7 +64,11 @@ val get_vms_which_prevent_evacuation_internal :
   -> (API.ref_VM * string list) list
 
 val evacuate :
-  __context:Context.t -> host:API.ref_host -> network:API.ref_network -> unit
+     __context:Context.t
+  -> host:API.ref_host
+  -> network:API.ref_network
+  -> evacuate_batch_size:int64
+  -> unit
 
 val retrieve_wlb_evacuate_recommendations :
   __context:Context.t -> self:API.ref_host -> (API.ref_VM * string list) list
@@ -124,6 +128,7 @@ val create :
   -> local_cache_sr:[`SR] Ref.t
   -> chipset_info:(string * string) list
   -> ssl_legacy:bool
+  -> last_software_update:API.datetime
   -> [`host] Ref.t
 
 val destroy : __context:Context.t -> self:API.ref_host -> unit

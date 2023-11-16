@@ -63,6 +63,7 @@ type feature =
   | Certificate_verification
   | Updates
   | Internal_repo_access
+  | VTPM
 [@@deriving rpc]
 
 type orientation = Positive | Negative
@@ -103,7 +104,7 @@ let keys_of_features =
   ; ( PCI_device_for_auto_update
     , ("restrict_pci_device_for_auto_update", Negative, "PciAU")
     )
-  ; (Xen_motion, ("restrict_xen_motion", Negative, "XenMotion"))
+  ; (Xen_motion, ("restrict_xen_motion", Negative, "Live_migration"))
   ; (Guest_ip_setting, ("restrict_guest_ip_setting", Negative, "GuestIP"))
   ; (AD, ("restrict_ad", Negative, "AD"))
   ; (Nested_virt, ("restrict_nested_virt", Negative, "Nested_virt"))
@@ -130,6 +131,7 @@ let keys_of_features =
   ; ( Internal_repo_access
     , ("restrict_internal_repo_access", Negative, "Internal_repo_access")
     )
+  ; (VTPM, ("restrict_vtpm", Negative, "VTPM"))
   ]
 
 (* A list of features that must be considered "enabled" by `of_assoc_list`

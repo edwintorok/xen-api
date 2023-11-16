@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # extauth-hook-AD.py
 #
@@ -52,7 +52,8 @@ def setup_logger():
     log.addHandler(auth_log)
 
 
-setup_logger()
+if __name__ == "__main__":
+    setup_logger()
 logger = logging.getLogger(__name__)
 
 

@@ -53,7 +53,7 @@ let parameter_count_mismatch_failure func expected received =
 
 (** WARNING: the context is destroyed when execution is finished if the task is not forwarded, in database and not called asynchronous. *)
 let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
-    ?(called_async = false) f =
+    ?(called_async = false) ?quiet f =
   (* Execute fn f in specified __context, marshalling result with "marshaller" *)
   let exec () =
     (* NB:
@@ -74,13 +74,14 @@ let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
               (* use the forwarding layer (NB this might make a local call ultimately) *)
               forward ~local_fn:f ~__context
       in
-      ( if need_complete then
-          match marshaller with
-          | None ->
-              TaskHelper.complete ~__context None
-          | Some fn ->
-              TaskHelper.complete ~__context (Some (fn result))
-      ) ;
+      if need_complete then
+        match marshaller with
+        | None ->
+            TaskHelper.complete ~__context None
+        | Some fn ->
+            TaskHelper.complete ~__context (Some (fn result))
+      else
+        Context.complete_tracing __context ;
       result
     with
     | Api_errors.Server_error (a, _) as e when a = Api_errors.task_cancelled ->
@@ -95,7 +96,7 @@ let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
   Locking_helpers.Thread_state.with_named_thread
     (TaskHelper.get_name ~__context) (Context.get_task_id __context) (fun () ->
       let client = Context.get_client __context in
-      Debug.with_thread_associated ?client
+      Debug.with_thread_associated ?client ?quiet
         (Context.string_of_task __context)
         (fun () ->
           (* CP-982: promote tracking debug line to info status *)
@@ -163,7 +164,7 @@ let do_dispatch ?session_id ?forward_op ?self:_ supports_async called_fn_name
 (* in the following functions, it is our responsibility to complete any tasks we create *)
 let exec_with_new_task ?http_other_config ?quiet ?subtask_of ?session_id
     ?task_in_database ?task_description ?origin task_name f =
-  exec_with_context
+  exec_with_context ?quiet
     ~__context:
       (Context.make ?http_other_config ?quiet ?subtask_of ?session_id
          ?task_in_database ?task_description ?origin task_name

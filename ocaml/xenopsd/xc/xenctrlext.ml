@@ -103,6 +103,12 @@ external numainfo : handle -> numainfo = "stub_xenctrlext_numainfo"
 
 external cputopoinfo : handle -> cputopo array = "stub_xenctrlext_cputopoinfo"
 
+external combine_cpu_policies : int64 array -> int64 array -> int64 array
+  = "stub_xenctrlext_combine_cpu_featuresets"
+
+external policy_is_compatible : int64 array -> int64 array -> string option
+  = "stub_xenctrlext_featuresets_are_compatible"
+
 module Xenforeignmemory = struct
   type handle
 
@@ -112,8 +118,7 @@ module Xenforeignmemory = struct
 
   type prot = {read: bool; write: bool; exec: bool}
 
-  external acquire : Xentoollog.handle option -> handle
-    = "stub_xenforeignmemory_open"
+  external acquire : unit -> handle = "stub_xenforeignmemory_open"
 
   external release : handle -> unit = "stub_xenforeignmemory_close"
 

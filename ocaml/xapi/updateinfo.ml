@@ -50,9 +50,23 @@ module Guidance = struct
         EvacuateHost
     | "RestartDeviceModel" ->
         RestartDeviceModel
-    | _ ->
-        error "Unknown node in <absolute|recommended_guidance>" ;
-        raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+    | g ->
+        warn
+          "Un-recognized guidance in \
+           <absolute|recommended|livepatch_guidance>: %s, fallback to \
+           RebootHost"
+          g ;
+        RebootHost
+
+  let of_update_guidance = function
+    | `reboot_host ->
+        RebootHost
+    | `reboot_host_on_livepatch_failure ->
+        RebootHostOnLivePatchFailure
+    | `restart_toolstack ->
+        RestartToolstack
+    | `restart_device_model ->
+        RestartDeviceModel
 end
 
 module Applicability = struct
@@ -395,6 +409,21 @@ module LivePatch = struct
          )
 end
 
+module Severity = struct
+  type t = None | High
+
+  let to_string = function None -> "None" | High -> "High"
+
+  let of_string = function
+    | "None" ->
+        None
+    | "High" ->
+        High
+    | _ ->
+        error "Unknown severity in updateinfo" ;
+        raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+end
+
 module UpdateInfo = struct
   type t = {
       id: string
@@ -408,6 +437,8 @@ module UpdateInfo = struct
     ; update_type: string
     ; livepatch_guidance: Guidance.t option
     ; livepatches: LivePatch.t list
+    ; issued: Xapi_stdext_date.Date.t
+    ; severity: Severity.t
   }
 
   let guidance_to_string o =
@@ -424,6 +455,8 @@ module UpdateInfo = struct
       ; ("type", `String ui.update_type)
       ; ("recommended-guidance", `String (guidance_to_string ui.rec_guidance))
       ; ("absolute-guidance", `String (guidance_to_string ui.abs_guidance))
+      ; ("issued", `String (Xapi_stdext_date.Date.to_string ui.issued))
+      ; ("severity", `String (Severity.to_string ui.severity))
       ]
     in
     match ui.livepatches with
@@ -467,6 +500,8 @@ module UpdateInfo = struct
     ; update_type= ""
     ; livepatch_guidance= None
     ; livepatches= []
+    ; issued= Xapi_stdext_date.Date.epoch
+    ; severity= Severity.None
     }
 
   let assert_valid_updateinfo = function
@@ -513,33 +548,15 @@ module UpdateInfo = struct
                       | Xml.Element ("description", _, [Xml.PCData v]) ->
                           {acc with description= v}
                       | Xml.Element ("recommended_guidance", _, [Xml.PCData v])
-                        -> (
-                        try {acc with rec_guidance= Some (Guidance.of_string v)}
-                        with e ->
-                          (* The error should not block update. Ingore it. *)
-                          warn "%s" (ExnHelper.string_of_exn e) ;
-                          acc
-                      )
-                      | Xml.Element ("absolute_guidance", _, [Xml.PCData v])
-                        -> (
-                        try {acc with abs_guidance= Some (Guidance.of_string v)}
-                        with e ->
-                          (* The error should not block update. Ingore it. *)
-                          warn "%s" (ExnHelper.string_of_exn e) ;
-                          acc
-                      )
-                      | Xml.Element ("livepatch_guidance", _, [Xml.PCData v])
-                        -> (
-                        try
+                        ->
+                          {acc with rec_guidance= Some (Guidance.of_string v)}
+                      | Xml.Element ("absolute_guidance", _, [Xml.PCData v]) ->
+                          {acc with abs_guidance= Some (Guidance.of_string v)}
+                      | Xml.Element ("livepatch_guidance", _, [Xml.PCData v]) ->
                           {
                             acc with
                             livepatch_guidance= Some (Guidance.of_string v)
                           }
-                        with e ->
-                          (* The error should not block update. Ingore it. *)
-                          warn "%s" (ExnHelper.string_of_exn e) ;
-                          acc
-                      )
                       | Xml.Element ("guidance_applicabilities", _, apps) ->
                           {
                             acc with
@@ -548,6 +565,37 @@ module UpdateInfo = struct
                           }
                       | Xml.Element ("livepatches", _, livepatches) ->
                           {acc with livepatches= LivePatch.of_xml livepatches}
+                      | Xml.Element ("issued", attr, _) ->
+                          let issued =
+                            match List.assoc_opt "date" attr with
+                            | Some date -> (
+                              try
+                                Xapi_stdext_date.Date.of_string
+                                  (Scanf.sscanf date
+                                     "%04d-%02d-%02d %02d:%02d:%02d"
+                                     (fun y mon d h m s ->
+                                       Printf.sprintf
+                                         "%04i%02i%02iT%02i:%02i:%02iZ" y mon d
+                                         h m s
+                                   )
+                                  )
+                              with e ->
+                                (* The error should not block update. Ingore it
+                                   and set "issued" as epoch. *)
+                                warn "%s" (ExnHelper.string_of_exn e) ;
+                                Xapi_stdext_date.Date.epoch
+                            )
+                            | None ->
+                                Xapi_stdext_date.Date.epoch
+                          in
+                          {acc with issued}
+                      | Xml.Element ("severity", _, [Xml.PCData v]) -> (
+                        try {acc with severity= Severity.of_string v}
+                        with e ->
+                          (* The error should not block update. Ingore it. *)
+                          warn "%s" (ExnHelper.string_of_exn e) ;
+                          acc
+                      )
                       | _ ->
                           acc
                     )

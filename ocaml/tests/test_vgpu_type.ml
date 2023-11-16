@@ -67,8 +67,8 @@ module NvidiaTest = struct
                       ; vdev_id= 0x1111
                       ; vsubdev_id= 0x2222
                       ; sriov= false
+                      ; vclass= "NVS"
                       }
-                    
                 ; framebufferlength= 0x10000000L
                 ; num_heads= 2L
                 ; max_instance= 8L
@@ -79,7 +79,6 @@ module NvidiaTest = struct
                 ; compatible_model_names_in_vm= []
                 ; compatible_model_names_on_pgpu= ["TYPE FOO1"]
                 }
-              
             ]
           )
         ; ( ("test_data/nvidia-whitelist.xml", 0x3334, 0x0)
@@ -94,8 +93,8 @@ module NvidiaTest = struct
                       ; vdev_id= 0x1111
                       ; vsubdev_id= 0x2222
                       ; sriov= false
+                      ; vclass= "NVS"
                       }
-                    
                 ; framebufferlength= 0x10000000L
                 ; num_heads= 2L
                 ; max_instance= 8L
@@ -106,7 +105,6 @@ module NvidiaTest = struct
                 ; compatible_model_names_in_vm= []
                 ; compatible_model_names_on_pgpu= ["TYPE FOO1"]
                 }
-              
             ]
           )
         ; ( ("test_data/nvidia-whitelist.xml", 0x3335, 0x4445)
@@ -121,8 +119,8 @@ module NvidiaTest = struct
                       ; vdev_id= 0x1112
                       ; vsubdev_id= 0x2223
                       ; sriov= false
+                      ; vclass= "NVS"
                       }
-                    
                 ; framebufferlength= 0x20000000L
                 ; num_heads= 4L
                 ; max_instance= 8L
@@ -133,7 +131,6 @@ module NvidiaTest = struct
                 ; compatible_model_names_in_vm= []
                 ; compatible_model_names_on_pgpu= ["TYPE FOO2"]
                 }
-              
             ; Vendor_nvidia.
                 {
                   identifier=
@@ -144,8 +141,8 @@ module NvidiaTest = struct
                       ; vdev_id= 0x1111
                       ; vsubdev_id= 0x2222
                       ; sriov= false
+                      ; vclass= "NVS"
                       }
-                    
                 ; framebufferlength= 0x10000000L
                 ; num_heads= 2L
                 ; max_instance= 16L
@@ -156,7 +153,6 @@ module NvidiaTest = struct
                 ; compatible_model_names_in_vm= []
                 ; compatible_model_names_on_pgpu= ["TYPE FOO3"]
                 }
-              
             ]
           )
         ]
@@ -246,7 +242,6 @@ module IntelTest = struct
                     ; high_gm_sz= 384L
                     ; fence_sz= 4L
                     }
-                  
               ; experimental= false
               ; model_name= "myvgpu"
               ; framebufferlength= mib 128L
@@ -267,7 +262,6 @@ module IntelTest = struct
                     ; high_gm_sz= 384L
                     ; fence_sz= 4L
                     }
-                  
               ; experimental= true
               ; model_name= "myvgpu"
               ; framebufferlength= mib 128L
@@ -311,7 +305,6 @@ module IntelTest = struct
                       ; high_gm_sz= 384L
                       ; fence_sz= 4L
                       }
-                    
                 ; experimental= false
                 ; model_name= "GVT-g on 1234"
                 ; framebufferlength= mib 128L
@@ -319,7 +312,6 @@ module IntelTest = struct
                 ; max_x= 1920L
                 ; max_y= 1080L
                 }
-              
             ; Vendor_intel.
                 {
                   identifier=
@@ -330,7 +322,6 @@ module IntelTest = struct
                       ; high_gm_sz= 384L
                       ; fence_sz= 4L
                       }
-                    
                 ; experimental= true
                 ; model_name= "GVT-g on 1234 (experimental)"
                 ; framebufferlength= mib 128L
@@ -338,7 +329,6 @@ module IntelTest = struct
                 ; max_x= 1920L
                 ; max_y= 1080L
                 }
-              
             ]
           )
         ; (("test_data/gvt-g-whitelist-1234", 0x5678), [])
@@ -354,7 +344,6 @@ module IntelTest = struct
                       ; high_gm_sz= 384L
                       ; fence_sz= 4L
                       }
-                    
                 ; experimental= false
                 ; model_name= "GVT-g on 1234"
                 ; framebufferlength= mib 128L
@@ -362,7 +351,6 @@ module IntelTest = struct
                 ; max_x= 1920L
                 ; max_y= 1080L
                 }
-              
             ]
           )
         ]
@@ -452,7 +440,6 @@ module AMDTest = struct
                 ; model_name= "Small AMD MxGPU on 1234"
                 ; vgpus_per_pgpu= 4L
                 }
-              
             ; Vendor_amd.
                 {
                   identifier=
@@ -461,7 +448,6 @@ module AMDTest = struct
                 ; model_name= "Big AMD MxGPU on 1234"
                 ; vgpus_per_pgpu= 2L
                 }
-              
             ]
           )
         ; (("test_data/mxgpu-whitelist-1234", 0x5678), [])
@@ -475,7 +461,6 @@ module AMDTest = struct
                 ; model_name= "Small AMD MxGPU on 1234"
                 ; vgpus_per_pgpu= 4L
                 }
-              
             ]
           )
         ]

@@ -174,6 +174,7 @@ let bind () =
   let open Network_server in
   S.clear_state clear_state ;
   S.reset_state reset_state ;
+  S.sync_state sync_state ;
   S.set_gateway_interface set_gateway_interface ;
   S.set_dns_interface set_dns_interface ;
   S.Interface.get_all Interface.get_all ;
@@ -185,6 +186,7 @@ let bind () =
   S.Interface.set_ipv4_conf Interface.set_ipv4_conf ;
   S.Interface.get_ipv4_gateway Interface.get_ipv4_gateway ;
   S.Interface.get_ipv6_addr Interface.get_ipv6_addr ;
+  S.Interface.get_ipv6_gateway Interface.get_ipv6_gateway ;
   S.Interface.get_dns Interface.get_dns ;
   S.Interface.get_mtu Interface.get_mtu ;
   S.Interface.get_capabilities Interface.get_capabilities ;

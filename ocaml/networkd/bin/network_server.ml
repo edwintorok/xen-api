@@ -27,11 +27,14 @@ let network_conf = ref "/etc/xcp/network.conf"
 
 let config : config_t ref = ref Network_config.empty_config
 
+let write_lock = ref false
+
 let backend_kind = ref Openvswitch
 
 let write_config () =
-  try Network_config.write_config !config
-  with Network_config.Write_error -> ()
+  if not !write_lock then
+    try Network_config.write_config !config
+    with Network_config.Write_error -> ()
 
 let read_config () =
   try
@@ -58,7 +61,13 @@ let on_shutdown signal =
 
 let on_timer () = write_config ()
 
-let clear_state () = config := Network_config.empty_config
+let clear_state () =
+  write_lock := true ;
+  config := Network_config.empty_config
+
+let sync_state () =
+  write_lock := false ;
+  write_config ()
 
 let reset_state () = config := Network_config.read_management_conf ()
 
@@ -442,6 +451,24 @@ module Interface = struct
               List.iter (Ip.del_ip_addr name) rm_addrs ;
               List.iter (Ip.set_ip_addr name) add_addrs
         )
+      )
+      ()
+
+  let get_ipv6_gateway dbg name =
+    Debug.with_thread_associated dbg
+      (fun () ->
+        let output = Ip.route_show ~version:Ip.V6 name in
+        try
+          let line =
+            List.find
+              (fun s -> Astring.String.is_prefix ~affix:"default via" s)
+              (Astring.String.cuts ~empty:false ~sep:"\n" output)
+          in
+          let addr =
+            List.nth (Astring.String.cuts ~empty:false ~sep:" " line) 2
+          in
+          Some (Unix.inet_addr_of_string addr)
+        with Not_found -> None
       )
       ()
 
@@ -1480,7 +1507,6 @@ module PVS_proxy = struct
             [Dict [("site_uuid", Rpcmarshal.marshal Rpc.Types.string.ty uuid)]]
         ; is_notification= false
         }
-      
     in
 
     let _ = do_call call in

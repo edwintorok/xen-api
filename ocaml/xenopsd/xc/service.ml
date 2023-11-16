@@ -40,7 +40,7 @@ type t = {
   ; exec_path: string
   ; pid_filename: string
   ; chroot: Chroot.t
-  ; timeout_seconds: float
+  ; timeout_seconds: int
   ; args: string list
   ; execute:
       path:string -> args:string list -> domid:Xenctrl.domid -> unit -> string
@@ -112,8 +112,8 @@ let start_and_wait_for_readyness ~task ~service =
   with_inotify @@ fun notifd ->
   with_watch notifd service.chroot.root @@ fun _ ->
   with_monitor notifd @@ fun pollfd ->
-  let wait ~for_s ~service_name =
-    let start_time = Mtime_clock.elapsed () in
+  let wait ~amount ~service_name =
+    let from_time = Mtime_clock.counter () in
     let poll_period_ms = 1000 in
     let collect_watches acc (event, file) =
       match (acc, event, file) with
@@ -141,13 +141,10 @@ let start_and_wait_for_readyness ~task ~service =
                      fold_events ~init:!event collect_watches (Inotify.read fd)
              ) ;
 
-          let current_time = Mtime_clock.elapsed () in
-          let elapsed_time =
-            Mtime.Span.(to_s (abs_diff start_time current_time))
-          in
+          let elapsed = Mtime_clock.count from_time in
 
           match !event with
-          | Waiting when elapsed_time < for_s ->
+          | Waiting when Mtime.Span.compare elapsed amount < 0 ->
               poll_loop ()
           | Created ->
               Ok ()
@@ -183,9 +180,9 @@ let start_and_wait_for_readyness ~task ~service =
 
   Xenops_task.check_cancelling task ;
 
+  let amount = Mtime.Span.(service.timeout_seconds * s) in
   (* wait for pidfile to appear *)
-  Result.iter_error raise_e
-    (wait ~for_s:service.timeout_seconds ~service_name:syslog_key) ;
+  Result.iter_error raise_e (wait ~amount ~service_name:syslog_key) ;
 
   debug "Service %s initialized" syslog_key
 
@@ -415,6 +412,16 @@ module Vgpu = struct
     let pid_location = Pid.Xenstore pid_path
   end)
 
+  (** An NVidia Virtual Compute Service vGPU has a class attribute
+     "Compute". Recognise this here *)
+  let is_compute_vgpu vgpu =
+    let open Xenops_interface.Vgpu in
+    match vgpu with
+    | {implementation= Nvidia {vclass= Some "Compute"; _}; _} ->
+        true
+    | _ ->
+        false
+
   let vgpu_args_of_nvidia domid vcpus vgpus restore =
     let open Xenops_interface.Vgpu in
     let virtual_pci_address_compare vgpu1 vgpu2 =
@@ -507,7 +514,15 @@ module Vgpu = struct
       @ device_args
     in
     let fd_arg = if restore then ["--resume"] else [] in
-    List.concat [base_args; fd_arg]
+    (* support for NVidia VCS (compute) vGPUs *)
+    let no_console =
+      match List.for_all is_compute_vgpu vgpus with
+      | true ->
+          ["--noconsole"]
+      | false ->
+          []
+    in
+    List.concat [base_args; no_console; fd_arg]
 
   let state_path domid = Printf.sprintf "/local/domain/%d/vgpu/state" domid
 
@@ -668,28 +683,28 @@ module Swtpm = struct
   let pidfile_path domid = Printf.sprintf "swtpm-%d.pid" domid
 
   module D = SystemdDaemonMgmt (struct
-    let name = "swtpm-wrapper"
+    let name = "swtpm"
 
     let pid_location = Pid.File pidfile_path
   end)
 
   let xs_path ~domid = Device_common.get_private_path domid ^ "/vtpm"
 
-  let state_path =
-    (* for easier compat with dir:// mode, but can be anything.
-       If we implement VDI state storage this could be a block device
-    *)
-    Xenops_sandbox.Chroot.Path.of_string ~relative:"tpm2-00.permall"
-
-  let restore ~domid ~vm_uuid state =
+  let restore dbg ~domid ~vtpm_uuid state =
     if String.length state > 0 then (
-      let path = Xenops_sandbox.Swtpm_guard.create ~domid ~vm_uuid state_path in
+      Xapi_idl_guard_privileged.Client.vtpm_set_contents dbg vtpm_uuid state ;
       debug "Restored vTPM for domid %d: %d bytes, digest %s" domid
         (String.length state)
-        (state |> Digest.string |> Digest.to_hex) ;
-      Unixext.write_string_to_file path state
+        (state |> Digest.string |> Digest.to_hex)
     ) else
       debug "vTPM state for domid %d is empty: not restoring" domid
+
+  let check_state_needs_init task vtpm_uuid =
+    let dbg = Xenops_task.get_dbg task in
+    let contents =
+      Xapi_idl_guard_privileged.Client.vtpm_get_contents dbg vtpm_uuid
+    in
+    String.length contents = 0
 
   let start ~xs ~vtpm_uuid ~index task domid =
     debug "Preparing to start swtpm-wrapper to provide a vTPM (domid=%d)" domid ;
@@ -698,26 +713,60 @@ module Swtpm = struct
     let pid_filename = pidfile_path domid in
     let vm_uuid = Xenops_helpers.uuid_of_domid ~xs domid |> Uuidx.to_string in
 
-    let chroot, _socket_path =
+    let chroot, socket_path =
       Xenops_sandbox.Swtpm_guard.start (Xenops_task.get_dbg task) ~vm_uuid
         ~domid ~paths:[]
     in
     let tpm_root =
       Xenops_sandbox.Chroot.(absolute_path_outside chroot Path.root)
     in
-    (* the uri here is relative to the chroot path, if chrooting is disabled then
-       swtpm-wrapper should modify the uri accordingly.
-       There are two modes in dictated by dir:// and file://.  The latter indicates
-       a linear file storage, and allows further permissions to be restricted.
-       xenopsd needs to be in charge of choosing the scheme according to the backend
+    (* the uri here is relative to the chroot path,
+       if chrooting is disabled then swtpm-wrapper should chdir accordingly.
+       There are three modes: dir://, file:// and unix+http://.
+       file:// indicates a linear file storage, and allows further permissions to be restricted.
+       xenopsd needs to be in charge of choosing the scheme according to the backend.
+
+       unix+http is the new backend, and dir:// is used during initial
+       manufacture.
     *)
-    let state_uri =
-      Filename.concat "dir://"
-      @@ Xenops_sandbox.Chroot.chroot_path_inside state_path
+    let args needs_init =
+      let state_uri =
+        if needs_init then
+          "dir://." (* exactly 2 //, we can't create this with Uri *)
+        else
+          (* drop leading / so that the URI works both inside and outside a
+             chroot *)
+          let host = String.sub socket_path 1 (String.length socket_path - 1) in
+          Uri.make ~scheme:"unix+http" ~host () |> Uri.to_string
+      in
+      Fe_argv.Add.many
+        [string_of_int domid; tpm_root; state_uri; string_of_bool needs_init]
+      |> Fe_argv.run
+      |> snd
+      |> Fe_argv.argv
     in
-    let args = Fe_argv.Add.many [string_of_int domid; tpm_root; state_uri] in
-    let args = Fe_argv.run args |> snd |> Fe_argv.argv in
+    (* fetch it here instead of swtpm-wrapper: better error reporting,
+       swtpm-wrapper runs as a service and getting the exact error back is
+       difficult. *)
+    let needs_init = check_state_needs_init task vtpm_uuid in
     let timeout_seconds = !Xenopsd.swtpm_ready_timeout in
+    if needs_init then (
+      debug "vTPM %s is empty, needs to be created" (Uuidm.to_string vtpm_uuid) ;
+      let key = Printf.sprintf "%s-%d" (Filename.basename exec_path) domid in
+      let _, _ =
+        Forkhelpers.execute_command_get_output
+          ~syslog_stdout:(Forkhelpers.Syslog_WithKey key)
+          ~redirect_stderr_to_stdout:true
+          ~timeout:(float_of_int timeout_seconds)
+          exec_path (args true)
+      in
+      let state_file = Filename.concat tpm_root "tpm2-00.permall" in
+      let state = Unixext.string_of_file state_file |> Base64.encode_exn in
+      let dbg = Xenops_task.get_dbg task in
+      debug "storing newly manufactured vTPM state" ;
+      Xapi_idl_guard_privileged.Client.vtpm_set_contents dbg vtpm_uuid state ;
+      Unixext.unlink_safe state_file
+    ) ;
     let execute = D.start_daemon in
     let service =
       {
@@ -726,25 +775,12 @@ module Swtpm = struct
       ; exec_path
       ; pid_filename
       ; chroot
-      ; args
+      ; args= args false
       ; execute
       ; timeout_seconds
       }
     in
 
-    let dbg = Xenops_task.get_dbg task in
-    let state =
-      Varstore_privileged_client.Client.vtpm_get_contents dbg vtpm_uuid
-      |> Base64.decode_exn
-    in
-
-    let abs_path =
-      Xenops_sandbox.Chroot.absolute_path_outside chroot state_path
-    in
-    if Sys.file_exists abs_path then
-      debug "Not restoring vTPM: %s already exists" abs_path
-    else
-      restore ~domid ~vm_uuid state ;
     let vtpm_path = xs_path ~domid in
 
     xs.Xs.write
@@ -757,23 +793,15 @@ module Swtpm = struct
       absolute_path_outside chroot (Path.of_string ~relative:"swtpm-sock")
     )
 
-  let suspend ~xs ~domid ~vm_uuid =
+  let suspend dbg ~xs ~domid ~vtpm_uuid =
     D.stop ~xs domid ;
-    Xenops_sandbox.Swtpm_guard.read ~domid ~vm_uuid state_path
+    Xapi_idl_guard_privileged.Client.vtpm_get_contents dbg vtpm_uuid
 
   let stop dbg ~xs ~domid ~vm_uuid ~vtpm_uuid =
     debug "About to stop vTPM (%s) for domain %d (%s)"
       (Uuidm.to_string vtpm_uuid)
       domid vm_uuid ;
-    let contents = suspend ~xs ~domid ~vm_uuid in
-    let length = String.length contents in
-    if length > 0 then (
-      debug "Storing vTPM state of %d bytes" length ;
-      Varstore_privileged_client.Client.vtpm_set_contents dbg vtpm_uuid
-        (Base64.encode_string contents)
-    ) else
-      debug "vTPM state is empty: not storing" ;
-    (* needed to save contents before wiping the chroot *)
+    D.stop ~xs domid ;
     Xenops_sandbox.Swtpm_guard.stop dbg ~domid ~vm_uuid
 end
 

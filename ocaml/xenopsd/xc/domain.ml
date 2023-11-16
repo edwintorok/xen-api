@@ -122,11 +122,11 @@ type build_pv_info = {cmdline: string; ramdisk: string option}
 [@@deriving rpcty]
 
 type build_pvh_info = {
-    cmdline: string
-  ; (* cmdline for the kernel (image) *)
-    modules: (string * string option) list
-  ; (* list of modules plus optional cmdlines *)
-    shadow_multiplier: float
+    cmdline: string  (** cmdline for the kernel (image) *)
+  ; pv_shim: bool [@default true]
+  ; modules: (string * string option) list
+        (** list of modules plus optional cmdlines *)
+  ; shadow_multiplier: float
   ; video_mib: int
 }
 [@@deriving rpcty]
@@ -138,15 +138,11 @@ type builder_spec_info =
 [@@deriving rpcty]
 
 type build_info = {
-    memory_max: int64
-  ; (* memory max in kilobytes *)
-    memory_target: int64
-  ; (* memory target in kilobytes *)
-    kernel: string
-  ; (* in hvm case, point to hvmloader *)
-    vcpus: int
-  ; (* vcpus max *)
-    priv: builder_spec_info
+    memory_max: int64  (** memory max in kilobytes *)
+  ; memory_target: int64  (** memory target in kilobytes *)
+  ; kernel: string  (** in hvm case, point to hvmloader *)
+  ; vcpus: int  (** vcpus max *)
+  ; priv: builder_spec_info
   ; has_hard_affinity: bool [@default false]
 }
 [@@deriving rpcty]
@@ -158,9 +154,7 @@ let allowed_xsdata_prefixes = ["vm-data"; "FIST"]
 let filtered_xsdata =
   (* disallowed by default; allowed only if it has one of a set of prefixes *)
   let is_allowed path dir = Astring.String.is_prefix ~affix:(dir ^ "/") path in
-  let allowed (x, _) =
-    List.fold_left ( || ) false (List.map (is_allowed x) allowed_xsdata_prefixes)
-  in
+  let allowed (x, _) = List.exists (is_allowed x) allowed_xsdata_prefixes in
   List.filter allowed
 
 exception Suspend_image_failure
@@ -956,8 +950,6 @@ let xenguest_args_hvm ~domid ~store_port ~store_domid ~console_port
     ~console_domid ~memory ~kernel ~vgpus =
   ["-mode"; "hvm_build"; "-image"; kernel]
   @ (vgpus |> function
-     | [Xenops_interface.Vgpu.{implementation= Nvidia _; _}] ->
-         ["-vgpu"]
      | Xenops_interface.Vgpu.{implementation= Nvidia _; _} :: _ ->
          ["-vgpu"]
      | _ ->
@@ -1148,11 +1140,12 @@ let build (task : Xenops_task.task_handle) ~xc ~xs ~store_domid ~console_domid
           xenguest task xenguest_path domid uuid args
         in
         (store_mfn, store_port, console_mfn, console_port, [], `pv)
-    | BuildPVH pvhinfo ->
-        let shadow_multiplier = pvhinfo.shadow_multiplier in
-        let video_mib = pvhinfo.video_mib in
+    | BuildPVH {cmdline; pv_shim; modules; shadow_multiplier; video_mib} ->
+        let full_config =
+          if pv_shim then Memory.PVinPVH.full_config else Memory.HVM.full_config
+        in
         let memory =
-          Memory.PVinPVH.full_config static_max_mib video_mib target_mib vcpus
+          full_config static_max_mib video_mib target_mib vcpus
             shadow_multiplier
         in
         maybe_ca_140252_workaround ~xc ~vcpus domid ;
@@ -1162,8 +1155,7 @@ let build (task : Xenops_task.task_handle) ~xc ~xs ~store_domid ~console_domid
         let store_mfn, console_mfn =
           let args =
             xenguest_args_pvh ~domid ~store_port ~store_domid ~console_port
-              ~console_domid ~memory ~kernel ~cmdline:pvhinfo.cmdline
-              ~modules:pvhinfo.modules
+              ~console_domid ~memory ~kernel ~cmdline ~modules
             @ force_arg
             @ extras
           in
@@ -1279,7 +1271,7 @@ let consume_qemu_record fd limit domid uuid =
 let restore_common (task : Xenops_task.task_handle) ~xc ~xs
     ~(dm : Device.Profile.t) ~domain_type ~store_port ~store_domid:_
     ~console_port ~console_domid:_ ~no_incr_generationid:_ ~vcpus:_ ~extras
-    manager_path domid main_fd vgpu_fd =
+    ~vtpm manager_path domid main_fd vgpu_fd =
   let module DD = Debug.Make (struct let name = "mig64" end) in
   let open DD in
   let uuid = get_uuid ~xc domid in
@@ -1401,11 +1393,19 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
                 debug "Read varstored record contents (domid=%d)" domid ;
                 Device.Dm.restore_varstored task ~xs ~efivars domid ;
                 process_header fd res
+            | Swtpm0, len ->
+                debug "Read swtpm0 record header (domid=%d length=%Ld)" domid
+                  len ;
+                let raw_contents = Io.read fd (Io.int_of_int64_exn len) in
+                let contents = Base64.encode_string raw_contents in
+                debug "Read swtpm0 record contents (domid=%d)" domid ;
+                Device.Dm.restore_vtpm task ~xs ~contents ~vtpm domid ;
+                process_header fd res
             | Swtpm, len ->
                 debug "Read swtpm record header (domid=%d length=%Ld)" domid len ;
                 let contents = Io.read fd (Io.int_of_int64_exn len) in
                 debug "Read swtpm record contents (domid=%d)" domid ;
-                Device.Dm.restore_vtpm task ~xs ~contents domid ;
+                Device.Dm.restore_vtpm task ~xs ~contents ~vtpm domid ;
                 process_header fd res
             | End_of_image, _ ->
                 debug "Read suspend image footer" ;
@@ -1539,7 +1539,7 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
 
 let restore (task : Xenops_task.task_handle) ~xc ~xs ~dm ~store_domid
     ~console_domid ~no_incr_generationid ~timeoffset ~extras info ~manager_path
-    domid fd vgpu_fd =
+    ~vtpm domid fd vgpu_fd =
   let static_max_kib = info.memory_max in
   let target_kib = info.memory_target in
   let vcpus = info.vcpus in
@@ -1568,10 +1568,12 @@ let restore (task : Xenops_task.task_handle) ~xc ~xs ~dm ~store_domid
             shadow_multiplier
         in
         (memory, [], `pv)
-    | BuildPVH pvhinfo ->
-        let shadow_multiplier = pvhinfo.shadow_multiplier in
+    | BuildPVH {pv_shim; shadow_multiplier; _} ->
+        let full_config =
+          if pv_shim then Memory.PVinPVH.full_config else Memory.HVM.full_config
+        in
         let memory =
-          Memory.PVinPVH.full_config static_max_mib video_mib target_mib vcpus
+          full_config static_max_mib video_mib target_mib vcpus
             shadow_multiplier
         in
         let vm_stuff = [("rtc/timeoffset", timeoffset)] in
@@ -1584,7 +1586,7 @@ let restore (task : Xenops_task.task_handle) ~xc ~xs ~dm ~store_domid
   in
   let store_mfn, console_mfn =
     restore_common task ~xc ~xs ~dm ~domain_type ~store_port ~store_domid
-      ~console_port ~console_domid ~no_incr_generationid ~vcpus ~extras
+      ~console_port ~console_domid ~no_incr_generationid ~vcpus ~extras ~vtpm
       manager_path domid fd vgpu_fd
   in
   let local_stuff = console_keys console_port console_mfn in
@@ -1678,7 +1680,7 @@ let suspend_emu_manager ~(task : Xenops_task.task_handle) ~xc:_ ~xs ~domain_type
                   Device.Dm.suspend_varstored task ~xs domid ~vm_uuid
                 in
                 let (_ : string list) =
-                  Device.Dm.suspend_vtpms task ~xs domid ~vm_uuid ~vtpm
+                  Device.Dm.suspend_vtpm task ~xs domid ~vtpm
                 in
                 ()
             ) ;
@@ -1760,12 +1762,10 @@ let forall f l =
   let open Suspend_image.M in
   fold (fun x () -> f x) l ()
 
-let write_vtpms_record task ~xs ~vtpm domid main_fd =
+let write_vtpm_record task ~xs ~vtpm domid main_fd =
   let open Suspend_image in
   let open Suspend_image.M in
-  Device.Dm.suspend_vtpms task ~xs domid
-    ~vm_uuid:(Uuidx.to_string (Xenops_helpers.uuid_of_domid ~xs domid))
-    ~vtpm
+  Device.Dm.suspend_vtpm task ~xs domid ~vtpm
   |> forall @@ fun swtpm_record ->
      let swtpm_rec_len = String.length swtpm_record in
      debug "Writing swtpm record (domid=%d length=%d)" domid swtpm_rec_len ;
@@ -1810,7 +1810,7 @@ let suspend (task : Xenops_task.task_handle) ~xc ~xs ~domain_type ~is_uefi ~dm
     >>= fun () ->
     ( if is_uefi then
         write_varstored_record task ~xs domid main_fd >>= fun () ->
-        write_vtpms_record task ~xs ~vtpm domid main_fd
+        write_vtpm_record task ~xs ~vtpm domid main_fd
     else
       return ()
     )

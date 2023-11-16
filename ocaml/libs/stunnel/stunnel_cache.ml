@@ -106,18 +106,21 @@ let unlocked_gc () =
   (* Find the ones which are too old *)
   let now = Unix.gettimeofday () in
   Tbl.iter !stunnels (fun idx stunnel ->
-      let time = Hashtbl.find !times idx in
-      let idle = now -. time in
-      let age = now -. stunnel.Stunnel.connected_time in
-      if age > max_age then (
-        debug "Expiring stunnel id %s; age (%.2f) > limit (%.2f)"
-          (id_of_stunnel stunnel) age max_age ;
-        to_gc := idx :: !to_gc
-      ) else if idle > max_idle then (
-        debug "Expiring stunnel id %s; idle (%.2f) > limit (%.2f)"
-          (id_of_stunnel stunnel) age max_idle ;
-        to_gc := idx :: !to_gc
-      )
+      match Hashtbl.find_opt !times idx with
+      | Some time ->
+          let idle = now -. time in
+          let age = now -. stunnel.Stunnel.connected_time in
+          if age > max_age then (
+            debug "Expiring stunnel id %s; age (%.2f) > limit (%.2f)"
+              (id_of_stunnel stunnel) age max_age ;
+            to_gc := idx :: !to_gc
+          ) else if idle > max_idle then (
+            debug "Expiring stunnel id %s; idle (%.2f) > limit (%.2f)"
+              (id_of_stunnel stunnel) age max_idle ;
+            to_gc := idx :: !to_gc
+          )
+      | None ->
+          debug "%s: found no entry for idx=%d" __FUNCTION__ idx
   ) ;
   let num_remaining = List.length all_ids - List.length !to_gc in
   if num_remaining > max_stunnel then (
@@ -198,7 +201,7 @@ let add (x : Stunnel.t) =
 (** Returns an Stunnel.t for this endpoint (oldest first), raising Not_found
     if none can be found. First performs a garbage-collection, which discards
     expired stunnels if needed. *)
-let with_remove host port verified f =
+let with_remove ~host ~port verified f =
   let ep = {host; port; verified} in
   let get_id () =
     with_lock m (fun () ->
@@ -236,8 +239,9 @@ let flush () =
       info "Flushed!"
   )
 
-let with_connect ?use_fork_exec_helper ?write_to_log ~verify_cert host port f =
-  match with_remove host port verify_cert f with
+let with_connect ?use_fork_exec_helper ?write_to_log ~verify_cert ~host ~port f
+    =
+  match with_remove ~host ~port verify_cert f with
   | Some r ->
       r
   | None ->

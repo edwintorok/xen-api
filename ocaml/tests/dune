@@ -1,11 +1,14 @@
 (test
   (name suite_alcotest)
+  (modes exe)
   (package xapi)
   (modules
     (:standard \ test_daemon_manager test_vdi_cbt test_event test_clustering
       test_cluster_host test_cluster test_pusb test_network_sriov
       test_vm_placement test_vm_helpers test_repository test_repository_helpers
-      test_livepatch test_rpm test_updateinfo test_storage_impl test_storage_quicktest))
+      test_ref
+      test_livepatch test_rpm test_updateinfo test_storage_smapiv1_wrapper test_storage_quicktest test_observer
+      test_pool_periodic_update_sync))
   (libraries
     alcotest
     angstrom
@@ -13,7 +16,7 @@
     cstruct
     dune-build-info
     fmt
-    http-svr
+    http_lib
     ipaddr
     mirage-crypto
     pam
@@ -29,7 +32,7 @@
     xapi-client
     xapi_cli_server
     xapi-consts
-    xapi-database
+    xapi_database
     xapi-datamodel
     xapi-idl
     xapi-idl.storage.interface
@@ -42,6 +45,7 @@
     xapi-stdext-threads
     xapi-stdext-unix
     xapi-test-utils
+    xapi-tracing
     xapi-types
     xapi-stdext-pervasives
     xapi-xenopsd
@@ -56,12 +60,13 @@
 (tests
   (names test_vm_helpers test_vm_placement test_network_sriov test_vdi_cbt
     test_clustering test_pusb test_daemon_manager test_repository test_repository_helpers
-    test_livepatch test_rpm test_updateinfo)
+    test_livepatch test_rpm test_updateinfo test_pool_periodic_update_sync)
   (package xapi)
+  (modes exe)
   (modules test_vm_helpers test_vm_placement test_network_sriov test_vdi_cbt
     test_event test_clustering test_cluster_host test_cluster test_pusb
     test_daemon_manager test_repository test_repository_helpers test_livepatch test_rpm
-    test_updateinfo)
+    test_updateinfo test_pool_periodic_update_sync)
   (libraries
     alcotest
     fmt
@@ -75,7 +80,7 @@
     xapi-client
     xapi_cli_server
     xapi-consts
-    xapi-database
+    xapi_database
     xapi-idl
     xapi-idl.cluster
     xapi-idl.storage
@@ -83,6 +88,7 @@
     xapi-idl.xen
     xapi_internal
     xapi-test-utils
+    xapi-tracing
     xapi-types
     xapi-stdext-threads
     xml-light2
@@ -91,16 +97,31 @@
   (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
 )
 (test
-(name test_storage_impl) 
+(name test_storage_smapiv1_wrapper)
+(modes exe)
 (package xapi)
-(modules test_storage_impl)
+(modules test_storage_smapiv1_wrapper)
 (libraries alcotest xapi_internal fmt))
 
 (test
-(name test_storage_quicktest) 
+(name test_storage_quicktest)
+(modes exe)
 (package xapi)
 (modules test_storage_quicktest)
 (libraries xapi_internal crowbar))
+
+(test
+(name test_ref)
+(modes exe)
+(package xapi)
+(modules test_ref)
+(libraries xapi_internal crowbar))
+
+(test
+(name test_observer)
+(package xapi)
+(modules test_observer)
+(libraries alcotest tracing xapi_internal tests_common yojson))
 
 (rule
   (alias runtest)

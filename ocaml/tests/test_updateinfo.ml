@@ -25,7 +25,6 @@ let fields_of_pkg =
     ; field "release" (fun (r : Pkg.t) -> r.release) string
     ; field "arch" (fun (r : Pkg.t) -> r.arch) string
     ]
-  
 
 module ApplicabilityEval = Generic.MakeStateless (struct
   module Io = struct
@@ -58,7 +57,6 @@ module ApplicabilityEval = Generic.MakeStateless (struct
           ; version= v2
           ; release= r2
           }
-        
       in
 
       Ok (Applicability.eval ~epoch:e1 ~version:v1 ~release:r1 ~applicability)
@@ -339,7 +337,6 @@ module UpdateInfoMetaDataOfXml = Generic.MakeStateless (struct
           field "checksum" (fun (r : RepoMetaData.t) -> r.checksum) string
         ; field "location" (fun (r : RepoMetaData.t) -> r.location) string
         ]
-      
 
     let string_of_output_t =
       Fmt.(str "%a" Dump.(result ~ok:(record @@ fields) ~error:exn))
@@ -415,7 +412,6 @@ module UpdateInfoMetaDataOfXml = Generic.MakeStateless (struct
         , Ok
             RepoMetaData.
               {checksum= "123abc"; location= "repodata/123abc.xml.gz"}
-            
         )
       ]
 end)
@@ -452,8 +448,13 @@ let fields_of_updateinfo =
             r.livepatches
         )
         (list string)
+    ; field "issued"
+        (fun (r : UpdateInfo.t) -> Xapi_stdext_date.Date.to_string r.issued)
+        string
+    ; field "severity"
+        (fun (r : UpdateInfo.t) -> Severity.to_string r.severity)
+        string
     ]
-  
 
 module UpdateInfoOfXml = Generic.MakeStateless (struct
   module Io = struct
@@ -568,8 +569,9 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                   ; update_type= "security"
                   ; livepatch_guidance= None
                   ; livepatches= []
+                  ; issued= Xapi_stdext_date.Date.epoch
+                  ; severity= Severity.None
                   }
-                
               )
             ]
         )
@@ -609,6 +611,8 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                 <special_info>special information</special_info>
                 <url>https://update.details.info</url>
                 <guidance_applicabilities/>
+                <issued date="2023-05-12 08:37:49"/>
+                <severity>High</severity>
               </update>
             </updates>
           |}
@@ -628,8 +632,10 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                   ; update_type= "security"
                   ; livepatch_guidance= None
                   ; livepatches= []
+                  ; issued=
+                      Xapi_stdext_date.Date.of_string "2023-05-12T08:37:49Z"
+                  ; severity= Severity.High
                   }
-                
               )
             ]
         )
@@ -644,6 +650,8 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                 <special_info>special information</special_info>
                 <url>https://update.details.info</url>
                 <guidance_applicabilities/>
+                <issued date="2023-05-12 08:37:49"/>
+                <severity>High</severity>
               </update>
               <update type="security">
                 <id>UPDATE-0001</id>
@@ -653,6 +661,8 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                 <special_info>special information</special_info>
                 <url>https://update.details.info</url>
                 <guidance_applicabilities/>
+                <issued date="2023-05-12 08:37:50"/>
+                <severity>None</severity>
               </update>
             </updates>
           |}
@@ -672,8 +682,10 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                   ; update_type= "security"
                   ; livepatch_guidance= None
                   ; livepatches= []
+                  ; issued=
+                      Xapi_stdext_date.Date.of_string "2023-05-12T08:37:49Z"
+                  ; severity= Severity.High
                   }
-                
               )
             ; ( "UPDATE-0001"
               , UpdateInfo.
@@ -689,8 +701,10 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                   ; update_type= "security"
                   ; livepatch_guidance= None
                   ; livepatches= []
+                  ; issued=
+                      Xapi_stdext_date.Date.of_string "2023-05-12T08:37:50Z"
+                  ; severity= Severity.None
                   }
-                
               )
             ]
         )
@@ -724,6 +738,8 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                     <arch>x86_64</arch>
                   </applicability>
                 </guidance_applicabilities>
+                <issued date="2023-05-12 08:37:49"/>
+                <severity>High</severity>
               </update>
             </updates>
           |}
@@ -748,7 +764,6 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                           ; version= "10.1.0"
                           ; release= "25"
                           }
-                        
                       ; Applicability.
                           {
                             name= "xsconsole"
@@ -758,15 +773,94 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                           ; version= "10.1.0"
                           ; release= "25"
                           }
-                        
                       ]
                   ; spec_info= "special information"
                   ; url= "https://update.details.info"
                   ; update_type= "security"
                   ; livepatch_guidance= None
                   ; livepatches= []
+                  ; issued=
+                      Xapi_stdext_date.Date.of_string "2023-05-12T08:37:49Z"
+                  ; severity= Severity.High
                   }
-                
+              )
+            ]
+        )
+      ; (* Single update with new guidances *)
+        ( {|
+            <updates>
+              <update type="security">
+                <id>UPDATE-0000</id>
+                <title>title</title>
+                <summary>summary</summary>
+                <description>description</description>
+                <special_info>special information</special_info>
+                <url>https://update.details.info</url>
+                <recommended_guidance>NewGuidance</recommended_guidance>
+                <absolute_guidance>NewGuidance</absolute_guidance>
+                <guidance_applicabilities>
+                  <applicability>
+                    <name>xsconsole</name>
+                    <inequality>gte</inequality>
+                    <epoch>None</epoch>
+                    <version>10.1.0</version>
+                    <release>25</release>
+                    <arch>x86_64</arch>
+                  </applicability>
+                  <applicability>
+                    <name>xsconsole</name>
+                    <inequality>lt</inequality>
+                    <epoch>None</epoch>
+                    <version>10.1.0</version>
+                    <release>25</release>
+                    <arch>x86_64</arch>
+                  </applicability>
+                </guidance_applicabilities>
+                <issued date="2023-05-12 08:37:49"/>
+                <severity>High</severity>
+              </update>
+            </updates>
+          |}
+        , Ok
+            [
+              ( "UPDATE-0000"
+              , UpdateInfo.
+                  {
+                    id= "UPDATE-0000"
+                  ; summary= "summary"
+                  ; description= "description"
+                  ; rec_guidance= Some Guidance.RebootHost
+                  ; abs_guidance= Some Guidance.RebootHost
+                  ; guidance_applicabilities=
+                      [
+                        Applicability.
+                          {
+                            name= "xsconsole"
+                          ; arch= "x86_64"
+                          ; inequality= Some Gte
+                          ; epoch= None
+                          ; version= "10.1.0"
+                          ; release= "25"
+                          }
+                      ; Applicability.
+                          {
+                            name= "xsconsole"
+                          ; arch= "x86_64"
+                          ; inequality= Some Lt
+                          ; epoch= None
+                          ; version= "10.1.0"
+                          ; release= "25"
+                          }
+                      ]
+                  ; spec_info= "special information"
+                  ; url= "https://update.details.info"
+                  ; update_type= "security"
+                  ; livepatch_guidance= None
+                  ; livepatches= []
+                  ; issued=
+                      Xapi_stdext_date.Date.of_string "2023-05-12T08:37:49Z"
+                  ; severity= Severity.High
+                  }
               )
             ]
         )
@@ -786,6 +880,8 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                   <livepatch component="kernel" base="4.19.19-8.0.19.xs8" to="4.19.19-8.0.21.xs8" base-buildid="8346194f2e98a228f5a595b13ecabd43a99fada0"/>
                   <livepatch component="kernel" base="4.19.19-8.0.20.xs8" to="4.19.19-8.0.21.xs8" base-buildid="9346194f2e98a228f5a595b13ecabd43a99fada0"/>
                 </livepatches>
+                <issued date="2023-05-12 08:37:49"/>
+                <severity>High</severity>
               </update>
             </updates>
           |}
@@ -816,7 +912,6 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                           ; to_version= "4.19.19"
                           ; to_release= "8.0.21.xs8"
                           }
-                        
                       ; LivePatch.
                           {
                             component= Kernel
@@ -827,10 +922,77 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                           ; to_version= "4.19.19"
                           ; to_release= "8.0.21.xs8"
                           }
-                        
                       ]
+                  ; issued=
+                      Xapi_stdext_date.Date.of_string "2023-05-12T08:37:49Z"
+                  ; severity= Severity.High
                   }
-                
+              )
+            ]
+        )
+      ; (* Single update with livepatches and new livepatch_guidance *)
+        ( {|
+            <updates>
+              <update type="security">
+                <id>UPDATE-0000</id>
+                <title>title</title>
+                <summary>summary</summary>
+                <description>description</description>
+                <special_info>special information</special_info>
+                <url>https://update.details.info</url>
+                <guidance_applicabilities/>
+                <livepatch_guidance>NewGuidance</livepatch_guidance>
+                <livepatches>
+                  <livepatch component="kernel" base="4.19.19-8.0.19.xs8" to="4.19.19-8.0.21.xs8" base-buildid="8346194f2e98a228f5a595b13ecabd43a99fada0"/>
+                  <livepatch component="kernel" base="4.19.19-8.0.20.xs8" to="4.19.19-8.0.21.xs8" base-buildid="9346194f2e98a228f5a595b13ecabd43a99fada0"/>
+                </livepatches>
+                <issued date="2023-05-12 08:37:49"/>
+                <severity>High</severity>
+              </update>
+            </updates>
+          |}
+        , Ok
+            [
+              ( "UPDATE-0000"
+              , UpdateInfo.
+                  {
+                    id= "UPDATE-0000"
+                  ; summary= "summary"
+                  ; description= "description"
+                  ; rec_guidance= None
+                  ; abs_guidance= None
+                  ; guidance_applicabilities= []
+                  ; spec_info= "special information"
+                  ; url= "https://update.details.info"
+                  ; update_type= "security"
+                  ; livepatch_guidance= Some Guidance.RebootHost
+                  ; livepatches=
+                      [
+                        LivePatch.
+                          {
+                            component= Kernel
+                          ; base_build_id=
+                              "8346194f2e98a228f5a595b13ecabd43a99fada0"
+                          ; base_version= "4.19.19"
+                          ; base_release= "8.0.19.xs8"
+                          ; to_version= "4.19.19"
+                          ; to_release= "8.0.21.xs8"
+                          }
+                      ; LivePatch.
+                          {
+                            component= Kernel
+                          ; base_build_id=
+                              "9346194f2e98a228f5a595b13ecabd43a99fada0"
+                          ; base_version= "4.19.19"
+                          ; base_release= "8.0.20.xs8"
+                          ; to_version= "4.19.19"
+                          ; to_release= "8.0.21.xs8"
+                          }
+                      ]
+                  ; issued=
+                      Xapi_stdext_date.Date.of_string "2023-05-12T08:37:49Z"
+                  ; severity= Severity.High
+                  }
               )
             ]
         )
@@ -867,8 +1029,9 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                   ; update_type= "security"
                   ; livepatch_guidance= Some Guidance.RestartDeviceModel
                   ; livepatches= []
+                  ; issued= Xapi_stdext_date.Date.epoch
+                  ; severity= Severity.None
                   }
-                
               )
             ]
         )
@@ -918,10 +1081,10 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                           ; to_version= "4.19.19"
                           ; to_release= "8.0.21.xs8"
                           }
-                        
                       ]
+                  ; issued= Xapi_stdext_date.Date.epoch
+                  ; severity= Severity.None
                   }
-                
               )
             ]
         )
@@ -960,8 +1123,9 @@ module UpdateInfoOfXml = Generic.MakeStateless (struct
                   ; update_type= "security"
                   ; livepatch_guidance= Some Guidance.RestartToolstack
                   ; livepatches= []
+                  ; issued= Xapi_stdext_date.Date.epoch
+                  ; severity= Severity.None
                   }
-                
               )
             ]
         )

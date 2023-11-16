@@ -26,45 +26,6 @@ let update_allowed_operations ~__context ~self : unit =
 let assert_attachable ~__context ~self : unit =
   assert_attachable ~__context ~self
 
-let print_fork_error f =
-  try f ()
-  with Forkhelpers.Spawn_internal_error (stderr, stdout, status) as e -> (
-    match status with
-    | Unix.WEXITED n ->
-        error "Forkhelpers.Spawn_internal_error(%s, %s, WEXITED %d)" stderr
-          stdout n ;
-        raise e
-    | Unix.WSIGNALED n ->
-        error "Forkhelpers.Spawn_internal_error(%s, %s, WSIGNALED %d)" stderr
-          stdout n ;
-        raise e
-    | Unix.WSTOPPED n ->
-        error "Forkhelpers.Spawn_internal_error(%s, %s, WSTOPPED %d)" stderr
-          stdout n ;
-        raise e
-  )
-
-let run_command cmd args =
-  debug "running %s %s" cmd (String.concat " " args) ;
-  let stdout, _ =
-    print_fork_error (fun () -> Forkhelpers.execute_command_get_output cmd args)
-  in
-  stdout
-
-module NbdClient = struct
-  let start_nbd_client ~unix_socket_path ~export_name =
-    run_command
-      !Xapi_globs.nbd_client_manager_script
-      ["connect"; "--path"; unix_socket_path; "--exportname"; export_name]
-    |> String.trim
-
-  let stop_nbd_client ~nbd_device =
-    run_command
-      !Xapi_globs.nbd_client_manager_script
-      ["disconnect"; "--device"; nbd_device]
-    |> ignore
-end
-
 let set_mode ~__context ~self ~value =
   let vm = Db.VBD.get_VM ~__context ~self in
   Xapi_vm_lifecycle.assert_initial_power_state_is ~__context ~self:vm
@@ -96,7 +57,8 @@ let plug ~__context ~self =
               let unix_socket_path, export_name =
                 Storage_interface.parse_nbd_uri nbd
               in
-              NbdClient.start_nbd_client ~unix_socket_path ~export_name
+              Attach_helpers.NbdClient.start_nbd_client ~unix_socket_path
+                ~export_name
           | [], [], [] ->
               raise
                 (Storage_interface.Storage_error
@@ -145,7 +107,8 @@ let unplug ~__context ~self =
     let device = Db.VBD.get_device ~__context ~self in
     let nbd_device_prefix = "nbd" in
     let is_nbd = Astring.String.is_prefix ~affix:nbd_device_prefix device in
-    if is_nbd then NbdClient.stop_nbd_client ~nbd_device:("/dev/" ^ device) ;
+    if is_nbd then
+      Attach_helpers.NbdClient.stop_nbd_client ~nbd_device:("/dev/" ^ device) ;
     Storage_access.deactivate_and_detach ~__context ~vbd:self ~domid ;
     Db.VBD.set_currently_attached ~__context ~self ~value:false
   ) else
@@ -295,6 +258,11 @@ let create ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type
           (* Make people aware that non-shared disks make VMs not agile *)
           if not empty then
             assert_doesnt_make_vm_non_agile ~__context ~vm:vM ~vdi:vDI ;
+          let metrics = Ref.make ()
+          and metrics_uuid = Uuidx.to_string (Uuidx.make ()) in
+          Db.VBD_metrics.create ~__context ~ref:metrics ~uuid:metrics_uuid
+            ~io_read_kbs:0. ~io_write_kbs:0. ~last_updated:(Date.of_float 0.)
+            ~other_config:[] ;
           (* Enable the SM driver to specify a VBD backend kind for the VDI *)
           let other_config =
             try
@@ -310,7 +278,7 @@ let create ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type
             ~unpluggable ~empty ~reserved:false ~qos_algorithm_type
             ~qos_algorithm_params ~qos_supported_algorithms:[]
             ~currently_attached:_currently_attached ~status_code:Int64.zero
-            ~status_detail:"" ~runtime_properties:[] ~other_config ;
+            ~status_detail:"" ~runtime_properties:[] ~other_config ~metrics ;
           update_allowed_operations ~__context ~self:ref ;
           ref
       )

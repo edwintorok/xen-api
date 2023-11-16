@@ -1460,6 +1460,32 @@ let pool_record rpc session_id pool =
               ~value:(bool_of_string x)
           )
           ()
+      ; make_field ~name:"telemetry-frequency"
+          ~get:(fun () ->
+            (x ()).API.pool_telemetry_frequency
+            |> Record_util.telemetry_frequency_to_string
+          )
+          ()
+      ; make_field ~name:"telemetry-next-collection"
+          ~get:(fun () ->
+            (x ()).API.pool_telemetry_next_collection |> Date.to_string
+          )
+          ()
+      ; make_field ~name:"last-update-sync"
+          ~get:(fun () -> Date.to_string (x ()).API.pool_last_update_sync)
+          ()
+      ; make_field ~name:"update-sync-frequency"
+          ~get:(fun () ->
+            Record_util.update_sync_frequency_to_string
+              (x ()).API.pool_update_sync_frequency
+          )
+          ()
+      ; make_field ~name:"update-sync-day"
+          ~get:(fun () -> Int64.to_string (x ()).API.pool_update_sync_day)
+          ()
+      ; make_field ~name:"update-sync-enabled"
+          ~get:(fun () -> (x ()).API.pool_update_sync_enabled |> string_of_bool)
+          ()
       ]
   }
 
@@ -2340,6 +2366,34 @@ let vm_record rpc session_id vm =
               (xgm ())
           )
           ()
+      ; make_field ~name:"memory"
+          ~get:(fun () ->
+            Option.fold ~none:nid
+              ~some:(fun m ->
+                Record_util.s2sm_to_string "; " m.API.vM_guest_metrics_memory
+              )
+              (xgm ())
+          )
+          ~get_map:(fun () ->
+            Option.fold ~none:[]
+              ~some:(fun m -> m.API.vM_guest_metrics_memory)
+              (xgm ())
+          )
+          ()
+      ; make_field ~name:"disks"
+          ~get:(fun () ->
+            Option.fold ~none:nid
+              ~some:(fun m ->
+                Record_util.s2sm_to_string "; " m.API.vM_guest_metrics_disks
+              )
+              (xgm ())
+          )
+          ~get_map:(fun () ->
+            Option.fold ~none:[]
+              ~some:(fun m -> m.API.vM_guest_metrics_disks)
+              (xgm ())
+          )
+          ()
       ; make_field ~name:"VBDs"
           ~get:(fun () -> get_uuids_from_refs (x ()).API.vM_VBDs)
           ~get_set:(fun () -> List.map get_uuid_from_ref (x ()).API.vM_VBDs)
@@ -3007,6 +3061,13 @@ let host_record rpc session_id host =
               (xm ())
           )
           ()
+      ; make_field ~name:"memory-free"
+          ~get:(fun () ->
+            Option.fold ~none:nid
+              ~some:(fun m -> Int64.to_string m.API.host_metrics_memory_free)
+              (xm ())
+          )
+          ()
       ; make_field ~name:"memory-free-computed" ~expensive:true
           ~get:(fun () ->
             Int64.to_string
@@ -3164,6 +3225,12 @@ let host_record rpc session_id host =
           ()
       ; make_field ~name:"last-software-update"
           ~get:(fun () -> Date.to_string (x ()).API.host_last_software_update)
+          ()
+      ; make_field ~name:"latest-synced-updates-applied"
+          ~get:(fun () ->
+            Record_util.latest_synced_updates_applied_state_to_string
+              (x ()).API.host_latest_synced_updates_applied
+          )
           ()
       ]
   }
@@ -5149,9 +5216,6 @@ let repository_record rpc session_id repository =
           ~get:(fun () -> string_of_bool (x ()).API.repository_update)
           ()
       ; make_field ~name:"hash" ~get:(fun () -> (x ()).API.repository_hash) ()
-      ; make_field ~name:"up-to-date"
-          ~get:(fun () -> string_of_bool (x ()).API.repository_up_to_date)
-          ()
       ; make_field ~name:"gpgkey-path"
           ~get:(fun () -> (x ()).API.repository_gpgkey_path)
           ~set:(fun x ->
@@ -5166,6 +5230,61 @@ let vtpm_record rpc session_id vtpm =
   let _ref = ref vtpm in
   let empty_record =
     ToGet (fun () -> Client.VTPM.get_record ~rpc ~session_id ~self:!_ref)
+  in
+  let record = ref empty_record in
+  let x () = lzy_get record in
+  let secret () =
+    let str = Client.VTPM.get_contents ~rpc ~session_id ~self:!_ref in
+    Printf.sprintf "MD5=%s size=%d bytes"
+      Digest.(string str |> to_hex)
+      (String.length str)
+  in
+  {
+    setref=
+      (fun r ->
+        _ref := r ;
+        record := empty_record
+      )
+  ; setrefrec=
+      (fun (a, b) ->
+        _ref := a ;
+        record := Got b
+      )
+  ; record= x
+  ; getref= (fun () -> !_ref)
+  ; fields=
+      [
+        make_field ~name:"uuid" ~get:(fun () -> (x ()).API.vTPM_uuid) ()
+      ; make_field ~name:"vm-uuid"
+          ~get:(fun () -> get_uuid_from_ref (x ()).API.vTPM_VM)
+          ()
+      ; make_field ~name:"vm-name-label"
+          ~get:(fun () -> get_name_from_ref (x ()).API.vTPM_VM)
+          ()
+      ; make_field ~name:"secret" ~get:secret ()
+      ; make_field ~name:"is_unique"
+          ~get:(fun () -> string_of_bool (x ()).API.vTPM_is_unique)
+          ()
+      ; make_field ~name:"is_protected"
+          ~get:(fun () -> string_of_bool (x ()).API.vTPM_is_protected)
+          ()
+      ; make_field ~name:"allowed-operations"
+          ~get:(fun () ->
+            map_and_concat Record_util.vtpm_operation_to_string
+              (x ()).API.vTPM_allowed_operations
+          )
+          ~get_set:(fun () ->
+            List.map Record_util.vtpm_operation_to_string
+              (x ()).API.vTPM_allowed_operations
+          )
+          ()
+      ]
+  }
+
+let observer_record rpc session_id observer =
+  let _ref = ref observer in
+  let empty_record =
+    ToGet (fun () -> Client.Observer.get_record ~rpc ~session_id ~self:!_ref)
   in
   let record = ref empty_record in
   let x () = lzy_get record in
@@ -5184,15 +5303,139 @@ let vtpm_record rpc session_id vtpm =
   ; getref= (fun () -> !_ref)
   ; fields=
       [
-        make_field ~name:"uuid" ~get:(fun () -> (x ()).API.vTPM_uuid) ()
-      ; make_field ~name:"vm"
-          ~get:(fun () -> get_uuid_from_ref (x ()).API.vTPM_VM)
+        make_field ~name:"uuid" ~get:(fun () -> (x ()).API.observer_uuid) ()
+      ; make_field ~name:"host-uuids"
+          ~get:(fun () ->
+            map_and_concat get_uuid_from_ref (x ()).API.observer_hosts
+          )
+          ~set:(fun s ->
+            let value =
+              get_words ',' s
+              |> List.map (fun uuid ->
+                     Client.Host.get_by_uuid ~rpc ~session_id ~uuid
+                 )
+            in
+            Client.Observer.set_hosts ~rpc ~session_id ~self:observer ~value
+          )
+          ~get_set:(fun () ->
+            List.map get_uuid_from_ref (x ()).API.observer_hosts
+          )
+          ~remove_from_set:(fun uuid ->
+            let host = Client.Host.get_by_uuid ~rpc ~session_id ~uuid in
+            let hosts =
+              Client.Observer.get_hosts ~rpc ~session_id ~self:observer
+            in
+            let value = List.filter (( <> ) host) hosts in
+            Client.Observer.set_hosts ~rpc ~session_id ~self:observer ~value
+          )
+          ~add_to_set:(fun uuid ->
+            let host = Client.Host.get_by_uuid ~rpc ~session_id ~uuid in
+            let hosts =
+              Client.Observer.get_hosts ~rpc ~session_id ~self:observer
+            in
+            let value = if List.mem host hosts then hosts else host :: hosts in
+            Client.Observer.set_hosts ~rpc ~session_id ~self:observer ~value
+          )
           ()
-      ; make_field ~name:"is_unique"
-          ~get:(fun () -> string_of_bool (x ()).API.vTPM_is_unique)
+      ; make_field ~name:"name-label"
+          ~get:(fun () -> (x ()).API.observer_name_label)
           ()
-      ; make_field ~name:"is_protected"
-          ~get:(fun () -> string_of_bool (x ()).API.vTPM_is_protected)
+      ; make_field ~name:"name-description"
+          ~get:(fun () -> (x ()).API.observer_name_description)
+          ()
+      ; make_field ~name:"attributes"
+          ~get:(fun () ->
+            Record_util.s2sm_to_string "; " (x ()).API.observer_attributes
+          )
+          ~get_map:(fun () -> (x ()).API.observer_attributes)
+          ~set_map:(fun value ->
+            Client.Observer.set_attributes ~rpc ~session_id ~self:observer
+              ~value
+          )
+          ~remove_from_map:(fun attribute ->
+            let attributes =
+              Client.Observer.get_attributes ~rpc ~session_id ~self:observer
+            in
+            let value = List.remove_assoc attribute attributes in
+            Client.Observer.set_attributes ~rpc ~session_id ~self:observer
+              ~value
+          )
+          ~add_to_map:(fun k v ->
+            let attributes =
+              Client.Observer.get_attributes ~rpc ~session_id ~self:observer
+            in
+            let value =
+              if List.mem_assoc k attributes then
+                attributes
+              else
+                (k, v) :: attributes
+            in
+            Client.Observer.set_attributes ~rpc ~session_id ~self:observer
+              ~value
+          )
+          ()
+      ; make_field ~name:"endpoints"
+          ~get:(fun () -> map_and_concat Fun.id (x ()).API.observer_endpoints)
+          ~set:(fun s ->
+            Client.Observer.set_endpoints ~rpc ~session_id ~self:observer
+              ~value:(get_words ',' s)
+          )
+          ~get_set:(fun () -> (x ()).API.observer_endpoints)
+          ~remove_from_set:(fun endpoint ->
+            let endpoints =
+              Client.Observer.get_endpoints ~rpc ~session_id ~self:observer
+            in
+            let value = List.filter (( <> ) endpoint) endpoints in
+            Client.Observer.set_endpoints ~rpc ~session_id ~self:observer ~value
+          )
+          ~add_to_set:(fun endpoint ->
+            let endpoints =
+              Client.Observer.get_endpoints ~rpc ~session_id ~self:observer
+            in
+            let value =
+              if List.mem endpoint endpoints then
+                endpoints
+              else
+                endpoint :: endpoints
+            in
+            Client.Observer.set_endpoints ~rpc ~session_id ~self:observer ~value
+          )
+          ()
+      ; make_field ~name:"components"
+          ~get:(fun () -> map_and_concat Fun.id (x ()).API.observer_components)
+          ~set:(fun s ->
+            Client.Observer.set_components ~rpc ~session_id ~self:observer
+              ~value:(get_words ',' s)
+          )
+          ~get_set:(fun () -> (x ()).API.observer_components)
+          ~remove_from_set:(fun component ->
+            let components =
+              Client.Observer.get_components ~rpc ~session_id ~self:observer
+            in
+            let value = List.filter (( <> ) component) components in
+            Client.Observer.set_components ~rpc ~session_id ~self:observer
+              ~value
+          )
+          ~add_to_set:(fun component ->
+            let components =
+              Client.Observer.get_components ~rpc ~session_id ~self:observer
+            in
+            let value =
+              if List.mem component components then
+                components
+              else
+                component :: components
+            in
+            Client.Observer.set_components ~rpc ~session_id ~self:observer
+              ~value
+          )
+          ()
+      ; make_field ~name:"enabled"
+          ~get:(fun () -> string_of_bool (x ()).API.observer_enabled)
+          ~set:(fun s ->
+            Client.Observer.set_enabled ~rpc ~session_id ~self:observer
+              ~value:(safe_bool_of_string "enabled" s)
+          )
           ()
       ]
   }

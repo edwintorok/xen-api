@@ -1,8 +1,10 @@
 _build/
+*.bak
 *.native
 .merlin
 *.install
 *.swp
+compile_flags.txt
 
 # tests
 xapi-db.xml
@@ -27,3 +29,8 @@ ocaml/xenopsd/scripts/xen-backend.rules
 ocaml/xenopsd/xentoollog_flags
 
 ocaml/idl/gen_lifecycle.exe
+
+.hugo_build.lock
+go.sum
+
+.DS_Store

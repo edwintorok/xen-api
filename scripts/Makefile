@@ -33,10 +33,13 @@ install:
 	$(IPROG) nbd_client_manager.py $(DESTDIR)$(LIBEXECDIR)
 	mkdir -p $(DESTDIR)$(ETCXENDIR)/bugtool/xapi
 	mkdir -p $(DESTDIR)$(ETCXENDIR)/bugtool/xenopsd
+	mkdir -p $(DESTDIR)$(ETCXENDIR)/bugtool/observer
 	$(IDATA) bugtool-plugin/xapi.xml $(DESTDIR)$(ETCXENDIR)/bugtool
 	$(IDATA) bugtool-plugin/xapi/stuff.xml $(DESTDIR)$(ETCXENDIR)/bugtool/xapi
 	$(IDATA) bugtool-plugin/xenopsd.xml $(DESTDIR)$(ETCXENDIR)/bugtool
 	$(IDATA) bugtool-plugin/xenopsd/stuff.xml $(DESTDIR)$(ETCXENDIR)/bugtool/xenopsd
+	$(IDATA) bugtool-plugin/observer.xml $(DESTDIR)$(ETCXENDIR)/bugtool
+	$(IDATA) bugtool-plugin/observer/stuff.xml $(DESTDIR)$(ETCXENDIR)/bugtool/observer
 	$(IPROG) fence $(DESTDIR)$(LIBEXECDIR)
 	$(IPROG) xha-lc $(DESTDIR)$(LIBEXECDIR)
 	$(IPROG) xapi-health-check $(DESTDIR)$(LIBEXECDIR)
@@ -44,6 +47,7 @@ install:
 	$(IDATA) audit-logrotate $(DESTDIR)/etc/logrotate.d/audit
 	$(IDATA) xapi-logrotate.conf $(DESTDIR)$(ETCXENDIR)
 	$(IPROG) xapi-logrotate.sh $(DESTDIR)$(LIBEXECDIR)
+	$(IPROG) xapi-tracing-log-trim.sh $(DESTDIR)$(LIBEXECDIR)
 	$(IPROG) xapi-wait-init-complete $(DESTDIR)$(OPTDIR)/bin
 	$(IPROG) xapi-autostart-vms $(DESTDIR)$(OPTDIR)/bin
 	$(IPROG) udhcpd.skel $(DESTDIR)$(ETCXENDIR)/udhcpd.skel
@@ -155,6 +159,7 @@ install:
 	$(IPROG) certificate-refresh $(DESTDIR)/etc/cron.hourly/
 	mkdir -p $(DESTDIR)/etc/cron.d
 	$(IDATA) xapi-logrotate.cron $(DESTDIR)/etc/cron.d/xapi-logrotate.cron
+	$(IDATA) xapi-tracing-log-trim.cron $(DESTDIR)/etc/cron.d/xapi-tracing-log-trim.cron
 	mkdir -p $(DESTDIR)/opt/xensource/gpg
 # templates
 	$(IPROG) templates/debian $(DESTDIR)$(OPTDIR)/packages/post-install-scripts/debian-etch
@@ -163,9 +168,11 @@ install:
 	$(IPROG) host-backup-restore/host-backup $(DESTDIR)$(LIBEXECDIR)
 	$(IPROG) host-backup-restore/host-restore $(DESTDIR)$(LIBEXECDIR)
 # example/python
+ifneq ($(BUILD_PY2), NO)
 	$(IDATA) examples/python/XenAPIPlugin.py $(DESTDIR)$(SITE_DIR)/
 	$(IDATA) examples/python/XenAPI/XenAPI.py $(DESTDIR)$(SITE_DIR)/
 	$(IDATA) examples/python/inventory.py $(DESTDIR)$(SITE_DIR)/
+endif
 	$(IDATA) examples/python/XenAPIPlugin.py $(DESTDIR)$(SITE3_DIR)/
 	sed -i 's/#!\/usr\/bin\/python/#!\/usr\/bin\/python3/' $(DESTDIR)$(SITE3_DIR)/XenAPIPlugin.py
 	$(IDATA) examples/python/XenAPI/XenAPI.py $(DESTDIR)$(SITE3_DIR)/

@@ -35,37 +35,6 @@ module SRSet = Set.Make (struct
   let compare = Stdlib.compare
 end)
 
-let is_dmc_compatible_vmr ~__context ~vmr =
-  let module C = Xapi_vm_memory_constraints.Vm_memory_constraints in
-  let constraints = C.extract ~vm_record:vmr in
-  Pool_features.is_enabled ~__context Features.DMC
-  || C.are_valid_and_pinned_at_static_max ~constraints
-
-let is_dmc_compatible ~__context ~vm =
-  let vmr = Db.VM.get_record ~__context ~self:vm in
-  is_dmc_compatible_vmr ~__context ~vmr
-
-let assert_dmc_compatible ~__context ~vm =
-  if not @@ is_dmc_compatible ~__context ~vm then
-    raise
-      Api_errors.(
-        Server_error (dynamic_memory_control_unavailable, [Ref.string_of vm])
-      )
-
-let enforce_memory_constraints_always ~__context ~vm =
-  let module C = Xapi_vm_memory_constraints.Vm_memory_constraints in
-  let constraints = C.get ~__context ~vm_ref:vm in
-  let constraints = C.reset_to_safe_defaults ~constraints in
-  C.set ~__context ~vm_ref:vm ~constraints
-
-let enforce_memory_constraints_for_dmc ~__context ~vm =
-  let module C = Xapi_vm_memory_constraints.Vm_memory_constraints in
-  if not @@ is_dmc_compatible ~__context ~vm then (
-    info "VM %s requires unavailable DMC, updating memory settings"
-      (Ref.string_of vm) ;
-    enforce_memory_constraints_always ~__context ~vm
-  )
-
 let compute_memory_overhead ~__context ~vm =
   let vm_record = Db.VM.get_record ~__context ~self:vm in
   Memory_check.vm_compute_memory_overhead ~vm_record
@@ -233,11 +202,25 @@ let destroy ~__context ~self =
   ) ;
   let vbds = Db.VM.get_VBDs ~__context ~self in
   List.iter
-    (fun vbd -> try Db.VBD.destroy ~__context ~self:vbd with _ -> ())
+    (fun vbd ->
+      ( try
+          let metrics = Db.VBD.get_metrics ~__context ~self:vbd in
+          Db.VBD_metrics.destroy ~__context ~self:metrics
+        with _ -> ()
+      ) ;
+      try Db.VBD.destroy ~__context ~self:vbd with _ -> ()
+    )
     vbds ;
   let vifs = Db.VM.get_VIFs ~__context ~self in
   List.iter
-    (fun vif -> try Db.VIF.destroy ~__context ~self:vif with _ -> ())
+    (fun vif ->
+      ( try
+          let metrics = Db.VIF.get_metrics ~__context ~self:vif in
+          Db.VIF_metrics.destroy ~__context ~self:metrics
+        with _ -> ()
+      ) ;
+      try Db.VIF.destroy ~__context ~self:vif with _ -> ()
+    )
     vifs ;
   let vgpus = Db.VM.get_VGPUs ~__context ~self in
   List.iter
@@ -303,9 +286,9 @@ let validate_actions_after_crash ~__context ~self ~value =
   let fld = "VM.actions_after_crash" in
   let hvm_cannot_coredump v =
     match Helpers.domain_type ~__context ~self with
-    | `hvm | `pv_in_pvh ->
+    | `hvm | `pv_in_pvh | `pvh ->
         value_not_supported fld v
-          "cannot invoke a coredump of an HVM or PV-in-PVH domain"
+          "cannot invoke a coredump of an HVM, PVH or PV-in-PVH domain"
     | `pv ->
         ()
   in
@@ -624,7 +607,7 @@ let assert_enough_memory_available ~__context ~self ~host ~snapshot =
   in
   let policy =
     match Helpers.check_domain_type snapshot.API.vM_domain_type with
-    | `hvm | `pv ->
+    | `hvm | `pv | `pvh ->
         Memory_check.Dynamic_min
     | `pv_in_pvh ->
         Memory_check.Static_max
@@ -683,6 +666,14 @@ let assert_enough_pcpus ~__context ~self ~host ?remote () =
             (host_not_enough_pcpus, List.map Int64.to_string [vcpus; pcpus])
         )
 
+let assert_no_legacy_vgpu ~__context ~vm =
+  Db.VM.get_VGPUs ~__context ~self:vm
+  |> List.map (fun self -> Db.VGPU.get_type ~__context ~self)
+  |> List.iter (fun self -> Xapi_vgpu_type.assert_not_legacy ~__context ~self)
+
+let assert_no_legacy_hardware ~__context ~vm =
+  assert_no_legacy_vgpu ~__context ~vm
+
 (** Checks to see if a VM can boot on a particular host, throws an error if not.
  * Criteria:
     - The host must support the VM's required Virtual Hardware Platform version.
@@ -709,6 +700,7 @@ let assert_can_boot_here ~__context ~self ~host ~snapshot ~do_cpuid_check
     ?(do_sr_check = true) ?(do_memory_check = true) () =
   debug "Checking whether VM %s can run on host %s" (Ref.string_of self)
     (Ref.string_of host) ;
+  assert_no_legacy_hardware ~__context ~vm:self ;
   validate_basic_parameters ~__context ~self ~snapshot ;
   assert_host_is_live ~__context ~host ;
   assert_matches_control_domain_affinity ~__context ~self ~host ;
@@ -733,12 +725,13 @@ let assert_can_boot_here ~__context ~self ~host ~snapshot ~do_cpuid_check
   if vm_needs_iommu ~__context ~self then
     assert_host_has_iommu ~__context ~host ;
   (* Assumption: a VM can have only one vGPU *)
+  assert_no_legacy_vgpu ~__context ~vm:self ;
   if has_non_allocated_vgpus ~__context ~self then
     assert_gpus_available ~__context ~self ~host ;
   assert_usbs_available ~__context ~self ~host ;
   assert_netsriov_available ~__context ~self ~host ;
   ( match Helpers.domain_type ~__context ~self with
-  | `hvm | `pv_in_pvh ->
+  | `hvm | `pv_in_pvh | `pvh ->
       assert_host_supports_hvm ~__context ~self ~host
   | `pv ->
       ()
@@ -1302,6 +1295,12 @@ let copy_metrics ~__context ~vm =
          ~some:(fun x -> x.Db_actions.vM_metrics_VCPUs_number)
          m
       )
+    ~vCPUs_utilisation:
+      (Option.fold
+         ~none:[(0L, 0.)]
+         ~some:(fun x -> x.Db_actions.vM_metrics_VCPUs_utilisation)
+         m
+      )
     ~vCPUs_CPU:
       (Option.fold ~none:[] ~some:(fun x -> x.Db_actions.vM_metrics_VCPUs_CPU) m)
     ~vCPUs_params:
@@ -1365,6 +1364,8 @@ let copy_guest_metrics ~__context ~vm =
       ~os_version:all.API.vM_guest_metrics_os_version
       ~pV_drivers_version:all.API.vM_guest_metrics_PV_drivers_version
       ~pV_drivers_up_to_date:all.API.vM_guest_metrics_PV_drivers_up_to_date
+      ~memory:all.API.vM_guest_metrics_memory
+      ~disks:all.API.vM_guest_metrics_disks
       ~networks:all.API.vM_guest_metrics_networks
       ~pV_drivers_detected:all.API.vM_guest_metrics_PV_drivers_detected
       ~other:all.API.vM_guest_metrics_other

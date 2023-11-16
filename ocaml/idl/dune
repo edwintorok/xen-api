@@ -6,7 +6,7 @@
     datamodel_pool datamodel_cluster datamodel_cluster_host dm_api escaping
     datamodel_values datamodel_schema datamodel_certificate
     datamodel_diagnostics datamodel_repository datamodel_lifecycle
-    datamodel_vtpm)
+    datamodel_vtpm datamodel_observer)
   (libraries
     ppx_sexp_conv.runtime-lib
     rpclib.core
@@ -25,7 +25,7 @@
 )
 
 (executable
-  (modes byte exe)
+  (modes exe)
   (name datamodel_main)
   (modules datamodel_main dot_backend dtd_backend markdown_backend)
   (libraries
@@ -39,6 +39,7 @@
 
 (test
   (name schematest)
+  (modes exe)
   (modules schematest)
   (libraries
     dune-build-info
@@ -50,7 +51,7 @@
 )
 
 (executable
-  (modes byte exe)
+  (modes exe)
   (name gen_lifecycle)
   (public_name gen_lifecycle)
   (package xapi-datamodel)
@@ -66,7 +67,7 @@
 ; use the binary promoted file from the source dir (not the build dir) that has
 ; the correct version number embedded
 (rule
- (deps gen_lifecycle.exe)
+ (deps gen_lifecycle.exe (universe))
  (action (with-stdout-to datamodel_lifecycle.ml.generated (system %{project_root}/../../ocaml/idl/gen_lifecycle.exe))))
 
 ; 'diff' handles promotion too, see https://dune.readthedocs.io/en/stable/concepts.html?highlight=diffing#diffing-and-promotion

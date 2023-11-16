@@ -95,6 +95,7 @@ let local_assert_healthy =
       ; Api_errors.license_restriction
       ; Api_errors.license_does_not_support_pooling
       ; Api_errors.ha_should_be_fenced
+      ; Api_errors.host_xapi_version_higher_than_coordinator
       ]
     ~allowed_roles:_R_LOCAL_ROOT_ONLY ()
 
@@ -356,6 +357,7 @@ let evacuate =
       [
         (Published, rel_miami, "")
       ; (Extended, "1.297.0", "Enable migration network selection.")
+      ; (Extended, "23.27.0", "Choose batch size of VM evacuation.")
       ]
     ~versioned_params:
       [
@@ -372,6 +374,15 @@ let evacuate =
         ; param_doc= "Optional preferred network for migration"
         ; param_release= next_release
         ; param_default= Some (VRef null_ref)
+        }
+      ; {
+          param_type= Int
+        ; param_name= "evacuate_batch_size"
+        ; param_doc=
+            "The maximum number of VMs to be migrated per batch 0 will use the \
+             value `evacuation-batch-size` defined in xapi.conf"
+        ; param_release= next_release
+        ; param_default= Some (VInt 0L)
         }
       ]
     ~allowed_roles:(_R_POOL_OP ++ _R_CLIENT_CERT)
@@ -490,8 +501,7 @@ let shutdown_agent =
        unrecoverable data loss may occur. The caller is responsible for \
        ensuring that there are no operations in progress when this method is \
        called."
-    ~params:[]
-    ~flags:[`Session] (* no async *)
+    ~params:[] ~flags:[`Session] (* no async *)
     ~allowed_roles:_R_POOL_OP ()
 
 let dmesg =
@@ -679,8 +689,7 @@ let call_extension =
       ; (String, "call", "Rpc call for the extension")
       ]
     ~result:(String, "Result from the extension")
-    ~allowed_roles:_R_POOL_ADMIN
-    ~flags:[`Session] (* no async *)
+    ~allowed_roles:_R_POOL_ADMIN ~flags:[`Session] (* no async *)
     ()
 
 let enable_binary_storage =
@@ -922,6 +931,13 @@ let create_params =
          This controls both incoming and outgoing connections."
     ; param_release= dundee_release
     ; param_default= Some (VBool true)
+    }
+  ; {
+      param_type= DateTime
+    ; param_name= "last_software_update"
+    ; param_doc= "Date and time when the last software update was applied."
+    ; param_release= dundee_release
+    ; param_default= Some (VDateTime Date.epoch)
     }
   ]
 
@@ -1711,7 +1727,10 @@ let apply_updates =
         )
       ]
     ~result:
-      (Set (Set String), "The list of warnings happened in applying updates")
+      ( Set (Set String)
+      , "The list of results after applying updates, including livepatch apply \
+         failures and recommended guidances"
+      )
     ~allowed_roles:(_R_POOL_OP ++ _R_CLIENT_CERT)
     ()
 
@@ -1744,6 +1763,39 @@ let set_https_only =
         )
       ]
     ~allowed_roles:_R_POOL_OP ()
+
+let apply_recommended_guidances =
+  call ~name:"apply_recommended_guidances"
+    ~doc:
+      "apply all recommended guidances both on the host and on all HVM VMs on \
+       the host after updates are applied on the host"
+    ~lifecycle:[(Prototyped, "23.18.0", ""); (Removed, "23.25.0", "")]
+    ~params:
+      [
+        ( Ref _host
+        , "self"
+        , "The host whose recommended guidances will be applied"
+        )
+      ]
+    ~allowed_roles:_R_POOL_OP ()
+
+let latest_synced_updates_applied_state =
+  Enum
+    ( "latest_synced_updates_applied_state"
+    , [
+        ( "yes"
+        , "The host is up to date with the latest updates synced from remote \
+           CDN"
+        )
+      ; ( "no"
+        , "The host is outdated with the latest updates synced from remote CDN"
+        )
+      ; ( "unknown"
+        , "If the host is up to date with the latest updates synced from \
+           remote CDN is unknown"
+        )
+      ]
+    )
 
 (** Hosts *)
 let t =
@@ -1879,6 +1931,7 @@ let t =
       ; apply_updates
       ; copy_primary_host_certs
       ; set_https_only
+      ; apply_recommended_guidances
       ]
     ~contents:
       ([
@@ -2047,14 +2100,15 @@ let t =
             "indicates whether the host is configured to output its console to \
              a physical display device"
         ; field ~qualifier:DynamicRO ~in_product_since:rel_cream
-            ~default_value:(Some (VSet [VInt 0L]))
-            ~ty:(Set Int) "virtual_hardware_platform_versions"
+            ~default_value:(Some (VSet [VInt 0L])) ~ty:(Set Int)
+            "virtual_hardware_platform_versions"
             "The set of versions of the virtual hardware platform that the \
              host can offer to its guests"
         ; field ~qualifier:DynamicRO ~default_value:(Some (VRef null_ref))
             ~in_product_since:rel_ely ~ty:(Ref _vm) "control_domain"
             "The control domain (domain 0)"
-        ; field ~qualifier:DynamicRO ~lifecycle:[(Published, rel_ely, "")]
+        ; field ~qualifier:DynamicRO
+            ~lifecycle:[(Published, rel_ely, "")]
             ~ty:(Set (Ref _pool_update)) ~ignore_foreign_key:true
             "updates_requiring_reboot" "List of updates which require reboot"
         ; field ~qualifier:DynamicRO
@@ -2099,6 +2153,17 @@ let t =
         ; field ~qualifier:DynamicRO ~lifecycle:[] ~ty:Bool
             ~default_value:(Some (VBool false)) "https_only"
             "Reflects whether port 80 is open (false) or not (true)"
+        ; field ~qualifier:DynamicRO ~internal_only:true
+            ~lifecycle:[(Prototyped, "23.18.0", ""); (Removed, "23.24.0", "")]
+            ~ty:(Set update_guidances) "recommended_guidances"
+            ~default_value:(Some (VSet []))
+            "The set of recommended guidances after applying updates"
+        ; field ~qualifier:DynamicRO ~lifecycle:[]
+            ~ty:latest_synced_updates_applied_state
+            "latest_synced_updates_applied"
+            ~default_value:(Some (VEnum "unknown"))
+            "Default as 'unknown', 'yes' if the host is up to date with \
+             updates synced from remote CDN, otherwise 'no'"
         ]
       )
     ()

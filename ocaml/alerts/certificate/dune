@@ -3,6 +3,7 @@
   (modules certificate_check)
   (libraries
     astring
+    xapi-expiry-alerts
     xapi-client
     xapi-consts
     xapi-types
@@ -11,7 +12,7 @@
 )
 
 (executable
-  (modes byte exe)
+  (modes exe)
   (name certificate_check_main)
   (public_name alert-certificate-check)
   (package xapi)
@@ -19,7 +20,7 @@
   (libraries
     certificate_check
     dune-build-info
-    http-svr
+    http_lib
     xapi-client
     xapi-types
     xapi-stdext-pervasives

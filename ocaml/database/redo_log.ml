@@ -19,6 +19,13 @@ let with_lock = Xapi_stdext_threads.Threadext.Mutex.execute
 
 module R = Debug.Make (struct let name = "redo_log" end)
 
+(** By default, logging from redo_log is disabled in xapi.conf. To
+    get some logging to debug CA-379472, introduce a second loging
+    module*)
+module D = Debug.Make (struct
+  let name = "redo_debug"
+end)
+
 (* --------------------------------------- *)
 (* Functions relating to the redo log VDI. *)
 
@@ -34,21 +41,31 @@ let get_static_device reason =
       (Static_vdis_list.list ())
   in
   (* Return the path to the first attached VDI which matches the reason *)
-  R.debug "Found %d VDIs matching [%s]" (List.length vdis) reason ;
+  D.debug "Found %d VDIs matching [%s]" (List.length vdis) reason ;
   match vdis with [] -> None | hd :: _ -> hd.Static_vdis_list.path
 
-(* Make sure we have plenty of room for the database *)
-let minimum_vdi_size =
+let mib megabytes =
   let ( ** ) = Int64.mul in
-  let mib = 1024L ** 1024L in
-  256L ** mib
+  Int64.of_int megabytes ** 1024L ** 1024L
+
+(* Make sure we have plenty of room for the database
+   There is also a 4MiB statefile, so make the sum be 4GB, which is easier to document.
+*)
+let minimum_vdi_size =
+  let ( // ) = Int64.div and ( ** ) = Int64.mul and ( -- ) = Int64.sub in
+  let align = mib 4 in
+  ((4_000_000_000L // align)
+  -- 2L
+     (* -2 because we also need room for a statefile, and an 'empty' SR seems to have a utilization of 4MiB *)
+  )
+  ** align
 
 let redo_log_sm_config = [("type", "raw")]
 
 (* ---------------------------------------------------- *)
 (* Encapsulate the state of a single redo_log instance. *)
 
-type redo_log = {
+type redo_log_conf = {
     name: string
   ; marker: string
   ; read_only: bool
@@ -62,10 +79,13 @@ type redo_log = {
   ; pid: (Forkhelpers.pidty * string * string) option ref
   ; dying_processes_mutex: Mutex.t
   ; num_dying_processes: int ref
+  ; mutex: Mutex.t  (** exclusive access to this configuration *)
 }
 
+type 'a redo_log = redo_log_conf
+
 module RedoLogSet = Set.Make (struct
-  type t = redo_log
+  type t = redo_log_conf
 
   let compare log1 log2 = compare log1.marker log2.marker
 end)
@@ -82,18 +102,18 @@ let ready_to_write = ref true
 
 let is_enabled log = !(log.enabled)
 
-let enable log vdi_reason =
-  R.info "Enabling use of redo log" ;
+let enable_existing log vdi_reason =
+  D.info "Enabling use of redo log" ;
   log.device := get_static_device vdi_reason ;
   log.enabled := true
 
-let enable_block log path =
-  R.info "Enabling use of redo log" ;
+let enable_block_existing log path =
+  D.info "Enabling use of redo log" ;
   log.device := Some path ;
   log.enabled := true
 
 let disable log =
-  R.info "Disabling use of redo log" ;
+  D.info "Disabling use of redo log" ;
   log.device := None ;
   log.enabled := false
 
@@ -104,7 +124,7 @@ let redo_log_events = Event.new_channel ()
 
 let cannot_connect_fn log =
   if !(log.currently_accessible) then (
-    R.debug "Signalling unable to access redo log" ;
+    D.debug "Signalling unable to access redo log" ;
     Event.sync (Event.send redo_log_events (log.name, false)) ;
     Option.iter (fun callback -> callback false) log.state_change_callback
   ) ;
@@ -112,7 +132,7 @@ let cannot_connect_fn log =
 
 let can_connect_fn log =
   if not !(log.currently_accessible) then (
-    R.debug "Signalling redo log is healthy" ;
+    D.debug "Signalling redo log is healthy" ;
     Event.sync (Event.send redo_log_events (log.name, true)) ;
     Option.iter (fun callback -> callback true) log.state_change_callback
   ) ;
@@ -241,7 +261,7 @@ let connect sockpath latest_response_time =
     let s = Unix.socket Unix.PF_UNIX Unix.SOCK_STREAM 0 in
     try
       Unix.connect s (Unix.ADDR_UNIX sockpath) ;
-      R.debug "Connected to I/O process via socket %s" sockpath ;
+      D.debug "Connected to I/O process via socket %s" sockpath ;
       s
     with Unix.Unix_error (a, b, _) ->
       (* It's probably the case that the process hasn't started yet. *)
@@ -252,14 +272,17 @@ let connect sockpath latest_response_time =
       let remaining = latest_response_time -. now in
       if attempt_delay < remaining then (
         (* Wait for a while then try again *)
-        R.debug
+        D.debug
           "Waiting to connect to I/O process via socket %s (error was %s: \
            %s)..."
           sockpath b (Unix.error_message a) ;
+        D.debug "Remaining time for retries: %f" remaining ;
         Thread.delay attempt_delay ;
         attempt ()
-      ) else
+      ) else (
+        D.debug "%s timeout reached" __FUNCTION__ ;
         raise Unixext.Timeout
+      )
   in
   attempt ()
 
@@ -289,7 +312,7 @@ let read_length_and_string sock latest_response_time =
   str
 
 let read_database f gen_count sock latest_response_time datasockpath =
-  R.debug "Reading database with generation count %s"
+  D.debug "Reading database with generation count %s"
     (Generation.to_string gen_count) ;
   let expected_length = read_length sock latest_response_time in
   R.debug "Expecting to receive database of length %d" expected_length ;
@@ -303,12 +326,12 @@ let read_database f gen_count sock latest_response_time datasockpath =
     )
     (fun () ->
       (* Close the data socket *)
-      R.debug "Closing the data socket" ;
+      D.debug "Closing the data socket" ;
       Unix.close datasock
     )
 
 let read_delta f gen_count sock latest_response_time =
-  R.debug "Reading delta with generation count %s"
+  D.debug "Reading delta with generation count %s"
     (Generation.to_string gen_count) ;
   let str = read_length_and_string sock latest_response_time in
   let entry = string_to_redo_log_entry str in
@@ -350,12 +373,12 @@ let rec read_read_response sock fn_db fn_delta expected_gen_count
           latest_response_time datasockpath
       )
   | "end__" ->
-      R.debug "Reached the end of the read response" ;
+      D.debug "Reached the end of the read response" ;
       ()
   | "nack_" ->
       (* Read the error message *)
       let error = read_length_and_string sock latest_response_time in
-      R.warn "Read error received: [%s]" error ;
+      D.warn "Read error received: [%s]" error ;
       if error = Block_device_io_errors.timeout_error_msg then
         raise Unixext.Timeout
       else
@@ -363,34 +386,6 @@ let rec read_read_response sock fn_db fn_delta expected_gen_count
   | e ->
       raise
         (CommunicationsProblem ("unrecognised read response prefix [" ^ e ^ "]"))
-
-let action_empty sock _datasockpath =
-  R.debug "Performing empty" ;
-  (* Compute desired response time *)
-  let latest_response_time =
-    get_latest_response_time !Db_globs.redo_log_max_block_time_empty
-  in
-  (* Empty *)
-  let str = Bytes.of_string "empty_____" in
-  Unixext.time_limited_write sock (Bytes.length str) str latest_response_time ;
-  (* Read response *)
-  let response_length = 10 in
-  let response =
-    Unixext.time_limited_read sock response_length latest_response_time
-  in
-  match response with
-  | "empty|ack_" ->
-      ()
-  | "empty|nack" ->
-      (* Read the error message *)
-      let error = read_length_and_string sock latest_response_time in
-      R.warn "Emptying was unsuccessful: [%s]" error ;
-      if error = Block_device_io_errors.timeout_error_msg then
-        raise Unixext.Timeout
-      else
-        raise (RedoLogFailure error)
-  | e ->
-      raise (CommunicationsProblem ("unrecognised empty response [" ^ e ^ "]"))
 
 let action_read fn_db fn_delta sock datasockpath =
   R.debug "Performing read" ;
@@ -429,7 +424,7 @@ let action_write_db marker generation_count write_fn sock datasockpath =
       (* Ideally, we would check whether this completes before the latest_response_time. Could implement this by performing the write in a separate thread. *)
       try
         write_fn datasock ;
-        R.debug "Finished writing database to data socket"
+        D.debug "Finished writing database to data socket"
       with
       | Sys_error e when e = "Connection reset by peer" ->
           (* CA-41914: Note that if the block_device_io process internally
@@ -437,12 +432,12 @@ let action_write_db marker generation_count write_fn sock datasockpath =
            * close this connection, we'll see a Sys_error("Connection reset by
            * peer"). This can be safely suppressed because we'll hear all the
            * gory details in the response we read over the control socket. *)
-          R.warn
+          D.warn
             "I/O process forcibly closed the data socket while trying to write \
              database to it. Await the response to see why it did that."
       | e ->
           (* We'll re-raise other exceptions, though. *)
-          R.error
+          D.error
             "Got an unexpected exception while trying to write database to the \
              data socket: %s. Re-raising."
             (Printexc.to_string e) ;
@@ -450,7 +445,7 @@ let action_write_db marker generation_count write_fn sock datasockpath =
     )
     (fun () ->
       (* Ensure the data socket is closed even if exception is thrown from write_fn *)
-      R.info "Closing data socket" ;
+      D.info "Closing data socket" ;
       Unix.close datasock
     ) ;
   (* Read response *)
@@ -466,7 +461,7 @@ let action_write_db marker generation_count write_fn sock datasockpath =
   | "writedb|nack" ->
       (* Read the error message *)
       let error = read_length_and_string sock latest_response_time in
-      R.warn "Write was unsuccessful: [%s]" error ;
+      D.warn "Write was unsuccessful: [%s]" error ;
       if error = Block_device_io_errors.timeout_error_msg then
         raise Unixext.Timeout
       else
@@ -495,12 +490,12 @@ let action_write_delta marker generation_count data flush_db_fn sock
   in
   match response with
   | "writedelta|ack_" ->
-      R.debug "Write was successful" ;
+      D.debug "Write was successful" ;
       ()
   | "writedelta|nack" ->
       (* Read the error message *)
       let error = read_length_and_string sock latest_response_time in
-      R.warn "Write was unsuccessful: [%s]" error ;
+      D.warn "Write was unsuccessful: [%s]" error ;
       if error = Block_device_io_errors.timeout_error_msg then
         raise Unixext.Timeout (* Propagate the timeout exception *)
       else if error = Block_device_io_errors.not_enough_space_error_msg then (
@@ -512,7 +507,7 @@ let action_write_delta marker generation_count data flush_db_fn sock
         raise (RedoLogFailure error)
       (* Some other error *)
   | e ->
-      R.warn "Received unexpected response" ;
+      D.warn "Received unexpected response" ;
       raise
         (CommunicationsProblem ("unrecognised writedelta response [" ^ e ^ "]"))
 
@@ -530,7 +525,7 @@ let increase_backoff_delay log =
       !(log.backoff_delay) * Db_globs.redo_log_exponentiation_base ;
   if !(log.backoff_delay) > Db_globs.redo_log_maximum_backoff_delay then
     log.backoff_delay := Db_globs.redo_log_maximum_backoff_delay ;
-  R.debug "Bumped backoff delay to %d seconds" !(log.backoff_delay)
+  D.debug "Bumped backoff delay to %d seconds" !(log.backoff_delay)
 
 let set_time_of_last_failure log =
   let now = Unix.gettimeofday () in
@@ -543,29 +538,32 @@ let reset_time_of_last_failure log =
 
 let maybe_retry f log =
   let now = Unix.gettimeofday () in
-  R.debug
+  D.debug
     "Considering whether to attempt to flush the DB... (backoff %d secs, time \
      since last failure %.1f secs)"
     !(log.backoff_delay)
     (now -. !(log.time_of_last_failure)) ;
   if now -. !(log.time_of_last_failure) >= float_of_int !(log.backoff_delay)
   then (
-    R.debug "It's time for an attempt to reconnect and flush the DB." ;
+    D.debug "It's time for an attempt to reconnect and flush the DB." ;
     f ()
   ) else
-    R.debug "No; we'll wait a bit longer before trying again."
+    D.debug "No; we'll wait a bit longer before trying again."
 
 (* -------------------------------------------------------------------- *)
 (* Functions relating to the lifecycle of the block device I/O process. *)
 
 (* Close any existing socket and kill the corresponding process. *)
+
 let shutdown log =
+  with_lock log.mutex @@ fun () ->
   if is_enabled log then (
-    R.debug "Shutting down connection to I/O process for '%s'" log.name ;
+    D.debug "Shutting down connection to I/O process for '%s'" log.name ;
     try
       match !(log.pid) with
       | None ->
-          ()
+          D.info "%s: I/O process for %s already terminated" __FUNCTION__
+            log.name
       | Some (p, ctrlsockpath, datasockpath) ->
           (* If there's an existing socket, close it. *)
           ( match !(log.sock) with
@@ -578,18 +576,18 @@ let shutdown log =
           ) ;
           (* Terminate the child process *)
           let ipid = Forkhelpers.getpid p in
-          R.info "Killing I/O process with pid %d" ipid ;
+          D.info "Killing I/O process with pid %d" ipid ;
           Unix.kill ipid Sys.sigkill ;
           (* Wait for the process to die. This is done in a separate thread in case it does not respond to the signal immediately. *)
           ignore
             (Thread.create
                (fun () ->
-                 R.debug "Waiting for I/O process with pid %d to die..." ipid ;
+                 D.debug "Waiting for I/O process with pid %d to die..." ipid ;
                  with_lock log.dying_processes_mutex (fun () ->
                      log.num_dying_processes := !(log.num_dying_processes) + 1
                  ) ;
                  ignore (Forkhelpers.waitpid p) ;
-                 R.debug "Finished waiting for process with pid %d" ipid ;
+                 D.debug "Finished waiting for process with pid %d" ipid ;
                  with_lock log.dying_processes_mutex (fun () ->
                      log.num_dying_processes := !(log.num_dying_processes) - 1
                  )
@@ -601,12 +599,12 @@ let shutdown log =
           (* Attempt to remove the sockets *)
           List.iter
             (fun sockpath ->
-              R.debug "Removing socket %s" sockpath ;
+              D.debug "Removing socket %s" sockpath ;
               Unixext.unlink_safe sockpath
             )
             [ctrlsockpath; datasockpath]
     with e ->
-      R.error "Caught %s: while shutting down connection to I/O process"
+      D.error "Caught %s: while shutting down connection to I/O process"
         (Printexc.to_string e) ;
       ()
     (* ignore any errors *)
@@ -624,6 +622,7 @@ let healthy log =
 exception TooManyProcesses
 
 let startup log =
+  with_lock log.mutex @@ fun () ->
   if is_enabled log then (
     try
       ( match !(log.pid) with
@@ -640,9 +639,9 @@ let startup log =
           ) ;
           match !(log.device) with
           | None ->
-              R.info "Could not find block device"
+              D.info "Could not find block device"
           | Some device ->
-              R.info "Using block device at %s" device ;
+              D.info "Using block device at %s" device ;
               (* Check that the block device exists *)
               Unix.access device [Unix.F_OK; Unix.R_OK] ;
 
@@ -655,13 +654,13 @@ let startup log =
                 in
                 (f "ctrl", f "data")
               in
-              R.info
+              D.info
                 "Starting I/O process with block device [%s], control socket \
                  [%s] and data socket [%s]"
                 device ctrlsockpath datasockpath ;
               let p = start_io_process device ctrlsockpath datasockpath in
               log.pid := Some (p, ctrlsockpath, datasockpath) ;
-              R.info "Block device I/O process has PID [%d]"
+              D.info "Block device I/O process has PID [%d]"
                 (Forkhelpers.getpid p)
         )
       ) ;
@@ -687,7 +686,7 @@ let startup log =
                   in
                   match response with
                   | "connect|ack_" ->
-                      R.info "Connect was successful" ;
+                      D.info "Connect was successful" ;
                       (* Save the socket. This defers the responsibility for closing it to shutdown(). *)
                       log.sock := Some s
                   | "connect|nack" ->
@@ -695,13 +694,13 @@ let startup log =
                       let error =
                         read_length_and_string s latest_connect_time
                       in
-                      R.warn "Connect was unsuccessful: [%s]" error ;
+                      D.warn "Connect was unsuccessful: [%s]" error ;
                       broken log
                   | e ->
-                      R.warn "Received unexpected connect response: [%s]" e ;
+                      D.warn "Received unexpected connect response: [%s]" e ;
                       broken log
                 with Unixext.Timeout ->
-                  R.warn "Timed out waiting to connect" ;
+                  D.warn "Timed out waiting to connect" ;
                   broken log
               )
               (fun () ->
@@ -717,7 +716,7 @@ let startup log =
           ()
       (* don't attempt to connect *)
     with TooManyProcesses ->
-      R.info "Too many dying I/O processes. Not starting another one." ;
+      D.info "Too many dying I/O processes. Not starting another one." ;
       cannot_connect_fn log
   )
 
@@ -741,23 +740,23 @@ let perform_action f desc sock log =
   with
   | Unixext.Timeout ->
       (* Timeout: try to close the connection to the redo log. it will be re-opened when we next attempt another access *)
-      R.warn "Could not %s: Timeout." desc ;
+      D.warn "Could not %s: Timeout." desc ;
       broken log
   | Unix.Unix_error (a, b, _) ->
       (* problem with process I/O *)
-      R.warn "Could not %s: Unix error on %s: %s" desc b (Unix.error_message a) ;
+      D.warn "Could not %s: Unix error on %s: %s" desc b (Unix.error_message a) ;
       broken log
   | RedoLogFailure e ->
       (* error received from block_device_io *)
-      R.warn "Could not %s: received error %s" desc e ;
+      D.warn "Could not %s: received error %s" desc e ;
       broken log
   | CommunicationsProblem str ->
       (* unexpected response received from block_device_io *)
-      R.warn "Could not %s: communications problem: %s" desc str ;
+      D.warn "Could not %s: communications problem: %s" desc str ;
       broken log
   | e ->
       (* other exception *)
-      R.warn "Could not %s: unexpected exception %s" desc (Printexc.to_string e) ;
+      D.warn "Could not %s: unexpected exception %s" desc (Printexc.to_string e) ;
       broken log
 
 (* Attempt to connect to the block device I/O process. If successful, execute the function. *)
@@ -792,12 +791,17 @@ let create ~name ~state_change_callback ~read_only =
     ; pid= ref None
     ; dying_processes_mutex= Mutex.create ()
     ; num_dying_processes= ref 0
+    ; mutex= Mutex.create ()
     }
   in
   with_lock redo_log_creation_mutex (fun () ->
       all_redo_logs := RedoLogSet.add instance !all_redo_logs
   ) ;
   instance
+
+let create_rw = create ~read_only:false
+
+let create_ro = create ~read_only:true
 
 let delete log =
   shutdown log ;
@@ -830,11 +834,11 @@ let write_db generation_count write_fn log =
     in
     if !(log.sock) = None then (
       (* We're not currently connected. See if it's time to attempt to reconnect *)
-      R.debug "We're not currently connected to the block device I/O process." ;
+      D.debug "We're not currently connected to the block device I/O process." ;
       maybe_retry f log
     ) else (
       (* it looks like everything's healthy *)
-      R.debug
+      D.debug
         "We believe that we are currently connected to a healthy block device. \
          Attempting to write DB..." ;
       f ()
@@ -846,7 +850,7 @@ let write_delta generation_count t flush_db_fn log =
     match !(log.sock) with
     | None ->
         (* Instead of writing a delta, try to write the whole DB *)
-        R.debug
+        D.debug
           "write_delta: Not currently connected, so trying to re-connect and \
            flush DB instead of writing the delta" ;
         Stats.time_this "redo_log: flush_db" flush_db_fn
@@ -870,26 +874,37 @@ let apply fn_db fn_delta log =
       (fun () -> ready_to_write := true)
   )
 
-let empty log =
-  if is_enabled log then
-    connect_and_perform_action action_empty "invalidate the redo log" log
-
 (** ------------------------------------------------ *)
 
 (** Functions which operate on all active redo_logs. *)
 
 (* Flush the database to the given redo_log instance. *)
 let flush_db_to_redo_log db log =
-  R.info "Flushing database to redo_log [%s]" log.name ;
+  D.info "Flushing database to redo_log [%s]" log.name ;
   let write_db_to_fd out_fd = Db_xml.To.fd out_fd db in
   write_db
     (Db_cache_types.Manifest.generation (Db_cache_types.Database.manifest db))
     write_db_to_fd log ;
   !(log.currently_accessible)
 
+let flush_db_exn db log =
+  assert (not log.read_only) ;
+  (* phantom type parameter ensures this only gets called with RW *)
+  D.debug "Flushing database on redo log enable" ;
+  if not (flush_db_to_redo_log db log) then
+    raise (RedoLogFailure "Cannot connect to redo log")
+
+let enable_and_flush db log reason =
+  enable_existing log reason ;
+  with_lock redo_log_creation_mutex @@ fun () -> flush_db_exn db log
+
+let enable_block_and_flush db log path =
+  enable_block_existing log path ;
+  with_lock redo_log_creation_mutex @@ fun () -> flush_db_exn db log
+
 (* Write the given database to all active redo_logs *)
 let flush_db_to_all_active_redo_logs db =
-  R.info "Flushing database to all active redo-logs" ;
+  D.info "Flushing database to all active redo-logs" ;
   with_active_redo_logs (fun log -> ignore (flush_db_to_redo_log db log))
 
 (* Write a delta to all active redo_logs *)

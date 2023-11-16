@@ -14,7 +14,7 @@
 
 let finally = Xapi_stdext_pervasives.Pervasiveext.finally
 
-module D = Debug.Make (struct let name = "xapi" end)
+module D = Debug.Make (struct let name = "xapi_vgpu_type" end)
 
 open D
 
@@ -39,6 +39,7 @@ module Identifier = struct
     ; vdev_id: int  (** vgpuTYpe/deviceId in XML *)
     ; vsubdev_id: int  (** vgpuTYpe/subsystemId in XML *)
     ; sriov: bool  (** true if SRIOV mode to be used *)
+    ; vclass: string  (** vgpuType/class in XML: Quadro, NVS, Compute *)
   }
 
   type gvt_g_id = {
@@ -187,7 +188,6 @@ let find_and_update ~__context vgpu_type =
             vGPU_type_vendor_name= vgpu_type.vendor_name
           ; vGPU_type_model_name= vgpu_type.model_name
           }
-        
       in
 
       Some (vgpu_type_ref, new_rc)
@@ -400,6 +400,7 @@ let read_whitelist_line_by_line ~whitelist ~device_id ~parse_line
     []
 
 module Vendor_nvidia = struct
+  (* represents a vgpuType declaration found in vgpuConfig.xml *)
   type vgpu_conf = {
       identifier: Identifier.nvidia_id
     ; framebufferlength: int64
@@ -653,6 +654,7 @@ module Vendor_nvidia = struct
             )
           in
           let devid = find_one_by_name "devId" vgpu_type in
+          let vclass = get_attr "class" vgpu_type in
           let identifier =
             Identifier.
               {
@@ -670,8 +672,8 @@ module Vendor_nvidia = struct
                       false
                   )
                   (* don't use SRIOV *)
+              ; vclass
               }
-            
           in
 
           let file_path = whitelist in
@@ -762,7 +764,11 @@ module Vendor_nvidia = struct
       ; max_resolution_x= conf.max_x
       ; max_resolution_y= conf.max_y
       ; size= Int64.div Constants.pgpu_default_size conf.max_instance
-      ; internal_config= [(Xapi_globs.vgpu_type_id, conf.type_id)]
+      ; internal_config=
+          [
+            (Xapi_globs.vgpu_type_id, conf.type_id)
+          ; (Xapi_globs.vgpu_type_vclass, conf.identifier.vclass)
+          ]
       ; identifier= Nvidia conf.identifier
       ; experimental= false
       ; compatible_model_names_in_vm= conf.compatible_model_names_in_vm
@@ -1001,7 +1007,15 @@ module Nvidia_compat = struct
       Scanf.sscanf (List.assoc "plugin0.vdev_id" args) {|"0x%x:0x%x"|}
         (fun vdev_id vsubdev_id ->
           Identifier.(
-            Nvidia {pdev_id; psubdev_id; vdev_id; vsubdev_id; sriov= false}
+            Nvidia
+              {
+                pdev_id
+              ; psubdev_id
+              ; vdev_id
+              ; vsubdev_id
+              ; sriov= false
+              ; vclass= ""
+              }
           )
       )
     with e -> raise (Parse_error e)
@@ -1071,7 +1085,7 @@ let find_or_create_supported_types ~__context ~pci =
     match vendor_id with
     | x when x = Nvidia.vendor_id ->
         Nvidia.find_or_create_supported_types
-    | x when x = Intel.vendor_id ->
+    | x when x = Intel.vendor_id && !Xapi_globs.gvt_g_supported ->
         Intel.find_or_create_supported_types
     | x when x = AMD.vendor_id ->
         AMD.find_or_create_supported_types
@@ -1092,3 +1106,14 @@ let requires_passthrough ~__context ~self =
       None
 
 (* Does not require any passthrough *)
+
+let assert_not_legacy ~__context ~self =
+  let legacy =
+    (not !Xapi_globs.gvt_g_supported)
+    && Db.VGPU_type.get_implementation ~__context ~self = `gvt_g
+  in
+  if legacy then
+    let vendor = Db.VGPU_type.get_vendor_name ~__context ~self in
+    let model = Db.VGPU_type.get_model_name ~__context ~self in
+    let msg = [Printf.sprintf "%s: %s" vendor model] in
+    raise Api_errors.(Server_error (vgpu_type_no_longer_supported, msg))

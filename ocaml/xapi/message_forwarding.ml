@@ -58,8 +58,11 @@ let remote_rpc_no_retry _context hostname (task_opt : API.ref_task option) xml =
       , !Constants.https_port
       )
   in
+  let tracing = Context.set_client_span _context in
   let http =
-    xmlrpc ?task_id:(Option.map Ref.string_of task_opt) ~version:"1.0" "/"
+    xmlrpc
+      ?task_id:(Option.map Ref.string_of task_opt)
+      ~version:"1.0" ~tracing "/"
   in
   XMLRPC_protocol.rpc ~srcstr:"xapi" ~dststr:"dst_xapi" ~transport ~http xml
 
@@ -75,8 +78,11 @@ let remote_rpc_retry _context hostname (task_opt : API.ref_task option) xml =
       , !Constants.https_port
       )
   in
+  let tracing = Context.set_client_span _context in
   let http =
-    xmlrpc ?task_id:(Option.map Ref.string_of task_opt) ~version:"1.1" "/"
+    xmlrpc
+      ?task_id:(Option.map Ref.string_of task_opt)
+      ~version:"1.1" ~tracing "/"
   in
   XMLRPC_protocol.rpc ~srcstr:"xapi" ~dststr:"dst_xapi" ~transport ~http xml
 
@@ -629,6 +635,14 @@ functor
           Ref.string_of repository
       with _ -> "invalid"
 
+    let observer_uuid ~__context observer =
+      try
+        if Pool_role.is_master () then
+          Db.Observer.get_uuid ~__context ~self:observer
+        else
+          Ref.string_of observer
+      with _ -> "invalid"
+
     module Session = struct
       include Local.Session
 
@@ -1090,6 +1104,44 @@ functor
           (pool_uuid ~__context self)
           value ;
         Local.Pool.set_https_only ~__context ~self ~value
+
+      let set_telemetry_next_collection ~__context ~self ~value =
+        info "%s: pool='%s' value='%s'" __FUNCTION__
+          (pool_uuid ~__context self)
+          (Xapi_stdext_date.Date.to_string value) ;
+        Local.Pool.set_telemetry_next_collection ~__context ~self ~value
+
+      let reset_telemetry_uuid ~__context ~self =
+        info "%s: pool='%s'" __FUNCTION__ (pool_uuid ~__context self) ;
+        Local.Pool.reset_telemetry_uuid ~__context ~self
+
+      let configure_update_sync ~__context ~self ~update_sync_frequency
+          ~update_sync_day =
+        info "%s: pool='%s' update_sync_frequency='%s' update_sync_day=%Ld"
+          __FUNCTION__
+          (pool_uuid ~__context self)
+          (Record_util.update_sync_frequency_to_string update_sync_frequency)
+          update_sync_day ;
+        Local.Pool.configure_update_sync ~__context ~self ~update_sync_frequency
+          ~update_sync_day
+
+      let set_update_sync_enabled ~__context ~self ~value =
+        info "%s: pool='%s' value='%B'" __FUNCTION__
+          (pool_uuid ~__context self)
+          value ;
+        Local.Pool.set_update_sync_enabled ~__context ~self ~value
+
+      let set_local_auth_max_threads ~__context ~self ~value =
+        info "%s: pool='%s' value='%Ld'" __FUNCTION__
+          (pool_uuid ~__context self)
+          value ;
+        Local.Pool.set_local_auth_max_threads ~__context ~self ~value
+
+      let set_ext_auth_max_threads ~__context ~self ~value =
+        info "%s: pool='%s' value='%Ld'" __FUNCTION__
+          (pool_uuid ~__context self)
+          value ;
+        Local.Pool.set_ext_auth_max_threads ~__context ~self ~value
     end
 
     module VM = struct
@@ -1319,6 +1371,7 @@ functor
       let allocate_vm_to_host ~__context ~vm ~host ~snapshot ?host_op () =
         info "Reserve resources for VM %s on host %s" (Ref.string_of vm)
           (Ref.string_of host) ;
+        Xapi_vm_helpers.assert_no_legacy_hardware ~__context ~vm ;
         ( match host_op with
         | Some x ->
             let task_id = Ref.string_of (Context.get_task_id __context) in
@@ -1758,7 +1811,7 @@ functor
 
       let start ~__context ~vm ~start_paused ~force =
         info "VM.start: VM = '%s'" (vm_uuid ~__context vm) ;
-        Xapi_vm_helpers.enforce_memory_constraints_for_dmc ~__context ~vm ;
+        Xapi_vm_helpers.assert_no_legacy_hardware ~__context ~vm ;
         let local_fn = Local.VM.start ~vm ~start_paused ~force in
         let host =
           with_vm_operation ~__context ~self:vm ~doc:"VM.start" ~op:`start
@@ -1822,7 +1875,6 @@ functor
                 ()
           )
           (Db.Host.get_current_operations ~__context ~self:host) ;
-        Xapi_vm_helpers.enforce_memory_constraints_for_dmc ~__context ~vm ;
         info "VM.start_on: VM = '%s'; host '%s'" (vm_uuid ~__context vm)
           (host_uuid ~__context host) ;
         let local_fn = Local.VM.start_on ~vm ~host ~start_paused ~force in
@@ -1890,7 +1942,6 @@ functor
 
       let unpause ~__context ~vm =
         info "VM.unpause: VM = '%s'" (vm_uuid ~__context vm) ;
-        Xapi_vm_helpers.assert_dmc_compatible ~__context ~vm ;
         let local_fn = Local.VM.unpause ~vm in
         with_vm_operation ~__context ~self:vm ~doc:"VM.unpause" ~op:`unpause
           (fun () ->
@@ -2267,7 +2318,7 @@ functor
       (* Like start.. resume on any suitable host *)
       let resume ~__context ~vm ~start_paused ~force =
         info "VM.resume: VM = '%s'" (vm_uuid ~__context vm) ;
-        Xapi_vm_helpers.assert_dmc_compatible ~__context ~vm ;
+        Xapi_vm_helpers.assert_no_legacy_hardware ~__context ~vm ;
         let local_fn = Local.VM.resume ~vm ~start_paused ~force in
         let host =
           with_vm_operation ~__context ~self:vm ~doc:"VM.resume" ~op:`resume
@@ -2307,8 +2358,8 @@ functor
           Helpers.assert_host_has_highest_version_in_pool ~__context ~host ;
         info "VM.resume_on: VM = '%s'; host = '%s'" (vm_uuid ~__context vm)
           (host_uuid ~__context host) ;
-        Xapi_vm_helpers.assert_dmc_compatible ~__context ~vm ;
         let local_fn = Local.VM.resume_on ~vm ~host ~start_paused ~force in
+        Xapi_vm_helpers.assert_no_legacy_hardware ~__context ~vm ;
         with_vm_operation ~__context ~self:vm ~doc:"VM.resume_on" ~op:`resume_on
           (fun () ->
             with_vbds_marked ~__context ~vm ~doc:"VM.resume_on" ~op:`attach
@@ -2355,7 +2406,6 @@ functor
           (host_uuid ~__context host) ;
         let local_fn = Local.VM.pool_migrate ~vm ~host ~options in
         (* Check that the VM is compatible with the host it is being migrated to. *)
-        Xapi_vm_helpers.assert_dmc_compatible ~__context ~vm ;
         let force =
           try bool_of_string (List.assoc "force" options) with _ -> false
         in
@@ -2973,6 +3023,10 @@ functor
         (* called by varstored, bypasses VM powerstate check *)
         info "VM.set_NVRAM_EFI_variables: self = '%s'" (vm_uuid ~__context self) ;
         Local.VM.set_NVRAM_EFI_variables ~__context ~self ~value
+
+      let restart_device_models ~__context ~self =
+        info "VM.restart_device_models: self = '%s'" (vm_uuid ~__context self) ;
+        Local.VM.restart_device_models ~__context ~self
     end
 
     module VM_metrics = struct end
@@ -3337,14 +3391,14 @@ functor
           (host_uuid ~__context self) ;
         Local.Host.get_vms_which_prevent_evacuation ~__context ~self
 
-      let evacuate ~__context ~host ~network =
+      let evacuate ~__context ~host ~network ~evacuate_batch_size =
         info "Host.evacuate: host = '%s'" (host_uuid ~__context host) ;
         (* Block call if this would break our VM restart plan (because the body of this sets enabled to false) *)
         Xapi_ha_vm_failover.assert_host_disable_preserves_ha_plan ~__context
           host ;
         Xapi_host_helpers.with_host_operation ~__context ~self:host
           ~doc:"Host.evacuate" ~op:`evacuate (fun () ->
-            Local.Host.evacuate ~__context ~host ~network
+            Local.Host.evacuate ~__context ~host ~network ~evacuate_batch_size
         )
 
       let retrieve_wlb_evacuate_recommendations ~__context ~self =
@@ -5105,15 +5159,12 @@ functor
         ensure_vdi_not_on_running_vm ~__context ~self ;
         let local_fn = Local.VDI.set_on_boot ~self ~value in
         let sr = Db.VDI.get_SR ~__context ~self in
-        with_sr_andor_vdi ~__context
-          ~sr:(sr, `vdi_set_on_boot)
-          ~vdi:(self, `set_on_boot)
-          ~doc:"VDI.set_on_boot"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sr, `vdi_set_on_boot)
+          ~vdi:(self, `set_on_boot) ~doc:"VDI.set_on_boot" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self (fun session_id rpc ->
                 Client.VDI.set_on_boot ~rpc ~session_id ~self ~value
             )
-          )
+        )
 
       let set_allow_caching ~__context ~self ~value =
         ensure_vdi_not_on_running_vm ~__context ~self ;
@@ -5136,9 +5187,7 @@ functor
             ~_type ~sharable ~read_only ~other_config ~xenstore_data ~sm_config
             ~tags
         in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_create)
-          ~doc:"VDI.create"
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_create) ~doc:"VDI.create"
           (fun () ->
             SR.forward_sr_op ~local_fn ~__context ~self:sR
               (fun session_id rpc ->
@@ -5146,7 +5195,7 @@ functor
                   ~sR ~virtual_size ~_type ~sharable ~read_only ~other_config
                   ~xenstore_data ~sm_config ~tags
             )
-          )
+        )
 
       (* Hidden call used in pool join only *)
       let pool_introduce = Local.VDI.pool_introduce
@@ -5181,10 +5230,8 @@ functor
             ~sm_config ~managed ~virtual_size ~physical_utilisation
             ~metadata_of_pool ~is_a_snapshot ~snapshot_time ~snapshot_of
         in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_introduce)
-          ~doc:"VDI.introduce"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_introduce)
+          ~doc:"VDI.introduce" (fun () ->
             SR.forward_sr_op ~local_fn ~__context ~self:sR
               (fun session_id rpc ->
                 Client.VDI.introduce ~rpc ~session_id ~uuid ~name_label
@@ -5193,69 +5240,57 @@ functor
                   ~virtual_size ~physical_utilisation ~metadata_of_pool
                   ~is_a_snapshot ~snapshot_time ~snapshot_of
             )
-          )
+        )
 
       let update ~__context ~vdi =
         let local_fn = Local.VDI.update ~vdi in
         let sr = Db.VDI.get_SR ~__context ~self:vdi in
-        with_sr_andor_vdi ~__context
-          ~vdi:(vdi, `update)
-          ~doc:"VDI.update"
+        with_sr_andor_vdi ~__context ~vdi:(vdi, `update) ~doc:"VDI.update"
           (fun () ->
             SR.forward_sr_op ~local_fn ~__context ~self:sr
               (fun session_id rpc -> Client.VDI.update ~rpc ~session_id ~vdi
             )
-          )
+        )
 
       let forget ~__context ~vdi =
         info "VDI.forget: VDI = '%s'" (vdi_uuid ~__context vdi) ;
-        with_sr_andor_vdi ~__context
-          ~vdi:(vdi, `forget)
-          ~doc:"VDI.forget"
-          (fun () -> Local.VDI.forget ~__context ~vdi)
+        with_sr_andor_vdi ~__context ~vdi:(vdi, `forget) ~doc:"VDI.forget"
+          (fun () -> Local.VDI.forget ~__context ~vdi
+        )
 
       let destroy ~__context ~self =
         info "VDI.destroy: VDI = '%s'" (vdi_uuid ~__context self) ;
         let local_fn = Local.VDI.destroy ~self in
         let sR = Db.VDI.get_SR ~__context ~self in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_destroy)
-          ~vdi:(self, `destroy)
-          ~doc:"VDI.destroy"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_destroy)
+          ~vdi:(self, `destroy) ~doc:"VDI.destroy" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self (fun session_id rpc ->
                 Client.VDI.destroy ~rpc ~session_id ~self
             )
-          )
+        )
 
       (* !! FIXME - Depends on what we're doing here... *)
       let snapshot ~__context ~vdi ~driver_params =
         info "VDI.snapshot: VDI = '%s'" (vdi_uuid ~__context vdi) ;
         let local_fn = Local.VDI.snapshot ~vdi ~driver_params in
         let sR = Db.VDI.get_SR ~__context ~self:vdi in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_snapshot)
-          ~vdi:(vdi, `snapshot)
-          ~doc:"VDI.snapshot"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_snapshot)
+          ~vdi:(vdi, `snapshot) ~doc:"VDI.snapshot" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self:vdi (fun session_id rpc ->
                 Client.VDI.snapshot ~rpc ~session_id ~vdi ~driver_params
             )
-          )
+        )
 
       let clone ~__context ~vdi ~driver_params =
         info "VDI.clone: VDI = '%s'" (vdi_uuid ~__context vdi) ;
         let local_fn = Local.VDI.clone ~vdi ~driver_params in
         let sR = Db.VDI.get_SR ~__context ~self:vdi in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_clone)
-          ~vdi:(vdi, `clone)
-          ~doc:"VDI.clone"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_clone) ~vdi:(vdi, `clone)
+          ~doc:"VDI.clone" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self:vdi (fun session_id rpc ->
                 Client.VDI.clone ~rpc ~session_id ~vdi ~driver_params
             )
-          )
+        )
 
       let copy ~__context ~vdi ~sr ~base_vdi ~into_vdi =
         info "VDI.copy: VDI = '%s'; SR = '%s'; base_vdi = '%s'; into_vdi = '%s'"
@@ -5278,9 +5313,7 @@ functor
           Helpers.try_internal_async ~__context API.ref_VDI_of_rpc async_op
             sync_op
         in
-        with_sr_andor_vdi ~__context
-          ~vdi:(vdi, `copy)
-          ~doc:"VDI.copy"
+        with_sr_andor_vdi ~__context ~vdi:(vdi, `copy) ~doc:"VDI.copy"
           (fun () ->
             try
               SR.forward_sr_multiple_op ~local_fn ~__context ~srs:[src_sr; sr]
@@ -5288,7 +5321,7 @@ functor
             with Not_found ->
               SR.forward_sr_multiple_op ~local_fn ~__context ~srs:[src_sr]
                 ~prefer_slaves:true op
-          )
+        )
 
       let pool_migrate ~__context ~vdi ~sr ~options =
         let vbds =
@@ -5346,15 +5379,13 @@ functor
             in
             VM.reserve_memory_for_vm ~__context ~vm ~host ~snapshot
               ~host_op:`vm_migrate (fun () ->
-                with_sr_andor_vdi ~__context
-                  ~vdi:(vdi, `mirror)
-                  ~doc:"VDI.mirror"
-                  (fun () ->
+                with_sr_andor_vdi ~__context ~vdi:(vdi, `mirror)
+                  ~doc:"VDI.mirror" (fun () ->
                     do_op_on ~local_fn ~__context ~host (fun session_id rpc ->
                         Client.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr
                           ~options
                     )
-                  )
+                )
             )
         )
 
@@ -5362,41 +5393,34 @@ functor
         info "VDI.resize: VDI = '%s'; size = %Ld" (vdi_uuid ~__context vdi) size ;
         let local_fn = Local.VDI.resize ~vdi ~size in
         let sR = Db.VDI.get_SR ~__context ~self:vdi in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_resize)
-          ~vdi:(vdi, `resize)
-          ~doc:"VDI.resize"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_resize) ~vdi:(vdi, `resize)
+          ~doc:"VDI.resize" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self:vdi (fun session_id rpc ->
                 Client.VDI.resize ~rpc ~session_id ~vdi ~size
             )
-          )
+        )
 
       let generate_config ~__context ~host ~vdi =
         info "VDI.generate_config: VDI = '%s'; host = '%s'"
           (vdi_uuid ~__context vdi)
           (host_uuid ~__context host) ;
         let local_fn = Local.VDI.generate_config ~host ~vdi in
-        with_sr_andor_vdi ~__context
-          ~vdi:(vdi, `generate_config)
-          ~doc:"VDI.generate_config"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~vdi:(vdi, `generate_config)
+          ~doc:"VDI.generate_config" (fun () ->
             do_op_on ~local_fn ~__context ~host (fun session_id rpc ->
                 Client.VDI.generate_config ~rpc ~session_id ~host ~vdi
             )
-          )
+        )
 
       let force_unlock ~__context ~vdi =
         info "VDI.force_unlock: VDI = '%s'" (vdi_uuid ~__context vdi) ;
         let local_fn = Local.VDI.force_unlock ~vdi in
-        with_sr_andor_vdi ~__context
-          ~vdi:(vdi, `force_unlock)
-          ~doc:"VDI.force_unlock"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~vdi:(vdi, `force_unlock)
+          ~doc:"VDI.force_unlock" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self:vdi (fun session_id rpc ->
                 Client.VDI.force_unlock ~rpc ~session_id ~vdi
             )
-          )
+        )
 
       let checksum ~__context ~self =
         VM.forward_to_access_srs_and ~local_fn:(Local.VDI.checksum ~self)
@@ -5408,29 +5432,23 @@ functor
         info "VDI.enable_cbt: VDI = '%s'" (vdi_uuid ~__context self) ;
         let local_fn = Local.VDI.enable_cbt ~self in
         let sR = Db.VDI.get_SR ~__context ~self in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_enable_cbt)
-          ~vdi:(self, `enable_cbt)
-          ~doc:"VDI.enable_cbt"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_enable_cbt)
+          ~vdi:(self, `enable_cbt) ~doc:"VDI.enable_cbt" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self (fun session_id rpc ->
                 Client.VDI.enable_cbt ~rpc ~session_id ~self
             )
-          )
+        )
 
       let disable_cbt ~__context ~self =
         info "VDI.disable_cbt: VDI = '%s'" (vdi_uuid ~__context self) ;
         let local_fn = Local.VDI.disable_cbt ~self in
         let sR = Db.VDI.get_SR ~__context ~self in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_disable_cbt)
-          ~vdi:(self, `disable_cbt)
-          ~doc:"VDI.disable_cbt"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_disable_cbt)
+          ~vdi:(self, `disable_cbt) ~doc:"VDI.disable_cbt" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self (fun session_id rpc ->
                 Client.VDI.disable_cbt ~rpc ~session_id ~self
             )
-          )
+        )
 
       let set_cbt_enabled ~__context ~self ~value =
         info "VDI.set_cbt_enabled: VDI = '%s'; value = '%b'"
@@ -5443,15 +5461,12 @@ functor
         info "VDI.data_destroy: VDI = '%s'" (vdi_uuid ~__context self) ;
         let local_fn = Local.VDI.data_destroy ~self in
         let sR = Db.VDI.get_SR ~__context ~self in
-        with_sr_andor_vdi ~__context
-          ~sr:(sR, `vdi_data_destroy)
-          ~vdi:(self, `data_destroy)
-          ~doc:"VDI.data_destroy"
-          (fun () ->
+        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_data_destroy)
+          ~vdi:(self, `data_destroy) ~doc:"VDI.data_destroy" (fun () ->
             forward_vdi_op ~local_fn ~__context ~self (fun session_id rpc ->
                 Client.VDI.data_destroy ~rpc ~session_id ~self
             )
-          )
+        )
 
       let list_changed_blocks ~__context ~vdi_from ~vdi_to =
         info "VDI.list_changed_blocks: vdi_from  = '%s'; vdi_to = '%s'"
@@ -5459,17 +5474,15 @@ functor
           (vdi_uuid ~__context vdi_to) ;
         let local_fn = Local.VDI.list_changed_blocks ~vdi_from ~vdi_to in
         let vdi_to_sr = Db.VDI.get_SR ~__context ~self:vdi_to in
-        with_sr_andor_vdi ~__context
-          ~sr:(vdi_to_sr, `vdi_list_changed_blocks)
-          ~vdi:(vdi_to, `list_changed_blocks)
-          ~doc:"VDI.list_changed_blocks"
+        with_sr_andor_vdi ~__context ~sr:(vdi_to_sr, `vdi_list_changed_blocks)
+          ~vdi:(vdi_to, `list_changed_blocks) ~doc:"VDI.list_changed_blocks"
           (fun () ->
             forward_vdi_op ~local_fn ~__context ~self:vdi_to
               (fun session_id rpc ->
                 Client.VDI.list_changed_blocks ~rpc ~session_id ~vdi_from
                   ~vdi_to
             )
-          )
+        )
 
       let get_nbd_info ~__context ~self =
         info "VDI.get_nbd_info: vdi  = '%s'" (vdi_uuid ~__context self) ;
@@ -5758,8 +5771,10 @@ functor
         ) ;
         (* We always plug the master PBD first and unplug it last. If this is the
          * first PBD plugged for this SR (proxy: the PBD being plugged is for the
-         * master) then we should perform an initial SR scan and perform some
-         * asynchronous start-of-day operations in the callback.
+         * master) then we should perform an initial SR scan. CA-379112
+         * changed the scan from asynchronous to synchronous as
+         * otherwise on return the xapi DB does not have the correct
+         * information.
          * Note the current context contains a completed real task and we should
          * not reuse it for what is effectively another call. *)
         if is_master_pbd then
@@ -5776,7 +5791,7 @@ functor
                 Xapi_sr.maybe_push_sr_rrds ~__context ~sr ;
                 Xapi_sr.update ~__context ~sr
               in
-              Xapi_sr.scan_one ~__context ~callback:sr_scan_callback sr
+              sr_scan_callback ()
           )
 
       let unplug ~__context ~self =
@@ -5817,7 +5832,6 @@ functor
     end
 
     (* whatever *)
-    module VTPM = Local.VTPM
     module Console = Local.Console
     module User = Local.User
     module Blob = Local.Blob
@@ -5828,6 +5842,22 @@ functor
     module Secret = Local.Secret
 
     module PCI = struct end
+
+    module VTPM = struct
+      let create ~__context ~vM ~is_unique =
+        VM.with_vm_operation ~__context ~self:vM ~doc:"VTPM.create"
+          ~op:`create_vtpm
+        @@ fun () -> Local.VTPM.create ~__context ~vM ~is_unique
+
+      let destroy ~__context ~self =
+        let vm = Db.VTPM.get_VM ~__context ~self in
+        Local.VTPM.destroy ~__context ~self ;
+        Xapi_vm_lifecycle.update_allowed_operations ~__context ~self:vm
+
+      let get_contents = Local.VTPM.get_contents
+
+      let set_contents = Local.VTPM.set_contents
+    end
 
     module PGPU = struct
       include Local.PGPU
@@ -6453,5 +6483,146 @@ functor
             Client.Repository.apply_livepatch ~rpc ~session_id ~host ~component
               ~base_build_id ~base_version ~base_release ~to_version ~to_release
         )
+    end
+
+    module Observer = struct
+      module RefSet = Set.Make (struct
+        type t = [`host] Ref.t
+
+        let compare = Ref.compare
+      end)
+
+      let create ~__context ~name_label ~name_description ~hosts ~attributes
+          ~endpoints ~components ~enabled =
+        info "Observer.create: name_label=%s" name_label ;
+        let self =
+          Local.Observer.create ~__context ~name_label ~name_description ~hosts
+            ~attributes ~endpoints ~components ~enabled
+        in
+        let local_fn =
+          Local.Observer.register ~self ~host:(Helpers.get_localhost ~__context)
+        in
+        Xapi_observer.observed_hosts_of ~__context hosts
+        |> List.iter (fun host ->
+               do_op_on ~__context ~host ~local_fn (fun session_id rpc ->
+                   Client.Observer.register ~rpc ~session_id ~self ~host
+               )
+           ) ;
+        self
+
+      let register ~__context ~self ~host =
+        info "Observer.register: self=%s" (observer_uuid ~__context self) ;
+        let local_fn = Local.Observer.register ~self ~host in
+        let client_fn session_id rpc =
+          Client.Observer.register ~rpc ~session_id ~self ~host
+        in
+        do_op_on ~__context ~host ~local_fn client_fn
+
+      let unregister ~__context ~self ~host =
+        info "Observer.unregister: self=%s" (observer_uuid ~__context self) ;
+        let local_fn = Local.Observer.unregister ~self ~host in
+        let client_fn session_id rpc =
+          Client.Observer.unregister ~rpc ~session_id ~self ~host
+        in
+        do_op_on ~__context ~host ~local_fn client_fn
+
+      let destroy ~__context ~self =
+        info "Observer.destroy: self=%s" (observer_uuid ~__context self) ;
+        let hosts = Db.Observer.get_hosts ~__context ~self in
+        let local_fn =
+          Local.Observer.unregister ~self
+            ~host:(Helpers.get_localhost ~__context)
+        in
+        Xapi_observer.observed_hosts_of ~__context hosts
+        |> List.iter (fun host ->
+               do_op_on ~__context ~host ~local_fn (fun session_id rpc ->
+                   Client.Observer.unregister ~rpc ~session_id ~self ~host
+               )
+           ) ;
+        Local.Observer.destroy ~__context ~self
+
+      let set_hosts ~__context ~self ~value =
+        let uuid = observer_uuid ~__context self in
+        info "Observer.set_hosts: self=%s value=%s" uuid
+          (String.concat ";" (List.map (host_uuid ~__context) value)) ;
+        Local.Observer.set_hosts ~__context ~self ~value ;
+        let new_hosts =
+          RefSet.of_list (Xapi_observer.observed_hosts_of ~__context value)
+        in
+        let old_hosts =
+          RefSet.of_list
+            (Xapi_observer.observed_hosts_of ~__context
+               (Db.Observer.get_hosts ~__context ~self)
+            )
+        in
+        let to_add = RefSet.diff new_hosts old_hosts in
+        let to_remove = RefSet.diff old_hosts new_hosts in
+        let localhost = Helpers.get_localhost ~__context in
+        let local_fn = Local.Observer.unregister ~self ~host:localhost in
+        RefSet.iter
+          (fun host ->
+            do_op_on ~__context ~host ~local_fn (fun session_id rpc ->
+                Client.Observer.unregister ~rpc ~session_id ~self ~host
+            )
+          )
+          to_remove ;
+        let local_fn = Local.Observer.register ~self ~host:localhost in
+        RefSet.iter
+          (fun host ->
+            do_op_on ~__context ~host ~local_fn (fun session_id rpc ->
+                Client.Observer.register ~rpc ~session_id ~self ~host
+            )
+          )
+          to_add
+
+      let set_enabled ~__context ~self ~value =
+        info "Observer.set_enabled: self=%s value=%B"
+          (observer_uuid ~__context self)
+          value ;
+        let client_fn session_id rpc =
+          Client.Observer.set_enabled ~rpc ~session_id ~self ~value
+        in
+        let local_fn = Local.Observer.set_enabled ~self ~value in
+        let fn ~rpc:_ ~session_id:_ ~host =
+          do_op_on ~__context ~host ~local_fn client_fn
+        in
+        Xapi_pool_helpers.call_fn_on_slaves_then_master ~__context fn
+
+      let set_attributes ~__context ~self ~value =
+        (* attributes will be kept out of the logs *)
+        info "Observer.set_attributes: self=%s" (observer_uuid ~__context self) ;
+        let client_fn session_id rpc =
+          Client.Observer.set_attributes ~rpc ~session_id ~self ~value
+        in
+        let local_fn = Local.Observer.set_attributes ~self ~value in
+        let fn ~rpc:_ ~session_id:_ ~host =
+          do_op_on ~__context ~host ~local_fn client_fn
+        in
+        Xapi_pool_helpers.call_fn_on_slaves_then_master ~__context fn
+
+      let set_endpoints ~__context ~self ~value =
+        (* endpoints will be kept out of the logs *)
+        info "Observer.set_endpoints: self=%s" (observer_uuid ~__context self) ;
+        let client_fn session_id rpc =
+          Client.Observer.set_endpoints ~rpc ~session_id ~self ~value
+        in
+        let local_fn = Local.Observer.set_endpoints ~self ~value in
+        let fn ~rpc:_ ~session_id:_ ~host =
+          do_op_on ~__context ~host ~local_fn client_fn
+        in
+        Xapi_pool_helpers.call_fn_on_slaves_then_master ~__context fn
+
+      let set_components ~__context ~self ~value =
+        info "Observer.set_components: self=%s value=%s"
+          (observer_uuid ~__context self)
+          (value |> String.concat ",") ;
+        let client_fn session_id rpc =
+          Client.Observer.set_components ~rpc ~session_id ~self ~value
+        in
+        let local_fn = Local.Observer.set_components ~self ~value in
+        let fn ~rpc:_ ~session_id:_ ~host =
+          do_op_on ~__context ~host ~local_fn client_fn
+        in
+        Xapi_pool_helpers.call_fn_on_slaves_then_master ~__context fn
     end
   end

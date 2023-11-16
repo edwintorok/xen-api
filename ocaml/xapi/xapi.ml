@@ -94,7 +94,7 @@ let populate_db backend =
     The db connections must have been parsed from db.conf file and initialised before this fn is called.
     Also this function depends on being able to call API functions through the external interface.
 *)
-let start_database_engine () =
+let start_database_engine ~__context () =
   let t = Db_backend.make () in
   populate_db t ;
   Db_ref.update_database t
@@ -104,7 +104,7 @@ let start_database_engine () =
   debug "Performing initial DB GC" ;
   Db_gc.single_pass () ;
   (* Make sure all 'my' database records exist and are up to date *)
-  Dbsync.setup () ;
+  Dbsync.setup ~__context ;
   ignore (Db_gc.start_db_gc_thread ()) ;
   debug "Finished populating db cache" ;
   Xapi_ha.on_database_engine_ready () ;
@@ -417,14 +417,19 @@ let wait_for_management_ip_address ~__context =
   ) ;
   ip
 
-type hello_error =
+type host_status_check_error =
   | Permanent (* e.g. the pool secret is wrong i.e. wrong master *)
   | Temporary
 
 (* some glitch or other *)
 
-(** Attempt a Pool.hello, return None if ok or Some hello_error otherwise *)
-let attempt_pool_hello my_ip =
+let xapi_ver_high_alerted = ref false
+
+(** Attempt checking host status with pool coordinator:
+ *  1. Pool.hello
+ *  2. if Pool.hello ok, check xapi version
+ *  Return None if ok or Some host_status_check_error otherwise *)
+let attempt_host_status_check_with_coordinator ~__context my_ip =
   let localhost_uuid = Helpers.get_localhost_uuid () in
   try
     Helpers.call_emergency_mode_functions (Pool_role.get_master_address ())
@@ -444,7 +449,46 @@ let attempt_pool_hello my_ip =
               [localhost_uuid] ;
             Some Permanent
         | `ok ->
-            None
+            let xapi_version_higher version =
+              version |> Xapi_version.compare_version Xapi_version.version
+              |> fun r -> r > 0
+            in
+            if
+              xapi_version_higher
+                (Db.Host.get_software_version ~__context
+                   ~self:(Helpers.get_master ~__context)
+                |> List.assoc "xapi_build"
+                )
+            then (
+              let name_label =
+                Db.Host.get_name_label ~__context
+                  ~self:(Helpers.get_localhost ~__context)
+              in
+              let err_msg =
+                Printf.sprintf
+                  "Xapi startup in pool member %s is blocked as its xapi \
+                   version (%s) is higher than xapi version in pool \
+                   coordinator."
+                  name_label Xapi_version.version
+              in
+              if not !xapi_ver_high_alerted then (
+                let name, priority =
+                  Api_messages
+                  .xapi_startup_blocked_as_version_higher_than_coordinator
+                in
+                ignore
+                  (Client.Client.Message.create ~rpc ~session_id ~name ~priority
+                     ~cls:`Host ~obj_uuid:localhost_uuid ~body:err_msg
+                  ) ;
+                xapi_ver_high_alerted := true
+              ) ;
+              error "%s" err_msg ;
+              Xapi_host.set_emergency_mode_error
+                Api_errors.host_xapi_version_higher_than_coordinator
+                [Xapi_version.version] ;
+              Some Permanent
+            ) else
+              None
     )
   with
   | Api_errors.Server_error (code, _)
@@ -456,13 +500,15 @@ let attempt_pool_hello my_ip =
         [localhost_uuid] ;
       Some Permanent
   | Api_errors.Server_error (code, params) as exn ->
-      debug "Caught exception: %s during Pool.hello"
-        (ExnHelper.string_of_exn exn) ;
+      debug "Caught exception: %s in %s"
+        (ExnHelper.string_of_exn exn)
+        __FUNCTION__ ;
       Xapi_host.set_emergency_mode_error code params ;
       Some Temporary
   | exn ->
-      debug "Caught exception: %s during Pool.hello"
-        (ExnHelper.string_of_exn exn) ;
+      debug "Caught exception: %s in %s"
+        (ExnHelper.string_of_exn exn)
+        __FUNCTION__ ;
       Xapi_host.set_emergency_mode_error Api_errors.internal_error
         [ExnHelper.string_of_exn exn] ;
       Some Temporary
@@ -485,8 +531,10 @@ let start_redo_log () =
       && not (bool_of_string (Localdb.get Constants.ha_armed))
     then (
       debug "Redo log was enabled when shutting down, so restarting it" ;
+      Static_vdis.reattempt_on_boot_attach () ;
       (* enable the use of the redo log *)
-      Redo_log.enable Xapi_ha.ha_redo_log Xapi_globs.gen_metadata_vdi_reason ;
+      Redo_log.enable_existing Xapi_ha.ha_redo_log
+        Xapi_globs.gen_metadata_vdi_reason ;
       debug "Attempting to extract a database from a metadata VDI" ;
       (* read from redo log and store results in a staging file for use in the
        * next step; best effort only: does not raise any exceptions *)
@@ -885,7 +933,16 @@ let server_init () =
      has just started up we want to wait forever for the master to appear. (See CA-25481) *)
   let initial_connection_timeout = !Master_connection.connection_timeout in
   Master_connection.connection_timeout := -1. ;
+
   (* never timeout *)
+  let initialize_auth_semaphores ~__context =
+    let pool = Helpers.get_pool ~__context in
+    Xapi_session.set_local_auth_max_threads
+      (Db.Pool.get_local_auth_max_threads ~__context ~self:pool) ;
+    Xapi_session.set_ext_auth_max_threads
+      (Db.Pool.get_ext_auth_max_threads ~__context ~self:pool)
+  in
+
   let call_extauth_hook_script_after_xapi_initialize ~__context =
     (* CP-709 *)
     (* in each initialization of xapi, extauth_hook script must be called in case this host was *)
@@ -1030,11 +1087,14 @@ let server_init () =
           ; ("Initialise TLS verification", [], init_tls_verification)
           ; ("Running startup check", [], startup_check)
           ; ("Registering SMAPIv1 plugins", [Startup.OnlyMaster], Sm.register)
+          ; ( "Initialising SMAPIv1 state"
+            , []
+            , Storage_smapiv1_wrapper.initialise
+            )
           ; ( "Starting SMAPIv1 proxies"
             , [Startup.OnlyMaster]
             , Storage_access.start_smapiv1_servers
             )
-          ; ("Initialising SM state", [], Storage_impl.initialise)
           ; ("Starting SM service", [], Storage_access.start)
           ; ("Starting SM xapi event service", [], Storage_access.events_from_sm)
           ; ("Killing stray sparse_dd processes", [], Sparse_dd_wrapper.killall)
@@ -1067,7 +1127,7 @@ let server_init () =
                running etc.) -- see CA-11087 *)
             ( "starting up database engine"
             , [Startup.OnlyMaster]
-            , start_database_engine
+            , start_database_engine ~__context
             )
           ; ( "hi-level database upgrade"
             , [Startup.OnlyMaster]
@@ -1100,7 +1160,7 @@ let server_init () =
             , Remote_requests.handle_requests
             )
           ] ;
-        match Pool_role.get_role () with
+        ( match Pool_role.get_role () with
         | Pool_role.Master ->
             ()
         | Pool_role.Broken ->
@@ -1116,14 +1176,18 @@ let server_init () =
             Helpers.touch_file !Xapi_globs.ready_file ;
             (* Keep trying to log into master *)
             let finished = ref false in
+
             while not !finished do
               (* Grab the management IP address (wait forever for it if necessary) *)
               let ip = wait_for_management_ip_address ~__context in
               debug "Start master_connection watchdog" ;
               ignore (Master_connection.start_master_connection_watchdog ()) ;
               debug "Attempting to communicate with master" ;
-              (* Try to say hello to the pool *)
-              match attempt_pool_hello ip with
+
+              (* Try to check host status with the pool *)
+              match
+                attempt_host_status_check_with_coordinator ~__context ip
+              with
               | None ->
                   finished := true
               | Some Temporary ->
@@ -1131,8 +1195,9 @@ let server_init () =
                   Thread.delay 5.
               | Some Permanent ->
                   error
-                    "Permanent error in Pool.hello, will retry after %.0fs \
-                     just in case"
+                    "Permanent error in \
+                     attempt_host_status_check_with_coordinator, will retry \
+                     after %.0fs just in case"
                     !Db_globs.permanent_master_failure_retry_interval ;
                   Thread.delay !Db_globs.permanent_master_failure_retry_interval
             done ;
@@ -1154,7 +1219,7 @@ let server_init () =
                     , Storage_access.start_smapiv1_servers
                     )
                   ] ;
-                Dbsync.setup ()
+                Dbsync.setup ~__context
               with _ ->
                 debug
                   "Failure in slave dbsync; slave will pause and then restart \
@@ -1166,9 +1231,7 @@ let server_init () =
             Master_connection.restart_on_connection_timeout := true ;
             Master_connection.on_database_connection_established :=
               fun () -> on_master_restart ~__context
-    ) ;
-    Server_helpers.exec_with_new_task "server_init" ~task_in_database:true
-      (fun __context ->
+        ) ;
         Startup.run ~__context
           [
             ("Checking emergency network reset", [], check_network_reset)
@@ -1216,7 +1279,7 @@ let server_init () =
             )
           ; ( "Registering periodic functions"
             , []
-            , Xapi_periodic_scheduler_init.register
+            , fun () -> Xapi_periodic_scheduler_init.register ~__context
             )
           ; ("executing startup scripts", [Startup.NoExnRaising], startup_script)
           ; ( "considering executing on-master-start script"
@@ -1229,11 +1292,15 @@ let server_init () =
             , [Startup.OnlyMaster]
             , Create_networks.create_networks_localhost
             )
+          ; ( "Initialise Observability"
+            , [Startup.NoExnRaising]
+            , fun () -> Xapi_observer.initialise ~__context
+            )
           ; (* CA-22417: bring up all non-bond slaves so that the SM backends can use storage NIC IP addresses (if the routing
                	 table happens to be right) *)
             ( "Best-effort bring up of physical and sriov NICs"
             , [Startup.NoExnRaising]
-            , Xapi_pif.start_of_day_best_effort_bring_up
+            , Xapi_pif.start_of_day_best_effort_bring_up ~__context
             )
           ; ( "updating the vswitch controller"
             , []
@@ -1287,10 +1354,6 @@ let server_init () =
           ; ( "Updating pool cpu_info"
             , []
             , fun () -> Create_misc.create_pool_cpuinfo ~__context
-            )
-          ; ( "writing init complete"
-            , []
-            , fun () -> Helpers.touch_file !Xapi_globs.init_complete
             )
           ; (*      "Synchronising HA state with Pool", [ Startup.NoExnRaising ], Xapi_ha.synchronise_ha_state_with_pool; *)
             ("Starting DR redo-logs", [Startup.OnlyMaster], start_dr_redo_logs)
@@ -1388,6 +1451,10 @@ let server_init () =
             , []
             , fun () -> Storage_migrate.killall ~dbg:"xapi init"
             )
+          ; ( "Initialize threaded authentication"
+            , [Startup.NoExnRaising]
+            , fun () -> initialize_auth_semaphores ~__context
+            )
           ; (* Start the external authentification plugin *)
             ( "Calling extauth_hook_script_before_xapi_initialize"
             , [Startup.NoExnRaising]
@@ -1418,6 +1485,10 @@ let server_init () =
             , fun () ->
                 Xapi_host.write_uefi_certificates_to_disk ~__context
                   ~host:(Helpers.get_localhost ~__context)
+            )
+          ; ( "writing init complete"
+            , []
+            , fun () -> Helpers.touch_file !Xapi_globs.init_complete
             )
           ] ;
         debug "startup: startup sequence finished"

@@ -80,6 +80,7 @@ functor
       ; id: id  (** unique task id *)
       ; ctime: float  (** created timestamp *)
       ; dbg: string  (** token sent by client *)
+      ; mutable tracing: Tracing.Span.t option
       ; mutable state: Interface.Task.state  (** current completion state *)
       ; mutable subtasks: (string * Interface.Task.state) list
             (** one level of "subtasks" *)
@@ -125,13 +126,30 @@ functor
     let id_of_handle task_handle = task_handle.id
 
     (* [add dbg f] creates a fresh [t], registers and returns it *)
-    let add tasks dbg (f : task_handle -> Interface.Task.async_result option) =
+    let add ?traceparent tasks dbg
+        (f : task_handle -> Interface.Task.async_result option) =
+      let dbg' = Debuginfo.of_string dbg in
+      let tracing =
+        match (dbg'.Debuginfo.tracing, traceparent) with
+        | Some t, _ ->
+            Some t
+        | None, Some traceparent ->
+            let spancontext = Tracing.SpanContext.of_traceparent traceparent in
+            Option.map
+              (fun tp ->
+                Tracing.Tracer.span_of_span_context tp dbg'.Debuginfo.log
+              )
+              spancontext
+        | _ ->
+            None
+      in
       let t =
         {
           tasks
         ; id= next_task_id ()
         ; ctime= Unix.gettimeofday ()
-        ; dbg
+        ; dbg= dbg'.Debuginfo.log
+        ; tracing
         ; state= Interface.Task.Pending 0.
         ; subtasks= []
         ; f
@@ -317,4 +335,8 @@ functor
             true
       in
       if already_finished then task_finished t
+
+    let tracing t = t.tracing
+
+    let set_tracing t tracing = t.tracing <- tracing
   end

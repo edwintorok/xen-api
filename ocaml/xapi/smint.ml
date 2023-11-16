@@ -44,6 +44,7 @@ type capability =
   | Vdi_snapshot
   | Vdi_resize
   | Vdi_activate
+  | Vdi_activate_readonly
   | Vdi_deactivate
   | Vdi_update
   | Vdi_introduce
@@ -82,6 +83,7 @@ let string_to_capability_table =
   ; ("VDI_CLONE", Vdi_clone)
   ; ("VDI_SNAPSHOT", Vdi_snapshot)
   ; ("VDI_ACTIVATE", Vdi_activate)
+  ; ("VDI_ACTIVATE_READONLY", Vdi_activate_readonly)
   ; ("VDI_DEACTIVATE", Vdi_deactivate)
   ; ("VDI_UPDATE", Vdi_update)
   ; ("VDI_INTRODUCE", Vdi_introduce)
@@ -166,7 +168,8 @@ let query_result_of_sr_driver_info x =
   }
 
 type attach_info = {
-    params: string
+    params: string option
+  ; params_nbd: string
   ; o_direct: bool
   ; o_direct_reason: string
   ; xenstore_data: (string * string) list

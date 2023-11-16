@@ -180,8 +180,7 @@ let get_boot_record =
        CPU hotplug"
     ~result:(Record _vm, "A record describing the VM")
     ~params:[(Ref _vm, "self", "The VM whose boot-time state to return")]
-    ~errs:[]
-    ~flags:[`Session] (* no async *)
+    ~errs:[] ~flags:[`Session] (* no async *)
     ~allowed_roles:_R_READ_ONLY ()
 
 let get_data_sources =
@@ -941,8 +940,7 @@ let suspend =
     ~doc:
       "Suspend the specified VM to disk.  This can only be called when the \
        specified VM is in the Running state."
-    ~params:
-      [(Ref _vm, "vm", "The VM to suspend")]
+    ~params:[(Ref _vm, "vm", "The VM to suspend")]
       (*	    Bool, "live", "If set to true, perform a live hibernate; otherwise suspend the VM before commencing hibernate" *)
     ~errs:
       [
@@ -958,8 +956,8 @@ let suspend =
 let csvm =
   call ~name:"csvm" ~in_product_since:rel_rio
     ~doc:"undocumented. internal use only. This call is deprecated."
-    ~params:[(Ref _vm, "vm", "")] ~result:(Ref _vm, "")
-    ~errs:(errnames_of_call clone) ~hide_from_docs:true
+    ~params:[(Ref _vm, "vm", "")]
+    ~result:(Ref _vm, "") ~errs:(errnames_of_call clone) ~hide_from_docs:true
     ~internal_deprecated_since:rel_miami ~allowed_roles:_R_VM_ADMIN ()
 
 (* VM.UnHibernate *)
@@ -1035,7 +1033,7 @@ let pool_migrate =
       ; Api_errors.other_operation_in_progress
       ; Api_errors.vm_is_template
       ; Api_errors.operation_not_allowed
-      ; Api_errors.vm_migrate_failed
+      ; Api_errors.vm_bad_power_state
       ]
     ~allowed_roles:(_R_VM_POWER_ADMIN ++ _R_CLIENT_CERT)
     ()
@@ -1616,6 +1614,7 @@ let operations =
         ; ("metadata_export", "exporting VM metadata to a network stream")
         ; ("reverting", "Reverting the VM to a previous snapshotted state")
         ; ("destroy", "refers to the act of uninstalling the VM")
+        ; ("create_vtpm", "Creating and adding a VTPM to this VM")
         ]
     )
 
@@ -1647,6 +1646,7 @@ let domain_type =
         ("hvm", "HVM; Fully Virtualised")
       ; ("pv", "PV: Paravirtualised")
       ; ("pv_in_pvh", "PV inside a PVH container")
+      ; ("pvh", "PVH")
       ; ("unspecified", "Not specified or unknown domain type")
       ]
     )
@@ -1685,6 +1685,20 @@ let set_NVRAM_EFI_variables =
     ~lifecycle:[(Published, rel_naples, "")]
     ~params:[(Ref _vm, "self", "The VM"); (String, "value", "The value")]
     ~hide_from_docs:true ~allowed_roles:_R_LOCAL_ROOT_ONLY ()
+
+let restart_device_models =
+  call ~flags:[`Session] ~name:"restart_device_models" ~lifecycle:[]
+    ~params:[(Ref _vm, "self", "The VM")]
+    ~errs:
+      [
+        Api_errors.vm_bad_power_state
+      ; Api_errors.other_operation_in_progress
+      ; Api_errors.vm_is_template
+      ; Api_errors.operation_not_allowed
+      ; Api_errors.vm_bad_power_state
+      ]
+    ~allowed_roles:(_R_VM_POWER_ADMIN ++ _R_CLIENT_CERT)
+    ()
 
 (** VM (or 'guest') configuration: *)
 let t =
@@ -1819,6 +1833,7 @@ let t =
       ; set_domain_type
       ; set_HVM_boot_policy
       ; set_NVRAM_EFI_variables
+      ; restart_device_models
       ]
     ~contents:
       ([uid _vm]
@@ -2141,6 +2156,11 @@ let t =
             ~ty:(Set update_guidances) "pending_guidances"
             ~default_value:(Some (VSet []))
             "The set of pending guidances after applying updates"
+        ; field ~qualifier:DynamicRO ~internal_only:true
+            ~lifecycle:[(Prototyped, "23.18.0", ""); (Removed, "23.24.0", "")]
+            ~ty:(Set update_guidances) "recommended_guidances"
+            ~default_value:(Some (VSet []))
+            "The set of recommended guidances after applying updates"
         ]
       )
     ()

@@ -13,7 +13,6 @@ build: [
 depends: [
   "ocaml"
   "dune"
-  "ounit2" {with-test}
   "astring"
   "base-threads"
   "base-unix"
@@ -45,7 +44,6 @@ depends: [
   "xenctrl"
   "xenstore"
   "xenstore_transport"
-  "xentoollog"
 ]
 synopsis:
   "A xenops plugin which knows how to use xenstore, xenctrl and xenguest to manage"
