@@ -163,6 +163,11 @@ exception Goto_handler
     on slave start and then every time after the master restarts and we reconnect. *)
 let on_database_connection_established = ref (fun () -> ())
 
+let with_polly f =
+  let polly = Polly.create () in
+  let finally () = Polly.close polly in
+  Xapi_stdext_pervasives.Pervasiveext.finally (fun () -> f polly) finally
+
 let open_secure_connection () =
   let host = !get_master_address () in
   let port = !Db_globs.https_port in
@@ -171,7 +176,11 @@ let open_secure_connection () =
     ~write_to_log:(fun x -> debug "stunnel: %s\n" x)
     ~verify_cert host port
   @@ fun st_proc ->
-  let fd_closed = Thread.wait_timed_read Unixfd.(!(st_proc.Stunnel.fd)) 5. in
+  let fd_closed =
+    with_polly @@ fun polly ->
+    Polly.add polly Unixfd.(!(st_proc.Stunnel.fd)) Polly.Events.inp ;
+    Polly.wait polly 1 5000 (fun _ _ _ -> ()) = 0
+  in
   let proc_quit =
     try
       Unix.kill (Stunnel.getpid st_proc.Stunnel.pid) 0 ;
