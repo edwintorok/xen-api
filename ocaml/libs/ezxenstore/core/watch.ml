@@ -34,8 +34,8 @@ let has_fired ~xs x =
 (** Block waiting for a result *)
 let wait_for ~xs ?(timeout = 300.) (x : 'a t) =
   let _ = ignore xs in
-  let with_pipe f =
-    let p1, p2 = Unix.pipe () in
+  let with_socketpair f =
+    let p1, p2 = Unix.socketpair Unix.PF_UNIX Unix.SOCK_STREAM 0 in
     let close_all () =
       let close p = try Unix.close p with _ -> () in
       close p1 ; close p2
@@ -46,14 +46,15 @@ let wait_for ~xs ?(timeout = 300.) (x : 'a t) =
     with e -> close_all () ; raise e
   in
   let task = Xs.wait x.evaluate in
-  with_pipe (fun (p1, p2) ->
+  with_socketpair (fun (p1, p2) ->
+      Unix.setsockopt_float p1 Unix.SO_RCVTIMEO timeout;
       let thread =
         Thread.create
           (fun () ->
-            let r, _, _ = Unix.select [p1] [] [] timeout in
-            if List.length r > 0 then
-              ()
-            else
+            let b = Bytes.make 1 ' ' in
+            try
+              let (_:int) = Unix.read p1 b 0 1 in ()
+            with Unix.Unix_error (Unix.(EAGAIN | EWOULDBLOCK), _, _) ->
               try Xs_client_unix.Task.cancel task with _ -> ()
           )
           ()
