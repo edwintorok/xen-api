@@ -6,13 +6,19 @@
   cohttp-lwt
   cohttp-lwt-unix
   conduit-lwt-unix
+  fmt
   lwt
   lwt.unix
+  mtime.clock.os
   result
   rpclib.core
+  rpclib.xml
   rpclib-lwt
+  uri
+  uuidm
   xapi_guard
   xapi-idl.xen.interface
+  xapi-idl.guard.varstored
   xapi-log
   xapi-types
   xen-api-client-lwt
@@ -22,16 +28,23 @@
  (name xapi_guard)
  (modules dorpc types disk_cache lwt_bounded_stream)
  (libraries
-  rpclib.core
+  fmt
   inotify
   inotify.lwt
   lwt
   lwt.unix
+  mtime
+  mtime.clock.os
+  result
+  rpclib.core
+  rresult
   uri
+  uuidm
   xapi-backtrace
   xapi-consts
   xapi-idl
   xapi-idl.guard.privileged
   xapi-idl.guard.varstored
+  xapi-log
  )
  (preprocess (pps ppx_deriving_rpc)))
