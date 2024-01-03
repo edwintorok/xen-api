@@ -123,13 +123,17 @@ type attached_vdi = {domid: int; attach_info: storage_backend}
 [@@deriving rpcty]
 
 [%%metapackage metapp]
+[%%metadef
+  let xenver = Sys.getenv_opt "XENVER" |> Option.map int_of_string |> Option.value ~default:4_13
+  let has_msr_relaxed = Metapp.Exp.of_bool (xenver >= 4_15)
+]
 
 module VmExtra = struct
   let domain_config_of_vm vm =
     [%meta (new Metapp.filter)#expression [%e
     let open Vm in
     let open Domain in
-    let[@if false] misc_flags =
+    let[@if [%meta has_msr_relaxed]] misc_flags =
       if
         Platform.is_true ~key:"exp-msr-relaxed"
           ~platformdata:vm.Xenops_interface.Vm.platformdata ~default:false
@@ -140,11 +144,11 @@ module VmExtra = struct
     in
     match vm.ty with
     | PV _ ->
-        X86 {emulation_flags= []; misc_flags = misc_flags[@if false]}
+        X86 {emulation_flags= []; misc_flags = misc_flags[@if [%meta has_msr_relaxed]]}
     | PVinPVH _ | PVH _ ->
-        X86 {emulation_flags= emulation_flags_pvh; misc_flags = misc_flags[@if false]}
+        X86 {emulation_flags= emulation_flags_pvh; misc_flags = misc_flags[@if [%meta has_msr_relaxed]]}
     | HVM _ ->
-        X86 {emulation_flags= emulation_flags_all; misc_flags = misc_flags[@if false]}
+        X86 {emulation_flags= emulation_flags_all; misc_flags = misc_flags[@if [%meta has_msr_relaxed]]}
     ]]
 
   (* Known versions of the VM persistent metadata created by xenopsd *)

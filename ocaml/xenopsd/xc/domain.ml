@@ -50,18 +50,28 @@ type x86_arch_emulation_flags = Xenctrl.x86_arch_emulation_flags =
 [@@deriving rpcty]
 
 [%%metapackage metapp]
-[%%meta if true then [%stri
-  type x86_arch_misc_flags
-] else [%stri
+[%%metadef
+  let xenver = Sys.getenv_opt "XENVER" |> Option.map int_of_string |> Option.value ~default:4_13
+  let has_msr_relaxed_bool = xenver >= 4_15
+  let has_msr_relaxed = Metapp.Exp.of_bool (has_msr_relaxed_bool)
+  let has_cdf_nested_virt = Metapp.Exp.of_bool (xenver >= 4_15)
+  let has_cdf_vpmu = Metapp.Exp.of_bool (xenver >= 4_16)
+  let has_max_grant_version = Metapp.Exp.of_bool (xenver >= 4_16)
+  let has_cpupool_id = Metapp.Exp.of_bool (xenver >= 4_17)
+]
+
+[%%meta if has_msr_relaxed_bool then [%stri
   type x86_arch_misc_flags = Xenctrl.x86_arch_misc_flags = X86_MSR_RELAXED
   [@@deriving rpcty]
+] else [%stri
+  type x86_arch_misc_flags
 ]]
 
 [%%meta Metapp.Stri.of_list @@ (new Metapp.filter)#structure [%str
   type xen_x86_arch_domainconfig = Xenctrl.xen_x86_arch_domainconfig = {
       emulation_flags: x86_arch_emulation_flags list
     ; misc_flags: x86_arch_misc_flags list [@default [X86_MSR_RELAXED]]
-      [@if false]
+      [@if [%meta has_msr_relaxed]]
           (* misc_flags is missing when migrating from old version.
              set the default to relaxed MSR for backwards compatibility *)
   }
@@ -79,8 +89,8 @@ type x86_arch_emulation_flags = Xenctrl.x86_arch_emulation_flags =
     | CDF_OOS_OFF
     | CDF_XS_DOMAIN
     | CDF_IOMMU
-    | CDF_NESTED_VIRT [@if false]
-    | CDF_VPMU [@if false]
+    | CDF_NESTED_VIRT [@if [%meta has_cdf_nested_virt]]
+    | CDF_VPMU [@if [%meta has_cdf_vpmu]]
   [@@deriving rpcty]
 
   type domain_create_iommu_opts = Xenctrl.domain_create_iommu_opts =
@@ -112,8 +122,8 @@ type x86_arch_emulation_flags = Xenctrl.x86_arch_emulation_flags =
     ; max_evtchn_port: int
     ; max_grant_frames: int
     ; max_maptrack_frames: int
-    ; max_grant_version: int [@if false]
-    ; cpupool_id: int32 [@if false]
+    ; max_grant_version: int [@if [%meta has_max_grant_version]]
+    ; cpupool_id: int32 [@if [%meta has_cpupool_id]]
     ; arch: arch_domainconfig
   }
   [@@deriving rpcty]
@@ -376,9 +386,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
         [
           (hvm, CDF_HVM)
         ; (hap, CDF_HAP)
-        ; (nested_virt, CDF_NESTED_VIRT)[@if false]
+        ; (nested_virt, CDF_NESTED_VIRT)[@if [%meta has_cdf_nested_virt]]
         ; (iommu, CDF_IOMMU)
-        ; (vpmu, CDF_VPMU)[@if false]
+        ; (vpmu, CDF_VPMU)[@if [%meta has_cdf_vpmu]]
         ]
         |> List.filter_map (fun (cond, flag) -> if cond then Some flag else None)
     ; iommu_opts=
@@ -402,8 +412,8 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
         )
     ; max_grant_version=
         (if List.mem CAP_Gnttab_v2 host_info.capabilities then 2 else 1)
-        [@if false]
-    ; cpupool_id= 0l [@if false]
+        [@if [%meta has_max_grant_version]]
+    ; cpupool_id= 0l [@if [%meta has_cpupool_id]]
     ; arch= domain_config
     }
   ]]

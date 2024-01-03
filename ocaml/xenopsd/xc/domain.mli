@@ -60,6 +60,11 @@ val emulation_flags_pvh : x86_arch_emulation_flags list
 val emulation_flags_all : x86_arch_emulation_flags list
 
 [%%metapackage metapp]
+[%%metadef
+  let xenver = Sys.getenv_opt "XENVER" |> Option.map int_of_string |> Option.value ~default:4_13
+  let has_msr_relaxed = Metapp.Exp.of_bool (xenver >= 4_15)
+]
+
 [%%meta if true then [%sigi:
   type x86_arch_misc_flags
 ] else [%sigi:
