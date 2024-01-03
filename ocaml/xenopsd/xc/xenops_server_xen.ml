@@ -122,11 +122,14 @@ type storage_backend = Storage_interface.backend = {
 type attached_vdi = {domid: int; attach_info: storage_backend}
 [@@deriving rpcty]
 
+[%%metapackage metapp]
+
 module VmExtra = struct
   let domain_config_of_vm vm =
+    [%meta (new Metapp.filter)#expression [%e
     let open Vm in
     let open Domain in
-    let misc_flags =
+    let[@if false] misc_flags =
       if
         Platform.is_true ~key:"exp-msr-relaxed"
           ~platformdata:vm.Xenops_interface.Vm.platformdata ~default:false
@@ -137,11 +140,12 @@ module VmExtra = struct
     in
     match vm.ty with
     | PV _ ->
-        X86 {emulation_flags= []; misc_flags}
+        X86 {emulation_flags= []; misc_flags = misc_flags[@if false]}
     | PVinPVH _ | PVH _ ->
-        X86 {emulation_flags= emulation_flags_pvh; misc_flags}
+        X86 {emulation_flags= emulation_flags_pvh; misc_flags = misc_flags[@if false]}
     | HVM _ ->
-        X86 {emulation_flags= emulation_flags_all; misc_flags}
+        X86 {emulation_flags= emulation_flags_all; misc_flags = misc_flags[@if false]}
+    ]]
 
   (* Known versions of the VM persistent metadata created by xenopsd *)
   let persistent_version_pre_lima = 0

@@ -49,67 +49,75 @@ type x86_arch_emulation_flags = Xenctrl.x86_arch_emulation_flags =
   | X86_EMU_VPCI
 [@@deriving rpcty]
 
-type x86_arch_misc_flags = Xenctrl.x86_arch_misc_flags = X86_MSR_RELAXED
-[@@deriving rpcty]
+[%%metapackage metapp]
+[%%meta if true then [%stri
+  type x86_arch_misc_flags
+] else [%stri
+  type x86_arch_misc_flags = Xenctrl.x86_arch_misc_flags = X86_MSR_RELAXED
+  [@@deriving rpcty]
+]]
 
-type xen_x86_arch_domainconfig = Xenctrl.xen_x86_arch_domainconfig = {
-    emulation_flags: x86_arch_emulation_flags list
-  ; misc_flags: x86_arch_misc_flags list [@default [X86_MSR_RELAXED]]
-        (* misc_flags is missing when migrating from old version.
-           set the default to relaxed MSR for backwards compatibility *)
-}
-[@@deriving rpcty]
+[%%meta Metapp.Stri.of_list @@ (new Metapp.filter)#structure [%str
+  type xen_x86_arch_domainconfig = Xenctrl.xen_x86_arch_domainconfig = {
+      emulation_flags: x86_arch_emulation_flags list
+    ; misc_flags: x86_arch_misc_flags list [@default [X86_MSR_RELAXED]]
+      [@if false]
+          (* misc_flags is missing when migrating from old version.
+             set the default to relaxed MSR for backwards compatibility *)
+  }
+  [@@deriving rpcty]
 
-type arch_domainconfig = Xenctrl.arch_domainconfig =
-  | ARM of xen_arm_arch_domainconfig
-  | X86 of xen_x86_arch_domainconfig
-[@@deriving rpcty]
+  type arch_domainconfig = Xenctrl.arch_domainconfig =
+    | ARM of xen_arm_arch_domainconfig
+    | X86 of xen_x86_arch_domainconfig
+  [@@deriving rpcty]
 
-type domain_create_flag = Xenctrl.domain_create_flag =
-  | CDF_HVM
-  | CDF_HAP
-  | CDF_S3_INTEGRITY
-  | CDF_OOS_OFF
-  | CDF_XS_DOMAIN
-  | CDF_IOMMU
-  | CDF_NESTED_VIRT
-  | CDF_VPMU
-[@@deriving rpcty]
+  type domain_create_flag = Xenctrl.domain_create_flag =
+    | CDF_HVM
+    | CDF_HAP
+    | CDF_S3_INTEGRITY
+    | CDF_OOS_OFF
+    | CDF_XS_DOMAIN
+    | CDF_IOMMU
+    | CDF_NESTED_VIRT [@if false]
+    | CDF_VPMU [@if false]
+  [@@deriving rpcty]
 
-type domain_create_iommu_opts = Xenctrl.domain_create_iommu_opts =
-  | IOMMU_NO_SHAREPT
-[@@deriving rpcty]
+  type domain_create_iommu_opts = Xenctrl.domain_create_iommu_opts =
+    | IOMMU_NO_SHAREPT
+  [@@deriving rpcty]
 
-let emulation_flags_all =
-  [
-    X86_EMU_LAPIC
-  ; X86_EMU_HPET
-  ; X86_EMU_PM
-  ; X86_EMU_RTC
-  ; X86_EMU_IOAPIC
-  ; X86_EMU_PIC
-  ; X86_EMU_VGA
-  ; X86_EMU_IOMMU
-  ; X86_EMU_PIT
-  ; X86_EMU_USE_PIRQ
-  ]
+  let emulation_flags_all =
+    [
+      X86_EMU_LAPIC
+    ; X86_EMU_HPET
+    ; X86_EMU_PM
+    ; X86_EMU_RTC
+    ; X86_EMU_IOAPIC
+    ; X86_EMU_PIC
+    ; X86_EMU_VGA
+    ; X86_EMU_IOMMU
+    ; X86_EMU_PIT
+    ; X86_EMU_USE_PIRQ
+    ]
 
-let emulation_flags_pvh = [X86_EMU_LAPIC]
+  let emulation_flags_pvh = [X86_EMU_LAPIC]
 
-type domctl_create_config = Xenctrl.domctl_create_config = {
-    ssidref: int32
-  ; handle: string
-  ; flags: domain_create_flag list
-  ; iommu_opts: domain_create_iommu_opts list
-  ; max_vcpus: int
-  ; max_evtchn_port: int
-  ; max_grant_frames: int
-  ; max_maptrack_frames: int
-  ; max_grant_version: int
-  ; cpupool_id: int32
-  ; arch: arch_domainconfig
-}
-[@@deriving rpcty]
+  type domctl_create_config = Xenctrl.domctl_create_config = {
+      ssidref: int32
+    ; handle: string
+    ; flags: domain_create_flag list
+    ; iommu_opts: domain_create_iommu_opts list
+    ; max_vcpus: int
+    ; max_evtchn_port: int
+    ; max_grant_frames: int
+    ; max_maptrack_frames: int
+    ; max_grant_version: int [@if false]
+    ; cpupool_id: int32 [@if false]
+    ; arch: arch_domainconfig
+  }
+  [@@deriving rpcty]
+]]
 
 type create_info = {
     ssidref: int32
@@ -360,7 +368,7 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
     (if nested_virt then " NESTEDVIRT" else "")
     (if vpmu then " VPMU" else "") ;
 
-  let config =
+  let config = [%meta (new Metapp.filter)#expression [%e
     {
       ssidref= vm_info.ssidref
     ; handle= Uuidx.to_string uuid
@@ -368,9 +376,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
         [
           (hvm, CDF_HVM)
         ; (hap, CDF_HAP)
+        ; (nested_virt, CDF_NESTED_VIRT)[@if false]
         ; (iommu, CDF_IOMMU)
-        ; (nested_virt, CDF_NESTED_VIRT)
-        ; (vpmu, CDF_VPMU)
+        ; (vpmu, CDF_VPMU)[@if false]
         ]
         |> List.filter_map (fun (cond, flag) -> if cond then Some flag else None)
     ; iommu_opts=
@@ -394,9 +402,11 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
         )
     ; max_grant_version=
         (if List.mem CAP_Gnttab_v2 host_info.capabilities then 2 else 1)
-    ; cpupool_id= 0l
+        [@if false]
+    ; cpupool_id= 0l [@if false]
     ; arch= domain_config
     }
+  ]]
   in
   debug "Domain_config: [%s]"
     (rpc_of arch_domainconfig domain_config |> Jsonrpc.to_string) ;

@@ -59,13 +59,21 @@ val emulation_flags_pvh : x86_arch_emulation_flags list
 
 val emulation_flags_all : x86_arch_emulation_flags list
 
-type x86_arch_misc_flags = X86_MSR_RELAXED
+[%%metapackage metapp]
+[%%meta if true then [%sigi:
+  type x86_arch_misc_flags
+] else [%sigi:
+  type x86_arch_misc_flags = Xenctrl.x86_arch_misc_flags = X86_MSR_RELAXED
+  [@@deriving rpcty]
+]]
 
-type xen_x86_arch_domainconfig = {
-    (* Xenctrl.xen_x86_arch_domainconfig = *)
-    emulation_flags: x86_arch_emulation_flags list
-  ; misc_flags: x86_arch_misc_flags list
-}
+[%%meta (new Metapp.filter)#signature_item [%sigi:
+  type xen_x86_arch_domainconfig = {
+      (* Xenctrl.xen_x86_arch_domainconfig = *)
+      emulation_flags: x86_arch_emulation_flags list
+    ; misc_flags: x86_arch_misc_flags list [@if false]
+  }
+]]
 
 type arch_domainconfig =
   (* Xenctrl.arch_domainconfig = *)
