@@ -2706,7 +2706,10 @@ module Backend = struct
 
        7: NVME
 
-       8+: vGPU and other pass-through devices *)
+       8+: other pass-through devices
+    
+       11+: vGPU
+    *)
     module NIC = struct
       let max_emulated = 2
 
