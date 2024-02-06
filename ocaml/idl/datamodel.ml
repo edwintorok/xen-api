@@ -2668,6 +2668,7 @@ module VIF = struct
           ]
         @ device_status_fields
         @ [namespace ~name:"qos" ~contents:(qos "VIF") ()]
+        @ guest_pci_device
         @ [
             field ~qualifier:DynamicRO ~ty:(Ref _vif_metrics)
               ~default_value:(Some (VRef null_ref))
@@ -6526,7 +6527,7 @@ module PCI = struct
       ~messages:[] ~messages_default_allowed_roles:_R_POOL_OP
       ~persist:PersistEverything ~in_oss_since:None ~db_logging:Log_destroy
       ~contents:
-        [
+        (guest_pci_device @ [
           uid _pci ~lifecycle:[(Published, rel_boston, "")]
         ; field ~qualifier:StaticRO ~ty:String
             ~lifecycle:[(Published, rel_boston, "")]
@@ -6611,7 +6612,7 @@ module PCI = struct
         ; field ~qualifier:StaticRO ~ty:String
             ~lifecycle:[(Published, rel_kolkata, "")]
             "driver_name" "Driver name" ~default_value:(Some (VString ""))
-        ]
+        ])
       ()
 end
 
@@ -7069,7 +7070,7 @@ module VGPU = struct
       ~messages_default_allowed_roles:_R_POOL_OP ~persist:PersistEverything
       ~in_oss_since:None
       ~contents:
-        [
+        (guest_pci_device @ [
           uid _vgpu ~lifecycle:[(Published, rel_boston, "")]
         ; field ~qualifier:DynamicRO ~ty:(Ref _vm)
             ~lifecycle:[(Published, rel_boston, "")]
@@ -7119,7 +7120,7 @@ module VGPU = struct
             ~default_value:(Some (VRef null_ref)) "PCI"
             "Device passed trough to VM, either as full device or SR-IOV \
              virtual function"
-        ]
+        ])
       ()
 end
 

@@ -10,7 +10,7 @@ open Datamodel_roles
               to leave a gap for potential hotfixes needing to increment the schema version.*)
 let schema_major_vsn = 5
 
-let schema_minor_vsn = 774
+let schema_minor_vsn = 775
 
 (* Historical schema versions just in case this is useful later *)
 let rio_schema_major_vsn = 5
@@ -744,6 +744,17 @@ let allowed_and_current_operations ?(writer_roles = None) ?(reader_roles = None)
       ~default_value:(Some (VMap [])) "current_operations"
       "links each of the running tasks using this object (by reference) to a \
        current_operation enum which describes the nature of the task."
+  ]
+
+(* Dynamically computed, based on  guest_pci_devices:
+   we find the nth device of the current type in VM.guest_pci_devices based on the device index:
+   index of vGPU in vGPUs, VIF in VIFs, etc.
+ *)
+let guest_pci_device =
+  [ field ~in_oss_since:None ~qualifier:DynamicRO ~ty:String ~lifecycle:[]
+    "guest_pci_bdf"
+    ~default_value:(Some (VString ""))
+    "The PCI bus:device.function inside the guest in %04x:%02x:%02x.%01x format, or empty for backwards compatibility."
   ]
 
 (** Make a Namespace (note effect on enclosing field.full_names) *)

@@ -82,6 +82,26 @@ let power_behaviour =
 			     "rename_restart", "leave VM running and restart a new one" ])
 *)
 
+let emulated_pci_device =
+  Enum
+  ("emulated_pci_device",
+  [("i440FX", "emulated host bridge")
+  ;("PIIX3", "emulated PIIX3 devices (ISA/IDE/USB)")
+  ;("VGA", "emulated VGA")
+  ;("XenPlatform", "Xen platform device")
+  ;("XenPV", "Xen PV device")
+  ;("NVME", "emulated NVME controller")
+  ;("NIC", "emulated NIC") (* platform:nic_type *)
+  ;("vGPU", "virtual GPU")
+  ;("HostPCI", "host PCI device")
+  (* emulated NIC is already part of the VIF class *)
+  (* (emulated) vGPU is already part of the vGPU clas *)
+  (* host pass-through devices are part of the PCI class,
+     note: this requires mapping other-config:pci to PCI class
+   *)
+  (* we can have more devices here in the future, e.g. when switching to Q35 *)
+  ])
+
 (** Action to take on guest reboot/power off/sleep etc *)
 let on_crash_behaviour =
   Enum
@@ -1898,7 +1918,7 @@ let t =
         ; field ~qualifier:DynamicRO ~ty:(Set (Ref _vbd)) "VBDs"
             "virtual block devices"
         ; field ~qualifier:DynamicRO ~ty:(Set (Ref _vusb)) "VUSBs"
-            "vitual usb devices"
+            "virtual usb devices"
         ; field ~writer_roles:_R_POOL_ADMIN ~qualifier:DynamicRO
             ~ty:(Set (Ref _crashdump)) "crash_dumps"
             "crash dumps associated with this VM"
@@ -2076,6 +2096,11 @@ let t =
             ~lifecycle:[(Published, rel_boston, "")]
             ~ty:(Set (Ref _pci)) "attached_PCIs"
             "Currently passed-through PCI devices"
+        ; field ~qualifier:DynamicRO (* qualifier:TODO *)
+            ~lifecycle:[]
+            ~ty:(Map (String, emulated_pci_device))
+            "guest_pci_devices"
+            "Map of emulated/pass-through PCI bus:device.function in the guest to device type"
         ; field ~writer_roles:_R_VM_ADMIN ~qualifier:RW
             ~in_product_since:rel_boston ~default_value:(Some (VRef null_ref))
             ~ty:(Ref _sr) "suspend_SR"
