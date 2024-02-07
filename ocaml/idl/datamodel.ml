@@ -2668,7 +2668,7 @@ module VIF = struct
           ]
         @ device_status_fields
         @ [namespace ~name:"qos" ~contents:(qos "VIF") ()]
-        @ guest_pci_device
+        @ guest_pci_address
         @ [
             field ~qualifier:DynamicRO ~ty:(Ref _vif_metrics)
               ~default_value:(Some (VRef null_ref))
@@ -6527,7 +6527,7 @@ module PCI = struct
       ~messages:[] ~messages_default_allowed_roles:_R_POOL_OP
       ~persist:PersistEverything ~in_oss_since:None ~db_logging:Log_destroy
       ~contents:
-        (guest_pci_device @ [
+        (guest_pci_address @ [
           uid _pci ~lifecycle:[(Published, rel_boston, "")]
         ; field ~qualifier:StaticRO ~ty:String
             ~lifecycle:[(Published, rel_boston, "")]
@@ -7070,7 +7070,7 @@ module VGPU = struct
       ~messages_default_allowed_roles:_R_POOL_OP ~persist:PersistEverything
       ~in_oss_since:None
       ~contents:
-        (guest_pci_device @ [
+        (guest_pci_address @ [
           uid _vgpu ~lifecycle:[(Published, rel_boston, "")]
         ; field ~qualifier:DynamicRO ~ty:(Ref _vm)
             ~lifecycle:[(Published, rel_boston, "")]

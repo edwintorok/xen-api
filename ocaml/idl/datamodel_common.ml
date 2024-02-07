@@ -746,15 +746,15 @@ let allowed_and_current_operations ?(writer_roles = None) ?(reader_roles = None)
        current_operation enum which describes the nature of the task."
   ]
 
-(* Dynamically computed, based on  guest_pci_devices:
-   we find the nth device of the current type in VM.guest_pci_devices based on the device index:
+(* Dynamically computed, based on  guest_pci_addresss:
+   we find the nth device of the current type in VM.s based on the device index:
    index of vGPU in vGPUs, VIF in VIFs, etc.
  *)
-let guest_pci_device =
+let guest_pci_address =
   [ field ~in_oss_since:None ~qualifier:DynamicRO ~ty:String ~lifecycle:[]
-    "guest_pci_bdf"
+    "guest_pci_address"
     ~default_value:(Some (VString ""))
-    "The PCI bus:device.function inside the guest in %04x:%02x:%02x.%01x format, or empty for backwards compatibility."
+    "The PCI bus:device.function inside the guest in %02x:%02x.%01x or %02x:%02x.* format, or empty for backwards compatibility."
   ]
 
 (** Make a Namespace (note effect on enclosing field.full_names) *)

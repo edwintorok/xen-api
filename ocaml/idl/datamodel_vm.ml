@@ -94,11 +94,7 @@ let emulated_pci_device =
   ;("NIC", "emulated NIC") (* platform:nic_type *)
   ;("vGPU", "virtual GPU")
   ;("HostPCI", "host PCI device")
-  (* emulated NIC is already part of the VIF class *)
-  (* (emulated) vGPU is already part of the vGPU clas *)
-  (* host pass-through devices are part of the PCI class,
-     note: this requires mapping other-config:pci to PCI class
-   *)
+  ;("Q35", "Q35 chipset, not implemented yet")
   (* we can have more devices here in the future, e.g. when switching to Q35 *)
   ])
 
@@ -2098,8 +2094,8 @@ let t =
             "Currently passed-through PCI devices"
         ; field ~qualifier:DynamicRO (* qualifier:TODO *)
             ~lifecycle:[]
-            ~ty:(Map (String, emulated_pci_device))
-            "guest_pci_devices"
+            ~ty:(Map (String, Set emulated_pci_device))
+            "guest_pci_addresss"
             "Map of emulated/pass-through PCI bus:device.function in the guest to device type"
         ; field ~writer_roles:_R_VM_ADMIN ~qualifier:RW
             ~in_product_since:rel_boston ~default_value:(Some (VRef null_ref))
