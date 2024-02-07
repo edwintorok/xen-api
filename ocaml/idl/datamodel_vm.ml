@@ -2094,7 +2094,7 @@ let t =
             "Currently passed-through PCI devices"
         ; field ~qualifier:DynamicRO (* qualifier:TODO *)
             ~lifecycle:[]
-            ~ty:(Map (String, Set emulated_pci_device))
+            ~ty:(Map (String, emulated_pci_device))
             "guest_pci_addresss"
             "Map of emulated/pass-through PCI bus:device.function in the guest to device type"
         ; field ~writer_roles:_R_VM_ADMIN ~qualifier:RW

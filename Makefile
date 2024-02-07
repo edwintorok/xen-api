@@ -122,6 +122,8 @@ sdksanity: sdk
 	sed -i 's/FriendlyErrorNames.ResourceManager/null/g' ./_build/install/default/xapi/sdk/csharp/src/Failure.cs
 	cd _build/install/default/xapi/sdk/csharp/src && dotnet add package Newtonsoft.Json && dotnet build -f netstandard2.0
 
+sdktest: sdksanity sdk-build-c sdk-build-java
+
 .PHONY: sdk-build-java
 
 sdk-build-java: sdk
