@@ -2092,9 +2092,10 @@ let t =
             ~lifecycle:[(Published, rel_boston, "")]
             ~ty:(Set (Ref _pci)) "attached_PCIs"
             "Currently passed-through PCI devices"
-        ; field ~qualifier:DynamicRO (* qualifier:TODO *)
+        ; field ~qualifier:RW (* qualifier:TODO *)
             ~lifecycle:[]
             ~ty:(Map (String, emulated_pci_device))
+            ~default_value:(Some (VMap[]))
             "guest_pci_addresss"
             "Map of emulated/pass-through PCI bus:device.function in the guest to device type"
         ; field ~writer_roles:_R_VM_ADMIN ~qualifier:RW
