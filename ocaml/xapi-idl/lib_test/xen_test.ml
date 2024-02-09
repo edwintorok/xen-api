@@ -40,4 +40,19 @@ let test_upgrade_rules () =
 
 (* this value is the default in xenops_interface.ml *)
 
-let tests = [("check upgrade rule", `Quick, test_upgrade_rules)]
+open Idl_test_common
+
+module GenPath = struct let test_data_path = "xen_gen" end
+
+module OldPath = struct let test_data_path = "test_data/xen" end
+
+module C = Xenops_interface.XenopsAPI (GenTestData (GenPath) (TJsonrpc))
+module T = Xenops_interface.XenopsAPI (TestOldRpcs (OldPath) (TJsonrpc))
+
+let tests =
+  List.concat
+    [
+      [("check upgrade rule", `Quick, test_upgrade_rules)]
+    ; !C.implementation
+    ; !T.implementation
+    ]

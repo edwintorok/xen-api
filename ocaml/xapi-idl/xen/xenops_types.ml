@@ -97,7 +97,7 @@ module PCITopology = struct
     let compare = Int.compare
 
     let t, sexp_of_t, t_of_sexp =
-      let test_data = List.init 32 Fun.id in
+      let test_data = [0; 0x1f] in
       abstract ~name:"Slot" ~test_data of_int to_int Rpc.Types.int sexp_of_int int_of_sexp
 
     let typ_of = t.ty
@@ -137,7 +137,7 @@ module PCITopology = struct
     let compare = Int.compare
 
     let t, sexp_of_t, t_of_sexp =
-      let test_data = List.init 8 Fun.id in
+      let test_data = [0;7] in
       abstract ~name:"Function" ~test_data of_int to_int Rpc.Types.int sexp_of_int
         int_of_sexp
 

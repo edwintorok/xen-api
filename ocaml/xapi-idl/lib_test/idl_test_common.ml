@@ -79,6 +79,10 @@ module TXmlrpc : MARSHALLER = struct
   let string_of_response ?strict:_ response = string_of_response response
 end
 
+let[@tail_mod_cons] rec tr_map f = function
+  | [] -> []
+  | hd :: tl -> f hd :: (tr_map[@tailcall]) f tl
+
 (** The following module implements test cases that write test RPC requests and
     responses in JSON that can be used to verify that subsequent versions of an
     API can still parse them.
@@ -116,13 +120,15 @@ module GenTestData (C : CONFIG) (M : MARSHALLER) = struct
 
   open M
 
+  let maxcomb = 100
+
   let declare_ response_needed name _ ty =
     let rec inner :
         type b. ((string * Rpc.t) list * Rpc.t list) list -> b fn -> unit =
      fun params -> function
       | Function (t, f) -> (
           let vs =
-            Rpc_genfake.genall 2
+            Rpc_genfake.genall ~maxcomb 2
               ( match t.Param.name with
               | Some n ->
                   n
@@ -210,7 +216,7 @@ module GenTestData (C : CONFIG) (M : MARSHALLER) = struct
             )
             calls ;
           let vs =
-            Rpc_genfake.genall 2
+            Rpc_genfake.genall ~maxcomb 2
               ( match t.Param.name with
               | Some n ->
                   n
@@ -219,14 +225,15 @@ module GenTestData (C : CONFIG) (M : MARSHALLER) = struct
               )
               t.Param.typedef.Rpc.Types.ty
           in
+          Printf.eprintf "%d\n%!" (List.length vs);
           let marshalled_vs =
-            List.map
+            tr_map
               (fun v ->
                 Rpc.success (Rpcmarshal.marshal t.Param.typedef.Rpc.Types.ty v)
               )
               vs
           in
-          let errs = Rpc_genfake.genall 2 "error" e.Error.def.Rpc.Types.ty in
+          let errs = Rpc_genfake.genall ~maxcomb 2 "error" e.Error.def.Rpc.Types.ty in
           let marshalled_errs =
             List.map
               (fun err ->
