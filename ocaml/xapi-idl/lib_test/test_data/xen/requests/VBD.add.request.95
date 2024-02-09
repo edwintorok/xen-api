@@ -1,0 +1,1 @@
+{"method":"VBD.add","params":[{"vbd":{"persistent":true,"extra_private_keys":{"extra_private_keys":"extra_private_keys"},"extra_backend_keys":{"extra_backend_keys":"extra_backend_keys"},"unpluggable":true,"ty":"Disk","mode":"ReadWrite","id":["id","id"]},"debug_info":"debug_info"}],"id":758}

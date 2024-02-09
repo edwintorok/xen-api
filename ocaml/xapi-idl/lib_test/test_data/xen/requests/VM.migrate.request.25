@@ -1,0 +1,1 @@
+{"method":"VM.migrate","params":[{"verify_dest":false,"compress":false,"xenops_url":"xenops_url","pci_map":{"pci_map":{"fn":0,"dev":0,"bus":0,"domain":0}},"vif_map":{"vif_map":["Local","vif_map"],"vif_map":["Remote",["vif_map","vif_map"]],"vif_map":["Sriov",{"fn":0,"dev":0,"bus":0,"domain":0}]},"vdi_map":{},"id":"id","debug_info":"debug_info"}],"id":1024}

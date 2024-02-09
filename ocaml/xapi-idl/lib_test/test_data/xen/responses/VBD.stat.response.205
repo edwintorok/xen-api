@@ -1,0 +1,1 @@
+{"result":[{"persistent":true,"qos":["Ionice",["RealTime","Highest"]],"extra_private_keys":{"extra_private_keys":"extra_private_keys"},"extra_backend_keys":{"extra_backend_keys":"extra_backend_keys"},"unpluggable":true,"ty":"Disk","mode":"ReadWrite","id":["id","id"]},{"backend_present":["Local","backend_present"],"plugged":true,"active":false}],"error":null,"id":0}

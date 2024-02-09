@@ -1,0 +1,1 @@
+{"result":[{"implementation":["MxGPU",{"framebufferbytes":0,"vgpus_per_pgpu":0,"physical_function":{"fn":0,"dev":0,"bus":0,"domain":0}}],"physical_pci_address":{"fn":0,"dev":0,"bus":0,"domain":0},"virtual_pci_address":{"fn":0,"dev":0,"bus":0,"domain":0},"position":0,"id":["id","id"]},{"emulator_pid":0,"plugged":true,"active":false}],"error":null,"id":0}

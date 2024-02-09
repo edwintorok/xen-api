@@ -1,0 +1,1 @@
+{"method":"VBD.add","params":[{"vbd":{"persistent":false,"extra_private_keys":{"extra_private_keys":"extra_private_keys"},"extra_backend_keys":{"extra_backend_keys":"extra_backend_keys"},"unpluggable":false,"ty":"CDROM","backend":["Local","backend"],"mode":"ReadOnly","position":["Xen",0,0],"id":["id","id"]},"debug_info":"debug_info"}],"id":915}

@@ -225,7 +225,6 @@ module GenTestData (C : CONFIG) (M : MARSHALLER) = struct
               )
               t.Param.typedef.Rpc.Types.ty
           in
-          Printf.eprintf "%d\n%!" (List.length vs);
           let marshalled_vs =
             tr_map
               (fun v ->
@@ -470,11 +469,14 @@ module TestOldRpcs (C : CONFIG) (M : MARSHALLER) = struct
     let response_tests =
       List.mapi
         (fun i response ->
-          let call = List.hd calls in
-          let name =
-            Printf.sprintf "Check old response for '%s': %d" wire_name i
-          in
-          (name, `Quick, fun () -> testfn call response)
+            let name =
+              Printf.sprintf "Check old response for '%s': %d" wire_name i
+            in
+            if calls = [] then
+              (name, `Quick, ignore)
+            else
+            let call = List.hd calls in
+            (name, `Quick, fun () -> testfn call response)
         )
         responses
     in

@@ -1,0 +1,1 @@
+{"method":"VUSB.add","params":[{"vusb":{"speed":0.0,"path":"path","version":"version","hostport":"hostport","hostbus":"hostbus","id":["id","id"]},"debug_info":"debug_info"}],"id":653}

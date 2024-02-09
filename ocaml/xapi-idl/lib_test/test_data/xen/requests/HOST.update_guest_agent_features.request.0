@@ -1,0 +1,1 @@
+{"method":"HOST.update_guest_agent_features","params":[{"features":[{"parameters":{"parameters":"parameters"},"licensed":true,"name":"name"},{"parameters":{"parameters":"parameters"},"licensed":false,"name":"name"}],"debug_info":"debug_info"}],"id":3034}

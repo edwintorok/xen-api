@@ -1,0 +1,1 @@
+{"method":"HOST.set_numa_affinity_policy","params":[{"numa_affinity_policy":"Any","debug_info":"debug_info"}],"id":3032}

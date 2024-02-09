@@ -1,0 +1,1 @@
+{"method":"VBD.add","params":[{"vbd":{"persistent":false,"qos":["Ionice",["RealTime","Highest"]],"extra_private_keys":{"extra_private_keys":"extra_private_keys"},"extra_backend_keys":{"extra_backend_keys":"extra_backend_keys"},"unpluggable":false,"ty":"CDROM","backend":["VDI","backend"],"mode":"ReadWrite","id":["id","id"]},"debug_info":"debug_info"}],"id":850}
