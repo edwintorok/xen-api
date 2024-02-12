@@ -46,34 +46,33 @@ let triple ?name ?(description = []) (p1, p2, p3) =
   in
   {name; description; ty= Tuple3 (p1.ty, p2.ty, p3.ty)}
 
-let abstract_def ?name ?(description = []) ?test_data of_other to_other def_of_other =
+let abstract_def ?name ?(description = []) ?test_data of_other to_other
+    def_of_other =
   let open Rpc.Types in
   let name =
     Option.value name
       ~default:(Printf.sprintf "abstract type based on %s" def_of_other.name)
   in
   let typ = def_of_other.ty in
-  let test_data = match test_data with
-    | Some x -> x
+  let test_data =
+    match test_data with
+    | Some x ->
+        x
     | None ->
         Rpc_genfake.gentest typ |> List.rev_map of_other
   in
   let typ_of =
     let rpc_of t = t |> to_other |> Rpcmarshal.marshal typ in
     let of_rpc rpc = rpc |> Rpcmarshal.unmarshal typ |> Result.map of_other in
-    Rpc.Types.Abstract
-      {
-        aname= name
-      ; test_data
-      ; rpc_of
-      ; of_rpc
-      }
+    Rpc.Types.Abstract {aname= name; test_data; rpc_of; of_rpc}
   in
   {name; description; ty= typ_of}
 
 let abstract ?name ?(description = []) ?test_data of_other to_other def_of_other
     sexp_of_other other_of_sexp =
-  let t = abstract_def ?name ~description ?test_data of_other to_other def_of_other in
+  let t =
+    abstract_def ?name ~description ?test_data of_other to_other def_of_other
+  in
   let t_of_sexp sexp = sexp |> other_of_sexp |> of_other in
 
   let sexp_of_t t = t |> to_other |> sexp_of_other in

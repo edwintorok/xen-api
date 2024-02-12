@@ -63,7 +63,7 @@ In addition to fixing the above mentioned technical debt we want to improve the 
   * could also try to use PCI-to-PCI bridges, but this would result in a non-flat PCI topology and complications with PCI addresses (which would be different on the bridge and on the host)
 * same limits on SRIOV NICs as with arbitrary PCI pass-through devices
 * Q35 device model, which would provide better PCIe support (we currently plug pass-through PCIe devices into a PCI slot, which limits their functionality)
-* PVH with pass-through may benefit Tfrom a minimal device model with only enough virtual devices to make pass-through work (PVH without passthrough can use `qemu-none` as before)
+* PVH with pass-through may benefit from a minimal device model with only enough virtual devices to make pass-through work (PVH without passthrough can use `qemu-none` as before)
 
 To address the technical debt we need to follow these principles:
 
@@ -109,7 +109,7 @@ The following topology is more flexible and is the currently proposed template (
 * 00:0c.0+: NVidia vGPU, SRIOV NIC or other pass-through devices, assigned on a first-come first-served basis, using multifunction devices.
 
 Unplugging a device won't renumber the rest of the devices, but instead leave a gap (where another function could be plugged later).
-Except for function 0, which we cannot unplug if the rest of the functions are in use. We could either disallow unplugging it (awkard for the user), or move one of the existing devices there (may crash something unrelated in the guest), or use a "dummy" device (which again may be awkward).
+Except for function 0, which we cannot unplug if the rest of the functions are in use. We could either disallow unplugging it (awkward for the user), or move one of the existing devices there (may crash something unrelated in the guest), or use a "dummy" device (which again may be awkward).
 
 Instead we try to avoid this limitation by by first assigning only function 0 of each PCI device, until we run out (reach 32 PCI devices), at which point we start filling function 1 of PCI devices 00:0c+
 then function 2 of PCI devices 00:0c+ and so on.

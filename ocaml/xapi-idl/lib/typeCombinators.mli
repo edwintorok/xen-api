@@ -45,7 +45,7 @@ val triple :
 val abstract :
      ?name:string
   -> ?description:string list
-  -> ?test_data: 'b list
+  -> ?test_data:'b list
   -> ('a -> 'b)
   -> ('b -> 'a)
   -> 'a Rpc.Types.def

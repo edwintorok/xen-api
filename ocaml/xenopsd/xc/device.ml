@@ -2707,7 +2707,7 @@ module Backend = struct
        7: NVME
 
        8+: other pass-through devices
-    
+
        11+: vGPU
     *)
     module NIC = struct

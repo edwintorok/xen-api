@@ -80,8 +80,10 @@ module TXmlrpc : MARSHALLER = struct
 end
 
 let[@tail_mod_cons] rec tr_map f = function
-  | [] -> []
-  | hd :: tl -> f hd :: (tr_map[@tailcall]) f tl
+  | [] ->
+      []
+  | hd :: tl ->
+      f hd :: (tr_map [@tailcall]) f tl
 
 (** The following module implements test cases that write test RPC requests and
     responses in JSON that can be used to verify that subsequent versions of an
@@ -232,7 +234,9 @@ module GenTestData (C : CONFIG) (M : MARSHALLER) = struct
               )
               vs
           in
-          let errs = Rpc_genfake.genall ~maxcomb 2 "error" e.Error.def.Rpc.Types.ty in
+          let errs =
+            Rpc_genfake.genall ~maxcomb 2 "error" e.Error.def.Rpc.Types.ty
+          in
           let marshalled_errs =
             List.map
               (fun err ->
@@ -469,12 +473,12 @@ module TestOldRpcs (C : CONFIG) (M : MARSHALLER) = struct
     let response_tests =
       List.mapi
         (fun i response ->
-            let name =
-              Printf.sprintf "Check old response for '%s': %d" wire_name i
-            in
-            if calls = [] then
-              (name, `Quick, ignore)
-            else
+          let name =
+            Printf.sprintf "Check old response for '%s': %d" wire_name i
+          in
+          if calls = [] then
+            (name, `Quick, ignore)
+          else
             let call = List.hd calls in
             (name, `Quick, fun () -> testfn call response)
         )

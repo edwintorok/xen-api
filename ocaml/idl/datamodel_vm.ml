@@ -84,19 +84,21 @@ let power_behaviour =
 
 let emulated_pci_device =
   Enum
-  ("emulated_pci_device",
-  [("i440FX", "emulated host bridge")
-  ;("PIIX3", "emulated PIIX3 devices (ISA/IDE/USB)")
-  ;("VGA", "emulated VGA")
-  ;("XenPlatform", "Xen platform device")
-  ;("XenPV", "Xen PV device")
-  ;("NVME", "emulated NVME controller")
-  ;("NIC", "emulated NIC") (* platform:nic_type *)
-  ;("vGPU", "virtual GPU")
-  ;("HostPCI", "host PCI device")
-  ;("Q35", "Q35 chipset, not implemented yet")
-  (* we can have more devices here in the future, e.g. when switching to Q35 *)
-  ])
+    ( "emulated_pci_device"
+    , [
+        ("i440FX", "emulated host bridge")
+      ; ("PIIX3", "emulated PIIX3 devices (ISA/IDE/USB)")
+      ; ("VGA", "emulated VGA")
+      ; ("XenPlatform", "Xen platform device")
+      ; ("XenPV", "Xen PV device")
+      ; ("NVME", "emulated NVME controller")
+      ; ("NIC", "emulated NIC") (* platform:nic_type *)
+      ; ("vGPU", "virtual GPU")
+      ; ("HostPCI", "host PCI device")
+      ; ("Q35", "Q35 chipset, not implemented yet")
+        (* we can have more devices here in the future, e.g. when switching to Q35 *)
+      ]
+    )
 
 (** Action to take on guest reboot/power off/sleep etc *)
 let on_crash_behaviour =
@@ -2095,9 +2097,9 @@ let t =
         ; field ~qualifier:RW (* qualifier:TODO *)
             ~lifecycle:[]
             ~ty:(Map (String, emulated_pci_device))
-            ~default_value:(Some (VMap[]))
-            "guest_pci_addresss"
-            "Map of emulated/pass-through PCI bus:device.function in the guest to device type"
+            ~default_value:(Some (VMap [])) "guest_pci_addresss"
+            "Map of emulated/pass-through PCI bus:device.function in the guest \
+             to device type"
         ; field ~writer_roles:_R_VM_ADMIN ~qualifier:RW
             ~in_product_since:rel_boston ~default_value:(Some (VRef null_ref))
             ~ty:(Ref _sr) "suspend_SR"
