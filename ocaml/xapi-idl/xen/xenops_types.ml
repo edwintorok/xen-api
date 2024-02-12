@@ -192,6 +192,9 @@ module PCITopology = struct
       | PIIX3  (** i440FX PIIX3 device, containing ISA/IDE/USB functions *)
       | VGA
           (** video card, type is already stored in [video] field of {!type:Vm.t} *)
+      | UHCI (** USB controller, backward compatible *)
+      | EHCI (** USB controller, backward compatible *)
+      | XHCI (** USB controller *)
       | MCH (* Q35 host bridge, not implemented *)
       | ICH9  (** Q35 ICH9 with ISA/IDE functions, not implemented *)
     [@@deriving rpcty, sexp]
@@ -207,8 +210,6 @@ module PCITopology = struct
 
     (** emulated or pass-through PCIe functions *)
     type pcie_function =
-      | EHCI (* USB, not implemented *)
-      | UHCI (* USB, not implemented *)
       | HostPCIe of Xcp_pci.address (* not implemented *)
     [@@deriving rpcty, sexp]
 
