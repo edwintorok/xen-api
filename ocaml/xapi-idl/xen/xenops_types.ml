@@ -194,7 +194,7 @@ module PCITopology = struct
           (** video card, type is already stored in [video] field of {!type:Vm.t} *)
       | UHCI (** USB controller, backward compatible *)
       | EHCI (** USB controller, backward compatible *)
-      | XHCI (** USB controller *)
+      | XHCI (** USB controller, not yet implemented *)
       | MCH (* Q35 host bridge, not implemented *)
       | ICH9  (** Q35 ICH9 with ISA/IDE functions, not implemented *)
     [@@deriving rpcty, sexp]
