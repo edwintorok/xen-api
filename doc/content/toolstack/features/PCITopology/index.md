@@ -126,5 +126,10 @@ Rationale:
 * We can unplug emulated NIC 0, so that can only be used in a multifunction device if function 0 is something other than an emulated NIC and fixed, *or* all emulated NICs get their own PCI devices. The NVME controller could be used as fixed function 0, but what if we don't have one, e.g. for old BIOS VMs? Therefore we keep using separate PCI devices for emulated NICs
 * Renumbering PCI devices should be avoided, especially that some OSes identify network devices by their PCI address
 
+### Xenopsd topology
 
+We encode the (PCI) device topology into OCaml types. These are similar to QEMU's QOM objects.
+
+* `type pci_function` for all the emulated or pass-through PCI functions
+* `type pcie_function` for all the emulated or pass-through PCIe functions
 
