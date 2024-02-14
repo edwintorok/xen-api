@@ -40,7 +40,7 @@ let to_cli ?(extra=[]) ?(extra_kv=[]) modname typ t =
      List.concat
       [ extra; extra_kv |> List.map (fun (k,v) -> Printf.sprintf "%s=%S" k v) ]
      |> String.concat "," in
-  [flag; extra ^ (t |> Rpcmarshal.marshal typ |> cli_of_rpc)]
+  [flag; extra ^ (t |> Rpcmarshal.marshal typ |> cli_of_rpc)] |> List.to_seq
 
 type guest_pci_address =
   { bus: int option (** PCI bus, we only support bus 0 for now *)
@@ -116,7 +116,7 @@ module EmulatedVGPU = struct
   type t = unit
   [@@deriving rpcty, sexp]
 
-  let to_cli ~devid:_ _t = ["-vgpu"] (* TODO *)
+  let to_cli ~devid:_ _t = Seq.return "-vgpu" (* TODO *)
 end
 
 module NVME = struct
@@ -161,7 +161,7 @@ type pci_function =
 
 let cli_of_pci_function ~addr = function
   | EmulatedVGPU (devid, e) -> EmulatedVGPU.to_cli ~devid e
-  | HostPCI _addr -> [] (* TODO: this is QMP *)
+  | HostPCI _addr -> Seq.empty (* TODO: this is QMP *)
   | Net (devid, e) -> Net.to_cli ~addr ~devid e
   | NVME nvme -> NVME.to_cli ~addr nvme
   | XenPV d -> XenPV.to_cli ~addr d
@@ -174,7 +174,7 @@ type pcie_function =
   [@@deriving rpcty, sexp]
 
 let cli_of_pcie_function ~addr:_ = function
-  | HostPCIe _addr -> [] (* TODO: this is QMP *)
+  | HostPCIe _addr -> Seq.empty (* TODO: this is QMP *)
 
 open TypeCombinators
 
@@ -287,21 +287,21 @@ type 'a bus32 = 'a SlotMap.t [@@deriving sexp]
       | ICH9  (** Q35 ICH9 with ISA/IDE functions, not implemented *)
     [@@deriving rpcty, sexp]
 
-    let cli_of_device ~slot cli_of_fn (f0, other) : string list =
+    let cli_of_device ~slot cli_of_fn (f0, other) =
      let addr = {bus = None; slot; fn = Some 0 }in
       if FunctionMap.is_empty other then cli_of_fn ~addr:(addr,false) f0
       else
         let f0 = cli_of_fn ~addr:(addr,true) f0 in
-        let other = other |> FunctionMap.to_seq |> Seq.map (fun (fn, dev) ->
+        let other = other |> FunctionMap.to_seq |> Seq.flat_map (fun (fn, dev) ->
           let addr = { addr with fn = Some (Function.to_int fn)} in
           cli_of_fn  ~addr:(addr,true) dev
-        ) |> List.of_seq in
-        List.concat (f0 :: other)
+        ) in
+        Seq.append f0 other
 
     let cli_of_pci ~slot = function
       | Device d -> cli_of_device ~slot cli_of_pci_function d
-      | VGA -> ["-vga"]
-      | I440FX | PIIX3 | MCH | ICH9 -> [] (* default devices *)
+      | VGA -> Seq.return "-vga"
+      | I440FX | PIIX3 | MCH | ICH9 -> Seq.empty (* default devices *)
 
     (** a PCI bus containing PCI devices *)
     type pci_bus = pci bus32 [@@deriving sexp]
@@ -330,6 +330,7 @@ type 'a bus32 = 'a SlotMap.t [@@deriving sexp]
     let cli_of_pcie ~slot = function
       | Device d -> cli_of_device ~slot cli_of_pcie_function d
       | PCI pci -> cli_of_device ~slot cli_of_pci_function pci
+      | PCIeRootPort _ -> failwith "Not implemented"
 
     (** a PCIe bus containing PCI devices *)
     type pcie_bus = pcie bus32 [@@deriving sexp]
@@ -353,9 +354,9 @@ module Machine = struct
     [@@deriving rpcty, sexp]
 
   let cli_of_slotmap cli_of map =
-    map |> SlotMap.to_seq |> Seq.map (fun (slot, dev) ->
+    map |> SlotMap.to_seq |> Seq.flat_map (fun (slot, dev) ->
       cli_of ~slot:(Slot.to_int slot) dev
-    ) |> List.of_seq
+    )
 
   let cli_of_bus = function
     | (PC_010 b | PC_I440FX_4_2 b) -> cli_of_slotmap cli_of_pci b
@@ -385,9 +386,8 @@ module Machine = struct
       | Rpc.Dict [(key, _)] -> key
       | _ -> assert false
     in
-    let machine = ["-machine"; String.concat "," [machine; flags]] in
-    machine :: bus_cli
-    |> List.concat
+    let machine = ["-machine"; String.concat "," [machine; flags]] |> List.to_seq in
+    Seq.append machine bus_cli |> List.of_seq
     
 end
 
