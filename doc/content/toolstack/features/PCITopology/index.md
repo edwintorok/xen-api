@@ -30,7 +30,7 @@ This has several issues:
   * e.g. moving from emulated VGA to NVidia vGPU moves the address of the Xen PV device around which may cause a crash in the Windows PV drivers
   * setting `has-vendor-device` makes this device appear/disappear
 * you cannot use other pass-through devices together with vGPUs: they'll attempt to claim the same virtual PCI addresses
-* can only use at most 7 SRIOV NICs (TBC, do they share the address of the emulated ones?)
+* can only use at most 7 SRIOV NICs (due to VIF limit in allowed_VIF_devices)
 * there are only 32 devices in total (and Xen would only support 1 PCI bus), which limits the number of pass-through devices
 * other pass-through devices are handled by qemu without explicit placement, their address is "wherever qemu happens to have placed them" (and hope that doesn't change across qemu versions)
 
@@ -48,7 +48,7 @@ To address the biggest issue (crashes caused by PCI devices moving around) the n
 
 However there are still several issues, and some new ones:
 * we now only support 2 emulated NICs, but continue to support 7 VIFs. This introduces a bug when upgrading Windows PV drivers, which copy the IP address from the virtual device to the emulated device on upgrade, and when there is no corresponding emulated device they lose the IP address setting completely.
-* the 2 NIC limit also applies to SRIOV (TBC)
+* the 2 NIC limit doesn't apply to SRIOV, it gets passed through at address 8+
 * it is now possible to mix other pass-through devices and vGPUs, but only 3, 4+ devices would conflict with the first NVidia vGPU
 * the number 11 for the NVidia vGPU start slot is hardcoded in XAPI, but XAPI has no direct knowledge of where xenopsd will place devices
 * we are still limited to 32 devices in total
