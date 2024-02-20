@@ -133,3 +133,11 @@ We encode the (PCI) device topology into OCaml types. These are similar to QEMU'
 * `type pci_function` for all the emulated or pass-through PCI functions
 * `type pcie_function` for all the emulated or pass-through PCIe functions
 
+# TODO
+
+* new device-model (no need for feature flag, only new VMs would use this)
+* just store the bus topology as OCaml types in xapi
+* have an allowlist of qemu devices somewhere in xapi.conf
+* allow the templates to decide what devices to use and at which location
+* allow to configure passthrough assignment policy: depth-first, breadth-first on devices/functions
+* there is some code regarding vusb that is currently in xenopsd that needs to be moved to a library so we can access it from XAPI
