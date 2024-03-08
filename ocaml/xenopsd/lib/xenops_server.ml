@@ -3486,7 +3486,18 @@ module HOST = struct
           (CPU_policy.to_string vm_policy)
           (CPU_policy.to_string host_policy) ;
         let module B = (val get_backend () : S) in
-        B.HOST.is_compatible vm_policy host_policy
+        B.HOST.is_compatible_msg vm_policy host_policy |> Option.is_none
+      )
+      ()
+
+  let is_compatible_msg _ dbg vm_policy host_policy =
+    Debug.with_thread_associated dbg
+      (fun () ->
+        debug "HOST.is_compatible_msg %s %s"
+          (CPU_policy.to_string vm_policy)
+          (CPU_policy.to_string host_policy) ;
+        let module B = (val get_backend () : S) in
+        B.HOST.is_compatible_msg vm_policy host_policy
       )
       ()
 end
@@ -4118,6 +4129,7 @@ let _ =
   Server.HOST.update_guest_agent_features (HOST.update_guest_agent_features ()) ;
   Server.HOST.combine_cpu_policies (HOST.combine_cpu_policies ()) ;
   Server.HOST.is_compatible (HOST.is_compatible ()) ;
+  Server.HOST.is_compatible_msg (HOST.is_compatible_msg ()) ;
   Server.VM.add (VM.add ()) ;
   Server.VM.remove (VM.remove ()) ;
   Server.VM.migrate (VM.migrate ()) ;

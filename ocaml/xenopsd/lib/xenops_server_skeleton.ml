@@ -54,7 +54,7 @@ module HOST = struct
 
   let combine_cpu_policies _ _ = CPU_policy.of_string `host ""
 
-  let is_compatible _ _ = false
+  let is_compatible_msg _ _ = Some "unimplemented"
 end
 
 module VM = struct

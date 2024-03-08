@@ -126,16 +126,22 @@ let assert_vm_is_compatible ~__context ~vm ~host ?remote () =
            features %s"
           (Xenops_interface.CPU_policy.to_string vm_cpu_features)
           (Xenops_interface.CPU_policy.to_string host_cpu_features) ;
-        if not (Xenopsd.HOST.is_compatible dbg vm_cpu_features host_cpu_features)
-        then (
-          debug
-            "VM CPU features (%s) are not compatible with host CPU features (%s)\n"
-            (Xenops_interface.CPU_policy.to_string vm_cpu_features)
-            (Xenops_interface.CPU_policy.to_string host_cpu_features) ;
-          fail
-            "VM last booted on a CPU with features this host's CPU does not \
-             have."
-        )
+        match
+          Xenopsd.HOST.is_compatible_msg dbg vm_cpu_features host_cpu_features
+        with
+        | None ->
+            ()
+        | Some missing ->
+            debug
+              "VM CPU features (%s) are not compatible with host CPU features \
+               (%s)\n"
+              (Xenops_interface.CPU_policy.to_string vm_cpu_features)
+              (Xenops_interface.CPU_policy.to_string host_cpu_features) ;
+            fail
+              ("VM last booted on a CPU with features this host's CPU does not \
+                have: "
+              ^ missing
+              )
       )
     with Not_found ->
       fail

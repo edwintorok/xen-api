@@ -653,6 +653,27 @@ module XenopsAPI (R : RPC) = struct
         @-> returning (Param.mk Types.bool) err
         )
 
+    type compat_message = string option [@@deriving rpcty]
+
+    let is_compatible_msg =
+      let vm_policy_p =
+        Param.mk ~description:["VM CPU policy"] ~name:"vm_policy" CPU_policy.vm
+      in
+      let host_policy_p =
+        Param.mk ~description:["Host CPU policy"] ~name:"host_policy"
+          CPU_policy.host
+      in
+      declare "HOST.is_compatible"
+        [
+          "Check whether a VM can live-migrate to or resume on a host, and \
+           returns the reason why it cannot"
+        ]
+        (debug_info_p
+        @-> vm_policy_p
+        @-> host_policy_p
+        @-> returning (Param.mk compat_message) err
+        )
+
     let set_numa_affinity_policy =
       let numa_affinity_policy_p =
         Param.mk

@@ -1111,36 +1111,33 @@ module HOST = struct
     |> string_of_features
     |> CPU_policy.of_string `host
 
-  let is_compatible vm_policy host_policy =
+  let is_compatible_msg vm_policy host_policy =
     let open Cpuid in
     let is_compatible' vm host =
       let vm' = zero_extend vm (Array.length host) in
       let compatible = is_subset vm' host in
       if not compatible then
-        info
-          "The VM's CPU policy is not compatible with the target host's. The \
-           host is missing: %s"
-          (diff vm' host |> string_of_features) ;
-      compatible
+        Some (diff vm' host |> string_of_features)
+      else
+        None
     in
     let check v h =
-      try
-        match Xenctrlext.policy_is_compatible v h with
-        | None ->
-            true
-        | Some s ->
-            info
-              "The VM's CPU policy is not compatible with the target host's. \
-               The host is missing: %s"
-              s ;
-            false
+      try Xenctrlext.policy_is_compatible v h
       with Xenctrlext.Unix_error (Unix.ENOSYS, _) ->
         debug "policy_is_compatible: ENOSYS; fallback to OCaml implementation" ;
         is_compatible' v h
     in
     let vm = vm_policy |> CPU_policy.to_string |> features_of_string in
     let host = host_policy |> CPU_policy.to_string |> features_of_string in
-    check vm host
+    let msg = check vm host in
+    msg
+    |> Option.iter (fun s ->
+           info
+             "The VM's CPU policy is not compatible with the target host's. \
+              The host is missing: %s"
+             s
+       ) ;
+    msg
 end
 
 let dB_m = Mutex.create ()

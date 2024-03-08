@@ -68,7 +68,8 @@ module type S = sig
     val combine_cpu_policies :
       [`host] CPU_policy.t -> [`host] CPU_policy.t -> [`host] CPU_policy.t
 
-    val is_compatible : [`vm] CPU_policy.t -> [`host] CPU_policy.t -> bool
+    val is_compatible_msg :
+      [`vm] CPU_policy.t -> [`host] CPU_policy.t -> string option
   end
 
   module VM : sig
