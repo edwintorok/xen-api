@@ -29,6 +29,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -155,6 +156,9 @@ namespace XenAPI
     {
         private int _globalId;
 
+        // TODO: get proper version string from build
+        private static ActivitySource source = new ActivitySource("XenAPI.JsonRpcClient", "1.0");
+
         public JsonRpcClient(string baseUrl)
         {
             Url = baseUrl;
@@ -207,6 +211,12 @@ namespace XenAPI
             // therefore the latter will be done only in DEBUG mode
             using (var postStream = new MemoryStream())
             {
+              using (Activity activity = source.CreateActivity("XenAPI" + callName, ActivityKind.Client))
+              {
+                 // .NET 5 would use W3C format for the header by default but we build for .Net 4.x still
+                activity?.SetIdFormat(ActivityIdFormat.W3C);
+                activity?.Start();
+                activity?.SetTag("rpc.jsonrpc.request_id", id);
                 using (var sw = new StreamWriter(postStream))
                 {
 #if DEBUG
@@ -225,6 +235,8 @@ namespace XenAPI
 
                     using (var responseStream = new MemoryStream())
                     {
+                        // https://opentelemetry.io/docs/specs/semconv/rpc/json-rpc/
+                        activity?.SetTag("rpc.method", callName);
                         PerformPostRequest(postStream, responseStream);
                         responseStream.Position = 0;
 
@@ -239,12 +251,18 @@ namespace XenAPI
 #else
                                     var res2 = (JsonResponseV2<T>)serializer.Deserialize(responseReader, typeof(JsonResponseV2<T>));
 #endif
+                                    activity?.SetTag("rpc.jsonrpc.version", "2.0");
                                     if (res2.Error != null)
                                     {
                                         var descr = new List<string> { res2.Error.Message };
                                         descr.AddRange(res2.Error.Data.ToObject<string[]>());
+                                        activity?.SetTag("otel.status_code", "ERROR");
+                                        activity?.SetTag("rpc.jsonrpc.error_code", res2.Error.Code);
+                                        activity?.SetTag("rpc.jsonrpc.error_message", descr);
                                         throw new Failure(descr);
                                     }
+
+                                    activity?.SetTag("otel.status_code", "OK");
                                     return res2.Result;
                                 default:
 #if DEBUG
@@ -256,14 +274,19 @@ namespace XenAPI
                                     if (res1.Error != null)
                                     {
                                         var errorArray = res1.Error.ToObject<string[]>();
-                                        if (errorArray != null)
+                                        if (errorArray != null) {
+                                            activity?.SetTag("otel.status_code", "ERROR");
+                                            //activity?.SetTag("rpc.jsonrpc.error_message", errorArray);
                                             throw new Failure(errorArray);
+                                        }
                                     }
+                                    activity?.SetTag("otel.status_code", "OK");
                                     return res1.Result;
                             }
                         }
                     }
                 }
+              }
             }
         }
 
