@@ -720,6 +720,10 @@ let from ~__context ~classes ~token ~timeout =
   in
   let subs = List.map Subscription.of_string classes in
   let deadline = Unix.gettimeofday () +. timeout in
+  (* TODO: special case for task here? set before/after to 0 so we return quickly
+    also then overall rusage based throttler, perhaps very simple ewma filter with 0.75 new?
+   *)
+
   (* We need to iterate because it's possible for an empty event set
      	   to be generated if we peek in-between a Modify and a Delete; we'll
      	   miss the Delete event and fail to generate the Modify because the
