@@ -487,11 +487,12 @@ let rec next ~__context =
     )
   in
   (* Like grab_range () only guarantees to return a non-empty range by blocking if necessary *)
-  let rec grab_nonempty_range () =
+  let grab_nonempty_range =
+    Throttle.Batching.with_recursive ~delay:batch_events @@ fun self () ->
     let last_id, end_id = grab_range () in
     if last_id = end_id then
       let (_ : int64) = wait subscription end_id in
-      grab_nonempty_range ()
+      (self[@tailcall]) ()
     else
       (last_id, end_id)
   in
