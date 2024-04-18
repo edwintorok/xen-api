@@ -22,3 +22,16 @@ module Make (_ : SIZE) : sig
 
   val execute : (unit -> 'a) -> 'a
 end
+
+module Batching : sig
+  val with_recursive :
+       delay_before:(unit -> float)
+    -> delay_after:(unit -> float)
+    -> (('a -> 'b) -> 'a -> 'b)
+    -> 'a
+    -> 'b
+  (** [with_recursive ~delay_before ~delay_after f arg] calls [f self arg], where [self] can be used
+    for recursive calls.
+    A [delay_before ()] amount of seconds is inserted before each call to [f], and [delay_after ()] after.
+   *)
+end

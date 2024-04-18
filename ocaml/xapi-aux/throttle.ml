@@ -37,3 +37,14 @@ module Make (Size : SIZE) = struct
 
   let execute f = Semaphore.execute (get_semaphore ()) f
 end
+
+module Batching = struct
+  let perform_delay compute =
+    let delay = compute () in
+    if delay > Float.epsilon then
+      Thread.delay delay
+
+  let with_recursive ~delay_before ~delay_after f arg =
+    let rec self arg = perform_delay delay_after ; (f [@tailcall]) self arg in
+    perform_delay delay_before ; f self arg
+end
