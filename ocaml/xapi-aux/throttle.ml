@@ -39,12 +39,22 @@ module Make (Size : SIZE) = struct
 end
 
 module Batching = struct
-  let perform_delay compute =
+  let perform_delay ~yield compute =
     let delay = compute () in
     if delay > Float.epsilon then
       Thread.delay delay
+    else if yield then
+      (* this is a low-priority thread, if there are any other threads waiting, then run them now.
+         If there are no threads waiting then this a noop.
+         Requires OCaml >= 4.09 (older versions had fairness issues in Thread.yield)
+      *)
+      Thread.yield ()
 
   let with_recursive ~delay_before ~delay_after f arg =
-    let rec self arg = perform_delay delay_after ; (f [@tailcall]) self arg in
-    perform_delay delay_before ; f self arg
+    let rec self arg =
+      perform_delay ~yield:false delay_after ;
+      (f [@tailcall]) self arg
+    in
+    perform_delay ~yield:true delay_before ;
+    f self arg
 end
