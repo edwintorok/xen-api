@@ -463,6 +463,9 @@ let unregister ~__context ~classes =
       sub.subs <- List.filter (fun x -> not (List.mem x subs)) sub.subs
   )
 
+let batch_events_before () = 0.
+let batch_events_after () = 0.05
+
 (** Blocking call which returns the next set of events relevant to this session. *)
 let rec next ~__context =
   let session = Context.get_session_id __context in
@@ -601,7 +604,8 @@ let from_inner __context session subs from from_t deadline =
   (* Each event.from should have an independent subscription record *)
   let msg_gen, messages, tableset, (creates, mods, deletes, last) =
     with_call session subs (fun sub ->
-        let rec grab_nonempty_range () =
+        let grab_nonempty_range =
+          Throttle.Batching.with_recursive ~delay_before:batch_events_before ~delay_after:batch_events_after @@ fun self () ->
           let ( (msg_gen, messages, _tableset, (creates, mods, deletes, last))
                 as result
               ) =
@@ -620,8 +624,7 @@ let from_inner __context session subs from from_t deadline =
             (* last id the client got is equivalent to the current one *)
             last_msg_gen := msg_gen ;
             wait2 sub last deadline ;
-            Thread.delay 0.05 ;
-            grab_nonempty_range ()
+            (self[@tailcall]) ()
           ) else
             result
         in
