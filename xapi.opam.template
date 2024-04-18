@@ -9,7 +9,7 @@ build: [
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 depends: [
-  "ocaml"
+  "ocaml" {>= "4.09"}
   "dune"
   "alcotest" # needed to generate the quicktest binary
   "angstrom"
