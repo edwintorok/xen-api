@@ -12,6 +12,9 @@
     forkexec
     ipaddr
     ipaddr.unix
+    mtime
+    mtime.clock
+    mtime.clock.os
     tar
     threads.posix
     xapi-consts
