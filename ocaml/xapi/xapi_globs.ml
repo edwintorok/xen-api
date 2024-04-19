@@ -1085,6 +1085,8 @@ let event_from_task_delay, event_from_task_entry =
 let event_next_delay, event_next_entry =
   make_batching "event_next" ~delay_before:0.2 ~delay_between:0.2
 
+let event_batching = ref false
+
 let xapi_globs_spec =
   [
     ( "master_connection_reset_timeout"
@@ -1651,6 +1653,11 @@ let other_options =
   ; event_from_entry
   ; event_from_task_entry
   ; event_next_entry
+  ; ( "event-batching"
+    , Arg.Set event_batching
+    , (fun () -> string_of_bool !event_batching)
+    , "Enable event batching"
+    )
   ]
 
 (* The options can be set with the variable xapiflags in /etc/sysconfig/xapi.

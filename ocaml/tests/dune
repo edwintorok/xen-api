@@ -162,7 +162,7 @@
 (name test_throttle)
 (package xapi)
 (modules test_throttle)
-(libraries alcotest xapi_aux mtime.clock.os mtime threads.posix)
+(libraries alcotest xapi_aux mtime.clock.os mtime threads.posix log xapi_internal)
 )
 
 (rule
