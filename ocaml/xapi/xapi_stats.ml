@@ -16,6 +16,24 @@ module D = Debug.Make (struct let name = "xapi_stats" end)
 
 let with_lock = Xapi_stdext_threads.Threadext.Mutex.execute
 
+let generate_throttle_stats all =
+  let open Throttle.Controller in
+  all
+  |> List.concat_map @@ fun (ename, (stats, delay)) ->
+     let ds1 =
+       let name = "xapi_avg_cpu_" ^ ename in
+       let description = "average CPU usage for XAPI call " ^ ename in
+       Ds.ds_make ~name ~description
+         ~value:(Rrd.VT_Float stats.cpu_used_percentage) ~ty:Rrd.Gauge
+         ~default:true ~min:0.0 ~max:1.0 ~units:"(fraction)" ()
+     and ds2 =
+       let name = "xapi_delay_" ^ ename in
+       let description = "throttling delay for XAPI call " ^ ename in
+       Ds.ds_make ~name ~description ~value:(Rrd.VT_Float delay) ~ty:Rrd.Gauge
+         ~default:true ~min:0.0 ~units:"s" ()
+     in
+     [(Rrd.Host, ds1); (Rrd.Host, ds2)]
+
 let generate_master_stats ~__context =
   let session_count =
     Db.Session.get_all ~__context |> List.length |> Int64.of_int
@@ -44,7 +62,10 @@ let generate_master_stats ~__context =
         ~min:0.0 ~units:"sessions/s" ()
     )
   in
-  [session_count_ds; task_count_ds; session_count_change_ds]
+  session_count_ds
+  :: task_count_ds
+  :: session_count_change_ds
+  :: generate_throttle_stats Throttle.all_stats
 
 let gc_debug = ref true
 

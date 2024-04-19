@@ -68,6 +68,8 @@ module Rusage = struct
 
   let make name = {name; ns= Atomic.make 0; count= Atomic.make 0}
 
+  let name t = t.name
+
   let measure_rusage t f =
     let u0 = Rusage_thread.getrusage_thread () in
     let finally () =
@@ -132,7 +134,7 @@ module Limit = struct
 
   let all = ref []
 
-  let register t = all := t :: !all
+  let register t = all := (Rusage.name t.measure, t) :: !all
 
   let make measure controller =
     let stats =
