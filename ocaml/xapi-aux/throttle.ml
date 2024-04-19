@@ -58,3 +58,29 @@ module Batching = struct
     perform_delay ~yield:true delay_before ;
     f self arg
 end
+
+module Rusage = struct
+  type t = {
+      name: string  (** name of what we are measuring *)
+    ; ns: int Atomic.t  (** CPU usage in nanoseconds *)
+  }
+
+  let make name = {name; ns= Atomic.make 0}
+
+  let measure_rusage t f =
+    let u0 = Rusage_thread.getrusage_thread () in
+    let finally () =
+      let delta = Rusage_thread.getrusage_thread () -. u0 in
+      (* Convert to microseconds, so we can use [fetch_and_add].
+         On 64-bit systems this won't overflow for >100 years.
+      *)
+      let delta_ns = Float.ceil (delta *. 1e+9) |> Float.to_int in
+      (* there are multiple threads, so we can't use Atomic.set to update the global measurement,
+         we have to update it with the difference *)
+      let (_ : int) = Atomic.fetch_and_add t.ns delta_ns in
+      ()
+    in
+    Fun.protect ~finally f
+
+  let sample t = float (Atomic.get t.ns) *. 1e-9
+end

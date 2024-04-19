@@ -35,3 +35,20 @@ module Batching : sig
     A [delay_before ()] amount of seconds is inserted before each call to [f], and [delay_after ()] after.
    *)
 end
+
+module Rusage : sig
+  (** store CPU resource usage measurements *)
+  type t
+
+  val make : string -> t
+  (** [make name] creates thread-safe storage for measuring resource usage for [name]. *)
+
+  val measure_rusage : t -> (unit -> 'a) -> 'a
+  (** [measure_rusage t f] measures the CPU resource usage of [f ()], updating [t] with the measurements.
+    CPU resource usage is measured using {!Rusage_thread.getrusage_thread}.
+    This function is thread-safe.
+   *)
+
+  val sample : t -> float
+  (** [sample t] is the cumulative resource usage for [t] in seconds. *)
+end
