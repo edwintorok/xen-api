@@ -104,5 +104,5 @@ module Limit : sig
     This is thread-safe
    *)
 
-  val all_stats : unit -> (Controller.stats * float) list
+  val all_stats : unit -> (string * (Controller.stats * float)) list
 end
