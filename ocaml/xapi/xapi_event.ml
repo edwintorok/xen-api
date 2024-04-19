@@ -467,50 +467,71 @@ let unregister ~__context ~classes =
       sub.subs <- List.filter (fun x -> not (List.mem x subs)) sub.subs
   )
 
+let make_limit ~max_cpu_usage ~delay_before ~delay_between name =
+  let t =
+    Throttle.Limit.create ~max_cpu_usage ~delay_before ~delay_between name
+  in
+  Xapi_periodic_scheduler.add_to_queue ("Update controller for " ^ name)
+    (Xapi_periodic_scheduler.Periodic 5.) 5. (fun () -> Throttle.Limit.update t
+  ) ;
+  t
+
+let throttle_event_next =
+  make_limit ~max_cpu_usage:0.01 ~delay_before:0.2 ~delay_between:0.2
+    "Event.next"
+
+let with_limit throttle f arg =
+  if !Xapi_globs.event_batching then
+    Throttle.Limit.with_limit throttle f arg
+  else
+    f arg
+
 (** Blocking call which returns the next set of events relevant to this session. *)
 let rec next ~__context =
   let batching = !Xapi_globs.event_next_delay in
-  let session = Context.get_session_id __context in
-  let open Next in
-  assert_subscribed session ;
-  let subscription = get_subscription session in
-  (* Return a <from_id, end_id> exclusive range that is guaranteed to be specific to this
-     	   thread. Concurrent calls will grab wholly disjoint ranges. Note the range might be
-     	   empty. *)
-  let grab_range () =
-    (* Briefly hold both the general and the specific mutex *)
-    with_lock m (fun () ->
-        with_lock subscription.m (fun () ->
-            let last_id = subscription.last_id in
-            (* Bump our last_id counter: these events don't have to be looked at again *)
-            subscription.last_id <- !id ;
-            (last_id, !id)
-        )
-    )
-  in
-  (* Like grab_range () only guarantees to return a non-empty range by blocking if necessary *)
-  let grab_nonempty_range =
-    Throttle.Batching.with_recursive batching @@ fun self arg ->
-    let last_id, end_id = grab_range () in
-    if last_id = end_id then
-      let (_ : int64) = wait subscription end_id in
-      (self [@tailcall]) arg
-    else
-      (last_id, end_id)
-  in
-  let last_id, end_id = grab_nonempty_range () in
-  (* debug "next examining events in range %Ld <= x < %Ld" last_id end_id; *)
-  (* Are any of the new events interesting? *)
-  let events = events_read last_id end_id in
-  let subs = with_lock subscription.m (fun () -> subscription.subs) in
-  let relevant =
-    List.filter (fun ev -> Subscription.event_matches subs ev) events
-  in
-  (* debug "number of relevant events = %d" (List.length relevant); *)
-  if relevant = [] then
-    next ~__context
-  else
-    rpc_of_events relevant
+  ()
+  |> with_limit throttle_event_next @@ fun () ->
+     let session = Context.get_session_id __context in
+     let open Next in
+     assert_subscribed session ;
+     let subscription = get_subscription session in
+     (* Return a <from_id, end_id> exclusive range that is guaranteed to be specific to this
+        	   thread. Concurrent calls will grab wholly disjoint ranges. Note the range might be
+        	   empty. *)
+     let grab_range () =
+       (* Briefly hold both the general and the specific mutex *)
+       with_lock m (fun () ->
+           with_lock subscription.m (fun () ->
+               let last_id = subscription.last_id in
+               (* Bump our last_id counter: these events don't have to be looked at again *)
+               subscription.last_id <- !id ;
+               (last_id, !id)
+           )
+       )
+     in
+     (* Like grab_range () only guarantees to return a non-empty range by blocking if necessary *)
+     let grab_nonempty_range =
+       Throttle.Batching.with_recursive batching @@ fun self arg ->
+       let last_id, end_id = grab_range () in
+       if last_id = end_id then
+         let (_ : int64) = wait subscription end_id in
+         (self [@tailcall]) arg
+       else
+         (last_id, end_id)
+     in
+     let last_id, end_id = grab_nonempty_range () in
+     (* debug "next examining events in range %Ld <= x < %Ld" last_id end_id; *)
+     (* Are any of the new events interesting? *)
+     let events = events_read last_id end_id in
+     let subs = with_lock subscription.m (fun () -> subscription.subs) in
+     let relevant =
+       List.filter (fun ev -> Subscription.event_matches subs ev) events
+     in
+     (* debug "number of relevant events = %d" (List.length relevant); *)
+     if relevant = [] then
+       next ~__context
+     else
+       rpc_of_events relevant
 
 let from_inner __context session subs from from_t deadline batching =
   let open Xapi_database in
@@ -706,41 +727,51 @@ let from_inner __context session subs from from_t deadline batching =
   in
   {events; valid_ref_counts; token= Token.to_string (last, msg_gen)}
 
+let throttle_event_from =
+  make_limit ~max_cpu_usage:0.1 ~delay_before:0. ~delay_between:0.05
+    "Event.from"
+
+let throttle_event_from_task =
+  make_limit ~max_cpu_usage:0.05 ~delay_before:0. ~delay_between:0.
+    "Event.from(task)"
+
 let from ~__context ~classes ~token ~timeout =
   let deadline = Unix.gettimeofday () +. timeout in
   let subs = List.map Subscription.of_string classes in
-  let batching =
+  let batching, throttle =
     if List.for_all Subscription.is_task_only subs then
-      !Xapi_globs.event_from_task_delay
+      (!Xapi_globs.event_from_task_delay, throttle_event_from_task)
     else
-      !Xapi_globs.event_from_delay
+      (!Xapi_globs.event_from_delay, throttle_event_from)
   in
-  let session = Context.get_session_id __context in
-  let from, from_t =
-    try Token.of_string token
-    with e ->
-      warn "Failed to parse event.from token: %s (%s)" token
-        (Printexc.to_string e) ;
-      raise
-        (Api_errors.Server_error
-           (Api_errors.event_from_token_parse_failure, [token])
-        )
-  in
-  (* We need to iterate because it's possible for an empty event set
-     	   to be generated if we peek in-between a Modify and a Delete; we'll
-     	   miss the Delete event and fail to generate the Modify because the
-     	   snapshot can't be taken. *)
-  let rec loop () =
-    let event_from =
-      from_inner __context session subs from from_t deadline batching
-    in
-    if event_from.events = [] && Unix.gettimeofday () < deadline then (
-      debug "suppressing empty event.from" ;
-      loop ()
-    ) else
-      rpc_of_event_from event_from
-  in
-  loop ()
+  ()
+  |> Throttle.Limit.with_limit throttle @@ fun () ->
+     let session = Context.get_session_id __context in
+     let from, from_t =
+       try Token.of_string token
+       with e ->
+         warn "Failed to parse event.from token: %s (%s)" token
+           (Printexc.to_string e) ;
+         raise
+           (Api_errors.Server_error
+              (Api_errors.event_from_token_parse_failure, [token])
+           )
+     in
+     (* We need to iterate because it's possible for an empty event set
+        	   to be generated if we peek in-between a Modify and a Delete; we'll
+        	   miss the Delete event and fail to generate the Modify because the
+        	   snapshot can't be taken. *)
+     let rec loop () =
+       let event_from =
+         from_inner __context session subs from from_t deadline batching
+       in
+       if event_from.events = [] && Unix.gettimeofday () < deadline then (
+         debug "suppressing empty event.from" ;
+         loop ()
+       ) else
+         rpc_of_event_from event_from
+     in
+     loop ()
 
 let get_current_id ~__context = with_lock Next.m (fun () -> !Next.id)
 
