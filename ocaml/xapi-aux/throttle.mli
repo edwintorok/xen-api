@@ -99,8 +99,16 @@ module Limit : sig
   val update : t -> unit
   (** [update t] has to be called periodically to update statistics and control delay *)
 
+  val create :
+       ?max_cpu_usage:float
+    -> delay_before:float
+    -> delay_between:float
+    -> string
+    -> t
+  (** [create ?max_cpu_percentage ~delay_before ~delay_after name] calls [make] with appropriate defaults *)
+
   val with_limit : t -> ('a -> 'b) -> 'a -> 'b
-  (** [with_limit t f] limits the CPU usage of [f ()] using the controller [t].
+  (** [with_limit t f arg] limits the CPU usage of [f ()] using the controller [t].
     This is thread-safe
    *)
 

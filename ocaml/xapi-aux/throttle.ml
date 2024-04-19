@@ -228,6 +228,13 @@ module Limit = struct
     let t = {measure; last= Atomic.make last} in
     register t ; t
 
+  let create ?(max_cpu_usage = 0.1) ~delay_before ~delay_between name =
+    let controller =
+      Controller.make ~max_cpu_usage ~delay_before ~delay_between
+    in
+    let usage = Rusage.make name in
+    make usage controller
+
   let update t =
     let last = Atomic.get t.last in
     let span = Mtime_clock.count last.since in
