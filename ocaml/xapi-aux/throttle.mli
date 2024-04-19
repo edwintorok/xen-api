@@ -52,3 +52,29 @@ module Rusage : sig
   val sample : t -> float
   (** [sample t] is the cumulative resource usage for [t] in seconds. *)
 end
+
+module Controller : sig
+  (** resource usage feedback controller *)
+  type t
+
+  type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float}
+
+  val make : max_cpu_usage:float -> t
+
+  val update : t -> stats -> t
+end
+
+module Limit : sig
+  type t
+
+  val make : Controller.t -> t
+  (** [make controller] creates a thread-safe controller for limiting resource usage.
+    *)
+
+  val with_limit : t -> (unit -> 'a) -> 'a
+  (** [with_limit t f] limits the CPU usage of [f ()] using the controller [t].
+    This is thread-safe
+   *)
+
+  val all_stats : unit -> (Controller.stats * float) list
+end
