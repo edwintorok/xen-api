@@ -65,7 +65,7 @@ let generate_master_stats ~__context =
   session_count_ds
   :: task_count_ds
   :: session_count_change_ds
-  :: generate_throttle_stats Throttle.all_stats
+  :: generate_throttle_stats (Throttle.Limit.all_stats ())
 
 let gc_debug = ref true
 

@@ -49,7 +49,7 @@ module Rusage : sig
     This function is thread-safe.
    *)
 
-  val sample : t -> float
+  val sample : t -> float * int
   (** [sample t] is the cumulative resource usage for [t] in seconds. *)
 end
 
@@ -59,7 +59,7 @@ module Controller : sig
 
   type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float}
 
-  val make : max_cpu_usage:float -> t
+  val make : max_cpu_percentage:float -> delay_before:float -> delay_after:float -> t
 
   val update : t -> stats -> t
 end
@@ -67,14 +67,18 @@ end
 module Limit : sig
   type t
 
-  val make : Controller.t -> t
-  (** [make controller] creates a thread-safe controller for limiting resource usage.
+  val make : Rusage.t -> Controller.t -> t
+  (** [make measure controller] creates a thread-safe controller for limiting resource usage.
     *)
+
+  val create: ?max_cpu_percentage:float -> delay_before:float -> delay_after:float -> string -> t
+  (** [create ?max_cpu_percentage ~delay_before ~delay_after name] calls [make] with appropriate defaults *)
 
   val with_limit : t -> (unit -> 'a) -> 'a
   (** [with_limit t f] limits the CPU usage of [f ()] using the controller [t].
     This is thread-safe
    *)
 
-  val all_stats : unit -> (Controller.stats * float) list
+  val all_stats : unit -> (string * (Controller.stats * float)) list
+
 end

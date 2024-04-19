@@ -110,7 +110,7 @@ module Controller = struct
     *)
     (t.average *. 0.21121) +. (next *. 0.78879)
 
-  let make ~max_cpu_percentage ~delay_before ~delay_after () =
+  let make ~max_cpu_percentage ~delay_before ~delay_after =
     {max_cpu_percentage; average= 0.; min_delay= delay_before +. delay_after}
 
   let update t stats =
@@ -152,6 +152,11 @@ module Limit = struct
     let t = {measure; last= Atomic.make last} in
     register t ; t
 
+  let create ?(max_cpu_percentage=0.1) ~delay_before ~delay_after name =
+    let controller =  Controller.make ~max_cpu_percentage ~delay_before ~delay_after in
+    let usage = Rusage.make name in
+    make usage controller
+
   let update_interval = Mtime.Span.(5 * s)
 
   let update t span last =
@@ -180,7 +185,7 @@ module Limit = struct
     let last = Atomic.get t.last in
     (last.stats, last.delay)
 
-  let all_stats = !all |> List.map stats
+  let all_stats () = !all |> List.map (fun (k, v) -> k, stats v)
 
   let with_limit t f =
     let last = Atomic.get t.last in

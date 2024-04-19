@@ -52,6 +52,12 @@ end
 module Subscription = struct
   type t = Class of string | Object of string * string | All
 
+  let is_task_only = function
+    | Class "task" | Object ("task", _) ->
+        true
+    | All | Class _ | Object _ ->
+        false
+
   let of_string x =
     if x = "*" then
       All
@@ -513,7 +519,8 @@ let rec next ~__context =
   else
     rpc_of_events relevant
 
-let from_inner __context session subs from from_t deadline =
+let from_inner ~delay_before ~delay_after __context session subs from from_t
+    deadline =
   let open From in
   (* The database tables involved in our subscription *)
   let tables =
@@ -609,8 +616,9 @@ let from_inner __context session subs from from_t deadline =
   let msg_gen, messages, tableset, (creates, mods, deletes, last) =
     with_call session subs (fun sub ->
         let grab_nonempty_range =
-          Throttle.Batching.with_recursive ~delay_before:batch_events_before
-            ~delay_after:batch_events_after
+          Throttle.Batching.with_recursive
+            ~delay_before:(fun () -> delay_before)
+            ~delay_after:(fun () -> delay_after)
           @@ fun self () ->
           let ( (msg_gen, messages, _tableset, (creates, mods, deletes, last))
                 as result
@@ -708,7 +716,25 @@ let from_inner __context session subs from from_t deadline =
   in
   {events; valid_ref_counts; token= Token.to_string (last, msg_gen)}
 
+let throttle_event_from =
+  Throttle.Limit.create ~max_cpu_percentage:0.1
+    ~delay_before:(batch_events_before ()) ~delay_after:(batch_events_after ())
+    "Event.from"
+
+let throttle_event_from_task =
+  Throttle.Limit.create ~max_cpu_percentage:0.05 ~delay_before:0.
+    ~delay_after:0. "Event.from(task)"
+
 let from ~__context ~classes ~token ~timeout =
+  let deadline = Unix.gettimeofday () +. timeout in
+  let subs = List.map Subscription.of_string classes in
+  let delay_before, delay_after, throttle =
+    if List.for_all Subscription.is_task_only subs then
+      (batch_events_before (), batch_events_after (), throttle_event_from)
+    else
+      (0., 0., throttle_event_from_task)
+  in
+  Throttle.Limit.with_limit throttle @@ fun () ->
   let session = Context.get_session_id __context in
   let from, from_t =
     try Token.of_string token
@@ -720,8 +746,6 @@ let from ~__context ~classes ~token ~timeout =
            (Api_errors.event_from_token_parse_failure, [token])
         )
   in
-  let subs = List.map Subscription.of_string classes in
-  let deadline = Unix.gettimeofday () +. timeout in
 
   (* TODO: special case for task here? set before/after to 0 so we return quickly
      also then overall rusage based throttler, perhaps very simple ewma filter with 0.75 new?
@@ -732,7 +756,10 @@ let from ~__context ~classes ~token ~timeout =
      	   miss the Delete event and fail to generate the Modify because the
      	   snapshot can't be taken. *)
   let rec loop () =
-    let event_from = from_inner __context session subs from from_t deadline in
+    let event_from =
+      from_inner ~delay_before ~delay_after __context session subs from from_t
+        deadline
+    in
     if event_from.events = [] && Unix.gettimeofday () < deadline then (
       debug "suppressing empty event.from" ;
       loop ()
