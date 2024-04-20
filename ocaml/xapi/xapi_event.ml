@@ -463,6 +463,7 @@ let unregister ~__context ~classes =
 
 (** Blocking call which returns the next set of events relevant to this session. *)
 let rec next ~__context =
+  let batching = Throttle.Batching.make ~delay_before:0. ~delay_between:0.05 in
   let session = Context.get_session_id __context in
   let open Next in
   assert_subscribed session ;
@@ -482,11 +483,12 @@ let rec next ~__context =
     )
   in
   (* Like grab_range () only guarantees to return a non-empty range by blocking if necessary *)
-  let rec grab_nonempty_range () =
+  let grab_nonempty_range =
+    Throttle.Batching.with_recursive batching @@ fun self arg ->
     let last_id, end_id = grab_range () in
     if last_id = end_id then
       let (_ : int64) = wait subscription end_id in
-      grab_nonempty_range ()
+      (self [@tailcall]) arg
     else
       (last_id, end_id)
   in
@@ -601,7 +603,7 @@ let from_inner __context session subs from from_t deadline batching =
   let msg_gen, messages, tableset, (creates, mods, deletes, last) =
     with_call session subs (fun sub ->
         let grab_nonempty_range =
-          Throttle.Batching.with_recursive batching @@ fun self () ->
+          Throttle.Batching.with_recursive batching @@ fun self arg ->
           let ( (msg_gen, messages, _tableset, (creates, mods, deletes, last))
                 as result
               ) =
@@ -620,7 +622,7 @@ let from_inner __context session subs from from_t deadline batching =
             (* last id the client got is equivalent to the current one *)
             last_msg_gen := msg_gen ;
             wait2 sub last deadline ;
-            (self [@tailcall]) ()
+            (self [@tailcall]) arg
           ) else
             result
         in
