@@ -1051,11 +1051,43 @@ let python3_path = Constants.python3_path
 let observer_experimental_components =
   ref (StringSet.singleton Constants.observer_component_smapi)
 
+let use_xmlrpc = ref true
+
 let pool_recommendations_dir = ref "/etc/xapi.pool-recommendations.d"
 
 let disable_webserver = ref false
 
 let test_open = ref 0
+
+(* Event.{from,next} batching delays *)
+let make_batching name ~delay_before ~delay_between =
+  let name = Printf.sprintf "%s_delay" name in
+  let config = ref (Throttle.Batching.make ~delay_before ~delay_between)
+  and config_vals = ref (delay_before, delay_between) in
+  let set str =
+    Scanf.sscanf str "%f,%f" @@ fun delay_before delay_between ->
+    config_vals := (delay_before, delay_between) ;
+    config := Throttle.Batching.make ~delay_before ~delay_between
+  and get () =
+    let d1, d2 = !config_vals in
+    Printf.sprintf "%f,%f" d1 d2
+  and desc =
+    Printf.sprintf
+      "delays in seconds before the API call, and between internal recursive \
+       calls, separated with a comma"
+  in
+  (config, (name, Arg.String set, get, desc))
+
+let event_from_delay, event_from_entry =
+  make_batching "event_from" ~delay_before:0. ~delay_between:0.05
+
+let event_from_task_delay, event_from_task_entry =
+  make_batching "event_from_task" ~delay_before:0. ~delay_between:0.05
+
+let event_next_delay, event_next_entry =
+  make_batching "event_next" ~delay_before:0.2 ~delay_between:0.2
+
+let event_batching = ref true
 
 let xapi_globs_spec =
   [
@@ -1525,6 +1557,11 @@ let other_options =
     , (fun () -> string_of_int !evacuation_batch_size)
     , "The number of VMs evacauted from a host in parallel."
     )
+  ; ( "use-xmlrpc"
+    , Arg.Set use_xmlrpc
+    , (fun () -> string_of_bool !use_xmlrpc)
+    , "Use XMLRPC (deprecated) for internal communication or JSONRPC"
+    )
   ; ( "ignore-vtpm-unimplemented"
     , Arg.Set ignore_vtpm_unimplemented
     , (fun () -> string_of_bool !ignore_vtpm_unimplemented)
@@ -1609,10 +1646,23 @@ let other_options =
       )
     , "Comma-separated list of experimental observer components"
     )
+  ; ( "use-event-next"
+    , Arg.Set Constants.use_event_next
+    , (fun () -> string_of_bool !Constants.use_event_next)
+    , "Use deprecated Event.next instead of Event.from"
+    )
   ; ( "disable-webserver"
     , Arg.Set disable_webserver
     , (fun () -> string_of_bool !disable_webserver)
     , "Disable the host webserver"
+    )
+  ; event_from_entry
+  ; event_from_task_entry
+  ; event_next_entry
+  ; ( "event-batching"
+    , Arg.Set event_batching
+    , (fun () -> string_of_bool !event_batching)
+    , "Enable event batching"
     )
   ]
 
