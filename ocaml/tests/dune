@@ -8,7 +8,7 @@
       test_vm_placement test_vm_helpers test_repository test_repository_helpers
       test_ref
       test_livepatch test_rpm test_updateinfo test_storage_smapiv1_wrapper test_storage_quicktest test_observer
-      test_pool_periodic_update_sync test_throttle bench_throttle))
+      test_pool_periodic_update_sync test_throttle bench_throttle bench_throttle2))
   (libraries
     alcotest
     angstrom
@@ -134,6 +134,12 @@
 (name bench_throttle)
 (modules bench_throttle)
 (libraries bechamel_simple_cli bechamel xapi_aux)
+)
+
+(executable
+(name bench_throttle2)
+(modules bench_throttle2)
+(libraries bechamel_simple_cli bechamel xapi_aux tests_common)
 )
 
 (rule
