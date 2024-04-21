@@ -409,7 +409,7 @@ let make_rpc ~__context rpc : Rpc.response =
         , !Constants.https_port
         )
   in
-  XMLRPC_protocol.rpc ~srcstr:"xapi" ~dststr:"xapi" ~transport ~http rpc
+  JSONRPC_protocol.rpc ~srcstr:"xapi" ~dststr:"xapi" ~transport ~http rpc
 
 let make_timeboxed_rpc ~__context timeout rpc : Rpc.response =
   let subtask_of = Ref.string_of (Context.get_task_id __context) in
