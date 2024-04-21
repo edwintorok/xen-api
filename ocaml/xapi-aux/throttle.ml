@@ -175,7 +175,7 @@ module Rusage = struct
 end
 
 module Controller = struct
-  type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float}
+  type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float; elapsed_seconds: float}
 
   type t = {max_cpu_usage: float; average: float; min_delay: float}
 
@@ -189,6 +189,32 @@ module Controller = struct
 
   let make ~max_cpu_usage ~delay_before ~delay_between =
     {max_cpu_usage; average= 0.; min_delay= delay_before +. delay_between}
+
+  (*
+    Worst case with calling this API in a tight loop, from a single caller:
+      cpu_usage = avg_cpu_used_seconds / elapsed_seconds
+    Actual (with delays between API calls themselves, or potentially concurrent calls):
+      cpu_used_percentage
+
+
+    Assuming 2 concurrent calls:
+      call1: |---(delay + delay before)---|-(wait for DB event)-|-(CPU)-|-(delay between)-|-(CPU)-|
+      call2: |---(delay + delay before)---|-(wait for DB event)-|.......|.-(CPU)-|-(delay between)-|-(CPU)-|
+
+      elapsed_seconds = delay + delay_before + wait_time + avg_cpu_used_seconds + spurious*delay_between
+
+      lets assume wait_time is noise; the same + spurious*delay_between, 'N'
+
+      cpu_usage = avg_cpu_used_seconds / (delay + delay_before + avg_cpu_used_seconds + N)
+
+      y(k) = CPU_USAGE(k) - DESIRED_CPU
+      u(k) = DELAY(k) - 0
+
+      cpu_usage(k) = a*cpu_usage(k-1) + avg/(u(k) + avg + N + db ) - a * avg/(u(k-1) + avg + N + db)
+
+      
+      
+   *)
 
   let update t stats =
     {t with average= update_average t stats.avg_cpu_used_seconds}
@@ -214,7 +240,7 @@ module Limit = struct
 
   let make measure controller =
     let stats =
-      Controller.{avg_cpu_used_seconds= 0.; cpu_used_percentage= 0.}
+      Controller.{avg_cpu_used_seconds= 0.; cpu_used_percentage= 0.; elapsed_seconds = 0.}
     in
     let last =
       {
@@ -239,10 +265,11 @@ module Limit = struct
     let last = Atomic.get t.last in
     let span = Mtime_clock.count last.since in
     let sample_interval = Mtime.Span.to_float_ns span *. 1e-9 in
-    let ((rusage1, _, calls1) as sample) = Rusage.sample t.measure
-    and rusage0, _, calls0 = last.sample in
+    let ((rusage1, mtime1, calls1) as sample) = Rusage.sample t.measure
+    and rusage0, mtime0, calls0 = last.sample in
     let cpu_used_seconds = rusage1 -. rusage0 in
     let delta_calls = calls1 - calls0 in
+    let delta_mtime = mtime1 -. mtime0 in
     let controller, stats, delay =
       if delta_calls > 0 then
         let stats =
@@ -250,6 +277,7 @@ module Limit = struct
             {
               avg_cpu_used_seconds= cpu_used_seconds /. (delta_calls |> float)
             ; cpu_used_percentage= cpu_used_seconds /. sample_interval
+            ; elapsed_seconds = delta_mtime /. (delta_calls |> float)
             }
         in
         let controller = Controller.update last.controller stats in
