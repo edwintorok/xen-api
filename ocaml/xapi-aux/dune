@@ -1,8 +1,13 @@
 (library
   (name xapi_aux)
   (modes best)
+  (foreign_stubs
+    (language c)
+    (names rusage_thread_stubs)
+  )
   (libraries
     astring
+    bechamel.monotonic_clock
     cstruct
     forkexec
     ipaddr
