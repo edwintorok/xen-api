@@ -34,21 +34,27 @@ exception Cli_failure of string
 
 (** call [callback task_record] on every update to the task, until it completes or fails *)
 let track callback rpc (session_id : API.ref_session) task =
-  let classes = ["task"] in
+  let classes = [Printf.sprintf "task/%s" (Ref.string_of task)] in
   finally
     (fun () ->
       let finished = ref false in
       while not !finished do
-        Client.Event.register ~rpc ~session_id ~classes ;
         try
           (* Need to check once after registering to avoid a race *)
           finished :=
             Client.Task.get_status ~rpc ~session_id ~self:task <> `pending ;
+          let token = ref "" in
           while not !finished do
-            let events =
-              Event_types.events_of_rpc (Client.Event.next ~rpc ~session_id)
+            let event_from =
+              Event_types.event_from_of_rpc
+                (Client.Event.from ~rpc ~session_id ~classes ~token:!token
+                   ~timeout:30.
+                )
             in
-            let events = List.map Event_helper.record_of_event events in
+            token := event_from.token ;
+            let events =
+              List.map Event_helper.record_of_event event_from.events
+            in
             List.iter
               (function
                 | Event_helper.Task (t, Some t_rec) when t = task ->
