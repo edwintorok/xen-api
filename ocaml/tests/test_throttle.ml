@@ -110,7 +110,38 @@ let test_actual_usage () =
      But it can't be more, except for rounding errors due to clock accuracy.
   *)
   if diff_ns < Int64.mul (-1L) expected_accuracy_ns then
-    failf ~pos:__POS__ "rusage and mtime disagree on busy period: %Ldns" diff_ns
+    failf ~pos:__POS__ "rusage and mtime disagree on busy period: %Ldns" diff_ns ;
+  if delta_ns < expected_accuracy_ns then
+    failf ~pos:__POS__ "Rusage measurement should be ~0.3s, not near 0: %Ldns"
+      delta_ns ;
+  if busy_span_ns < expected_accuracy_ns then
+    failf ~pos:__POS__ "Busy measurement should be ~0.2s, not near 0: %Ldns"
+      busy_span_ns
+
+let measure = Throttle.Rusage.make "test"
+
+let test_actual_usage' () =
+  (* test that we measure actual CPU usage, not sleep/wait time.
+     Use Rusage.measure_rusage
+  *)
+  let busy_and_idle () = busy 0.3 ; Thread.delay 0.2 in
+  Throttle.Rusage.measure_rusage measure busy_and_idle () ;
+  let usage, mtime, count = Throttle.Rusage.sample measure in
+  check' int ~msg:"count ok" ~expected:1 ~actual:count ;
+  let diff = mtime -. usage in
+  Printf.printf "Rusage: %.9fs, Busy: %.9fs, Diff: %.9fs\n" usage mtime diff ;
+  (* we want rusage <= mtime. Other processes might've executed on the CPU,
+     and the amount of CPU that this thread got might've been less than the elapsed time.
+     But it can't be more, except for rounding errors due to clock accuracy.
+  *)
+  if diff < Int64.to_float expected_accuracy_ns *. -1e-9 then
+    failf ~pos:__POS__ "rusage and mtime disagree on busy period: %.9f" diff ;
+  if usage < 0.01 then
+    failf ~pos:__POS__ "Rusage measurement should be ~0.3s, not near 0: %.9fs"
+      usage ;
+  if mtime < 0.01 then
+    failf ~pos:__POS__ "Busy measurement should be ~0.2s, not near 0: %.9fs"
+      mtime
 
 let () =
   (* test timeout *)
@@ -121,6 +152,7 @@ let () =
           make_test "resolution" test_rusage_thread_resolution
         ; make_test "threads independent" test_independent_threads
         ; make_test "actual CPU usage" test_actual_usage
+        ; make_test "actual CPU usage (measure_rusage)" test_actual_usage'
         ]
       )
     ]
