@@ -44,7 +44,7 @@ let cli tests =
              Fmt.pf Fmt.stdout "@[%s = %.1f MiB/s@]@." name speed
          | _ ->
              ()
-       with Failure _ | Scanf.Scan_failure _ -> ()
+       with Failure _ | Scanf.Scan_failure _ | End_of_file -> ()
   in
   let window =
     match winsize Unix.stdout with
