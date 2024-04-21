@@ -143,7 +143,40 @@ let test_actual_usage' () =
     failf ~pos:__POS__ "Busy measurement should be ~0.2s, not near 0: %.9fs"
       mtime
 
+let test_controller =
+  (* test with 0 delays so that the controller is entirely responsible for inserted delays *)
+  Throttle.Controller.make ~max_cpu_usage:0.2 ~delay_before:0. ~delay_between:0.
+
+let test_limit = Throttle.Limit.make measure test_controller
+
+let (_periodic_thread : Thread.t) =
+  ()
+  |> Thread.create @@ fun () ->
+     Debug.with_thread_associated "periodic scheduler"
+       Xapi_periodic_scheduler.loop ()
+
+let test_cpu_limiting () =
+  let name = "test update" in
+  Xapi_periodic_scheduler.add_to_queue name
+    (Xapi_periodic_scheduler.Periodic 0.06) 0.06 (fun () ->
+      Throttle.Limit.update test_limit
+  ) ;
+  let actual_usage = Throttle.Rusage.make "actual" in
+  for _ = 1 to 30 do
+    Throttle.Rusage.measure_rusage actual_usage
+      (Throttle.Limit.with_limit test_limit busy)
+      0.025
+  done ;
+  Xapi_periodic_scheduler.remove_from_queue name ;
+  let usage, mtime, count = Throttle.Rusage.sample actual_usage in
+  let fraction = usage /. mtime in
+  Printf.printf "usage: %.9fs, mtime: %.9fs, count: %u, fraction: %.3f\n" usage
+    mtime count fraction ;
+  if fraction <= 0.1 || fraction >= 0.3 then
+    failf ~pos:__POS__ "CPU usage outside of desired range: %.3f" fraction
+
 let () =
+  Debug.log_to_stdout () ;
   (* test timeout *)
   Alcotest.run "throttle"
     [
@@ -153,6 +186,7 @@ let () =
         ; make_test "threads independent" test_independent_threads
         ; make_test "actual CPU usage" test_actual_usage
         ; make_test "actual CPU usage (measure_rusage)" test_actual_usage'
+        ; make_test "test CPU usage limiting" test_cpu_limiting
         ]
       )
     ]
