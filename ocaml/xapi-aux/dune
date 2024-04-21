@@ -1,5 +1,9 @@
 (library
   (name xapi_aux)
+  (foreign_stubs
+    (language c)
+    (names rusage_thread_stubs)
+  )
   (libraries
     astring
     cstruct
