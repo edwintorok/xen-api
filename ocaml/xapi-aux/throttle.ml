@@ -171,3 +171,103 @@ module Rusage = struct
     let usage_ns, mtime_ns, count = atomic_sample t in
     (float_of_ns usage_ns, float_of_ns mtime_ns, count)
 end
+
+module Controller = struct
+  type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float}
+
+  type t = {max_cpu_usage: float; average: float; min_delay: float}
+
+  let update_average t next =
+    (* exponentially weighted moving average to smooth measurementss,
+        we could eventually use something more sophisticated like a Kalman filter here.
+
+       We don't want to use a cumulative average, because temporary spikes in usage shouldn't forever slow down Event.from
+    *)
+    (t.average *. 0.5) +. (next *. 0.5)
+
+  let make ~max_cpu_usage ~delay_before ~delay_between =
+    {max_cpu_usage; average= 0.; min_delay= delay_before +. delay_between}
+
+  let update t stats =
+    {t with average= update_average t stats.avg_cpu_used_seconds}
+
+  let get_delay t =
+    (t.average /. t.max_cpu_usage) -. t.average -. t.min_delay |> Float.max 0.
+end
+
+module Limit = struct
+  type sample = {
+      since: Mtime_clock.counter
+    ; sample: float * float * int
+    ; stats: Controller.stats
+    ; controller: Controller.t
+    ; delay: float
+  }
+
+  type t = {measure: Rusage.t; last: sample Atomic.t}
+
+  let all = ref []
+
+  let register t = all := t :: !all
+
+  let make measure controller =
+    let stats =
+      Controller.{avg_cpu_used_seconds= 0.; cpu_used_percentage= 0.}
+    in
+    let last =
+      {
+        since= Mtime_clock.counter ()
+      ; sample= (0., 0., 0)
+      ; stats
+      ; controller
+      ; delay= 0.
+      }
+    in
+    let t = {measure; last= Atomic.make last} in
+    register t ; t
+
+  let update t =
+    let last = Atomic.get t.last in
+    let span = Mtime_clock.count last.since in
+    let sample_interval = Mtime.Span.to_float_ns span *. 1e-9 in
+    let ((rusage1, _, calls1) as sample) = Rusage.sample t.measure
+    and rusage0, _, calls0 = last.sample in
+    let cpu_used_seconds = rusage1 -. rusage0 in
+    let delta_calls = calls1 - calls0 in
+    let controller, stats, delay =
+      if delta_calls > 0 then
+        let stats =
+          Controller.
+            {
+              avg_cpu_used_seconds= cpu_used_seconds /. (delta_calls |> float)
+            ; cpu_used_percentage= cpu_used_seconds /. sample_interval
+            }
+        in
+        let controller = Controller.update last.controller stats in
+        let delay = Controller.get_delay controller in
+        (controller, stats, delay)
+      else
+        (last.controller, last.stats, last.delay)
+    in
+    let since = Mtime_clock.counter () in
+    let (_ : bool) =
+      Atomic.compare_and_set t.last last
+        {sample; controller; since; stats; delay}
+    in
+    (* If we raced with another thread (can only happen on OCaml 5), then do nothing and keep their update.
+       If this function is only called from the xapi periodic scheduler then there is no race.
+    *)
+    ()
+
+  let stats t =
+    let last = Atomic.get t.last in
+    (last.stats, last.delay)
+
+  let all_stats () = !all |> List.map stats
+
+  let with_limit t f arg =
+    let last = Atomic.get t.last in
+    if last.delay > Float.epsilon then
+      Thread.delay last.delay ;
+    Rusage.measure_rusage t.measure f arg
+end
