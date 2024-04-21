@@ -6,6 +6,7 @@
   )
   (libraries
     astring
+    bechamel.monotonic_clock
     cstruct
     forkexec
     ipaddr
