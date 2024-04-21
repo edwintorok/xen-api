@@ -1087,6 +1087,8 @@ let event_next_delay, event_next_entry =
 
 let event_batching = ref false
 
+let use_xmlrpc = ref true
+
 let xapi_globs_spec =
   [
     ( "master_connection_reset_timeout"
@@ -1662,6 +1664,11 @@ let other_options =
     , Arg.Set Constants.use_event_next
     , (fun () -> string_of_bool !Constants.use_event_next)
     , "Use deprecated Event.next instead of Event.from"
+    )
+  ; ( "use-xmlrpc"
+    , Arg.Set use_xmlrpc
+    , (fun () -> string_of_bool !use_xmlrpc)
+    , "Use XMLRPC (deprecated) for internal communication or JSONRPC"
     )
   ]
 
