@@ -57,3 +57,21 @@ module Batching : sig
     The delays are determined by [config], and [delay_between] uses an exponential backoff, up to [config.delay_between] delay.
    *)
 end
+
+module Rusage : sig
+  (** store CPU resource usage measurements *)
+  type t
+
+  val make : string -> t
+  (** [make name] creates thread-safe storage for measuring resource usage for [name]. *)
+
+  val measure_rusage : t -> ('a -> 'b) -> 'a -> 'b
+  (** [measure_rusage t f] measures the CPU resource usage of [f ()], updating [t] with the measurements.
+
+    CPU resource usage is measured using {!Rusage_thread.getrusage_thread}.
+    This function is thread-safe, and has very low overhead.
+   *)
+
+  val sample : t -> float * float * int
+  (** [sample t] is the cumulative resource usage for [t] in seconds. *)
+end
