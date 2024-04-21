@@ -1402,6 +1402,11 @@ let other_options =
     , (fun () -> string_of_bool !Db_globs.idempotent_map)
     , "True if the add_to_<map> API calls should be idempotent"
     )
+  ; ( "cli-use-event-next"
+    , Arg.Set Constants.cli_use_event_next
+    , (fun () -> string_of_bool !Constants.cli_use_event_next)
+    , "Use deprecated Event.next instead of Event.from in the CLI server"
+    )
   ; ( "nvidia_multi_vgpu_enabled_driver_versions"
     , Arg.String
         (fun x ->
