@@ -182,7 +182,7 @@ let listener rpc session_id queue =
     Hashtbl.remove snapshot r
   in
   let get_snapshot r = Hashtbl.find snapshot (Ref.string_of r) in
-  Client.Event.register ~rpc ~session_id ~classes:["pbd"; "host"] ;
+  let classes = ["pbd"; "host"] in
   (* populate the snapshot cache *)
   let pbds = Client.PBD.get_all_records ~rpc ~session_id in
   List.iter
@@ -245,12 +245,15 @@ let listener rpc session_id queue =
         ()
     (* this should never happen *)
   in
+  let token = ref "" in
   (* infinite loop *)
   while true do
-    let events =
-      Event_types.events_of_rpc (Client.Event.next ~rpc ~session_id)
+    let event_from =
+      Event_types.event_from_of_rpc
+        (Client.Event.from ~rpc ~session_id ~timeout:30. ~classes ~token:!token)
     in
-    List.iter proceed events
+    token := event_from.token ;
+    List.iter proceed event_from.events
   done
 
 let state_of_the_world rpc session_id =

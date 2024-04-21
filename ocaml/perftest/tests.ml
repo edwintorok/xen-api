@@ -145,6 +145,7 @@ let parallel_with_vms async_op opname n vms rpc session_id test subtest_name =
      tasks have finished. *)
   let check_active_tasks () =
     let classes = ["task"] in
+    let token = ref "" in
     finally
       (fun () ->
         let finished = ref false in
@@ -162,10 +163,16 @@ let parallel_with_vms async_op opname n vms rpc session_id test subtest_name =
             finished := process_finished_tasks finished_tasks ;
             while not !finished do
               (* debug ~out:stderr "Polling for events (%d active tasks)" (with_lock m (fun () -> List.length !active_tasks)); *)
-              let events =
-                Event_types.events_of_rpc (Client.Event.next ~rpc ~session_id)
+              let event_from =
+                Event_types.event_from_of_rpc
+                  (Client.Event.from ~rpc ~session_id ~timeout:30. ~classes
+                     ~token:!token
+                  )
               in
-              let events = List.map Event_helper.record_of_event events in
+              token := event_from.token ;
+              let events =
+                List.map Event_helper.record_of_event event_from.events
+              in
               let finished_tasks =
                 List.concat
                   (List.map

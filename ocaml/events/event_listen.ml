@@ -49,9 +49,16 @@ let _ =
     Client.Session.login_with_password ~rpc ~uname:!username ~pwd:!password
       ~version:"1.2" ~originator:"event_listen"
   in
-  Client.Event.register ~rpc ~session_id ~classes:["*"] ;
+  let classes = ["*"] in
+  let token = ref "" in
   while true do
-    let events = events_of_rpc (Client.Event.next ~rpc ~session_id) in
-    List.iter (fun event -> print_endline (string_of_event event)) events ;
+    let event_from =
+      event_from_of_rpc
+        (Client.Event.from ~rpc ~session_id ~timeout:30. ~classes ~token:!token)
+    in
+    token := event_from.token ;
+    List.iter
+      (fun event -> print_endline (string_of_event event))
+      event_from.events ;
     flush stdout
   done
