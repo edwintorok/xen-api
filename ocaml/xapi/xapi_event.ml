@@ -73,9 +73,13 @@ module Subscription = struct
                (Api_errors.event_subscription_parse_failure, [x])
             )
 
+  let is_lowercase_char c = Char.equal (Char.lowercase_ascii c) c
+
+  let is_lowercase str = String.for_all is_lowercase_char str
+
   (** [table_matches subs tbl]: true if at least one subscription from [subs] would select some events from [tbl] *)
   let table_matches subs tbl =
-    let tbl = String.lowercase_ascii tbl in
+    let tbl = if is_lowercase tbl then tbl else String.lowercase_ascii tbl in
     let matches = function
       | All ->
           true
@@ -88,7 +92,7 @@ module Subscription = struct
 
   (** [event_matches subs ev]: true if at least one subscription from [subs] selects for specified class and object *)
   let object_matches subs ty _ref =
-    let tbl = String.lowercase_ascii ty in
+    let tbl = if is_lowercase ty then ty else String.lowercase_ascii ty in
     let matches = function
       | All ->
           true
