@@ -127,7 +127,7 @@
 (name test_throttle)
 (package xapi)
 (modules test_throttle)
-(libraries alcotest xapi_aux mtime.clock.os mtime)
+(libraries alcotest xapi_aux mtime.clock.os mtime xapi_internal)
 )
 
 (executable
