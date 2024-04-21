@@ -154,6 +154,8 @@ module Rusage = struct
   *)
   let get_mtime_ns () = Monotonic_clock.now () |> Int64.to_int
 
+  let name t = t.name
+
   let measure_complete t u0 m0 =
     let u1 = get_rusage_thread_ns () and m1 = get_mtime_ns () in
     let delta_usage_ns = u1 - u0 and delta_mtime_ns = m1 - m0 in
@@ -215,7 +217,7 @@ module Limit = struct
 
   let all = ref []
 
-  let register t = all := t :: !all
+  let register t = all := (Rusage.name t.measure, t) :: !all
 
   let make measure controller =
     let stats =
@@ -277,7 +279,7 @@ module Limit = struct
     let last = Atomic.get t.last in
     (last.stats, last.delay)
 
-  let all_stats () = !all |> List.map stats
+  let all_stats () = !all |> List.map (fun (k, v) -> (k, stats v))
 
   let with_limit t f arg =
     let last = Atomic.get t.last in

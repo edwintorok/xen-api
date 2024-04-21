@@ -1658,6 +1658,11 @@ let other_options =
     , (fun () -> string_of_bool !event_batching)
     , "Enable event batching"
     )
+  ; ( "use-event-next"
+    , Arg.Set Constants.use_event_next
+    , (fun () -> string_of_bool !Constants.use_event_next)
+    , "Use deprecated Event.next instead of Event.from"
+    )
   ]
 
 (* The options can be set with the variable xapiflags in /etc/sysconfig/xapi.
