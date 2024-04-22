@@ -80,7 +80,7 @@ module Controller : sig
   (** resource usage feedback controller *)
   type t
 
-  type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float}
+  type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float; elapsed_seconds: float}
 
   val make :
     max_cpu_usage:float -> delay_before:float -> delay_between:float -> t

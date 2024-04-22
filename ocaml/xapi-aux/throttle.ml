@@ -175,20 +175,36 @@ module Rusage = struct
 end
 
 module Controller = struct
-  type stats = {avg_cpu_used_seconds: float; cpu_used_percentage: float; elapsed_seconds: float}
+  type stats = {
+      avg_cpu_used_seconds: float
+    ; cpu_used_percentage: float
+    ; elapsed_seconds: float
+  }
 
-  type t = {max_cpu_usage: float; average: float; min_delay: float}
+  type t = {
+      max_cpu_usage: float
+    ; busy: float
+    ; elapsed: float
+    ; delay: float
+    ; min_delay: float
+  }
 
-  let update_average t next =
+  let update_average average next =
     (* exponentially weighted moving average to smooth measurementss,
         we could eventually use something more sophisticated like a Kalman filter here.
 
        We don't want to use a cumulative average, because temporary spikes in usage shouldn't forever slow down Event.from
     *)
-    (t.average *. 0.5) +. (next *. 0.5)
+    (average *. 0.5) +. (next *. 0.5)
 
   let make ~max_cpu_usage ~delay_before ~delay_between =
-    {max_cpu_usage; average= 0.; min_delay= delay_before +. delay_between}
+    {
+      max_cpu_usage
+    ; busy= 0.
+    ; elapsed= 0.
+    ; delay= 0.
+    ; min_delay= delay_before +. delay_between
+    }
 
   (*
     Worst case with calling this API in a tight loop, from a single caller:
@@ -201,26 +217,26 @@ module Controller = struct
       call1: |---(delay + delay before)---|-(wait for DB event)-|-(CPU)-|-(delay between)-|-(CPU)-|
       call2: |---(delay + delay before)---|-(wait for DB event)-|.......|.-(CPU)-|-(delay between)-|-(CPU)-|
 
-      elapsed_seconds = delay + delay_before + wait_time + avg_cpu_used_seconds + spurious*delay_between
+      elapsed(t) = cpu_used(t) + idle(t) + delay(t)
+      elapsed(t-1) = cpu_used(t-1) + idle(t-1) + delay(t-1)
 
-      lets assume wait_time is noise; the same + spurious*delay_between, 'N'
+      delay(t) = delay(t-1) + cpu_used(t) / desired_usage - elapsed(t)      
 
-      cpu_usage = avg_cpu_used_seconds / (delay + delay_before + avg_cpu_used_seconds + N)
-
-      y(k) = CPU_USAGE(k) - DESIRED_CPU
-      u(k) = DELAY(k) - 0
-
-      cpu_usage(k) = a*cpu_usage(k-1) + avg/(u(k) + avg + N + db ) - a * avg/(u(k-1) + avg + N + db)
-
-      
       
    *)
 
   let update t stats =
-    {t with average= update_average t stats.avg_cpu_used_seconds}
+    let t =
+      {
+        t with
+        busy= update_average t.busy stats.avg_cpu_used_seconds
+      ; elapsed= update_average t.elapsed stats.elapsed_seconds
+      }
+    in
+    {t with delay= t.delay +. (t.busy /. t.max_cpu_usage) -. t.elapsed}
 
-  let get_delay t =
-    (t.average /. t.max_cpu_usage) -. t.average -. t.min_delay |> Float.max 0.
+  let get_delay t = Float.max t.delay 0.
+  (* (t.average /. t.max_cpu_usage) -. t.average -. t.min_delay |> Float.max 0. *)
 end
 
 module Limit = struct
@@ -240,7 +256,8 @@ module Limit = struct
 
   let make measure controller =
     let stats =
-      Controller.{avg_cpu_used_seconds= 0.; cpu_used_percentage= 0.; elapsed_seconds = 0.}
+      Controller.
+        {avg_cpu_used_seconds= 0.; cpu_used_percentage= 0.; elapsed_seconds= 0.}
     in
     let last =
       {
@@ -277,7 +294,7 @@ module Limit = struct
             {
               avg_cpu_used_seconds= cpu_used_seconds /. (delta_calls |> float)
             ; cpu_used_percentage= cpu_used_seconds /. sample_interval
-            ; elapsed_seconds = delta_mtime /. (delta_calls |> float)
+            ; elapsed_seconds= delta_mtime /. (delta_calls |> float)
             }
         in
         let controller = Controller.update last.controller stats in
@@ -305,6 +322,6 @@ module Limit = struct
   let with_limit t f arg =
     let last = Atomic.get t.last in
     if last.delay > Float.epsilon then
-      Thread.delay last.delay ;
+      Rusage.measure_rusage t.measure Thread.delay last.delay ;
     Rusage.measure_rusage t.measure f arg
 end
