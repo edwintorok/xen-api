@@ -50,6 +50,8 @@ runs:
           xs-opam: ${{ steps.dotenv.outputs.repository }}
         opam-pin: false
         dune-cache: true
+      env:
+        DUNE_CACHE_STORAGE_MODE: copy
 
     - name: Install dependencies
       shell: bash
