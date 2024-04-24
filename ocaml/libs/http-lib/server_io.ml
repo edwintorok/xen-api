@@ -28,13 +28,13 @@ type handler = {
 
 let handler_by_thread (h : handler) (s : Unix.file_descr)
     (caller : Unix.sockaddr) =
-(*  Thread.create
-    (fun () ->*)
+  Thread.create
+    (fun () ->
       Fun.protect
         ~finally:(fun () -> Xapi_stdext_threads.Semaphore.release h.lock 1)
         (Debug.with_thread_named h.name (fun () -> h.body caller s))
-(*    )
-    ()*)
+    )
+    ()
 
 (** Function with the main accept loop *)
 
@@ -90,27 +90,26 @@ let server handler sock =
     ) else
       warn "Attempt to double-shutdown Server_io.server detected; ignoring"
   in
-  (* TODO: use worker pool, perhaps dedicated external and internal *)
-  let threads =
-    Array.init 16
-      (Thread.create (fun _ ->
-           Debug.with_thread_named handler.name
-             (fun () ->
-               try
-                 establish_server ~signal_fds:[status_out] handler_by_thread
-                   handler sock
-               with PleaseClose -> debug "Server thread exiting"
-             )
-             ()
-       )
+  let thread =
+    Thread.create
+      (fun () ->
+        Debug.with_thread_named handler.name
+          (fun () ->
+            try
+              establish_server ~signal_fds:[status_out] handler_by_thread
+                handler sock
+            with PleaseClose -> debug "Server thread exiting"
+          )
+          ()
       )
+      ()
   in
   let shutdown () =
     finally
       (fun () ->
         let len = Unix.write status_in (Bytes.of_string "!") 0 1 in
         if len <> 1 then failwith "Failed to signal to server to shutdown" ;
-        threads |> Array.iter Thread.join
+        Thread.join thread
       )
       (fun () -> List.iter close' !toclose)
   in
