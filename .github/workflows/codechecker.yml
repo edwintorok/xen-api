@@ -1,0 +1,78 @@
+name: Run CodeChecker static analyzer on XAPI's C stubs
+
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+      - 'feature/**'
+      - '*-lcm'
+
+jobs:
+  staticanalyzer:
+    name: Static analyzer for OCaml C stubs
+    runs-on: ubuntu-22.04
+    env:
+      XAPI_VERSION: "v0.0.0-${{ github.sha }}"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup XenAPI environment
+        uses: ./.github/workflows/setup-xapi-environment
+        with:
+          xapi_version: ${{ env.XAPI_VERSION }}
+
+      - name: Install dune-compiledb to generate compile_commands.json
+        run: |
+          opam pin add -y https://github.com/edwintorok/dune-compiledb/releases/download/0.6.0/dune-compiledb-0.6.0.tbz
+
+      - name: Generate compile_commands.json
+        run: opam exec -- dune rules | opam exec -- dune-compiledb
+
+      - name: Trim dune cache
+        run: opam exec -- dune cache trim --size=2GiB
+
+      - name: Fixup paths
+        run: |
+          sed -e 's/"directory".*/"directory": ".",/' <compile_commands.json >cmds.json
+
+      - name: Upload compile commands json
+        uses: actions/upload-artifact@v4
+        with:
+          path: ${{ github.workspace }}/cmds.json
+
+      - uses: whisperity/codechecker-analysis-action@v1
+        id: codechecker
+        with:
+          ctu: true
+          logfile: ${{ github.workspace }}/cmds.json
+          analyze-output: "codechecker_results"
+
+      - name: Upload CodeChecker report
+        uses: actions/upload-artifact@v4
+        with:
+          name: codechecker_results
+          path: "${{ steps.codechecker.outputs.result-html-dir }}"
+
+      # cppcheck even for other analyzers apparently, this is
+      # codechecker's output
+      - name: convert to SARIF
+        shell: bash
+        run: report-converter "codechecker_results" --type cppcheck --output codechecker.sarif --export sarif
+
+      - name: Upload CodeChecker SARIF report
+        uses: actions/upload-artifact@v4
+        with:
+          name: codechecker_sarif
+          path: codechecker.sarif
+
+      - name: fix conversion bugs
+        shell: bash
+        run: for i in codechecker.sarif/*; do sed -e 's/vesion/version/' -i $i; done
+
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+         sarif_file: codechecker.sarif
