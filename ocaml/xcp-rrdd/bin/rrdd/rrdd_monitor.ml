@@ -48,18 +48,17 @@ let create_fresh_rrd use_min_max dss =
   Rrd.rrd_create dss rras step (Unix.gettimeofday ())
 
 let merge_new_dss rrd dss =
-  let should_enable_ds ds = !Rrdd_shared.enable_all_dss || ds.ds_default in
+  let should_enable_ds (_, ds) = !Rrdd_shared.enable_all_dss || ds.ds_default in
   let enabled_dss = List.filter should_enable_ds dss in
   let current_dss = Rrd.ds_names rrd |> StringSet.of_list in
   let new_dss =
     List.filter
-      (fun ds -> not (StringSet.mem ds.ds_name current_dss))
+      (fun (_, ds) -> not (StringSet.mem ds.ds_name current_dss))
       enabled_dss
   in
-  let now = Unix.gettimeofday () in
   List.fold_left
-    (fun rrd ds ->
-      rrd_add_ds rrd now
+    (fun rrd (timestamp, ds) ->
+      rrd_add_ds rrd timestamp
         (Rrd.ds_create ds.ds_name ds.Ds.ds_type ~mrhb:300.0 Rrd.VT_Unknown)
     )
     rrd new_dss
@@ -97,8 +96,8 @@ let owner_to_string () = function
 let update_rrds timestamp dss uuid_domids paused_vms =
   let uuid_domids = List.to_seq uuid_domids |> StringMap.of_seq in
   let paused_vms = List.to_seq paused_vms |> StringSet.of_seq in
-  let consolidate all (owner, ds) =
-    let add_ds_to = StringMap.add ds.ds_name ds in
+  let consolidate all (owner, (_timestamp, ds) as v) =
+    let add_ds_to = StringMap.add ds.ds_name v in
     let merge = function
       | None ->
           Some (add_ds_to StringMap.empty)
@@ -110,8 +109,8 @@ let update_rrds timestamp dss uuid_domids paused_vms =
   let dss = Seq.fold_left consolidate OwnerMap.empty dss in
 
   (* the first parameter and ds.ds_name are equivalent *)
-  let to_named_updates (_, ds) =
-    (ds.ds_name, (ds.ds_value, ds.ds_pdp_transform_function))
+  let to_named_updates (_, (timestamp, ds)) =
+    (ds.ds_name, (timestamp, ds.ds_value, ds.ds_pdp_transform_function))
   in
 
   (* Here we do the synchronising between the dom0 view of the world and our

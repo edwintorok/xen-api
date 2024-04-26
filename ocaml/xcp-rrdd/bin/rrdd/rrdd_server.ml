@@ -345,12 +345,11 @@ let fail_missing name = raise (Rrdd_error (Datasource_missing name))
     name {ds_name}. The operation fails if rrdi does not contain any live
     datasource with the name {ds_name} *)
 let add_ds ~rrdi ~ds_name =
-  match List.find_opt (fun ds -> ds.Ds.ds_name = ds_name) rrdi.dss with
+  match List.find_opt (fun (_, ds) -> ds.Ds.ds_name = ds_name) rrdi.dss with
   | None ->
       fail_missing ds_name
-  | Some ds ->
-      let now = Unix.gettimeofday () in
-      Rrd.rrd_add_ds rrdi.rrd now
+  | Some (timestamp, ds) ->
+      Rrd.rrd_add_ds rrdi.rrd timestamp
         (Rrd.ds_create ds.ds_name ds.ds_type ~mrhb:300.0 Rrd.VT_Unknown)
 
 let add rrds uuid domid ds_name rrdi =
@@ -402,7 +401,7 @@ let query_possible_dss rrdi =
     let is_live_ds_enabled ds = SSet.mem ds.ds_name enabled_names in
     live_sources
     |> List.to_seq
-    |> Seq.map (fun ds ->
+    |> Seq.map (fun (_, ds) ->
            ( ds.ds_name
            , {
                name= ds.ds_name
@@ -764,7 +763,7 @@ module Plugin = struct
         )
 
       (* Read, parse, and combine metrics from all registered plugins. *)
-      let read_stats () : (Rrd.ds_owner * Ds.ds) Seq.t =
+      let read_stats () : (Rrd.ds_owner * (float * Ds.ds)) Seq.t =
         let plugins =
           with_lock registered_m (fun _ ->
               List.of_seq (Hashtbl.to_seq registered)
@@ -773,7 +772,9 @@ module Plugin = struct
         let process_plugin (uid, plugin) =
           try
             let payload = get_payload ~uid plugin in
+            let timestamp = payload.Rrd_protocol.timestamp |> Int64.to_float in
             List.to_seq payload.Rrd_protocol.datasources
+            |> Seq.map (fun (owner, ds) -> (owner, (timestamp, ds)))
           with _ -> Seq.empty
         in
         List.iter decr_skip_count plugins ;
@@ -806,7 +807,8 @@ module Plugin = struct
   let deregister = Local.deregister
 
   (* Read, parse, and combine metrics from all registered plugins. *)
-  let read_stats () : (Rrd.ds_owner * Ds.ds) Seq.t = Local.read_stats ()
+  let read_stats () : (Rrd.ds_owner * (float * Ds.ds)) Seq.t =
+    Local.read_stats ()
 end
 
 module HA = struct
