@@ -219,11 +219,23 @@ let parent_of_origin (origin : origin) span_name =
   let open Tracing in
   let ( let* ) = Option.bind in
   match origin with
-  | Http (req, _) ->
+  | Http (req, _) -> (
+      let parent_from_headers =
       let* traceparent = req.Http.Request.traceparent in
       let* span_context = SpanContext.of_traceparent traceparent in
       let span = Tracer.span_of_span_context span_context span_name in
       Some span
+      in
+      match (parent_from_headers, req.body_span) with
+      | None, None ->
+          None
+      | (Some _ as one), None | None, (Some _ as one) ->
+          one
+      | (Some parent as p), Some body_span ->
+          req.body_span <-
+            Some (Tracing.Span.add_link body_span (Span.get_context parent) []) ;
+          p
+    )
   | _ ->
       None
 
