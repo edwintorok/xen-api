@@ -40,6 +40,7 @@
     astring
     http_lib
     polly
+    tracing
     threads.posix
     xapi-log
     xapi-stdext-pervasives
