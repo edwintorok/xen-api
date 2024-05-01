@@ -239,6 +239,15 @@ module Span = struct
 
   let set_span_kind span span_kind = {span with span_kind}
 
+  let last_attribute _ _ last = Some last
+
+  let set_name span ?(attributes = []) name =
+    let attributes =
+      Attributes.union last_attribute span.attributes
+        (Attributes.of_list attributes)
+    in
+    {span with name; attributes}
+
   let add_link span context attributes =
     let link : SpanLink.t = {context; attributes} in
     {span with links= link :: span.links}
@@ -510,7 +519,7 @@ module Tracer = struct
       let span = Span.start ~attributes ~name ~parent ~span_kind () in
       Spans.add_to_spans ~span ; Ok (Some span)
 
-  let finish ?error span =
+  let finish ?(leave_unset = false) ?error span =
     Ok
       (Option.map
          (fun span ->
@@ -519,7 +528,7 @@ module Tracer = struct
              | Some exn_t ->
                  Span.set_error span exn_t
              | None ->
-                 Span.set_ok span
+                 if not leave_unset then Span.set_ok span else span
            in
            let span = Span.finish ~span () in
            Spans.mark_finished span ; span
@@ -635,3 +644,10 @@ let with_tracing ?(attributes = []) ?(parent = None) ~name f =
     | Error e ->
         warn "Failed to start tracing: %s" (Printexc.to_string e) ;
         f None
+
+let with_child_trace ?(attributes = []) parent_opt ~name f =
+  match parent_opt with
+  | None ->
+      f None
+  | Some _ as parent ->
+      with_tracing ~attributes ~parent ~name f
