@@ -273,7 +273,9 @@ module Header = struct
            with_fd (mk_header_string ~frame ~proxy ~header) (fun fd ->
                let _, actual_frame, actual_header, actual_proxy =
                  Http.read_http_request_header ~read_timeout:None
-                   ~total_timeout:None ~max_length:None (fun () -> None) fd
+                   ~total_timeout:None ~max_length:None
+                   (fun () -> None)
+                   fd
                in
                assert (actual_frame = frame) ;
                assert (actual_header = header) ;
