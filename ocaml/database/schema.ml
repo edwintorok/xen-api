@@ -98,14 +98,37 @@ module Column = struct
   [@@deriving sexp]
 end
 
+module ColumnMap = struct
+  module M = Map.Make (String)
+
+  type t = Column.t M.t * Column.t list
+
+  type compat = Column.t list [@@deriving sexp]
+
+  let of_list columns =
+    ( columns |> List.fold_left (fun acc c -> M.add c.Column.name c acc) M.empty
+    , columns
+    )
+
+  let to_list (_, lst) = lst
+
+  let t_of_sexp sexp = sexp |> compat_of_sexp |> of_list
+
+  let sexp_of_t (_, compat) = sexp_of_compat compat
+
+  let find_opt name (t, _) = M.find_opt name t
+end
+
 module Table = struct
-  type t = {name: string; columns: Column.t list; persistent: bool}
+  type t = {name: string; columns: ColumnMap.t; persistent: bool}
   [@@deriving sexp]
 
   let find name t =
-    try List.find (fun col -> col.Column.name = name) t.columns
-    with Not_found ->
-      raise (Db_exn.DBCache_NotFound ("missing column", t.name, name))
+    match ColumnMap.find_opt name t.columns with
+    | Some result ->
+        result
+    | None ->
+        raise (Db_exn.DBCache_NotFound ("missing column", t.name, name))
 end
 
 type relationship = OneToMany of string * string * string * string

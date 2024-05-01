@@ -175,7 +175,7 @@ module Row = struct
         else
           t
       )
-      t schema.Schema.Table.columns
+      t (Schema.ColumnMap.to_list schema.Schema.Table.columns)
 end
 
 module Table = struct

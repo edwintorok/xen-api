@@ -90,6 +90,7 @@ let of_datamodel () =
     ; columns=
         _ref
         :: List.map (column obj) (flatten_fields obj.Datamodel_types.contents [])
+        |> Schema.ColumnMap.of_list
     ; persistent=
         obj.Datamodel_types.persist = Datamodel_types.PersistEverything
     }
