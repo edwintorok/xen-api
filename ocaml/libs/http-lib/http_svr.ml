@@ -565,6 +565,8 @@ let handle_one (x : 'a Server.t) ss context req =
       Option.value ~default:empty
         (Radix_tree.longest_prefix req.Request.uri method_map)
     in
+    let@ body_span = Tracing.with_child_trace req.http_span ~name:"handler" in
+    req.body_span <- body_span ;
     ( match te.TE.handler with
     | BufIO handlerfn ->
         handlerfn req ic context
@@ -605,6 +607,28 @@ let handle_one (x : 'a Server.t) ss context req =
     ) ;
     !finished
 
+let finish_and_link ~tracer = function
+  | None ->
+      None
+  | Some span as current ->
+      let current, next_span =
+        match
+          Tracing.Tracer.start ~tracer ~name:"HTTP wait request" ~parent:None ()
+        with
+        | Error _ ->
+            (None, None (* too early, don't spam logs *))
+        | Ok (Some next_span as ok) ->
+            let span =
+              Tracing.Span.add_link span (Tracing.Span.get_context next_span) []
+            in
+            (Some span, ok)
+        | Ok None ->
+            (current, None)
+      in
+      (* semantic conventions for http say to leave unset when successful *)
+      let (_ : _ result) = Tracing.Tracer.finish ~leave_unset:true current in
+      next_span
+
 let handle_connection ~header_read_timeout ~header_total_timeout
     ~max_header_length (x : 'a Server.t) Server_io.{tracer; span} caller ss =
   ( match caller with
@@ -621,11 +645,11 @@ let handle_connection ~header_read_timeout ~header_total_timeout
      just once per connection. To allow for the PROXY metadata (including e.g. the
      client IP) to be added to all request records on a connection, it must be passed
      along in the loop below. *)
-  let rec loop ~read_timeout ~total_timeout proxy_seen =
+  let rec loop ~read_timeout ~total_timeout span proxy_seen =
     (* 1. we must successfully parse a request *)
     let req, proxy =
       request_of_bio ?proxy_seen ~read_timeout ~total_timeout
-        ~max_length:max_header_length (fun () -> None) ic
+        ~max_length:max_header_length span ic
     in
     (* 2. now we attempt to process the request *)
     let finished =
@@ -633,11 +657,25 @@ let handle_connection ~header_read_timeout ~header_total_timeout
         ~some:(handle_one x ss x.Server.default_context)
         req
     in
+    let span = match req with None -> None | Some r -> r.http_span in
     (* 3. do it again if the connection is kept open, but without timeouts *)
     if not finished then
-      loop ~read_timeout:None ~total_timeout:None proxy
+      let span = finish_and_link ~tracer span in
+      let next_span () =
+        let (_ : _ result) = Tracing.Tracer.finish span in
+        match Tracing.Tracer.start ~tracer ~name:"HTTP" ~parent:None () with
+        | Error _ ->
+            None (* too early, don't spam logs *)
+        | Ok span ->
+            span
+      in
+      loop ~read_timeout:None ~total_timeout:None next_span proxy
+    else
+      let _ : _ result = Tracing.Tracer.finish span in
+      ()
   in
   loop ~read_timeout:header_read_timeout ~total_timeout:header_total_timeout
+    (fun () -> span)
     None ;
   debug "Closing connection" ;
   Unix.close ss
@@ -735,6 +773,7 @@ exception Client_requested_size_over_limit
 
 (** Read the body of an HTTP request (requires a content-length: header). *)
 let read_body ?limit req bio =
+  let@ _ = Tracing.with_child_trace ~name:"read_body" req.Request.http_span in
   match req.Request.content_length with
   | None ->
       failwith "We require a content-length: HTTP header"
@@ -855,20 +894,51 @@ let https_client_of_req req =
         None
   )
 
+let http_update_span_client span response =
+  match span with
+  | None ->
+      None
+  | Some span ->
+      let scheme, client =
+        match response with
+        | Some (Https, client) ->
+            ("https", Some client)
+        | Some (Http, client) ->
+            ("http", Some client)
+        | None ->
+            ("unix", None)
+      in
+      let attributes =
+        match client with
+        | None ->
+            []
+        | Some ip ->
+            [("client.address", Ipaddr.to_string ip)]
+      in
+      let attributes = ("url.scheme", scheme) :: attributes in
+      let span =
+        Tracing.Span.set_name ~attributes span (Tracing.Span.get_name span)
+      in
+      Some span
+
 let client_of_req_and_fd req fd =
-  match https_client_of_req req with
-  | Some client ->
-      Some (Https, client)
-  | None -> (
-    match Unix.getpeername fd with
-    | Unix.ADDR_INET (addr, _) ->
-        addr
-        |> Unix.string_of_inet_addr
-        |> clean_addr_of_string
-        |> Option.map (fun ip -> (Http, ip))
-    | Unix.ADDR_UNIX _ | (exception _) ->
-        None
-  )
+  let response =
+    match https_client_of_req req with
+    | Some client ->
+        Some (Https, client)
+    | None -> (
+      match Unix.getpeername fd with
+      | Unix.ADDR_INET (addr, _) ->
+          addr
+          |> Unix.string_of_inet_addr
+          |> clean_addr_of_string
+          |> Option.map (fun ip -> (Http, ip))
+      | Unix.ADDR_UNIX _ | (exception _) ->
+          None
+    )
+  in
+  req.http_span <- http_update_span_client req.http_span response ;
+  response
 
 let string_of_client (protocol, ip) =
   Printf.sprintf "%s %s" (string_of_protocol protocol) (Ipaddr.to_string ip)
