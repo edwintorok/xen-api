@@ -19,20 +19,37 @@ module D = Debug.Make (struct let name = "server_io" end)
 
 open D
 
+type traceinfo = {span: Tracing.Span.t option; tracer: Tracing.Tracer.t}
+
 type handler = {
     name: string
   ; (* body should close the provided fd *)
-    body: Unix.sockaddr -> Unix.file_descr -> unit
+    body: traceinfo -> Unix.sockaddr -> Unix.file_descr -> unit
   ; lock: Xapi_stdext_threads.Semaphore.t
 }
 
-let handler_by_thread (h : handler) (s : Unix.file_descr)
+let handler_by_thread tracer (h : handler) (s : Unix.file_descr)
     (caller : Unix.sockaddr) =
+  (* Start http span before creating the thread, to measure thread creation overhead,
+     Follow semantic conventions https://opentelemetry.io/docs/specs/semconv/http/http-spans/
+
+     'name' will be replaced later once the request is parsed
+    *)
+  let span =
+    match
+      Tracing.Tracer.start ~span_kind:Tracing.SpanKind.Server ~tracer
+        ~name:"HTTP" ~parent:None ()
+    with
+    | Ok span ->
+        span
+    | Error _ ->
+        None (* too early, don't flood logs *)
+  in
   Thread.create
     (fun () ->
       Fun.protect
         ~finally:(fun () -> Xapi_stdext_threads.Semaphore.release h.lock 1)
-        (Debug.with_thread_named h.name (fun () -> h.body caller s))
+        (Debug.with_thread_named h.name (fun () -> h.body {span;tracer} caller s))
     )
     ()
 
@@ -49,9 +66,10 @@ let establish_server ?(signal_fds = []) forker handler sock =
       @@ Polly.wait epoll 2 (-1) (fun _ fd _ ->
              (* If any of the signal_fd is active then bail out *)
              if List.mem fd signal_fds then raise PleaseClose ;
+             let tracer = Tracing.get_tracer ~name:handler.name in
              Xapi_stdext_threads.Semaphore.acquire handler.lock 1 ;
              let s, caller = Unix.accept ~cloexec:true sock in
-             try ignore (forker handler s caller)
+             try ignore (forker tracer handler s caller)
              with exc ->
                (* NB provided 'forker' is configured to make a background thread then the
                   only way we can get here is if Thread.create fails.
