@@ -33,7 +33,7 @@ let remote_database_access_handler_v2 req bio =
     flush stdout ;
     raise e
 
-module Local_tests = Database_test.Tests (Db_cache_impl)
+module Local_tests = Database_test.Tests (Db_cache_impl.Compat)
 
 let schema = Test_schemas.schema
 

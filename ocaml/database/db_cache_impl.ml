@@ -34,6 +34,17 @@ open Db_ref
 
 let fist_delay_read_records_where = ref false
 
+open Db_interface
+
+type field = Schema.Value.t
+
+type regular_fields = (field_name * field) list
+
+type associated_fields = (field_name * row_ref list) list
+
+(** dictionary of regular fields x dictionary of associated set_ref values *)
+type db_record = regular_fields * associated_fields
+
 (* Only needed by the DB_ACCESS signature *)
 let initialise () = ()
 
@@ -53,8 +64,7 @@ let read_field_internal _ tblname fldname objref db =
 
 (* Read field from cache *)
 let read_field t tblname fldname objref =
-  Schema.Value.marshal
-    (read_field_internal t tblname fldname objref (get_database t))
+  read_field_internal t tblname fldname objref (get_database t)
 
 (** Finds the longest XML-compatible UTF-8 prefix of the given
     string, by truncating the string at the first incompatible
@@ -87,10 +97,6 @@ let write_field_locked t tblname objref fldname newval =
   )
 
 let write_field t tblname objref fldname newval =
-  let db = get_database t in
-  let schema = Schema.table tblname (Database.schema db) in
-  let column = Schema.Table.find fldname schema in
-  let newval = Schema.Value.unmarshal column.Schema.Column.ty newval in
   with_lock (fun () -> write_field_locked t tblname objref fldname newval)
 
 let touch_row t tblname objref =
@@ -116,7 +122,6 @@ let read_record_internal db tblname objref =
       else
         None
     in
-    let map_fvlist v = Schema.Value.marshal v in
     (* Unfortunately the interface distinguishes between Set(Ref _) types and
        ordinary fields *)
     Row.fold
@@ -128,7 +133,7 @@ let read_record_internal db tblname objref =
           | None ->
               accum_setref
         in
-        let accum_fvlist = (k, map_fvlist d) :: accum_fvlist in
+        let accum_fvlist = (k, d) :: accum_fvlist in
         (accum_fvlist, accum_setref)
       )
       row ([], [])
@@ -156,17 +161,7 @@ let delete_row t tblname objref =
 
 (* Create new row in tbl containing specified k-v pairs *)
 let create_row_locked t tblname kvs' new_objref =
-  let db = get_database t in
-  let schema = Schema.table tblname (Database.schema db) in
-  let kvs' =
-    List.map
-      (fun (key, value) ->
-        let value = ensure_utf8_xml value in
-        let column = Schema.Table.find key schema in
-        (key, Schema.Value.unmarshal column.Schema.Column.ty value)
-      )
-      kvs'
-  in
+  let kvs' = List.map (fun (key, value) -> (key, value)) kvs' in
   (* we add the reference to the row itself so callers can use read_field_where to
      	   return the reference: awkward if it is just the key *)
   let kvs' = (Db_names.ref, Schema.Value.String new_objref) :: kvs' in
@@ -187,10 +182,7 @@ let create_row_locked t tblname kvs' new_objref =
     (get_database t)
 
 let fld_check t tblname objref (fldname, value) =
-  let v =
-    Schema.Value.marshal
-      (read_field_internal t tblname fldname objref (get_database t))
-  in
+  let v = read_field_internal t tblname fldname objref (get_database t) in
   (v = value, fldname, v)
 
 let create_row t tblname kvs' new_objref =
@@ -202,7 +194,7 @@ let create_row t tblname kvs' new_objref =
         in
         match failure_opt with
         | Some (_, f, v) ->
-            raise (Integrity_violation (tblname, f, v))
+            raise (Integrity_violation (tblname, f, Schema.Value.marshal v))
         | _ ->
             ()
       else
@@ -217,7 +209,7 @@ let read_field_where t rcd =
     (fun _ _ row acc ->
       let field = Schema.Value.marshal (Row.find rcd.where_field row) in
       if field = rcd.where_value then
-        Schema.Value.marshal (Row.find rcd.return row) :: acc
+        Row.find rcd.return row :: acc
       else
         acc
     )
@@ -236,7 +228,7 @@ let db_get_by_uuid t tbl uuid_val =
   | [] ->
       raise (Read_missing_uuid (tbl, "", uuid_val))
   | [r] ->
-      r
+      Schema.Value.Unsafe_cast.string r
   | _ ->
       raise (Too_many_values (tbl, "", uuid_val))
 
@@ -249,6 +241,7 @@ let db_get_by_name_label t tbl label =
     ; where_field= "name__label"
     ; where_value= label
     }
+  |> List.map Schema.Value.Unsafe_cast.string
 
 (* Read references from tbl *)
 let read_refs t tblname =
@@ -282,51 +275,116 @@ let read_records_where t tbl expr =
   if !fist_delay_read_records_where then Thread.delay 0.5 ;
   List.map (fun ref -> (ref, read_record_internal db tbl ref)) reqd_refs
 
-let process_structured_field_locked t (key, value) tblname fld objref
-    proc_fn_selector =
-  (* Ensure that both keys and values are valid for UTF-8-encoded XML. *)
-  let key = ensure_utf8_xml key in
-  let value = ensure_utf8_xml value in
-  try
-    let tbl = TableSet.find tblname (Database.tableset (get_database t)) in
-    let row = Table.find objref tbl in
-    let existing_str = Row.find fld row in
-    let newval =
-      match proc_fn_selector with
-      | AddSet ->
-          add_to_set key existing_str
-      | RemoveSet ->
-          remove_from_set key existing_str
-      | AddMap | AddMapLegacy -> (
-        try
-          (* We use the idempotent map add if we're using the non-legacy
-             process function, or if the global field 'idempotent_map' has
-             been set. By default, the Db calls on the master use the
-             legacy functions, but those on the slave use the new one.
-             This means xapi code should always assume idempotent_map is
-             true *)
-          let idempotent =
-            proc_fn_selector = AddMap || !Db_globs.idempotent_map
-          in
-          add_to_map ~idempotent key value existing_str
-        with Duplicate ->
-          error
-            "Duplicate key in set or map: table %s; field %s; ref %s; key %s"
-            tblname fld objref key ;
-          raise (Duplicate_key (tblname, fld, objref, key))
-      )
-      | RemoveMap ->
-          remove_from_map key existing_str
-    in
-    write_field_locked t tblname objref fld newval
-  with Not_found -> raise (DBCache_NotFound ("missing row", tblname, objref))
+module Compat = struct
+  open Db_interface
 
-let process_structured_field t (key, value) tblname fld objref proc_fn_selector
-    =
-  with_lock (fun () ->
-      process_structured_field_locked t (key, value) tblname fld objref
-        proc_fn_selector
-  )
+  type field = string
+
+  type regular_fields = (field_name * field) list
+
+  type associated_fields = (field_name * row_ref list) list
+
+  (** dictionary of regular fields x dictionary of associated set_ref values *)
+  type db_record = regular_fields * associated_fields
+
+  let initialise = initialise
+
+  let get_table_from_ref = get_table_from_ref
+
+  let is_valid_ref = is_valid_ref
+
+  let read_refs = read_refs
+
+  let find_refs_with_filter = find_refs_with_filter
+
+  let db_get_by_uuid = db_get_by_uuid
+
+  let db_get_by_name_label = db_get_by_name_label
+
+  let delete_row = delete_row
+
+  let read_field_where t rcd =
+    read_field_where t rcd |> List.map Schema.Value.marshal
+
+  let create_row t tblname kvs' new_objref =
+    let db = get_database t in
+    let schema = Schema.table tblname (Database.schema db) in
+    let kvs' =
+      kvs'
+      |> List.map @@ fun (key, value) ->
+         let column = Schema.Table.find key schema in
+         (key, Schema.Value.unmarshal column.Schema.Column.ty value)
+    in
+    create_row t tblname kvs' new_objref
+
+  let write_field t tblname objref fldname newval =
+    let db = get_database t in
+    let schema = Schema.table tblname (Database.schema db) in
+    let column = Schema.Table.find fldname schema in
+    let newval = Schema.Value.unmarshal column.Schema.Column.ty newval in
+    write_field t tblname objref fldname newval
+
+  let read_field t tblname fldname objref =
+    read_field t tblname fldname objref |> Schema.Value.marshal
+
+  let of_record_entry (k, v) = (k, Schema.Value.marshal v)
+
+  let of_record (regular, associated) =
+    (List.map of_record_entry regular, associated)
+
+  let of_records_entry (k, v) = (k, of_record v)
+
+  let read_record t tblname objref = read_record t tblname objref |> of_record
+
+  let read_records_where t tbl expr =
+    read_records_where t tbl expr |> List.map of_records_entry
+
+  let process_structured_field_locked t (key, value) tblname fld objref
+      proc_fn_selector =
+    (* Ensure that both keys and values are valid for UTF-8-encoded XML. *)
+    let key = ensure_utf8_xml key in
+    let value = ensure_utf8_xml value in
+    try
+      let tbl = TableSet.find tblname (Database.tableset (get_database t)) in
+      let row = Table.find objref tbl in
+      let existing_str = Row.find fld row in
+      let newval =
+        match proc_fn_selector with
+        | AddSet ->
+            add_to_set key existing_str
+        | RemoveSet ->
+            remove_from_set key existing_str
+        | AddMap | AddMapLegacy -> (
+          try
+            (* We use the idempotent map add if we're using the non-legacy
+               process function, or if the global field 'idempotent_map' has
+               been set. By default, the Db calls on the master use the
+               legacy functions, but those on the slave use the new one.
+               This means xapi code should always assume idempotent_map is
+               true *)
+            let idempotent =
+              proc_fn_selector = AddMap || !Db_globs.idempotent_map
+            in
+            add_to_map ~idempotent key value existing_str
+          with Duplicate ->
+            error
+              "Duplicate key in set or map: table %s; field %s; ref %s; key %s"
+              tblname fld objref key ;
+            raise (Duplicate_key (tblname, fld, objref, key))
+        )
+        | RemoveMap ->
+            remove_from_map key existing_str
+      in
+      write_field_locked t tblname objref fld newval
+    with Not_found -> raise (DBCache_NotFound ("missing row", tblname, objref))
+
+  let process_structured_field t (key, value) tblname fld objref
+      proc_fn_selector =
+    with_lock (fun () ->
+        process_structured_field_locked t (key, value) tblname fld objref
+          proc_fn_selector
+    )
+end
 
 (* -------------------------------------------------------------------- *)
 

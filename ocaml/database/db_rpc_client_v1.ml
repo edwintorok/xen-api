@@ -51,6 +51,14 @@ functor
 
     exception Remote_db_server_returned_bad_message
 
+    type field = string
+    open Db_interface
+    type regular_fields = (field_name * field) list
+
+    type associated_fields = (field_name * row_ref list) list
+    (** dictionary of regular fields x dictionary of associated set_ref values *)
+    type db_record = regular_fields * associated_fields
+
     let do_remote_call marshall_args unmarshall_resp fn_name args =
       let xml = marshall_args args in
       let xml =
