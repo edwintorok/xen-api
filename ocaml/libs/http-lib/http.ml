@@ -621,7 +621,7 @@ module Request = struct
     ; additional_headers= []
     ; body= None
     ; traceparent= None
-    ; http_span = None
+    ; http_span= None
     ; body_span= None
     }
 
@@ -679,7 +679,7 @@ module Request = struct
             ; additional_headers= []
             ; body= None
             ; traceparent= None
-            ; http_span = None
+            ; http_span= None
             ; body_span= None
             }
         | None ->
