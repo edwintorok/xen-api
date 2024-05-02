@@ -1033,12 +1033,8 @@ let get_uefi_certificates =
         (Published, "22.16.0", "")
       ; (Changed, "TODO", "internal type changed to blob")
       ]
-    ~doc:
-      "Get the UEFI certificates for a pool"
-    ~params:
-      [
-        (Ref _pool, "self", "The pool")
-      ]
+    ~doc:"Get the UEFI certificates for a pool"
+    ~params:[(Ref _pool, "self", "The pool")]
     ~allowed_roles:_R_POOL_ADMIN ()
 
 let set_uefi_certificates =
@@ -1417,14 +1413,13 @@ let t =
                 , "22.16.0"
                 , "Became StaticRO to be editable through new method"
                 )
-              ; (Changed,
-                "TODO",
-                "Field converted to internaly-only and replaced with a digest"
-              )
+              ; ( Changed
+                , "TODO"
+                , "Field converted to internaly-only and replaced with a digest"
+                )
               ]
             ~default_value:(Some (VString "")) "uefi_certificates"
-            ~internal_only:true
-            "The UEFI certificates allowing Secure Boot"
+            ~internal_only:true "The UEFI certificates allowing Secure Boot"
         ; field ~qualifier:StaticRO ~ty:String ~lifecycle:[]
             ~default_value:(Some (VString "")) "custom_uefi_certificates"
             "Custom UEFI certificates allowing Secure Boot"
