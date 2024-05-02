@@ -85,7 +85,7 @@ module Span : sig
 
   val get_name : t -> string
 
-  val set_name : t -> ?attributes:(string*string) list -> string -> t
+  val set_name : t -> ?attributes:(string * string) list -> string -> t
 
   val get_parent : t -> t option
 
