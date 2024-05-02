@@ -37,6 +37,7 @@ let to_string = Uuidm.to_string ~upper:false
 let is_uuid str = match of_string str with None -> false | Some _ -> true
 
 let dev_urandom = "/dev/urandom"
+
 let dev_urandom_fd = Unix.openfile dev_urandom [Unix.O_RDONLY] 0o640
 
 let () =
