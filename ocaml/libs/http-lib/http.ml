@@ -373,9 +373,10 @@ let set_socket_timeout fd t =
     (* In the unit tests, the fd comes from a pipe... ignore *)
     ()
 
-let (let@) f x = f x
+let ( let@ ) f x = f x
 
-let read_http_request_header ~read_timeout ~total_timeout ~max_length get_or_make_span fd =
+let read_http_request_header ~read_timeout ~total_timeout ~max_length
+    get_or_make_span fd =
   Option.iter (fun t -> set_socket_timeout fd t) read_timeout ;
   let buf = Bytes.create (Option.value ~default:1024 max_length) in
   let deadline =
