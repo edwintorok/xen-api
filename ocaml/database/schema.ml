@@ -38,33 +38,47 @@ module Value = struct
 
   type pairs = string M.t
 
-  type compat_pairs = (string * string) list [@@deriving sexp_of]
+  type compat_pairs = (string * string) list [@@deriving sexp]
 
   let sexp_of_pairs pairs = pairs |> M.bindings |> sexp_of_compat_pairs
 
+  let pairs_of_sexp sexp =
+    sexp |> compat_pairs_of_sexp |> List.to_seq |> M.of_seq
+
   type t = String of string | Set of string list | Pairs of pairs
-  [@@deriving sexp_of]
+  [@@deriving sexp]
 
   let ensure_utf8_xml = function
     | String s as orig ->
-      let s' = String_marshall_helper.ensure_utf8_xml s in
-      (* use physical equality to avoid allocating when unchanged *)
-      if s == s' then orig
-      else String s'
-    | Set lst as orig ->
-      let lst' = List.map String_marshall_helper.ensure_utf8_xml lst in
-      if List.for_all2 (==) lst lst' then orig
-      else Set lst'
-    | Pairs m as orig ->
-      let m' = M.mapi (fun k v ->
-        if String_marshall_helper.ensure_utf8_xml k == k then
-          String_marshall_helper.ensure_utf8_xml v
+        let s' = String_marshall_helper.ensure_utf8_xml s in
+        (* use physical equality to avoid allocating when unchanged *)
+        if s == s' then
+          orig
         else
-          (* the compat API still supports it and will truncate as needed *)
-          failwith (Printf.sprintf "Non-UTF8 key is not supported anymore: %S" k)
-      ) m in
-      if m == m' then orig
-      else Pairs m'
+          String s'
+    | Set lst as orig ->
+        let lst' = List.map String_marshall_helper.ensure_utf8_xml lst in
+        if List.for_all2 ( == ) lst lst' then
+          orig
+        else
+          Set lst'
+    | Pairs m as orig ->
+        let m' =
+          M.mapi
+            (fun k v ->
+              if String_marshall_helper.ensure_utf8_xml k == k then
+                String_marshall_helper.ensure_utf8_xml v
+              else
+                (* the compat API still supports it and will truncate as needed *)
+                failwith
+                  (Printf.sprintf "Non-UTF8 key is not supported anymore: %S" k)
+            )
+            m
+        in
+        if m == m' then
+          orig
+        else
+          Pairs m'
 
   let marshal = function
     | String x ->

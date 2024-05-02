@@ -23,14 +23,15 @@ module type RPC = sig
   (** [rpc request] transmits [request] and receives a response *)
 end
 
-type table = string
+open Sexplib0.Sexp_conv
+type table = string [@@deriving sexp]
 
-type field_name = string
+type field_name = string [@@deriving sexp]
 
 
-type row_ref = string
+type row_ref = string [@@deriving sexp]
 
-type uuid = string
+type uuid = string [@@deriving sexp]
 
 
 (** The client interface to the database *)
@@ -100,7 +101,7 @@ module type DB_ACCESS = sig
   (** [db_get_by_name_label tbl label] returns the list of object references
       		associated with [label] *)
 
-  val delete_row : Db_ref.t -> row_ref -> table -> unit
+  val delete_row : Db_ref.t -> table -> row_ref -> unit
   (** [delete_row context tbl ref] deletes row [ref] from table [tbl] *)
 
   val process_structured_field :

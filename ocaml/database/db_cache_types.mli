@@ -201,13 +201,14 @@ type where_record = {
   ; return: string  (** we'd like to return this field... *)
   ; where_field: string  (** where this other field... *)
   ; where_value: string  (** contains this value *)
-}
+} [@@deriving sexp_of]
 
 val where_record_of_rpc : Rpc.t -> where_record
 
 val rpc_of_where_record : where_record -> Rpc.t
 
 type structured_op_t = AddSet | RemoveSet | AddMap | RemoveMap | AddMapLegacy
+[@@deriving sexp_of]
 
 val structured_op_t_of_rpc : Rpc.t -> structured_op_t
 

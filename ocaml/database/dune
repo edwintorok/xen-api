@@ -27,6 +27,7 @@
       test_schemas unit_test_marshall unit_test_sql))
   (libraries
     forkexec
+    csexp
     gzip
     rpclib.core
     rpclib.json
@@ -49,7 +50,7 @@
     xmlm
   )
   (wrapped false)
-  (preprocess (pps ppx_deriving_rpc))
+  (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
 )
 
 (executable

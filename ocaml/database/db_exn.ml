@@ -11,29 +11,40 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib0.Sexp_conv
 
 (** class * field * uuid * key *)
 exception Duplicate_key of string * string * string * string
+[@@deriving sexp]
 
 (** message * class * key *)
 exception DBCache_NotFound of string * string * string
+[@@deriving sexp]
 
 (** class * field * key *)
 exception Uniqueness_constraint_violation of string * string * string
+[@@deriving sexp]
 
 (** class * field * value *)
 exception Integrity_violation of string * string * string
+[@@deriving sexp]
 
 (** class * _ * uuid *)
 exception Read_missing_uuid of string * string * string
+[@@deriving sexp]
 
 (** class * _ * uuid *)
 exception Too_many_values of string * string * string
+[@@deriving sexp]
 
 exception Remote_db_server_returned_unknown_exception
+[@@deriving sexp]
 
 exception Remote_db_server_returned_bad_message
+[@@deriving sexp]
 
 exception Empty_key_in_map
+[@@deriving sexp]
 
 exception Invalid_value
+[@@deriving sexp]

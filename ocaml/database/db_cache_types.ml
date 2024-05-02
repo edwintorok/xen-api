@@ -689,13 +689,14 @@ let remove_row tblname objref db =
      )
   |> Database.increment
 
+open Sexplib0.Sexp_conv
 type where_record = {
     table: string  (** table from which ... *)
   ; return: string  (** we'd like to return this field... *)
   ; where_field: string  (** where this other field... *)
   ; where_value: string  (** contains this value *)
 }
-[@@deriving rpc]
+[@@deriving rpc, sexp_of]
 
 type structured_op_t = AddSet | RemoveSet | AddMap | RemoveMap | AddMapLegacy
-[@@deriving rpc]
+[@@deriving rpc, sexp_of]
