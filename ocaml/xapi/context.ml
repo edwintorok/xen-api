@@ -221,10 +221,10 @@ let parent_of_origin (origin : origin) span_name =
   match origin with
   | Http (req, _) -> (
       let parent_from_headers =
-      let* traceparent = req.Http.Request.traceparent in
-      let* span_context = SpanContext.of_traceparent traceparent in
-      let span = Tracer.span_of_span_context span_context span_name in
-      Some span
+        let* traceparent = req.Http.Request.traceparent in
+        let* span_context = SpanContext.of_traceparent traceparent in
+        let span = Tracer.span_of_span_context span_context span_name in
+        Some span
       in
       match (parent_from_headers, req.body_span) with
       | None, None ->
