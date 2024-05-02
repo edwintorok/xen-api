@@ -34,7 +34,7 @@ let remote_database_access_handler_v2 req bio =
     raise e
 
 module Local_tests =
-  Xapi_database.Database_test.Tests (Xapi_database.Db_cache_impl)
+  Xapi_database.Database_test.Tests (Xapi_database.Db_cache_impl.Compat)
 
 let schema = Test_schemas.schema
 

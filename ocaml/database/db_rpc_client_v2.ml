@@ -22,6 +22,17 @@ functor
   (RPC : Db_interface.RPC)
   ->
   struct
+    type field = string
+
+    open Db_interface
+
+    type regular_fields = (field_name * field) list
+
+    type associated_fields = (field_name * row_ref list) list
+
+    (** dictionary of regular fields x dictionary of associated set_ref values *)
+    type db_record = regular_fields * associated_fields
+
     let initialise = RPC.initialise
 
     let rpc x = RPC.rpc (Jsonrpc.to_string x) |> Jsonrpc.of_string

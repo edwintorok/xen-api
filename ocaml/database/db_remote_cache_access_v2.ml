@@ -19,7 +19,7 @@ open Db_exn
 
 (** Convert a marshalled Request Rpc.t into a marshalled Response Rpc.t *)
 let process_rpc (req : Rpc.t) =
-  let module DB : Db_interface.DB_ACCESS = Db_cache_impl in
+  let module DB : Db_interface.DB_ACCESS = Db_cache_impl.Compat in
   let t = Db_backend.make () in
   Response.rpc_of_t
     ( try

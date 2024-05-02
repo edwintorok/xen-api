@@ -40,6 +40,35 @@ module Value = struct
     | Pairs of (string * string) list
   [@@deriving sexp_of]
 
+  let ensure_utf8_xml = function
+    | String s as orig ->
+        let s' = String_marshall_helper.ensure_utf8_xml s in
+        (* use physical equality to avoid allocating when unchanged *)
+        if s == s' then
+          orig
+        else
+          String s'
+    | Set lst as orig ->
+        let lst' = List.map String_marshall_helper.ensure_utf8_xml lst in
+        if List.for_all2 ( == ) lst lst' then
+          orig
+        else
+          Set lst'
+    | Pairs m ->
+        let m' =
+          List.map
+            (fun (k, v) ->
+              if String_marshall_helper.ensure_utf8_xml k == k then
+                (k, String_marshall_helper.ensure_utf8_xml v)
+              else
+                (* the compat API still supports it and will truncate as needed *)
+                failwith
+                  (Printf.sprintf "Non-UTF8 key is not supported anymore: %S" k)
+            )
+            m
+        in
+        Pairs m'
+
   let marshal = function
     | String x ->
         x
