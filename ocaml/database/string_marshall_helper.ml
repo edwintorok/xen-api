@@ -40,7 +40,7 @@ let set f ks =
 let map f g kv =
   SExpr.string_of
     (SExpr.Node
-       (List.map
+       (Seq.map
           (fun (k, v) ->
             SExpr.Node
               [
@@ -49,5 +49,6 @@ let map f g kv =
               ]
           )
           kv
+       |> List.of_seq
        )
     )

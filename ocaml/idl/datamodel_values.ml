@@ -111,7 +111,12 @@ let rec to_db v =
   | VEnum e ->
       String e
   | VMap vvl ->
-      Pairs (List.map (fun (k, v) -> (to_string k, to_string v)) vvl)
+      Pairs
+        (vvl
+        |> List.to_seq
+        |> Seq.map (fun (k, v) -> (to_string k, to_string v))
+        |> Schema.Value.M.of_seq
+        )
   | VSet vl ->
       Set (List.map to_string vl)
   | VRef r ->
@@ -140,7 +145,7 @@ let gen_empty_db_val t =
   | Set _ ->
       Value.Set []
   | Map _ ->
-      Value.Pairs []
+      Value.Pairs Value.M.empty
   | Ref _ ->
       Value.String null_ref
   | Record _ ->

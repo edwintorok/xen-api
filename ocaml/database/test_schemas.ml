@@ -1,3 +1,5 @@
+let empty_pairs = Schema.Value.Pairs Schema.Value.M.empty
+
 let schema =
   let _ref =
     {
@@ -63,8 +65,8 @@ let schema =
     {
       Schema.Column.name= "other_config"
     ; persistent= false
-    ; empty= Schema.Value.Pairs []
-    ; default= Some (Schema.Value.Pairs [])
+    ; empty= empty_pairs
+    ; default= Some empty_pairs
     ; ty= Schema.Type.Pairs
     ; issetref= false
     }
@@ -142,7 +144,7 @@ let many_to_many =
     {
       Schema.Column.name= "bars"
     ; persistent= false
-    ; empty= Schema.Value.Pairs []
+    ; empty= empty_pairs
     ; default= None
     ; ty= Schema.Type.Pairs
     ; issetref= false

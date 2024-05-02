@@ -145,7 +145,7 @@ module Row = struct
     | Schema.Value.String x ->
         Schema.Value.String (share x)
     | Schema.Value.Pairs ps ->
-        Schema.Value.Pairs (List.map (fun (x, y) -> (share x, share y)) ps)
+        Schema.Value.Pairs (Schema.Value.M.map share ps)
     | Schema.Value.Set xs ->
         Schema.Value.Set (List.map share xs)
 
@@ -494,14 +494,21 @@ exception Duplicate
 let add_to_map ~idempotent key value t =
   if String.length key = 0 then raise Db_exn.Empty_key_in_map ;
   let t = Schema.Value.Unsafe_cast.pairs t in
-  if List.mem_assoc key t && ((not idempotent) || List.assoc key t <> value)
-  then
-    raise Duplicate ;
-  Schema.Value.Pairs ((key, value) :: List.filter (fun (k, _) -> k <> key) t)
+  let t =
+    t
+    |> Schema.Value.M.update key @@ function
+       | None ->
+           Some value
+       | Some old ->
+           if (not idempotent) || old <> value then
+             raise Duplicate ;
+           Some value
+  in
+  Schema.Value.Pairs t
 
 let remove_from_map key t =
   let t = Schema.Value.Unsafe_cast.pairs t in
-  Schema.Value.Pairs (List.filter (fun (k, _) -> k <> key) t)
+  Schema.Value.Pairs (Schema.Value.M.remove key t)
 
 let is_valid tblname objref db =
   Table.mem objref (TableSet.find tblname (Database.tableset db))

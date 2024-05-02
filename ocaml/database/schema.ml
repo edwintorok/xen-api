@@ -34,10 +34,15 @@ module Type = struct
 end
 
 module Value = struct
-  type t =
-    | String of string
-    | Set of string list
-    | Pairs of (string * string) list
+  module M = Map.Make (String)
+
+  type pairs = string M.t
+
+  type compat_pairs = (string * string) list [@@deriving sexp_of]
+
+  let sexp_of_pairs pairs = pairs |> M.bindings |> sexp_of_compat_pairs
+
+  type t = String of string | Set of string list | Pairs of pairs
   [@@deriving sexp_of]
 
   let marshal = function
@@ -46,7 +51,7 @@ module Value = struct
     | Set xs ->
         String_marshall_helper.set (fun x -> x) xs
     | Pairs xs ->
-        String_marshall_helper.map (fun x -> x) (fun x -> x) xs
+        String_marshall_helper.map (fun x -> x) (fun x -> x) (M.to_seq xs)
 
   let unmarshal ty x =
     match ty with
@@ -55,7 +60,8 @@ module Value = struct
     | Type.Set ->
         Set (String_unmarshall_helper.set (fun x -> x) x)
     | Type.Pairs ->
-        Pairs (String_unmarshall_helper.map (fun x -> x) (fun x -> x) x)
+        Pairs
+          (String_unmarshall_helper.map (fun x -> x) (fun x -> x) x |> M.of_seq)
 
   module Unsafe_cast = struct
     let string = function
