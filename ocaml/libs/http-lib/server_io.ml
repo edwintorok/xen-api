@@ -34,7 +34,7 @@ let handler_by_thread tracer (h : handler) (s : Unix.file_descr)
      Follow semantic conventions https://opentelemetry.io/docs/specs/semconv/http/http-spans/
 
      'name' will be replaced later once the request is parsed
-    *)
+  *)
   let span =
     match
       Tracing.Tracer.start ~span_kind:Tracing.SpanKind.Server ~tracer
