@@ -1,0 +1,4 @@
+(library
+ (name picos_prio)
+ (libraries picos threads.posix picos.mpsc_queue picos.select)
+)

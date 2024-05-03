@@ -1,0 +1,4 @@
+(executable
+ (public_name picos_prio)
+ (name main)
+ (libraries picos_prio threads.posix))
