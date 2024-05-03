@@ -17,7 +17,62 @@
 open Sexplib0.Sexp_conv
 open Db_interface
 
-module Wire = Csexp.Make(Sexplib0.Sexp)
+module Make(R: Idl.RPC) = struct
+  open R
+
+  let row_ref_p = Idl.Param.mk ~name:"row_ref" Rpc.Types.string
+
+  type table_option = string option [@@deriving rpcty]
+  type row_ref_list = string list [@@deriving rpcty]
+  let table_p = Idl.Param.mk ~name:"table" table_option
+  let bool_p = Idl.Param.mk Rpc.Types.bool
+  let row_ref_list_p = Idl.Param.mk ~name:"row_ref_list" row_ref_list
+  let uuid_p = Idl.Param.mk ~name:"uuid" Rpc.Types.string
+  let name_label_p = Idl.Param.mk ~name:"name_label" Rpc.Types.string
+
+  let error_p = failwith "TODO"
+
+  let get_table_from_ref =
+      R.declare __FUNCTION__
+      []
+      (row_ref_p @-> returning table_p error_p)
+
+  let is_valid_ref =
+      R.declare __FUNCTION__
+      []
+      (row_ref_p @-> returning bool_p error_p)
+      
+  let read_refs =
+      R.declare __FUNCTION__
+      []
+      (table_p @-> returning row_ref_list_p error_p)
+
+  let find_refs_with_filter =
+      R.declare __FUNCTION__
+      []
+      (table_p @-> expr_p @-> returning row_ref_list_p error_p)
+
+  let read_field_where =
+      R.declare __FUNCTION__
+      []
+      (where_record_p @-> returning field_p error_p)
+
+  let db_get_by_uuid =
+      R.declare __FUNCTION__
+      []
+      (table_p @-> uuid_p @-> returning row_ref_p error_p)
+    
+  let db_get_by_name_label =
+      R.declare __FUNCTION__
+      []
+      (table_p @-> name_label_p @-> returning row_ref_p error_p)
+
+  let create_row =
+      R.declare __FUNCTION__
+      []
+      (table_p @-> ... TODO)
+
+end
 
 module Request = struct
   type t =
