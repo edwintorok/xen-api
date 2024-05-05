@@ -24,7 +24,7 @@ let low_latency () =
     Mutex.lock m;
     Queue.push (t1 -. t0) measurements;
     let avg =
-      if Queue.length measurements > 10 then begin
+      if Queue.length measurements > 1000 then begin
         let sum = Queue.fold (+.) 0. measurements in
         let n = Queue.length measurements in
         Queue.clear measurements;
@@ -44,12 +44,20 @@ let low_latency () =
   in
   let t0 = Unix.gettimeofday () in
   Fiber.spawn ~forbid:false computation
-  (List.init 16 @@ fun _ -> measure_latency t0)
+  (List.init 16 @@ fun _ -> fun () ->
+    let (_:int) =
+     try Picos_prio.nice (-1)
+     with e ->
+       Printexc.to_string e |> prerr_endline;
+       0
+     in
+    measure_latency t0 ()
+  )
 
 let () = 
   Picos_select.configure ();
   (* TODO: should grow dynamically *)
-  let t1 = Thread.create (Picos_prio.run ~forbid:false ~initial:10) busy in
   let t2 = Thread.create (Picos_prio.run ~forbid:false ~initial:16) low_latency in
+  let t1 = Thread.create (Picos_prio.run ~forbid:false ~initial:1000) busy in
   Thread.join t1;
   Thread.join t2

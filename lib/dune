@@ -1,4 +1,8 @@
 (library
  (name picos_prio)
- (libraries picos threads.posix picos.mpsc_queue picos.select)
+ (libraries picos threads.posix picos.mpsc_queue picos.select moonpool)
+ (foreign_stubs
+  (language c)
+  (names nice_stubs)
+ )
 )

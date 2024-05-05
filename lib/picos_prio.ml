@@ -2,6 +2,12 @@
 
 open Picos
 
+(* use Moonpool here... and a choice of runner,
+ low latency: FIFO
+ general: WS
+
+ might need dynamic threads though
+ *)
 type global =
 { spawn: (t -> unit) Picos_mpsc_queue.t
 ; consumer: Mutex.t (** there can be only one consumer, which must use this lock *)
@@ -112,3 +118,5 @@ let run ~forbid ~initial f =
   let t = create_context ~forbid global in
   Handler.using handler t f;
   Array.iter Thread.join threads
+
+external nice: int -> int = "ml_nice"
