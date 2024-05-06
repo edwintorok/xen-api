@@ -1,0 +1,37 @@
+(copy_files# ../lib/fifo.mli)
+
+(rule
+ (targets fifo_locked.ml fifo_lockfree.ml fifo.ml)
+ (action
+  (progn
+   (copy# ../lib/fifo.locked.ml fifo_locked.ml)
+   (copy# ../lib/fifo.locked.ml fifo.ml)
+   (copy# ../lib/fifo.lockfree.ml fifo_lockfree.ml))))
+
+(tests
+ (names
+  test_tpool
+  test_fifo_locked
+  test_fifo_unsafe
+  test_fifo_lockfree
+  test_fifo_stm)
+ (libraries
+  tpool
+  qcheck-lin.lin
+  qcheck-stm.stm
+  saturn_lockfree
+  qcheck-stm.sequential
+  (select
+   STM_par.ml
+   from
+   (qcheck-stm.domain -> STM_par.domain.ml)
+   (qcheck-stm.thread -> STM_par.thread.ml))
+  (select
+   lin_par.ml
+   from
+   (qcheck-lin.domain -> lin_par.domain.ml)
+   (qcheck-lin.thread -> lin_par.thread.ml)))
+ (action
+  (run %{test} --verbose))
+ (preprocess
+  (pps ppx_deriving.show)))

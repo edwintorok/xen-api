@@ -1,0 +1,10 @@
+(library
+ (name tpool)
+ (libraries
+   domain_shims
+   (select fifo.ml from
+	   (saturn_lockfree -> fifo.lockfree.ml)
+	   ( -> fifo.locked.ml)
+   )
+ ) 
+)
