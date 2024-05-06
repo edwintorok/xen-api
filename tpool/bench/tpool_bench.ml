@@ -2,71 +2,64 @@ open Bechamel
 open Test_internal
 
 let domain_count =
-  if Sys.ocaml_release.major < 5 then Cpu.numcores ()
-  else Domain.recommended_domain_count ()
+  ( if Sys.ocaml_release.major < 5 then Cpu.numcores ()
+    else Domain.recommended_domain_count () )
+  - 1
 
+module Domains = struct
+  let rec worker complete data work stop i () =
+    if Atomic.get stop then ()
+    else
+      match Atomic.exchange work None with
+      | None ->
+          Thread.yield ();
+          Domain.cpu_relax () ;
+          (worker [@tailcall]) complete data work stop i ()
+      | Some f ->
+          let () =
+            try f stop data i
+            with e ->
+              Atomic.set stop true ;
+              let bt = Printexc.get_raw_backtrace () in
+              Printexc.print_raw_backtrace stderr bt ;
+              prerr_endline (Printexc.to_string e)
+          in
+          Atomic.incr complete ;
+          (worker [@tailcall]) complete data work stop i ()
 
-module DomainsTest = struct
-  let push_count = 100
+  let alloc create () =
+    let data = create ()
+    and stop = Atomic.make false
+    and complete = Atomic.make 0 in
+    ( data
+    , complete
+    , stop
+    , Array.init domain_count (fun i ->
+          let work = Atomic.make None in
+          (work, Domain.spawn @@ worker complete data work stop i) ) )
 
-  let expected = (domain_count / 2) * push_count
+  let run_on (_, complete, _, t) i f =
+    let work, _ = t.(i) in
+    if not (Atomic.compare_and_set work None (Some f)) then
+      invalid_arg "Domain already running a task" ;
+    Atomic.decr complete
 
-  let alloc create f1 f2 =
-    let mutex = Mutex.create ()
-    and condition = Condition.create ()
-    and entered = (Atomic.make 0, Atomic.make 0)
-    and finished = (Atomic.make 0, Atomic.make 0)
-    and test_done = Atomic.make false
-    and data = create ()
-    and domains_pushed = Atomic.make 0
-    and domains_popped = Atomic.make 0 in
-    let wait_barrier b =
-      Mutex.lock mutex ;
-      Atomic.incr b ;
-      while Atomic.get b <= domain_count do
-        Condition.wait condition mutex
-      done ;
-      Mutex.unlock mutex ;
-      Condition.broadcast condition
-    in
-    let reset_barrier b = Atomic.set b 0 in
-    let barrier (b1, b2) =
-      reset_barrier b2 ; wait_barrier b1 ; wait_barrier b2 ; reset_barrier b1
-    in
-    let run_push () =
-      barrier entered ;
-      while not (Atomic.get test_done) do
-        for i = 1 to push_count do
-          f1 data i domains_pushed domains_popped
-        done ;
-        barrier finished ;
-        barrier entered
-      done
-    and run_pop () =
-      barrier entered ;
-      while not (Atomic.get test_done) do
-        while Atomic.get domains_popped < expected do
-          f2 data domains_pushed domains_popped
-        done ;
-        barrier finished ;
-        barrier entered
-      done
-    in
-    let domains1 =
-      Array.init (domain_count / 2) (fun _ -> Domain.spawn run_push)
-    and domains2 =
-      Array.init (domain_count / 2) (fun _ -> Domain.spawn run_pop)
-    in
-    let free () =
-      Atomic.set test_done true ;
-      barrier entered ;
-      Array.iter Domain.join domains1 ;
-      Array.iter Domain.join domains2
-    in
-    let run () = barrier entered ; barrier finished in
-    (run, free)
+  let join (_, d) = Domain.join d
 
-  let free (_, f) = f ()
+  let wait_all (_, count, stop, _) =
+    while (not (Atomic.get stop)) && Atomic.get count < 0 do
+          Thread.yield ();
+      Domain.cpu_relax ()
+    done
+
+  let free (_, _, stop, t) =
+    Atomic.set stop true ;
+    Array.iter join t ;
+    Gc.full_major () ;
+    Gc.full_major () ;
+    Gc.compact ()
+
+  let data (d, _, _, _) = d
 end
 
 let test_fifo ~name ~safe (module F : Types.FIFO) =
@@ -78,27 +71,50 @@ let test_fifo ~name ~safe (module F : Types.FIFO) =
     q
   in
   let test_push t = F.push t 42 and test_pop t = F.pop_opt t in
-  let run_push t x domains_pushed _ = F.push t x ; Atomic.incr domains_pushed in
-  let rec run_pop t domains_pushed domains_popped =
-    if Atomic.get domains_popped < DomainsTest.expected then
-      if F.pop_opt t = None then (
-        Domain.cpu_relax () ;
-        if
-          Atomic.get domains_pushed = DomainsTest.expected
-          && Atomic.get domains_popped < DomainsTest.expected
-        then
-          if F.pop_opt t = None then
-            invalid_arg
-              (Printf.sprintf "All %d pushed, but only got %d"
-                 DomainsTest.expected
-                 (Atomic.get domains_popped) )
-          else Atomic.incr domains_popped
-        else (run_pop [@tailcall]) t domains_pushed domains_popped )
-      else Atomic.incr domains_popped
+  let init () = (F.create (), Atomic.make 0, Atomic.make 0) in
+  let push_count = 1000 in
+  let n = domain_count / 2 in
+  let expected = n * push_count in
+  let domains_allocate = Domains.alloc init
+  and domains_free = Domains.free
+  and run_push stop (q, domains_pushed, _) _i =
+    for x = 1 to push_count do
+      if not (Atomic.get stop) then (F.push q x ; Atomic.incr domains_pushed)
+    done
   in
-  let domains_allocate () = DomainsTest.alloc F.create run_push run_pop
-  and domains_free = DomainsTest.free
-  and domains_run (run, _) = run () in
+  let rec run_pop stop ((q, domains_pushed, domains_popped) as t) i =
+    if Atomic.get stop then ()
+    else if Atomic.get domains_pushed < expected then (
+      (* pop as many as possible while not all elements have been pushed *)
+      match F.pop_opt q with
+      | None ->
+          Thread.yield ();
+          Domain.cpu_relax () ;
+          (run_pop [@tailcall]) stop t i
+      | Some _ ->
+          Atomic.incr domains_popped ;
+          (run_pop [@tailcall]) stop t i )
+    else
+      (* pop remaining, this avoids an infinite loop if there is a bug in the queue,
+         and it doesn't pop the correct number of elements *)
+      while F.pop_opt q <> None && not (Atomic.get stop) do
+        Atomic.incr domains_popped
+      done
+  in
+  let domains_run t =
+    let q, domains_pushed, domains_popped = Domains.data t in
+    Atomic.set domains_pushed 0 ;
+    Atomic.set domains_popped 0 ;
+    for i = 0 to n - 1 do
+      Domains.run_on t i run_pop
+    done ;
+    for i = n to (2 * n) - 1 do
+      Domains.run_on t i run_push
+    done ;
+    Domains.wait_all t ;
+    let p1, p2 = (Atomic.get domains_pushed, Atomic.get domains_popped) in
+    if p1 <> p2 then failwith (Printf.sprintf "pushed:%d <> popped:%d" p1 p2)
+  in
   ( ( Test.make_with_resource ~name ~allocate:F.create ~free:ignore
         Test.multiple (Staged.stage test_push)
     , Test.make_with_resource ~name ~allocate ~free:ignore Test.multiple
@@ -122,8 +138,9 @@ let tests modules =
     ; Test.make_grouped ~name:"many" @@ List.filter_map Fun.id test_many ]
 
 let () =
+  Printf.printf "domain_count: %d" domain_count ;
   Bechamel_simple_cli.cli
     (tests
-       [ ("unsafe", false, (module Fifo_unsafe))
-       ; ("lockfree", true, (module Fifo_lockfree))
-       ; ("locked", true, (module Fifo_locked)) ] )
+       [ (* ("unsafe", false, (module Fifo_unsafe))*)
+         ("locked", true, (module Fifo_locked))
+       ; ("lockfree", true, (module Fifo_lockfree)) ] )

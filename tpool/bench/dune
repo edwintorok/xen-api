@@ -12,5 +12,5 @@
 
 (executable
 	(name tpool_bench)
-	(libraries bechamel-notty bechamel notty.unix test_internal domain_shims cpu)
+	(libraries bechamel-notty bechamel notty.unix test_internal domain_shims cpu moonpool.dpool)
 )
