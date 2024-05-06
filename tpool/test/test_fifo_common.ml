@@ -1,16 +1,5 @@
-module type FifoS = sig
-  type 'a t
-
-  val create : unit -> 'a t
-
-  val is_empty : 'a t -> bool
-
-  val push : 'a t -> 'a -> unit
-
-  val pop_opt : 'a t -> 'a option
-end
-
-module MakeLinSpec (F : FifoS) : Lin.Spec = struct
+open Test_internal
+module MakeLinSpec (F : Types.FIFO) : Lin.Spec = struct
   open Lin
 
   type t = int F.t
@@ -67,7 +56,7 @@ module FifoModel = struct
   let peek = function None -> None | Some {pop= head, _; _} -> Some head
 end
 
-module MakeSTMSpec (F : FifoS) : STM.Spec = struct
+module MakeSTMSpec (F : Types.FIFO) : STM.Spec = struct
   open STM
 
   type sut = int F.t

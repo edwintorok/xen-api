@@ -1,0 +1,16 @@
+; test internal modules by copying them
+; also test both versions even if we only pick one version on a given build
+(copy_files# ../lib/fifo.mli)
+
+(rule
+ (targets fifo_locked.ml fifo_lockfree.ml fifo.ml)
+ (action
+  (progn
+   (copy# ../lib/fifo.locked.ml fifo_locked.ml)
+   (copy# ../lib/fifo.locked.ml fifo.ml)
+   (copy# ../lib/fifo.lockfree.ml fifo_lockfree.ml))))
+
+(executable
+	(name tpool_bench)
+	(libraries bechamel-notty bechamel notty.unix test_internal domain_shims cpu)
+)
