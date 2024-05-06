@@ -6,60 +6,114 @@ let domain_count =
     else Domain.recommended_domain_count () )
   - 1
 
+
 module Domains = struct
-  let rec worker complete data work stop i () =
-    if Atomic.get stop then ()
-    else
-      match Atomic.exchange work None with
-      | None ->
-          Thread.yield ();
-          Domain.cpu_relax () ;
-          (worker [@tailcall]) complete data work stop i ()
-      | Some f ->
-          let () =
-            try f stop data i
-            with e ->
-              Atomic.set stop true ;
-              let bt = Printexc.get_raw_backtrace () in
-              Printexc.print_raw_backtrace stderr bt ;
-              prerr_endline (Printexc.to_string e)
-          in
-          Atomic.incr complete ;
-          (worker [@tailcall]) complete data work stop i ()
+  let ok = Some (Ok ())
+
+  type 'a work =
+    { m: Mutex.t
+    ; c: Condition.t
+    ; finished: Condition.t
+    ; mutable task: (bool Atomic.t -> 'a -> int -> unit) option
+    ; mutable result: (unit, exn * Printexc.raw_backtrace) result option
+    ; stop: bool Atomic.t }
+
+  let make stop =
+    { m= Mutex.create ()
+    ; c= Condition.create ()
+    ; finished= Condition.create ()
+    ; task= None
+    ; result= Some(Ok ()) (* for idle domains to exit correctly with wait_all_work *)
+    ; stop }
+
+  let rec get_work_locked t () =
+    if Atomic.get t.stop then raise_notrace Thread.Exit ;
+    match t.task with
+    | None ->
+        Condition.wait t.c t.m ; get_work_locked t ()
+    | Some task ->
+        t.task <- None ;
+        task
+
+  let set_work_locked t task =
+    t.result <- None ;
+    t.task <- Some task
+
+  let with_mutex t f arg =
+    Mutex.lock t.m ;
+    match f t arg with
+    | r ->
+        Mutex.unlock t.m ; r
+    | exception e ->
+        Mutex.unlock t.m ; raise e
+
+  let set_work t task =
+    with_mutex t set_work_locked task ;
+    Condition.signal t.c
+
+  let get_work t = with_mutex t get_work_locked ()
+
+  let set_result_locked t result = t.result <- result
+
+  let rec worker work data i () =
+    let task = get_work work in
+    let result =
+      try task work.stop data i ; ok
+      with e ->
+        Atomic.set work.stop true ;
+        Some (Error (e, Printexc.get_raw_backtrace ()))
+    in
+    with_mutex work set_result_locked result ;
+    Condition.signal work.finished ;
+    (worker [@tailcall]) work data i ()
+
+  let worker work data i () =
+    match worker work data i () with
+    | () | exception Thread.Exit -> ()
+
+  let rec wait_work_locked work () =
+    match work.result with
+    | None ->
+        Condition.wait work.finished work.m ;
+        (wait_work_locked [@tailcall]) work ()
+    | Some (Ok ()) ->
+        ()
+    | Some (Error (e, bt)) ->
+        Printexc.raise_with_backtrace e bt
+
+  let wait_all_work work = with_mutex work wait_work_locked ()
+
+  type 'a t =
+  { data: 'a
+  ; stop: bool Atomic.t
+  ; work: 'a work array
+  ; domains: unit Domain.t array
+  }
 
   let alloc create () =
-    let data = create ()
-    and stop = Atomic.make false
-    and complete = Atomic.make 0 in
-    ( data
-    , complete
-    , stop
-    , Array.init domain_count (fun i ->
-          let work = Atomic.make None in
-          (work, Domain.spawn @@ worker complete data work stop i) ) )
+    let data = create () and stop = Atomic.make false in
+    let work = Array.init domain_count (fun _ -> make stop) in
+    { data
+    ; stop
+    ; work
+    ; domains = Array.mapi (fun i w -> Domain.spawn @@ worker w data i) work }
 
-  let run_on (_, complete, _, t) i f =
-    let work, _ = t.(i) in
-    if not (Atomic.compare_and_set work None (Some f)) then
-      invalid_arg "Domain already running a task" ;
-    Atomic.decr complete
+  let run_on t i f =
+    let work = t.work.(i) in
+    set_work work f
 
-  let join (_, d) = Domain.join d
+  let wait_all {work; _} = Array.iter wait_all_work work
 
-  let wait_all (_, count, stop, _) =
-    while (not (Atomic.get stop)) && Atomic.get count < 0 do
-          Thread.yield ();
-      Domain.cpu_relax ()
-    done
+  let broadcast_stop work =
+    Condition.broadcast work.c;
+    Condition.broadcast work.finished
 
-  let free (_, _, stop, t) =
+  let free {stop; domains;work; _} =
     Atomic.set stop true ;
-    Array.iter join t ;
-    Gc.full_major () ;
-    Gc.full_major () ;
-    Gc.compact ()
+    Array.iter broadcast_stop work;
+    Array.iter Domain.join domains
 
-  let data (d, _, _, _) = d
+  let data {data; _} = data
 end
 
 let test_fifo ~name ~safe (module F : Types.FIFO) =
@@ -88,7 +142,6 @@ let test_fifo ~name ~safe (module F : Types.FIFO) =
       (* pop as many as possible while not all elements have been pushed *)
       match F.pop_opt q with
       | None ->
-          Thread.yield ();
           Domain.cpu_relax () ;
           (run_pop [@tailcall]) stop t i
       | Some _ ->
@@ -102,7 +155,7 @@ let test_fifo ~name ~safe (module F : Types.FIFO) =
       done
   in
   let domains_run t =
-    let q, domains_pushed, domains_popped = Domains.data t in
+    let _, domains_pushed, domains_popped = Domains.data t in
     Atomic.set domains_pushed 0 ;
     Atomic.set domains_popped 0 ;
     for i = 0 to n - 1 do
