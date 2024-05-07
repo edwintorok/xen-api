@@ -187,6 +187,10 @@ let do_help cmd minimal s =
 let uninteresting_cmd_postfixes = ["help"; "-get"; "-list"]
 
 let exec_command req cmd s session args =
+  let () = 
+    try Timers.Nice.nice 18
+    with _ -> ()
+  in
   let params = get_params cmd in
   let minimal =
     if List.mem_assoc "minimal" params then
