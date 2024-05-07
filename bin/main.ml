@@ -46,23 +46,30 @@ let low_latency () =
   let t0 = Unix.gettimeofday () in
   Fiber.spawn ~forbid:false computation
   (List.init 16 @@ fun _ -> fun () ->
-    let (_:int) =
+   (* let (_:int) =
      try Picos_prio.nice (-19)
      with e ->
        Printexc.to_string e |> prerr_endline;
        0
-     in
+     in*)
     measure_latency t0 ()
   )
 
-let wake (_:int) = Thread.yield ()
+(*let wake (_:int) = Thread.yield ()*)
+
+let run_thread (f, arg) =
+  Picos_prio.set_thread_timer 5_000_000L;
+  f arg
+
+let thread_create f arg =
+  Thread.create run_thread (f, arg)
 
 let () = 
-(*  Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle wake);
-  let (_:Unix.interval_timer_status) = Unix.setitimer Unix.ITIMER_VIRTUAL Unix.{it_interval = 0.0001; it_value = 0.0001} in*)
+  (*Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle wake);*)
+  (*let (_:Unix.interval_timer_status) = Unix.setitimer Unix.ITIMER_VIRTUAL Unix.{it_interval = 0.0001; it_value = 0.0001} in*)
   Picos_select.configure ();
   (* TODO: should grow dynamically *)
-  let t2 = Thread.create (Picos_prio.run ~forbid:false ~initial:16) low_latency in
-  let t1 = Thread.create (Picos_prio.run ~forbid:false ~initial:1000) busy in
+  let t2 = thread_create (Picos_prio.run ~forbid:false ~initial:16) low_latency in
+  let t1 = thread_create (Picos_prio.run ~forbid:false ~initial:1000) busy in
   Thread.join t1;
   Thread.join t2

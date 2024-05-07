@@ -120,3 +120,4 @@ let run ~forbid ~initial f =
   Array.iter Thread.join threads
 
 external nice: int -> int = "ml_nice"
+external set_thread_timer: int64 -> unit = "ml_set_thread_timer"
