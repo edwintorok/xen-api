@@ -24,7 +24,7 @@ let test_db_get_all_records_race () =
   Db_cache_impl.fist_delay_read_records_where := true ;
   (* Kick off the thread which will destroy a VM. *)
   let destroyer_thread =
-    Thread.create (fun self -> Db.VM.destroy ~__context ~self) vm_ref
+    Timers.Timer.thread_create (fun self -> Db.VM.destroy ~__context ~self) vm_ref
   in
   (* Call get_all_records *)
   let _ =

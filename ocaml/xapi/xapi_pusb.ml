@@ -99,7 +99,7 @@ let scan_required : bool ref = ref false
 
 let start_thread f =
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun () ->
          while true do
            with_lock mutex (fun () ->

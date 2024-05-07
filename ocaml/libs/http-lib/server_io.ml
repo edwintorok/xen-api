@@ -45,7 +45,7 @@ let handler_by_thread tracer (h : handler) (s : Unix.file_descr)
     | Error _ ->
         None (* too early, don't flood logs *)
   in
-  Thread.create
+  Timers.Timer.thread_create
     (fun () ->
       let finally () =
         Xapi_stdext_threads.Semaphore.release h.lock 1 ;
@@ -80,7 +80,7 @@ let establish_server ?(signal_fds = []) forker handler sock =
              try ignore (forker tracer handler s caller)
              with exc ->
                (* NB provided 'forker' is configured to make a background thread then the
-                  only way we can get here is if Thread.create fails.
+                  only way we can get here is if Timers.Timer.thread_create fails.
                   This means we haven't executed any code which could close the fd therefore
                   we should do it ourselves. *)
                debug "Got exception in server_io.ml: %s" (Printexc.to_string exc) ;
@@ -117,7 +117,7 @@ let server handler sock =
       warn "Attempt to double-shutdown Server_io.server detected; ignoring"
   in
   let thread =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         Debug.with_thread_named handler.name
           (fun () ->

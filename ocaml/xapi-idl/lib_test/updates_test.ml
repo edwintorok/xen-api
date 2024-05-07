@@ -63,7 +63,7 @@ let test_add_after_get () =
   let ok = ref false in
   let before = Unix.gettimeofday () in
   let th =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         let _, updates, _ = M.get "dbg" None (Some 0) u in
         ok :=

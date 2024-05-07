@@ -21,7 +21,7 @@ let name = ref "server"
 let process = function
   | "shutdown" ->
       let (_ : Thread.t) =
-        Thread.create (fun () -> Thread.delay 1. ; exit 0) ()
+        Timers.Timer.thread_create (fun () -> Thread.delay 1. ; exit 0) ()
       in
       "ok"
   | x ->

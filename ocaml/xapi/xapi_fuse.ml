@@ -53,7 +53,7 @@ let light_fuse_and_run ?(fuse_length = !Constants.fuse_time) () =
   let new_fuse_length = max 5. (fuse_length -. delay_so_far) in
   debug "light_fuse_and_run: current RRDs have been saved" ;
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun () ->
          Thread.delay new_fuse_length ;
          debug "light_fuse_and_run: calling flush and exit" ;
@@ -83,7 +83,7 @@ let light_fuse_and_run ?(fuse_length = !Constants.fuse_time) () =
 let light_fuse_and_reboot_after_eject () =
   once `Reboot @@ fun () ->
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun () ->
          Thread.delay !Constants.fuse_time ;
          (* this activates firstboot script and reboots the host *)
@@ -99,7 +99,7 @@ let light_fuse_and_reboot_after_eject () =
 let light_fuse_and_reboot ?(fuse_length = !Constants.fuse_time) () =
   once `Reboot @@ fun () ->
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun () ->
          Thread.delay fuse_length ;
          ignore (Sys.command "shutdown -r now")
@@ -110,7 +110,7 @@ let light_fuse_and_reboot ?(fuse_length = !Constants.fuse_time) () =
 let light_fuse_and_dont_restart ?(fuse_length = !Constants.fuse_time) () =
   once `Exit @@ fun () ->
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun () ->
          debug
            "light_fuse_and_dont_restart: calling Rrdd.backup_rrds to save \

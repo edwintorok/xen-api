@@ -78,7 +78,7 @@ let make ?max_q_length ?(name = "unknown") (process_fn : 'a process_fn) : 'a t =
     | Some _ ->
         ()
     | None ->
-        t := Some (Thread.create thread_body ())
+        t := Some (Timers.Timer.thread_create thread_body ())
   in
   let push description x =
     with_lock m (fun () ->

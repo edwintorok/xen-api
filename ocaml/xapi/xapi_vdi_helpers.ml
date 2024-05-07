@@ -110,7 +110,7 @@ let enable_database_replication ~__context ~get_vdi_callback =
           Some
             (fun new_state ->
               ignore
-                (Thread.create
+                (Timers.Timer.thread_create
                    (fun () ->
                      Db.VDI.set_metadata_latest ~__context ~self:vdi
                        ~value:new_state

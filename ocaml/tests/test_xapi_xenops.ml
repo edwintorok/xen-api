@@ -37,7 +37,7 @@ let test_xapi_restart_inner () =
   let cancel, th =
     let cancel = ref false in
     let th =
-      Thread.create
+      Timers.Timer.thread_create
         (fun () ->
           try Xapi_xenops.events_watch ~__context cancel "simulator" None with
           | Api_errors.Server_error (x, []) when x = Api_errors.task_cancelled
@@ -151,7 +151,7 @@ let test_xapi_restart_inner () =
     let cancel, th =
       let cancel = ref false in
       let th =
-        Thread.create
+        Timers.Timer.thread_create
           (fun () ->
             try Xapi_xenops.events_watch ~__context cancel "simulator" None with
             | Api_errors.Server_error (x, []) when x = Api_errors.task_cancelled

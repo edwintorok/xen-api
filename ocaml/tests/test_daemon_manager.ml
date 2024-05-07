@@ -47,7 +47,7 @@ module Mock_daemon = struct
         (* Raise the exception after spawning a thread which will set running to
            			   false after a specified time. *)
         let (_ : Thread.t) =
-          Thread.create
+          Timers.Timer.thread_create
             (fun () ->
               Thread.delay time_until_stopped ;
               running := false
@@ -103,7 +103,7 @@ let test_exception () =
 let spawn_threads_and_wait task count =
   let rec spawn_threads task count acc =
     if count > 0 then
-      let thread = Thread.create task () in
+      let thread = Timers.Timer.thread_create task () in
       spawn_threads task (count - 1) (thread :: acc)
     else
       acc

@@ -18,7 +18,7 @@ let test_delay_cancel () =
   let open Scheduler.Delay in
   let x = make () in
   let before = Unix.gettimeofday () in
-  let th = Thread.create (fun () -> wait x 0.5) () in
+  let th = Timers.Timer.thread_create (fun () -> wait x 0.5) () in
   signal x ;
   Thread.join th ;
   let after = Unix.gettimeofday () in

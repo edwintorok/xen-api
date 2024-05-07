@@ -280,7 +280,7 @@ let sr_health_check ~__context ~self =
           in
           Xapi_host_helpers.update_allowed_operations_all_hosts ~__context ;
           let (_ : Thread.t) =
-            Thread.create
+            Timers.Timer.thread_create
               (fun () ->
                 let rec loop () =
                   Thread.delay 30. ;

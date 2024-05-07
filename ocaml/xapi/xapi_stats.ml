@@ -157,7 +157,7 @@ let start () =
           let reporter =
             let reporter = Reporter.make () in
             let (_ : Thread.t) =
-              Thread.create
+              Timers.Timer.thread_create
                 (fun () ->
                   Reporter_local.start_local
                     (module D : Debug.DEBUG)

@@ -547,7 +547,7 @@ let test_data_destroy =
         (Db.VDI.get_type ~__context ~self:vdi)
   in
   let test_data_destroy_timing =
-    let bg f = Thread.create f () in
+    let bg f = Timers.Timer.thread_create f () in
     (* Creates a VBD that is currently_attached to our VDI *)
     let setup_test () =
       let __context, _, vDI = setup_test_for_data_destroy () in

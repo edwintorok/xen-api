@@ -527,7 +527,7 @@ let create_cluster_watcher_on_master ~__context ~host =
     in
     if Xapi_cluster_helpers.cluster_health_enabled ~__context then (
       debug "%s: create watcher for corosync-notifyd on master" __FUNCTION__ ;
-      ignore @@ Thread.create watch ()
+      ignore @@ Timers.Timer.thread_create watch ()
     ) else
       debug
         "%s: not creating watcher for corosync-notifyd: feature cluster_health \

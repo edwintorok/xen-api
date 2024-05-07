@@ -207,6 +207,6 @@ let start =
   fun () ->
     match !t with
     | None ->
-        t := Some (Thread.create main_loop ())
+        t := Some (Timers.Timer.thread_create main_loop ())
     | Some _ ->
         ()

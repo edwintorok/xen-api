@@ -56,7 +56,7 @@ module Bisect = struct
     init_env name ;
     let queue_name = prefix ^ "." ^ name in
     let (_ : Thread.t) =
-      Thread.create
+      Timers.Timer.thread_create
         (Message_switch_unix.Protocol_unix.Server.listen ~process
            ~switch:!Xcp_client.switch_path ~queue:queue_name
         )
@@ -116,7 +116,7 @@ module Dispatcher = struct
   let init () =
     (* receives command and dispatches to all other coverage message queues *)
     let (_ : Thread.t) =
-      Thread.create
+      Timers.Timer.thread_create
         (Message_switch_unix.Protocol_unix.Server.listen ~process
            ~switch:!Xcp_client.switch_path ~queue:self
         )

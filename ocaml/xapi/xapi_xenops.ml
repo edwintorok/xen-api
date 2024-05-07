@@ -2096,7 +2096,7 @@ let update_vm ~__context id =
                 Option.iter
                   (fun pbd ->
                     let (_ : Thread.t) =
-                      Thread.create
+                      Timers.Timer.thread_create
                         (fun () ->
                           (* Don't block the database update thread *)
                           Xapi_pbd.plug ~__context ~self:pbd
@@ -3163,7 +3163,7 @@ let on_xapi_restart ~__context =
      events on everything xenopsd knows about, hence a refresh of all VMs. *)
   List.iter
     (fun queue_name ->
-      let (_ : Thread.t) = Thread.create events_from_xenopsd queue_name in
+      let (_ : Thread.t) = Timers.Timer.thread_create events_from_xenopsd queue_name in
       ()
     )
     (all_known_xenopsds ()) ;

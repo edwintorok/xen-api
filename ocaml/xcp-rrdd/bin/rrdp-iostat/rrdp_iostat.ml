@@ -1171,7 +1171,7 @@ let gen_metrics () =
 
 let _ =
   initialise () ;
-  let _ = Thread.create Blktap3_stats_wrapper.inotify_thread () in
+  let _ = Timers.Timer.thread_create Blktap3_stats_wrapper.inotify_thread () in
 
   (* Approx. one page per VBD, up to the limit. *)
   let shared_page_count = 2048 in

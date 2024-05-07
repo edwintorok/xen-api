@@ -115,8 +115,8 @@ let _ =
   maybe_daemonize () ;
   (* NB Initialise the xenstore connection after daemonising, otherwise we lose
      our connection *)
-  let _ = Thread.create Memory_server.record_boot_time_host_free_memory () in
-  let rpc_server = Thread.create Xcp_service.serve_forever server in
+  let _ = Timers.Timer.thread_create Memory_server.record_boot_time_host_free_memory () in
+  let rpc_server = Timers.Timer.thread_create Xcp_service.serve_forever server in
   Memory_server.start_balance_thread balance_check_interval ;
   Squeeze_xen.Domain.start_watch_xenstore_thread () ;
   if !Squeeze.manage_domain_zero then Squeeze_xen.configure_domain_zero () ;

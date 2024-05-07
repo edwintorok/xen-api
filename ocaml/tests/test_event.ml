@@ -91,7 +91,7 @@ let event_next_unblock () =
   (* no events *)
   let wait_hdl = Delay.make () in
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         ( try ignore (Xapi_event.next ~__context)
           with e ->
@@ -123,7 +123,7 @@ let event_next_test () =
     with _ -> ()
   ) ;
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         let finished = ref false in
         while not !finished do
@@ -166,7 +166,7 @@ let event_from_test () =
     with _ -> ()
   ) ;
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         wait_for_pool_key __context key ;
         Delay.signal wait_hdl
@@ -187,7 +187,7 @@ let event_from_parallel_test () =
   ) ;
   let ok = ref true in
   let (i_should_succeed : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         try
           let _ =
@@ -203,7 +203,7 @@ let event_from_parallel_test () =
       ()
   in
   let (interfering_thread : Thread.t) =
-    Thread.create (fun () -> wait_for_pool_key __context key) ()
+    Timers.Timer.thread_create (fun () -> wait_for_pool_key __context key) ()
   in
   Thread.delay 0.5 ;
   (* wait for both threads to block in Event.from *)
@@ -226,7 +226,7 @@ let object_level_event_test _session_id =
   (try Db.VM.remove_from_other_config ~__context ~self:vm_a ~key with _ -> ()) ;
   (try Db.VM.remove_from_other_config ~__context ~self:vm_b ~key with _ -> ()) ;
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         let token = ref "" in
         while not !finished do

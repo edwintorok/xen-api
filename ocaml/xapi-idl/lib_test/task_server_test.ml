@@ -218,7 +218,7 @@ let test_with_cancel2 () =
     )
   in
   let id = T.id_of_handle task in
-  let th = Thread.create (fun () -> T.run task) () in
+  let th = Timers.Timer.thread_create (fun () -> T.run task) () in
   Thread.delay 0.01 ;
   T.cancel task ;
   Scheduler.Delay.signal delay ;
@@ -253,7 +253,7 @@ let test_with_cancel_failure2 () =
     )
   in
   let id = T.id_of_handle task in
-  let th = Thread.create (fun () -> T.run task) () in
+  let th = Timers.Timer.thread_create (fun () -> T.run task) () in
   Thread.delay 0.01 ;
   T.cancel task ;
   Scheduler.Delay.signal delay ;

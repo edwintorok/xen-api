@@ -19,7 +19,7 @@ open R
 let raise_system_alert (name, priority) body =
   (* This code may block indefinitely while attempting to look up the pool UUID and send the alert, so do it in a separate thread *)
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun () ->
          debug "Processing redo log event: %s" name ;
          let __context = Context.make "context" in

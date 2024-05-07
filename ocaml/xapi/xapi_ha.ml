@@ -876,7 +876,7 @@ module Monitor = struct
         | None ->
             (* This will cause the started thread to block until signal_database_state_valid is called *)
             request_shutdown := false ;
-            thread := Some (Thread.create ha_monitor ())
+            thread := Some (Timers.Timer.thread_create ha_monitor ())
     )
 
   let signal_database_state_valid () =

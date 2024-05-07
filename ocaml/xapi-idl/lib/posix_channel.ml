@@ -140,7 +140,7 @@ let send proxy_socket =
       let proxy_socket = Unix.dup proxy_socket in
       to_close := proxy_socket :: !to_close ;
       let (_ : Thread.t) =
-        Thread.create
+        Timers.Timer.thread_create
           (fun (fds, paths) ->
             (* The thread takes over management of the listening sockets *)
             let to_close = ref fds in

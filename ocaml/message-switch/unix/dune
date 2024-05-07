@@ -10,6 +10,7 @@
     message-switch-core
     rpclib.core
     rpclib.json
+    xapi-timers
     threads.posix
   )
   (preprocess (pps ppx_deriving_rpc))

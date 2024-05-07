@@ -189,7 +189,7 @@ let attempt_two_phase_commit_of_new_master ~__context (manual : bool)
   (* If manual, periodicly access to the database to check whether the old master has restarted. *)
   if manual then
     let (_ : Thread.t) =
-      Thread.create
+      Timers.Timer.thread_create
         (fun () ->
           try
             while true do

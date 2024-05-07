@@ -72,7 +72,7 @@ module Reporter = struct
       ~dss_f =
     let reporter = make () in
     let (_ : Thread.t) =
-      Thread.create
+      Timers.Timer.thread_create
         (fun () ->
           match target with
           | Local page_count ->

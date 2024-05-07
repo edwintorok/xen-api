@@ -204,7 +204,7 @@ let parallel_with_vms async_op opname n vms rpc session_id test subtest_name =
       ~description:""
   in
   active_tasks := [control_task] ;
-  let thread = Thread.create check_active_tasks () in
+  let thread = Timers.Timer.thread_create check_active_tasks () in
   while !vms_to_start <> [] do
     let start_one () =
       let vm, _, uuid = List.hd !vms_to_start in
@@ -337,7 +337,7 @@ let clone num_clones rpc session_id test =
              (fun (vm, vmr) ->
                let res : float list ref = ref [] in
                let clones : API.ref_VM list ref = ref [] in
-               let t = Thread.create body (vm, vmr, res, clones) in
+               let t = Timers.Timer.thread_create body (vm, vmr, res, clones) in
                (t, (res, clones))
              )
              vms
@@ -382,7 +382,7 @@ let clone num_clones rpc session_id test =
              let threads =
                List.mapi
                  (fun i clones ->
-                   Thread.create
+                   Timers.Timer.thread_create
                      (fun clones ->
                        List.iteri
                          (fun j clone ->

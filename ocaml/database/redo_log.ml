@@ -582,7 +582,7 @@ let shutdown log =
           Unix.kill ipid Sys.sigkill ;
           (* Wait for the process to die. This is done in a separate thread in case it does not respond to the signal immediately. *)
           ignore
-            (Thread.create
+            (Timers.Timer.thread_create
                (fun () ->
                  D.debug "Waiting for I/O process with pid %d to die..." ipid ;
                  with_lock log.dying_processes_mutex (fun () ->

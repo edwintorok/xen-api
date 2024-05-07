@@ -772,7 +772,7 @@ let restart_agent ~__context ~host:_ =
    * successfully before its stunnel connection being terminated by the restarting.
    *)
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun () ->
          Thread.delay 1. ;
          let syslog_stdout = Forkhelpers.Syslog_WithKey "Host.restart_agent" in
@@ -882,7 +882,7 @@ let shutdown_and_reboot_common ~__context ~host label description operation cmd
       (* Do the shutdown in a background thread with a delay to give this API call
          	 a reasonable chance of succeeding. *)
       ignore
-        (Thread.create
+        (Timers.Timer.thread_create
            (fun () ->
              Thread.delay 10. ;
              ignore (Sys.command cmd)

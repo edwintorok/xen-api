@@ -125,7 +125,7 @@ let start_master_connection_watchdog () =
       | None ->
           my_watchdog :=
             Some
-              (Thread.create
+              (Timers.Timer.thread_create
                  (fun () ->
                    while true do
                      try

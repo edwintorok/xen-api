@@ -292,7 +292,7 @@ module Destination = struct
 
   let create_exporter () =
     enable_span_garbage_collector () ;
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         let signaled = ref false in
         while not !signaled do

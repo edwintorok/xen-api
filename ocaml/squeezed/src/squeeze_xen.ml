@@ -335,7 +335,7 @@ module Domain = struct
 
   let start_watch_xenstore_thread () =
     let (_ : Thread.t) =
-      Thread.create
+      Timers.Timer.thread_create
         (fun () ->
           while true do
             try watch_xenstore ()

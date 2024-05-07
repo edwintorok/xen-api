@@ -59,6 +59,7 @@
   (wrapped false)
   (modules (:standard \ xapi_main))
   (libraries
+    timers
     angstrom
     astring
     cstruct

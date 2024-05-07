@@ -1,7 +1,7 @@
 (library
  (name tracing)
  (modules tracing)
- (libraries re uri xapi-log xapi-stdext-threads)
+ (libraries re uri xapi-log xapi-stdext-threads xapi-timers)
  (public_name xapi-tracing))
 
 (library
@@ -15,6 +15,7 @@
   ptime.clock.os
   rpclib.core
   rpclib.json
+  xapi-timers
   tracing
   uri
   xapi-log

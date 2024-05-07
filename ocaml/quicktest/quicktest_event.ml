@@ -11,7 +11,7 @@ let event_next_unblocking_test rpc _ () =
   let m = Mutex.create () in
   let unblocked = ref false in
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         ( try ignore (Client.Client.Event.next ~rpc ~session_id)
           with e ->
@@ -47,7 +47,7 @@ let event_next_test rpc session_id () =
     with _ -> ()
   ) ;
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         while not (with_lock m (fun () -> !finished)) do
           ignore (Client.Client.Event.next ~rpc ~session_id) ;
@@ -97,7 +97,7 @@ let event_from_test rpc session_id () =
     with _ -> ()
   ) ;
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         wait_for_pool_key rpc session_id key ;
         with_lock m (fun () -> finished := true)
@@ -122,7 +122,7 @@ let event_from_parallel_test rpc session_id () =
   ) ;
   let ok = ref true in
   let (i_should_succeed : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         try
           let _ =
@@ -138,7 +138,7 @@ let event_from_parallel_test rpc session_id () =
       ()
   in
   let (interfering_thread : Thread.t) =
-    Thread.create (fun () -> wait_for_pool_key rpc session_id key) ()
+    Timers.Timer.thread_create (fun () -> wait_for_pool_key rpc session_id key) ()
   in
   Thread.delay 1. ;
   (* wait for both threads to block in Event.from *)
@@ -169,7 +169,7 @@ let object_level_event_test rpc session_id () =
     with _ -> ()
   ) ;
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         let token = ref "" in
         while not (with_lock m (fun () -> !finished)) do
@@ -398,7 +398,7 @@ let event_inject_test rpc session_id () =
   let pool = List.hd (Client.Client.Pool.get_all ~rpc ~session_id) in
   let starttime = Unix.gettimeofday () in
   let (x : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         let _ =
           Client.Client.Event.from ~rpc ~session_id ~classes:["pool"] ~token

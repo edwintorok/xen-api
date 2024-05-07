@@ -1510,7 +1510,7 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
             debug "Starting reader thread (fd=%d)" (Obj.magic fd) ;
             let ch = Event.new_channel () in
             let th =
-              Thread.create
+              Timers.Timer.thread_create
                 (fun () ->
                   let dbg =
                     (Xenops_task.to_interface_task task)

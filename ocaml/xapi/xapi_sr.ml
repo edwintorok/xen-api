@@ -72,7 +72,7 @@ let scan_one ~__context ?callback sr =
   let sr_uuid = Db.SR.get_uuid ~__context ~self:sr in
   if i_should_scan_sr sr then
     ignore
-      (Thread.create
+      (Timers.Timer.thread_create
          (fun () ->
            Server_helpers.exec_with_subtask ~__context "scan one"
              (fun ~__context ->
@@ -114,7 +114,7 @@ let scan_one ~__context ?callback sr =
     Option.iter
       (fun f ->
         ignore
-          (Thread.create
+          (Timers.Timer.thread_create
              (fun () ->
                debug
                  "Tried to scan SR %s but scan already in progress - waiting \

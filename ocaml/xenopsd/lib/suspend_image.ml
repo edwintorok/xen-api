@@ -234,7 +234,7 @@ let with_conversion_script task name hvm fd f =
   let spawn_thread_and_close_fd _name fd' f =
     let status = ref Running in
     let thread =
-      Thread.create
+      Timers.Timer.thread_create
         (fun () ->
           try
             let result = finally (fun () -> f ()) (fun () -> Unix.close fd') in

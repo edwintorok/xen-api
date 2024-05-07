@@ -382,7 +382,7 @@ let nest_with_clustering_lock_if_needed ~__context ~timeout ~type1 ~type2
     ~on_deadlock ~on_no_deadlock =
   let success = ref false in
   let _ =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         Xapi_clustering.with_clustering_lock_if_needed ~__context
           ~sr_sm_type:type1 __LOC__ (fun () ->

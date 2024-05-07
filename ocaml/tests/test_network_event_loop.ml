@@ -31,7 +31,7 @@ let test_network_event_loop ~no_nbd_networks_at_start () =
   (* We simulate failure of the firewall update script this way *)
   let fail_firewall_update = ref false in
   let start_event_loop =
-    Thread.create (fun () ->
+    Timers.Timer.thread_create (fun () ->
         Network_event_loop._watch_networks_for_nbd_changes __context
           ~update_firewall:(fun pifs ->
             if !fail_firewall_update then (

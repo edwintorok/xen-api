@@ -1702,7 +1702,7 @@ let post_detach_hook ~sr ~vdi ~dp =
   Opt.iter (fun r ->
       let remote_url = Http.Url.of_string r.url in
       let module Remote = Client(struct let rpc = rpc ~srcstr:"smapiv2" ~dststr:"dst_smapiv2" remote_url end) in
-      let t = Thread.create (fun () ->
+      let t = Timers.Timer.thread_create (fun () ->
           debug "Calling receive_finalize";
           log_and_ignore_exn
             (fun () -> Remote.DATA.MIRROR.receive_finalize ~dbg:"Mirror-cleanup" ~id);

@@ -11,6 +11,10 @@
 (homepage "https://xapi-project.github.io/")
 
 (package
+  (name xapi-timers)
+)
+
+(package
   (name zstd)
 )
 

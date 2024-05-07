@@ -53,12 +53,12 @@ let xmlrpc_handler process req bio context =
 (* A helper function for processing HTTP requests on a socket. *)
 let accept_forever sock f =
   ignore
-    (Thread.create
+    (Timers.Timer.thread_create
        (fun _ ->
          while true do
            let this_connection, _ = Unix.accept sock in
            ignore
-             (Thread.create
+             (Timers.Timer.thread_create
                 (fun _ ->
                   finally
                     (fun _ -> f this_connection)
@@ -907,7 +907,7 @@ end
 
 module GCLog : GCLOG = struct
   let start () =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         debug "RRD - starting GC Logging thread" ;
         while true do
@@ -1023,7 +1023,7 @@ module Discover : DISCOVER = struct
     |> List.iter register
 
   let start ignored_files =
-    Thread.create
+    Timers.Timer.thread_create
       (fun dir ->
         debug "RRD plugin - starting discovery thread" ;
         while true do
@@ -1107,7 +1107,7 @@ let _ =
      We must avoid creating the Unix domain socket twice, so we only call
      Xcp_service.serve_forever if we are actually using the message-switch. *)
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         if !Xcp_client.use_switch then
           let server =

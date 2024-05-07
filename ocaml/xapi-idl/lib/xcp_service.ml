@@ -613,7 +613,7 @@ let serve_forever = function
       while true do
         let this_connection, _ = Unix.accept listening_sock in
         let (_ : Thread.t) =
-          Thread.create
+          Timers.Timer.thread_create
             (fun () ->
               finally
                 (fun () -> fn this_connection)

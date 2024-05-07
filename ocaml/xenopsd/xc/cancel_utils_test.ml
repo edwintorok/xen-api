@@ -26,7 +26,7 @@ let tasks = Xenops_task.empty ()
 let xenstore_test xs =
   let task = Xenops_task.add tasks "test" (fun _ -> None) in
   let (_ : Thread.t) =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         Thread.delay 1. ;
         Xenops_task.with_cancel task (fun () -> ()) (fun () -> ())

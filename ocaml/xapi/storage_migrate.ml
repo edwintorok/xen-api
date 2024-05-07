@@ -1185,7 +1185,7 @@ let post_detach_hook ~sr ~vdi ~dp:_ =
                remote_url
          end)) in
          let t =
-           Thread.create
+           Timers.Timer.thread_create
              (fun () ->
                debug "Calling receive_finalize" ;
                log_and_ignore_exn (fun () ->
@@ -1349,7 +1349,7 @@ let with_task_and_thread ~dbg f =
     )
   in
   let _ =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         Storage_task.run task ;
         signal (Storage_task.id_of_handle task)

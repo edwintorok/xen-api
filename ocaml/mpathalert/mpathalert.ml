@@ -391,8 +391,8 @@ let _ =
   in
   let queue = Queue.create () in
   let msg = Buffer.create 1024 in
-  let (t1 : Thread.t) = Thread.create (retry_with_session listener rpc) queue in
+  let (t1 : Thread.t) = Timers.Timer.thread_create (retry_with_session listener rpc) queue in
   let (t2 : Thread.t) =
-    Thread.create (retry_with_session sender rpc) (!delay, msg, queue)
+    Timers.Timer.thread_create (retry_with_session sender rpc) (!delay, msg, queue)
   in
   Thread.join t1 ; Thread.join t2

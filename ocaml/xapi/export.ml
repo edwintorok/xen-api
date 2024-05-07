@@ -787,7 +787,7 @@ let metadata_handler (req : Request.t) s _ =
       let read_fd, write_fd = Unix.pipe () in
       let export_error = ref None in
       let writer_thread =
-        Thread.create
+        Timers.Timer.thread_create
           (Debug.with_thread_named "metadata export writer thread" (fun () ->
                try
                  (* lock all the VMs before exporting their metadata *)

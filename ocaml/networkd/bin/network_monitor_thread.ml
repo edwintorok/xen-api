@@ -436,8 +436,8 @@ let start () =
   Debug.with_thread_associated dbg
     (fun () ->
       debug "Starting network monitor" ;
-      let (_ : Thread.t) = Thread.create (monitor dbg) () in
-      let (_ : Thread.t) = Thread.create ip_watcher () in
+      let (_ : Thread.t) = Timers.Timer.thread_create (monitor dbg) () in
+      let (_ : Thread.t) = Timers.Timer.thread_create ip_watcher () in
       ()
     )
     ()

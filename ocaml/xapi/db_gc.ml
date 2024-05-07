@@ -288,7 +288,7 @@ let single_pass () =
   )
 
 let start_db_gc_thread () =
-  Thread.create
+  Timers.Timer.thread_create
     (fun () ->
       Debug.with_thread_named "db_gc"
         (fun () ->

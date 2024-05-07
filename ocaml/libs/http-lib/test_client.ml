@@ -77,7 +77,7 @@ let per_nsec n f =
 let threads n f =
   let results = Array.make n 0 in
   let body i () = results.(i) <- f () in
-  let threads = Array.mapi (fun i _ -> Thread.create (body i) ()) results in
+  let threads = Array.mapi (fun i _ -> Timers.Timer.thread_create (body i) ()) results in
   Array.iter Thread.join threads ;
   Array.fold_left ( + ) 0 results
 

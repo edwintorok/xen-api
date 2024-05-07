@@ -605,7 +605,7 @@ module Configuration = struct
     loop
 
   let start_watcher_thread ~__context =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         let loop = watch_other_configs ~__context 30.0 in
         while true do

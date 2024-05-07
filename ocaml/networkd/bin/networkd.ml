@@ -146,7 +146,7 @@ let start server =
   Network_monitor_thread.start () ;
   Network_server.on_startup () ;
   let (_ : Thread.t) =
-    Thread.create (fun () -> Xcp_service.serve_forever server) ()
+    Timers.Timer.thread_create (fun () -> Xcp_service.serve_forever server) ()
   in
   ()
 

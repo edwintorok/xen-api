@@ -2141,7 +2141,7 @@ let with_open_archive fd ?length f =
         )
     in
     let pipe_out, pipe_in = Unix.pipe () in
-    let feeder_t = Thread.create feeder pipe_in in
+    let feeder_t = Timers.Timer.thread_create feeder pipe_in in
     consumer pipe_out feeder_t
 
 (** Remove "import" from the current operations of all created VMs, complete the

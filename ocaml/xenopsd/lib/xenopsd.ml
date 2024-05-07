@@ -462,10 +462,10 @@ let main backend =
   Debug.with_thread_associated "main"
     (fun () ->
       let (_ : Thread.t) =
-        Thread.create (fun () -> Xcp_service.serve_forever forwarded_server) ()
+        Timers.Timer.thread_create (fun () -> Xcp_service.serve_forever forwarded_server) ()
       in
       let (_ : Thread.t) =
-        Thread.create (fun () -> Xcp_service.serve_forever xml_server) ()
+        Timers.Timer.thread_create (fun () -> Xcp_service.serve_forever xml_server) ()
       in
       ()
     )

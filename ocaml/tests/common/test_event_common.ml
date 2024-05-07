@@ -11,7 +11,7 @@ let start_periodic_scheduler () =
       (Xapi_periodic_scheduler.Periodic 60.0) 0.0 (fun () -> ()
     ) ;
     Xapi_event.register_hooks () ;
-    ignore (Thread.create Xapi_periodic_scheduler.loop ()) ;
+    ignore (Timers.Timer.thread_create Xapi_periodic_scheduler.loop ()) ;
     ps_start := true
   ) ;
   Mutex.unlock scheduler_mutex

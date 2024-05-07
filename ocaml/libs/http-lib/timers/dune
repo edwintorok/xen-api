@@ -1,0 +1,10 @@
+(library
+ (name timers)
+ (public_name xapi-timers)
+ (libraries threads.posix)
+ (foreign_stubs
+  (language c)
+  (names nice_stubs timer_stubs)
+ )
+ (c_library_flags -lrt)
+)

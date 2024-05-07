@@ -347,7 +347,7 @@ let server_run_in_emergency_mode () =
   info "Will restart management software in %.1f seconds" emergency_reboot_delay ;
   (* in emergency mode we reboot to try reconnecting every "emergency_reboot_timer" period *)
   let (* reboot_thread *) _ =
-    Thread.create
+    Timers.Timer.thread_create
       (fun () ->
         Thread.delay emergency_reboot_delay ;
         exit Xapi_globs.restart_return_code
@@ -378,7 +378,7 @@ let bring_up_management_if ~__context () =
           debug "Management IP address is: %s" ip ;
           (* Make sure everyone is up to speed *)
           ignore
-            (Thread.create
+            (Timers.Timer.thread_create
                (fun () ->
                  Server_helpers.exec_with_new_task "dom0 networking update"
                    ~subtask_of:(Context.get_task_id __context) (fun __context ->
@@ -991,7 +991,7 @@ let server_init () =
       let last_error = ref None in
       (* watchdog to indicate that on_xapi_initialize wasn't successful after 2 min initializing *)
       let (_ : Thread.t) =
-        Thread.create
+        Timers.Timer.thread_create
           (fun () ->
             Thread.delay (2.0 *. 60.0) ;
             (* wait 2min before testing for success *)
@@ -1326,7 +1326,7 @@ let server_init () =
             , []
             , fun () ->
                 if not !noevents then
-                  ignore (Thread.create Xapi_xenops.events_from_xapi ())
+                  ignore (Timers.Timer.thread_create Xapi_xenops.events_from_xapi ())
             )
           ; ( "watching networks for NBD-related changes"
             , [Startup.OnThread]

@@ -2967,7 +2967,7 @@ module Backend = struct
   (* Qemu_upstream_compat.Dm.QMP_Event *)
 
   module Event = struct
-    let init () = ignore (Thread.create QMP_Event.qmp_event_thread ())
+    let init () = ignore (Timers.Timer.thread_create QMP_Event.qmp_event_thread ())
   end
 
   module Make_qemu_upstream (DefaultConfig : Qemu_upstream_config) : Intf =
@@ -3775,7 +3775,7 @@ module Dm = struct
            fails/crashes or is killed *)
         let waitpid_async x ~callback =
           ignore
-            (Thread.create
+            (Timers.Timer.thread_create
                (fun x ->
                  callback
                    ( try

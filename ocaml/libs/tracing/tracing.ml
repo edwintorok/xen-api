@@ -444,7 +444,7 @@ module Spans = struct
       span_timeout := timeout ;
       span_timeout_thread :=
         Some
-          (Thread.create
+          (Timers.Timer.thread_create
              (fun () ->
                while true do
                  debug "Tracing: Span garbage collector" ;

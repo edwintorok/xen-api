@@ -1084,7 +1084,7 @@ module Worker = struct
       }
     in
     let thread =
-      Thread.create
+      Timers.Timer.thread_create
         (fun () ->
           while
             not
@@ -3936,7 +3936,7 @@ let internal_event_thread_body =
 let set_backend m =
   backend := m ;
   (* start the internal event thread *)
-  internal_event_thread := Some (Thread.create internal_event_thread_body ()) ;
+  internal_event_thread := Some (Timers.Timer.thread_create internal_event_thread_body ()) ;
   let module B = (val get_backend () : S) in
   B.init ()
 

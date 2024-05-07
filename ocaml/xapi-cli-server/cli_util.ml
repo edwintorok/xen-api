@@ -143,7 +143,7 @@ let track_http_operation ?use_existing_task ?(progress_bar = false) fd rpc
       marshal fd (Command (make_command task_id)) ;
       let response = ref (Response Wait) in
       let receive_heartbeats =
-        Thread.create
+        Timers.Timer.thread_create
           (fun () ->
             while !response = Response Wait do
               response := unmarshal fd

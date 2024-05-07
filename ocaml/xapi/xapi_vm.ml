@@ -1384,9 +1384,9 @@ let set_suspend_VDI ~__context ~self ~value =
       with e -> result := `Fail e
     in
     let src_result = ref `Pending in
-    let src_thread = Thread.create (do_checksum src_vdi) src_result in
+    let src_thread = Timers.Timer.thread_create (do_checksum src_vdi) src_result in
     let dst_result = ref `Pending in
-    let dst_thread = Thread.create (do_checksum dst_vdi) dst_result in
+    let dst_thread = Timers.Timer.thread_create (do_checksum dst_vdi) dst_result in
     let get_result t r =
       Thread.join t ;
       match !r with

@@ -179,7 +179,7 @@ let make_scheduler () =
     ; m= Mutex.create ()
     }
   in
-  let (_ : Thread.t) = Thread.create main_loop s in
+  let (_ : Thread.t) = Timers.Timer.thread_create main_loop s in
   s
 
 let make = make_scheduler

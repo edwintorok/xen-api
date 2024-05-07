@@ -1466,7 +1466,7 @@ let run_in_parallel ~funs ~capacity =
     let run f =
       let result = ref `Not_started in
       let wrapper r = try r := `Succ (f ()) with e -> r := `Fail e in
-      let th = Thread.create wrapper result in
+      let th = Timers.Timer.thread_create wrapper result in
       (th, result)
     in
     let get_result (th, result) =

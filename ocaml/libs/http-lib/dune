@@ -18,6 +18,7 @@
     sha
     stunnel
     threads.posix
+    timers
     uuid
     xapi-backtrace
     xapi-consts.xapi_version

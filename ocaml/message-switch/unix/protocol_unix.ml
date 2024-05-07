@@ -31,7 +31,7 @@ let thread_forever f v =
     | exception _ ->
         Thread.delay 1.0 ; (loop [@tailcall]) ()
   in
-  Thread.create loop ()
+  Timers.Timer.thread_create loop ()
 
 module IO = struct
   let whoami () =
@@ -502,7 +502,7 @@ module Server = struct
               List.iter
                 (fun (i, m) ->
                   let (_ : Thread.t) =
-                    Thread.create
+                    Timers.Timer.thread_create
                       (fun () ->
                         let response =
                           try process m.Message.payload

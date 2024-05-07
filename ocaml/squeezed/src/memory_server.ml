@@ -78,7 +78,7 @@ let start_balance_thread balance_check_interval =
         done
     )
   in
-  let (_ : Thread.t) = Thread.create body () in
+  let (_ : Thread.t) = Timers.Timer.thread_create body () in
   ()
 
 let get_diagnostics _dbg = "diagnostics not yet available"

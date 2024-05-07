@@ -150,7 +150,7 @@ let handle_requests () =
   done
 
 let start_watcher __context timeout delay req =
-  ignore (Thread.create watcher_thread (__context, timeout, delay, req))
+  ignore (Timers.Timer.thread_create watcher_thread (__context, timeout, delay, req))
 
 let queue_request req =
   with_lock request_mutex (fun () ->
