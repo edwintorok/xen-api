@@ -1,6 +1,7 @@
 (* based on Picos_threaded *)
 
 open Picos
+module Timer = Timer
 
 (* use Moonpool here... and a choice of runner,
  low latency: FIFO
@@ -119,5 +120,3 @@ let run ~forbid ~initial f =
   Handler.using handler t f;
   Array.iter Thread.join threads
 
-external nice: int -> int = "ml_nice"
-external set_thread_timer: int64 -> unit = "ml_set_thread_timer"

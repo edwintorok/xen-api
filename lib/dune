@@ -3,6 +3,6 @@
  (libraries picos threads.posix picos.mpsc_queue picos.select moonpool)
  (foreign_stubs
   (language c)
-  (names nice_stubs)
+  (names nice_stubs timer_stubs)
  )
 )
