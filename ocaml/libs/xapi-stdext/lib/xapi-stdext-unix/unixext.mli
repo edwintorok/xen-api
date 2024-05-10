@@ -194,15 +194,14 @@ module Timer : sig
   (** [pp formatter t] pretty prints [t] on [formatter]. *)
 end
 
-val time_limited_write : Unix.file_descr -> int -> bytes -> float -> unit
+val time_limited_write : Unix.file_descr -> int -> bytes -> Timer.t -> unit
 
 val time_limited_write_substring :
-  Unix.file_descr -> int -> string -> float -> unit
+  Unix.file_descr -> int -> string -> Timer.t -> unit
 
-val time_limited_read : Unix.file_descr -> int -> float -> string
+val time_limited_read : Unix.file_descr -> int -> Timer.t -> string
 
-val time_limited_single_read :
-  Unix.file_descr -> int -> max_wait:float -> string
+val time_limited_single_read : Unix.file_descr -> int -> Timer.t -> string
 
 val read_data_in_string_chunks :
      (string -> int -> unit)
