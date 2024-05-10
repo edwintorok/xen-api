@@ -427,7 +427,7 @@ let with_polly f =
   let finally () = Polly.close polly in
   Xapi_stdext_pervasives.Pervasiveext.finally (fun () -> f polly) finally
 
-let proxy (a : Unix.file_descr) (b : Unix.file_descr) =
+let proxy_noclose (a : Unix.file_descr) (b : Unix.file_descr) =
   let size = 64 * 1024 in
   (* [a'] is read from [a] and will be written to [b] *)
   (* [b'] is read from [b] and will be written to [a] *)
@@ -477,9 +477,13 @@ let proxy (a : Unix.file_descr) (b : Unix.file_descr) =
   with _ -> (
     (try Unix.clear_nonblock a with _ -> ()) ;
     (try Unix.clear_nonblock b with _ -> ()) ;
+  )
+
+let proxy a b =
+  try proxy_noclose a b
+  with _ ->
     (try Unix.close a with _ -> ()) ;
     try Unix.close b with _ -> ()
-  )
 
 let try_read_string ?limit fd =
   let buf = Buffer.create 0 in

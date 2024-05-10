@@ -129,6 +129,14 @@ val string_of_signal : int -> string
  *  a string suitable for logging. *)
 
 val proxy : Unix.file_descr -> Unix.file_descr -> unit
+(** [proxy a b] copies everything received on either [a] or [b] to [b] and [a] respectively.
+  Closes both sockets when finished.
+  Exceptions raised by either side of the connection breaks out of the proxy loop,
+  but exceptions aren't propagated to the caller.  
+ *)
+
+val proxy_noclose : Unix.file_descr -> Unix.file_descr -> unit
+(** [proxy_noclose a b] is like {!val:proxy}, but keeps both file descriptors open. *)
 
 val really_read : Unix.file_descr -> bytes -> int -> int -> unit
 
