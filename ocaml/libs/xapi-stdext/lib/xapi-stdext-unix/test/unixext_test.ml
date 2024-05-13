@@ -187,7 +187,97 @@ let test_proxy =
       expect_string ~expected:write.data ~actual:read.data ;
       true
 
-let tests = [test_proxy; test_time_limited_write; test_time_limited_read]
+let mtime_span_gen =
+  let open Gen in
+  (* We can't use Mtime.Span.max_span, because that is too big for float,
+     only works for int64 conversion, and there is no Mtime.Span.max_span_float.
+     The documentation says that 2^53 is the maximum though, so use that.
+     Otherwise we'll fail later when converting to string and back goes through float.
+
+     Use microseconds instead of nanoseconds, because nanoseconds have rounding
+     errors during conversion.
+  *)
+  let+ usval = 0 -- (((1 lsl 53) - 1) / 1_000_000) in
+  Mtime.Span.(usval * us)
+
+let test_timeout_string_conv =
+  let gen = mtime_span_gen and print = Fmt.to_to_string Mtime.Span.pp in
+  Test.make ~name:__FUNCTION__ ~print gen @@ fun timeout ->
+  let str = Clock.Timer.span_to_s timeout |> Printf.sprintf "%.6f" in
+  let timeout' =
+    str |> Float.of_string |> Clock.Timer.s_to_span |> Option.get
+  in
+  if not (Mtime.Span.equal timeout timeout') then
+    Test.fail_reportf
+      "timeout not equal after round-trip through %S: %Lu (%a) <> %Lu (%a)" str
+      (Mtime.Span.to_uint64_ns (timeout :> Mtime.Span.t))
+      Mtime.Span.pp timeout
+      (Mtime.Span.to_uint64_ns (timeout' :> Mtime.Span.t))
+      Mtime.Span.pp timeout' ;
+  true
+
+let spans =
+  Gen.oneofa ([|1; 100; 300|] |> Array.map (fun v -> Mtime.Span.(v * ms)))
+
+let test_timer_remaining =
+  let gen = spans and print = Fmt.to_to_string Mtime.Span.pp in
+  Test.make ~name:__FUNCTION__ ~print gen @@ fun timeout ->
+  let timeout_span = (timeout :> Mtime.Span.t) in
+  let timer = Clock.Timer.start ~duration:timeout in
+  let half = Clock.Timer.span_to_s timeout /. 2. in
+  let elapsed = Mtime_clock.counter () in
+  Unix.sleepf half ;
+  let actual = Mtime_clock.count elapsed in
+  (* We expect to have slept [half] seconds, but we could've been woken up later by the OS, it'll never be exact.
+     Check that we're not too far off, or the Excess/Spare test below will be wrong.
+     The following equation must hold:
+     [timeout / 2 <= actual < timeout]
+  *)
+  QCheck2.assume (Mtime.Span.compare actual timeout_span < 0) ;
+  QCheck2.assume (Mtime.Span.compare Mtime.Span.(2 * actual) timeout_span >= 0) ;
+  let () =
+    match Clock.Timer.remaining timer with
+    | Expired t ->
+        Test.fail_reportf
+          "Expected to have spare time, but got excess: %a. Timeout: %a, \
+           actual: %a, timer: %a"
+          Mtime.Span.pp t Mtime.Span.pp timeout Mtime.Span.pp actual
+          Clock.Timer.pp timer
+    | Remaining t ->
+        if Mtime.Span.compare Mtime.Span.(2 * t) (timeout :> Mtime.Span.t) > 0
+        then
+          Test.fail_reportf
+            "Expected to have less than half spare time, but got: %a. Timeout: \
+             %a, actual: %a, timer: %a"
+            Mtime.Span.pp t Mtime.Span.pp timeout Mtime.Span.pp actual
+            Clock.Timer.pp timer
+  in
+
+  (* 3*half > timeout, so we expect Excess to be reported now *)
+  Unix.sleepf (2. *. half) ;
+  let actual = Mtime_clock.count elapsed in
+  QCheck2.assume (Mtime.Span.compare actual timeout_span > 0) ;
+  let () =
+    match Clock.Timer.remaining timer with
+    | Expired _ ->
+        ()
+    | Remaining t ->
+        Test.fail_reportf
+          "Expected to have excess time, but got spare: %a. Timeout: %a, \
+           actual: %a, timer: %a"
+          Mtime.Span.pp t Mtime.Span.pp timeout Mtime.Span.pp actual
+          Clock.Timer.pp timer
+  in
+  true
+
+let tests =
+  [
+    test_timeout_string_conv
+  ; test_timer_remaining
+  ; test_proxy
+  ; test_time_limited_write
+  ; test_time_limited_read
+  ]
 
 let () =
   (* avoid SIGPIPE *)
