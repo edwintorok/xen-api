@@ -586,6 +586,55 @@ let with_polly_wait kind fd f =
       in
       f wait fd
 
+module Timeout = struct
+  type t = Mtime.Span.t
+
+  let of_span s : t = s
+
+  let of_string str =
+    let seconds = Float.of_string str in
+    match Mtime.Span.of_float_ns (seconds *. 1e9 |> Float.round) with
+    | Some span ->
+        span
+    | None ->
+        (* e.g. negative, or >=2^53. *)
+        invalid_arg (Printf.sprintf "Span out of range: %gs" seconds)
+
+  (* nanosecond conversion doesn't roundtrip, so use only microseconds, which does *)
+  let to_string t = Mtime.Span.to_float_ns t *. 1e-9 |> Printf.sprintf "%.6f"
+
+  let pp = Mtime.Span.pp
+end
+
+module Timer = struct
+  let delay dt = Mtime.Span.to_float_ns dt *. 1e-9 |> Thread.delay
+
+  type t = {elapsed: Mtime_clock.counter; timeout: Mtime.Span.t}
+
+  type remaining = Spare of Mtime.Span.t | Excess of Mtime.Span.t
+
+  let start ~timeout = {elapsed= Mtime_clock.counter (); timeout}
+
+  let elapsed {elapsed; _} = elapsed
+
+  let timeout {timeout; _} = timeout
+
+  let remaining ?(attempt_delay = Mtime.Span.zero) t =
+    let elapsed = Mtime.Span.add (Mtime_clock.count t.elapsed) attempt_delay in
+    let difference = Mtime.Span.abs_diff t.timeout elapsed in
+    if Mtime.Span.compare t.timeout elapsed > 0 then
+      Spare difference
+    else
+      Excess difference
+
+  let pp =
+    Fmt.record
+      [
+        Fmt.field "elapsed" elapsed (Fmt.using Mtime_clock.count Mtime.Span.pp)
+      ; Fmt.field "timeout" timeout Mtime.Span.pp
+      ]
+end
+
 (* Write as many bytes to a file descriptor as possible from data before a given clock time. *)
 (* Raises Timeout exception if the number of bytes written is less than the specified length. *)
 (* Writes into the file descriptor at the current cursor position. *)
