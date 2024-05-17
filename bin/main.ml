@@ -1,7 +1,7 @@
 open Picos
 let loop _ () =
   let t = ref [] in
-  for _ = 1 to 100000 do
+  for _ = 1 to 1000000 do
     t := Sys.opaque_identity (List.init 10000 (fun _ -> String.make 1 'x'))
   done
 
@@ -11,7 +11,7 @@ let busy () =
     Fiber.spawn ~forbid:false computation (List.init 100 loop);
     (* TODO: scheduler needs queue length limit *)
 (*    prerr_endline "yield";*)
-    Fiber.sleep ~seconds:0.01
+(*    Fiber.sleep ~seconds:0.01*)
   done
 
 let low_latency () =
@@ -38,7 +38,7 @@ let low_latency () =
     | None -> ()
     | Some (avg, maxi) ->
       Printf.printf "%.6fs, %.6fs\n%!" avg maxi;
-      Fiber.sleep ~seconds:1.
+(*      Fiber.sleep ~seconds:0.02*)
     end;
     let t2 = Unix.gettimeofday () in (* TODO: mtime *)
     Fiber.spawn ~forbid:false computation [measure_latency t2]

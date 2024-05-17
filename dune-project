@@ -1,4 +1,4 @@
-(lang dune 3.15)
+(lang dune 3.14)
 
 (name picos_prio)
 
