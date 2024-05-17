@@ -12,7 +12,7 @@ let measure socket addr = fun () ->
   assert ok
 
 let run addr =
-  let socket = Unix.socket Unix.PF_UNIX Unix.SOCK_DGRAM 0 in
+  let socket = Unix.socket Unix.PF_UNIX Unix.SOCK_STREAM 0 in
   let finally () = Unix.close socket in
   Fun.protect ~finally (measure socket addr)
 

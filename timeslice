@@ -1,0 +1,71 @@
+Timeslices
+
+# C states
+
+C states have a target residency and exit latency, see https://www.kernel.org/doc/html/v5.0/admin-guide/pm/cpuidle.html#the-idle-loop
+
+The timeslice interrupt in the OCaml tick thread should be long enough to allow the CPU package to enter the deepest C state without having to exit to handle the timer tick.
+This means that we should require:
+ timer_tick_interval_ms >  1000 * max(target_residency + exit_latency)
+
+(the residency values in the Linux kernel are in microseconds)
+
+The residency values can be found in intel_idle.c, and looking at kernel 6.9:
+Atom Silvermont/Airmonr (byt, cht, tangier): 30ms
+Atom Goldmont (bxt): 20ms
+Haswell: (hsw), Broadwell (bdw): 7.6ms
+Skylake (skl) : 5.89ms
+
+---
+
+Icelake (icx): 0.77ms
+Sapphire rapids (spr): 1.09ms
+Alderlake: 2.68ms
+...
+
+However some of these CPUs are no longer supported, and we should focus our optimizations on supported CPUs.
+A page that collects this for Intel:
+https://www.intel.com/content/www/us/en/support/articles/000022396/processors.html
+
+Also for some CPUs the information comes from ACPI
+
+This information is probably best queried at install / start time.
+
+# Cache hotness
+
+
+https://metebalci.com/blog/a-minimum-complete-tutorial-of-cpu-power-management-c-states-and-p-states/
+Worst case L3 cache would be lost, and had to be refilled.
+
+However for the purpose of the tick thread we should only look at L2 cache refill times (from L3).
+
+https://info.citrite.net/display/engp/Summary+of+Best+Practice+of+Toolstack#SummaryofBestPracticeofToolstack-Moreonnaming
+
+Taking one CPU as an example, if we have a 256KiB L2 cache, and we can do 29 bytes / cycle, then it will take 9039 cycles to refill,
+and if we assume a worst case base frequency of 2Ghz, that will be <5us.
+However if the other thread ran on another CPU socket then we might need to refill L3.
+
+Again taking same example, that would be 2MiB, and 18byte/cycle, so that'd be ~60us. For this to have <1% impact: 6ms timeslice minimum.
+
+Although that wouldn't explain why other papers have come to the conclusion that a 2.5ms or 5ms timeslice may have an ~50% perf impact on HMMER (compared to 10ms) 
+The above L* cache timings are for a sustained copy, but individual accesses will incurr a higher latency overhead.
+
+Calculating the worst case latency:
+L2: 12 cycle for 64 bytes, 256KiB -> 24us -> we need a 2.4ms timeslice for this not to have an impact
+L3: 44 cycle for 64 bytes, 2MiB -> 720us -> for this to have <1% impact we need a 72ms timeslice
+
+There is other scheduling overhead beyond losing caches, which is probably a larger contributing factor.
+We should measure that ovearhead for our kernel + OCaml
+
+https://memlab.ece.gatech.edu/papers/VMTJ_2015_1.pdf
+
+look at references [15] and [16], it shows that deflate compression has 7ms total context switch overhead, on a 120Mhz ARM CPU.
+See also "Quantifying The Cost of Context Switch", but that was done on old CPUs too
+
+There are other effects, such as branch predictors needing to relearn when switching VMs
+
+
+We could have a RRUL/Flent like test which implements the IRTT protocol to measure latency over calling a unix socket,
+while under load, and that load might be the netperf threads? or just use hdr histogram for now.
+
+TODO: extend unixlatency to measure latency to send OPTIONS to /, and get a full reply
