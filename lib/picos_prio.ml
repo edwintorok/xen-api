@@ -2,6 +2,7 @@
 
 open Picos
 module Timer = Timer
+module Nice = Nice
 
 (* use Moonpool here... and a choice of runner,
  low latency: FIFO

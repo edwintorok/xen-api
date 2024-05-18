@@ -1,4 +1,4 @@
 (executable
 	(public_name unixlatency)
-	(libraries bechamel.monotonic_clock unix hdr_histogram)
+	(libraries bechamel.monotonic_clock unix hdr_histogram uri)
 )
