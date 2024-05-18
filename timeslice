@@ -69,3 +69,8 @@ We could have a RRUL/Flent like test which implements the IRTT protocol to measu
 while under load, and that load might be the netperf threads? or just use hdr histogram for now.
 
 TODO: extend unixlatency to measure latency to send OPTIONS to /, and get a full reply
+
+/dev/cpu_dma_latency is good on native Linux, but won't work for Xen (we need to do it via xenpm)
+
+Be careful with sched-deadline, it can introduce massive latencies (worse than sched_other) if runtime is exceeded (essentially it'll force waiting until period, *even if the cpu is idle*).
+sched_rr is better.
