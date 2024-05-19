@@ -1,0 +1,16 @@
+; Test internal modules by copying
+; Also test both implementations, even when only one is picked at runtime
+(copy_files# ../../lib/fifo.mli)
+
+(rule
+ (targets fifo_locked.ml fifo_lockfree.ml fifo.ml)
+ (action
+  (progn
+   (copy# ../../lib/fifo.locked.ml fifo_locked.ml)
+   (copy# ../../lib/fifo.locked.ml fifo.ml)
+   (copy# ../../lib/fifo.lockfree.ml fifo_lockfree.ml))))
+
+(library
+ (name test_internal)
+ (libraries saturn_lockfree)
+)

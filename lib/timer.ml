@@ -13,7 +13,7 @@ let with_cpu_timer ~is_thread ~interval f =
   cpu_timer_settime t interval;
   f t
 
-let default_interval = Atomic.make 0.010
+let default_interval = Atomic.make 0.0075
 
 let thread_create f arg =
   Thread.create (with_cpu_timer ~is_thread:true ~interval:(Atomic.get default_interval)) (fun (_: t) : unit -> f arg)
