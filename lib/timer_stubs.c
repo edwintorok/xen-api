@@ -61,7 +61,7 @@ CAMLprim value ml_cpu_timer_create(value is_thread) {
 
   memset(&sev, 0, sizeof(sev));
   sev.sigev_notify = SIGEV_SIGNAL;
-  sev.sigev_signo = SIGVTALRM; /* same as SIGPREEMPTION in OCaml runtime */
+  sev.sigev_signo = SIGPROF; /* same as SIGPREEMPTION in OCaml runtime */
   sev.sigev_value.sival_ptr = timerid;
 
   caml_enter_blocking_section();
