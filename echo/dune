@@ -1,4 +1,8 @@
 (executable
 	(name unixecho)
+	 (foreign_stubs
+	  (language c)
+	  (names accept_unix read_unix write_unix close_unix)
+	 )
 	(libraries unix threads.posix picos_prio)
 )

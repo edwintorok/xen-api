@@ -27,3 +27,5 @@ val thread_create: ('a -> unit) -> 'a -> Thread.t
 (** [thread_create f arg] is a wrapper for [Thread.create f arg] that sets up an interval timer with {!val:with_cpu_timer},
   with a default interval.
  *)
+
+val set_sigio: Unix.file_descr -> unit

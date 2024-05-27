@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <string.h>
 #include <time.h>
+#include <sys/fcntl.h>
 
 #define timer_t_val(v) (*((timer_t **)Data_custom_val(v)))
 
@@ -131,4 +132,17 @@ CAMLprim value ml_cpu_timer_gettime(value timer) {
 
   double t = spec.it_value.tv_nsec * 1e-9 + spec.it_value.tv_sec;
   CAMLreturn(caml_copy_double(t));
+}
+
+CAMLprim value ml_set_sigio(value fdval) {
+  CAMLparam1(fdval);
+  int fd = Int_val(fdval);
+  
+  if (fcntl(fd, F_SETFL, O_ASYNC) == -1)
+    uerror("fcntl", Nothing);
+
+  if (fcntl(fd, F_SETOWN, getpid()) == -1)
+    uerror("fcntl", Nothing);
+
+  CAMLreturn(Val_unit);
 }
