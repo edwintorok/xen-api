@@ -1029,6 +1029,8 @@ let python3_path = ref "/usr/bin/python3"
 let observer_experimental_components =
   ref (StringSet.singleton Constants.observer_component_smapi)
 
+let test_open = ref 0
+
 let xapi_globs_spec =
   [
     ( "master_connection_reset_timeout"
@@ -1114,6 +1116,7 @@ let xapi_globs_spec =
   ; ("max_spans", Int max_spans)
   ; ("max_traces", Int max_traces)
   ; ("max_observer_file_size", Int max_observer_file_size)
+  ; ("test_open", Int test_open)
   ]
 
 let timeout ref str = ref := Xapi_stdext_unix.Unixext.Timeout.of_string str
