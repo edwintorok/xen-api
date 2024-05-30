@@ -1029,7 +1029,7 @@ let python3_path = ref "/usr/bin/python3"
 let observer_experimental_components =
   ref (StringSet.singleton Constants.observer_component_smapi)
 
-let test_open = ref 0
+let test_open = ref 1024
 
 let xapi_globs_spec =
   [

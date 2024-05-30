@@ -128,7 +128,7 @@ let max_bytes_of_xenstore_entries entries =
 
 let vm_guest_agent_xenstore_quota_bytes = ref (25 * 1024 * 1024)
 
-let test_open = ref 0
+let test_open = ref 1024
 
 let options =
   [
