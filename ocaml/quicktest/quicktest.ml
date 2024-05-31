@@ -16,7 +16,6 @@
 
 let () =
   Quicktest_args.parse () ;
-  Xapi_stdext_unix.Unixext.test_open 1024;
   Qt_filter.wrap (fun () ->
       let suite =
         [
