@@ -39,8 +39,8 @@ let worker socket =
 
 let busy () =
 (*  let (_:int) = Picos_prio.Nice.nice (19) in*)
-  let q = Queue.create () in
-  while true do
+(*  let q = Queue.create () in*)
+(*  while true do
     Queue.push (String.make 200 'x') q;
     if Queue.length q > 10000 then (
       Queue.clear q;
@@ -48,8 +48,9 @@ let busy () =
       Thread.yield ()
        *)
       );
-
   done
+*)
+  while true do () done
 
 
 

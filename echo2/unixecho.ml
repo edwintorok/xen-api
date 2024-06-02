@@ -46,14 +46,15 @@ let worker socket =
   done
 
 let busy () =
-  let q = Queue.create () in
+(*  let q = Queue.create () in
   while true do
     Queue.push (String.make 200 'x') q;
     if Queue.length q > 10000 then (
       Queue.clear q;
       );
 
-  done
+  done*)
+  while true do () done
 
 let uncond_yield (_:int) = Thread.yield ()
 

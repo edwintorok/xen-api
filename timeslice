@@ -1,3 +1,39 @@
+caml_thread_tick
+
+What is it?
+
+OCaml 4's global runtime lock and OCaml'5 domain runtime lock only allows one OCaml thread at a time to run.
+The tick thread periodically switches between these threads to prevent one thread from blocking progress for too long.
+The tick thread is created when more than 1 OCaml thread exists (in a domain).
+
+What is wrong with it?
+
+Even when the application is completely idle (e.g. waiting for an event) it will wake up the system every 50ms.
+
+According to https://www.intel.com/content/www/us/en/developer/articles/tool/powertop-primer.html
+the CPU needs to spend 50ms+ in C4, and spending 20ms instead of 4.4ms in C4 gives an extra hour of battery life.
+
+If you run any multithreaded OCaml 4 application then the 1st constraint is not met already, and if you run 3 or more applications then the 2nd one isn't either.
+With OCaml 5 the frequency of wakeups is increased if you run multiple threads per domain,
+e.g. 14 core laptop -> 280 wakeups/s
+
+Also the sleep might be interrupted by a signal, which would then result in 2 yields: one for handling the signal, and then another from the tick thread almost immediately, although that is not necessarily bad if we were waiting for that signal in another thread (e.g. SIGIO), but if we receive a lot of signals then this may result in a lot of spurious yields.
+
+How to fix it?
+
+It currently uses 'select' to sleep, but we could use clock_nanosleep on CLOCK_PROCESS_CPUTIME_ID,
+which measures CPU used by the process. If the process is idle then we won't get woken up.
+And we still realise the original goal of switching threads to prevent blocking progress, but only if we are careful to release the runtime lock around blocking system calls.
+If we call any system call that blocks for a long time, and don't release the runtime lock then we could potentially starve other processes, because we won't get interrupted with EINTR either.
+Although that would've been a problem previously too, because we don't actually send a signal to the process (to cause the syscall to be interrupted), we just record that we have a pending signal (OCaml 4), or pending interrupt (OCaml 5) by changing the minor heap limit.
+
+We could make the select / nanosleep switch based on OCAMLRUNPARAM env var, so that we can always switch back to the old behaviour, e.g. for testing purposes.
+
+In fact we could take this further and remove the tick thread completely and use per thread interval timers,
+that interrupt OCaml threads with a signal when they used too much CPU, that way we only interrupt the thread that is using CPU and not others.
+However we can keep the process-level timer as a backup (e.g. in case we failed to create a timer for a thread). The number of timers available might be limited, although the limit is usually high (e.g. 253153 on Linux)
+
+
 Timeslices
 
 # C states
