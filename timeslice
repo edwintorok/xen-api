@@ -33,6 +33,54 @@ In fact we could take this further and remove the tick thread completely and use
 that interrupt OCaml threads with a signal when they used too much CPU, that way we only interrupt the thread that is using CPU and not others.
 However we can keep the process-level timer as a backup (e.g. in case we failed to create a timer for a thread). The number of timers available might be limited, although the limit is usually high (e.g. 253153 on Linux)
 
+The interval timer can be implemented at the application level instead. There are 3 timers of interest:
+* ITIMER_VIRTUAL - only looks at user time consumed by the process, which would be relevant for us, because we want to limit the time spent by OCaml threads. If they release the runtime lock correctly around costly system calls then we don't need to account for system threads, the runtime lock would've already been released there. (although in general we can't know this, and there are pending patches to XAPI to release the lock where needed)
+* ITIMER_PROF - looks at user + system time
+
+* Posix CLOCK_PROCESS_CPUTIME_ID
+* Posix CLOCK_THREAD_CPUTIME_ID
+
+There is only 1 itimer  / process, so this approach wouldn't work for the OCaml runtime, the others timers would work though.
+
+The resolution of these timers is different, e.g. the itimers may only be accurate up to scheduler ticks, i.e. on Linux 1/HZ (10ms, 4ms, 1ms), they will be rounded up though.
+
+For an application using itimer is the easiest, since it requires no extra C bindings, the problem is that ITIMER_VIRTUAL sends SIGVTALRM, which is also the (fake) signal used in OCaml 4, so we *must* always yield when we receive it.
+With the other timers we could dynamically chose to yield or not, e.g. based on whether anything is waiting for IO or not, or whether we got a SIGIO or not.
+
+TODO: workload that measures fairness, hiccups, etc.
+
+TODO: we need to run kernel selftests, especially the timer ones, etc. kernel-selftests-internal doesn't enable timers in Fedora, check what we do?
+
+Problem:
+
+when we have CPU intensive OCaml threads then Unix call latency is very high, as we may need to run several other threads before we get a chance to respond.
+TODO: the test program that measured 1.5s+ tail latency 99%. 
+
+Mitigations:
+ * reduce total number of CPU intensive threads that are active at a time
+ * reduce timer interval (though of course this increases switching overhead, which we'll need to measure)
+ * use a signal (either SIGIO from kernel, or caml_record_signal in a C stub when system call has returned)
+ * if we are sure we have nonblocking mode set on an fd then we can make a syscall without releasing the runtime lock, and only release runtime lock if we sleep. Could use MSG_DONTWAIT, but that is Linux specific.
+ * low latency: could use the URG portion of the socket... but would require modifying the other side too, as otherwise it wouldn't know how to receive it. fcntl with F_SETOWN can be used to enable receipt of SIGURG signals.
+   Urgent data can be send with MSG_OOB, and received same way, unless SO_OOBINLINE is set on the socket (which we could set...). We could probably patch XenAPI.py to send/receive OOB data. This is different from SIGIO which would tell you when IO is possible (i.e. there is buffer space), but is not a completion signal.
+   SIGURG will be targeted to the IO thread, but OCaml will record the presence of signal, and if another thread is busy then that one will handle it. So we can yield there, but we need to be careful to not yield on the one that handles the IO...
+
+   Although note that TCP had some issues in how urgent data was defined that was fixed in later RFCs, but it hasn't actually been implemented, and although a sysctl is provided, it is only for one direction
+   , also middle boxes may clear it. In fact the RFC says new applications shouldn't use it, but existing implementations must still support it, or if we use it then also set the oob_inline flag.
+   https://datatracker.ietf.org/doc/html/rfc6093
+
+   SIGURG (or a caml_record_signal on return from the syscall) interrupts other running threads, but still doesn't guarantee that the thread handling the IO runs next.
+
+   Also how about python? xmlrpc client httpconnection transport, how to make it set oob?
+
+* To bound the execution time we can try to use a semaphore around Thread.yield, which effectively limits how many yields we go through before getting back to the IO (not CPU intensive thread)...
+
+TODO: also test cache effect with bechamel perf?
+
+Autotune executable...
+
+semaphore around thread.yield: could lead to deadlocks if we're holding another lock that someone else is waiting for us to release, TODO: testcase for this... although it shouldn't because the yield should eventually return and we'd release the locks...
+
 
 Timeslices
 
