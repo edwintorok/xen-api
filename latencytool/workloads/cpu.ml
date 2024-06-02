@@ -52,3 +52,25 @@ let copy_small () =
  *)
 let copy_large () =
   copy (1 lsl 24)
+
+module IntMap = Map.Make(Int)
+
+let char_add acc c = acc + Char.code c
+
+let cache_misses () =
+  (* we should look at getconf -a *_CACHE_LINE_SIZE here *)
+  let cacheline_size = 64 in
+  let tree_node () = Sys.opaque_identity (String.make cacheline_size 'a') in
+  let l2cache_size = 1048576 in (* TODO *)
+  let l2cache_size = 33554432 in
+  let tree_nodes = l2cache_size / cacheline_size in
+  let init () = Seq.ints tree_nodes |> Seq.map (fun x -> x, tree_node ()) |> IntMap.of_seq
+  and work map =
+      let res = IntMap.fold (fun _ v acc ->
+        String.fold_left char_add acc v
+      ) map 0
+      in
+      let (_:int) = Sys.opaque_identity res in
+      ()
+  in
+  loop_with_shutdown init work
