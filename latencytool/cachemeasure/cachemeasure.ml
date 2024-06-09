@@ -29,8 +29,16 @@ let rec read_stride ~data ~stride ~mask ~remaining ~pos =
   else 
     Sys.opaque_identity remaining
 
+let rec read_cycle ~data ~remaining ~pos =
+  if remaining > 0 then
+    let remaining = remaining - 1
+    and pos = Array.unsafe_get data pos in
+    read_cycle ~data ~remaining ~pos
+  else 
+    Sys.opaque_identity pos
+
 (* should be larger than all caches *)
-let max_data_size_log2 = 28
+let max_data_size_log2 = 26
 
 (* should be just below real L1 size *)
 let min_cache_size_log2 = 14
@@ -52,6 +60,17 @@ let measure_stride_op_time ~data ~stride ~size_log2 =
   let _ = Sys.opaque_identity r in
   float (t1 - t0) /. float remaining
 
+let measure_stride_op_cycle_time ~data =
+  assert (operations_log2 > max_data_size_log2);
+  let remaining = 1 lsl (operations_log2 - 1) in
+  let t0 = cpu_time () in
+  let r =  read_cycle ~data ~remaining ~pos:0 in
+  let t1 = cpu_time () in
+  (* use result to prevent the compiler optimizing it away *)
+  let _ = Sys.opaque_identity r in
+  float (t1 - t0) /. float remaining
+
+
 let print_suffix n =
   if n < 1 lsl 10 then
     Printf.printf "%d" n
@@ -59,8 +78,49 @@ let print_suffix n =
     Printf.printf "%dKiB" (n lsr 10)
   else Printf.printf "%dMiB" (n lsr 20)
 
+let word_size_bytes = Sys.word_size / 8
+(* 128 seems to be my cache line size, needs to be at least cache line size or more *)
 
+let make_cycle a ~stride ~size =
+  let stride_size_words = stride / word_size_bytes in
+  assert (stride_size_words >= 1);
+  for i = 0 to (size / word_size_bytes - 1) / stride_size_words do
+    a.(stride_size_words * i) <- stride_size_words * i
+  done;
+  for i = (size / word_size_bytes - 1) / stride_size_words downto 1 do
+    let j = Random.int i in (* [0 <= j < i] *)
+    let swap = a.(stride_size_words*i) in
+    a.(stride_size_words*i) <- a.(stride_size_words*j);
+    a.(stride_size_words*j) <- swap
+  done;
+  (* TODO: shared workload code *)
+  (* wait until the store has completed *)
+  Ocaml_intrinsics.Fences.memory_fence ();
+  Sys.opaque_identity a  
 
+let () =
+  let data = Array.make (1 lsl max_data_size_log2) 0 in
+  Printf.printf "stride/cachesize";
+  for size_log2 = max_data_size_log2 downto min_cache_size_log2 do
+    print_char ' ';
+    print_suffix (1 lsl size_log2)
+  done;
+  Printf.printf "\n%!";
+  for stride_log2 = min_stride_log2 to max_data_size_log2-1 do
+    let stride = 1 lsl stride_log2 in
+    Printf.printf "%d" stride;
+    (* we can only skip columns at the end, so have to invert iteration order here *)
+    for size_log2 = max_data_size_log2 downto min_cache_size_log2 do
+      if stride_log2 < size_log2 then begin
+        let data = make_cycle data ~stride ~size:(1 lsl size_log2) in
+        let time = measure_stride_op_cycle_time ~data in
+        Printf.printf " %.1f%!" time
+      end
+    done;
+    Printf.printf "\n"
+  done
+
+(*
 let () =
   let data = alloc (1 lsl max_data_size_log2) in
   Printf.printf "stride/cachesize";
@@ -80,4 +140,4 @@ let () =
     done;
     Printf.printf "\n"
   done
-  
+*)
