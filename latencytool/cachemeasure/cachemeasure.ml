@@ -1,3 +1,5 @@
+(* TODO: equidistributed van-der-corput.... too *)
+
 let alloc n =
   (* essential for each element to store the value of 1, so we can count how many elements we have accessed *)
   let a = String.make n '\x01' in
