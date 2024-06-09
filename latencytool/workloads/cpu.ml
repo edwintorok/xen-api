@@ -64,15 +64,17 @@ let () = Random.self_init ()
 let cache_misses () =
   (* we should look at getconf -a *_CACHE_LINE_SIZE here *)
   let cacheline_size = 128 in
-  let tree_node () = Sys.opaque_identity (String.make cacheline_size 'a') in
+  let stride_size = 4096 in
+  assert (stride_size >= cacheline_size);
+  let tree_node () = Sys.opaque_identity (String.make (stride_size - 8) 'a') in
   let l2cache_size = 1048576 in
   (* TODO *)
   (* TODO: l1+l2+l3 size..? look at cache miss rate if we exceed size
    *)
   (*let l2cache_size = 2*67108864 in*)
   (* actually, this is L3 *)
-  let l2cache_size = 32 * 1024 * 1024 in
-  let tree_nodes = l2cache_size / (3*cacheline_size/2) in
+  let l2cache_size =  32*1024 * 1024  in
+  let tree_nodes = l2cache_size / (cacheline_size) in
   let init () =
     let r =
       Array.init tree_nodes (fun _ -> (Random.bits (), tree_node ()))
