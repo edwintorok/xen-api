@@ -1,4 +1,5 @@
 let alloc n =
+  (* essential for each element to store the value of 1, so we can count how many elements we have accessed *)
   let a = String.make n '\x01' in
   (* move it to major heap *)
   Gc.full_major ();
@@ -20,50 +21,63 @@ let[@inline always] cpu_time () =
   serialize ();
   Ocaml_intrinsics.Perfmon.rdtsc () |> Int64.to_int
 
-let rec read_kth array ~k ~sum ~pos =
-  if pos >= 0 then
-    let sum = sum + Char.code (String.unsafe_get array pos) in
-    read_kth array ~k ~sum ~pos:(pos-k)
-  else
-    sum
+let rec read_stride ~data ~stride ~mask ~remaining ~pos =
+  if remaining > 0 then
+    let remaining = remaining - Char.code (String.unsafe_get data pos)
+    and pos = (pos + stride) land mask in
+    read_stride ~data ~stride ~mask ~remaining ~pos
+  else 
+    Sys.opaque_identity remaining
 
-let maxk_log2 = 8
+(* should be larger than all caches *)
+let max_data_size_log2 = 28
+
+(* should be just below real L1 size *)
+let min_cache_size_log2 = 14
+
+(* should be below real cache line size *)
+let min_stride_log2 = 4
+
+let operations_log2 = max_data_size_log2 + 1
   
-let measure_kth_read array k =
-  let len = String.length array in
-  (* perform same number of read operations, regardless of [k] *)
-  let n = k * (len lsr maxk_log2) in
-  let pos = n - k in
-  assert (pos < len);
+let measure_stride_op_time ~data ~stride ~size_log2 =
+  assert (operations_log2 > max_data_size_log2);
+  let remaining = 1 lsl operations_log2
+  and mask = (1 lsl size_log2) - 1 in
+  assert (mask < String.length data);
   let t0 = cpu_time () in
-  let r =  read_kth array ~k ~sum:0 ~pos in
+  let r =  read_stride ~data ~stride ~mask ~remaining ~pos:0 in
   let t1 = cpu_time () in
   (* use result to prevent the compiler optimizing it away *)
   let _ = Sys.opaque_identity r in
-  t1 - t0
+  float (t1 - t0) /. float remaining
 
-let read_all a =
-  (* search for something that is not present *)
-  Sys.opaque_identity (String.contains a 'x')
+let print_suffix n =
+  if n < 1 lsl 10 then
+    Printf.printf "%d" n
+  else if n < 1 lsl 20 then
+    Printf.printf "%dKiB" (n lsr 10)
+  else Printf.printf "%dMiB" (n lsr 20)
+
+
 
 let () =
-  (* TODO: use cpuid module, or parse [getconf -a] output *)
-  let l1cache_size = 32 * 1024
-  and l2cache_size = 1024 * 1024
-  and l3cache_size = 32 * 1024 * 1024
-  in
-  let all_cache_size = l1cache_size + l2cache_size + l3cache_size in
-  (* should be larger than all caches *)
-  let n = all_cache_size * 4 in
-  let a = alloc n
-  and flush = alloc n
-  in
-  for k = 1 to 1 lsl maxk_log2 do
-    (* we could do this in log2 steps, but for plotting it might be useful to see all *)
-    let present = read_all flush in
-    Printf.printf "%d %d\n%!" k (measure_kth_read a k);
-    let (present:bool) = Sys.opaque_identity present in
-    assert (not present);
-    ()
+  let data = alloc (1 lsl max_data_size_log2) in
+  Printf.printf "stride/cachesize";
+  for size_log2 = max_data_size_log2 downto min_cache_size_log2 do
+    print_char ' ';
+    print_suffix (1 lsl size_log2)
+  done;
+  Printf.printf "\n%!";
+  for stride_log2 = min_stride_log2 to max_data_size_log2-1 do
+    let stride = 1 lsl stride_log2 in
+    Printf.printf "%d" stride;
+    (* we can only skip columns at the end, so have to invert iteration order here *)
+    for size_log2 = max_data_size_log2 downto min_cache_size_log2 do
+      if stride_log2 < size_log2 then
+        let time = measure_stride_op_time ~data ~stride ~size_log2 in
+        Printf.printf " %.1f%!" time
+    done;
+    Printf.printf "\n"
   done
-  (* this says my cacheline size is 128 bytes, not 64 as CPUID says... *)
+  

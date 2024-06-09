@@ -63,15 +63,16 @@ let () = Random.self_init ()
 
 let cache_misses () =
   (* we should look at getconf -a *_CACHE_LINE_SIZE here *)
-  let cacheline_size = 64 in
+  let cacheline_size = 128 in
   let tree_node () = Sys.opaque_identity (String.make cacheline_size 'a') in
   let l2cache_size = 1048576 in
   (* TODO *)
   (* TODO: l1+l2+l3 size..? look at cache miss rate if we exceed size
    *)
   (*let l2cache_size = 2*67108864 in*)
-  let l2cache_size = 20*34635776 in
-  let tree_nodes = l2cache_size / (2*cacheline_size) in
+  (* actually, this is L3 *)
+  let l2cache_size = 32 * 1024 * 1024 in
+  let tree_nodes = l2cache_size / (3*cacheline_size/2) in
   let init () =
     let r =
       Array.init tree_nodes (fun _ -> (Random.bits (), tree_node ()))
@@ -80,29 +81,33 @@ let cache_misses () =
     Printf.printf "MAP: %d,%d\n%!" (IntMap.cardinal r) (Obj.reachable_words (Obj.repr r) * Sys.word_size / 8);
     r
   and work map =
-    for i = 0 to cacheline_size - 1 do
       let res =
         IntMap.fold
-          (fun _ v acc -> acc + Char.code (String.unsafe_get v i))
+          (fun _ v acc -> acc + Char.code (String.unsafe_get v 0))
           map 0
       in
       let (_ : int) = Sys.opaque_identity res in
       ()
-    done
   in
   loop_with_shutdown init work
 
 let word_size_bytes = Sys.word_size / 8
 
+let cacheline_size = 64 (* although seems to be 128 when measured... *)
+
+let stride_size = 128
+
+let stride_size_words = stride_size / word_size_bytes
+
 let make_cycle n =
-  let a = Array.init (64*n) Fun.id in
+  let a = Array.init (n / word_size_bytes) Fun.id in
   (* todo: individual alloc, cachielinesize apart? *)
-  for i = n - 1 downto 1 do
+  for i = (Array.length a -1) / stride_size_words downto 1 do
   (* can be any f, what value would result in most cache misses, furthest apart? *)
     let j = Random.int i in (* [0 <= j < i] *)
-    let swap = a.(64*i) in
-    a.(64*i) <- a.(64*j);
-    a.(64*j) <- swap
+    let swap = a.(stride_size_words*i) in
+    a.(stride_size_words*i) <- a.(stride_size_words*j);
+    a.(stride_size_words*j) <- swap
   done;
   a  
 
@@ -111,16 +116,15 @@ let rec cycle a sum i =
     let next = Sys.opaque_identity Array.unsafe_get a i in
     cycle a (sum + next) next
 
-let cache_misses () =
+let cache_misses2 () =
   (* we should look at getconf -a *_CACHE_SIZE here *)
   let l2cache_size = 1048576 in
   (*let l2cache_size = 10240*10240 in*)
-  let l2cache_size_words = l2cache_size / word_size_bytes in
   (* TODO *)
   (* TODO: l1+l2+l3 size..? look at cache miss rate if we exceed size
    *)
   let init () =
-    make_cycle l2cache_size_words
+    make_cycle (128*1024*1024)
     (* TODO: store indexes here, that way speculative execution can't hide latencies... *)
   and work array =
      let sum = cycle array 0 array.(0) in
