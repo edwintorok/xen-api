@@ -36,6 +36,7 @@
     rpclib.core
     rpclib.json
     safe-resources
+    polly
     stunnel
     threads.posix
     http_lib
