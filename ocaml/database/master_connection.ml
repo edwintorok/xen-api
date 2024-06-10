@@ -237,7 +237,6 @@ let do_db_xml_rpc_persistent_with_reopen ~host:_ ~path (req : string) :
       in
       match !my_connection with
       | None ->
-          debug "Raising Goto_handler in %s" __FUNCTION__;
           raise Goto_handler
       | Some stunnel_proc ->
           let fd = stunnel_proc.Stunnel.fd in

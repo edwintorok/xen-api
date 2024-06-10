@@ -175,7 +175,6 @@ let config_file ?(accept = None) config host port =
          [
            "client=yes"
          ; "foreground=yes"
-         ; "debug=7"
          ; "socket = r:TCP_NODELAY=1"
          ; "socket = r:SO_KEEPALIVE=1"
          ; "socket = a:SO_KEEPALIVE=1"
@@ -347,7 +346,6 @@ let attempt_one_connect ?(use_fork_exec_helper = true)
             Unix.write Unixfd.(!config_in) (Bytes.of_string config) 0 len
           in
           if n < len then (
-            D.debug "disconnecting stunnel at %s" __LOC__;
             disconnect_with_pid ~wait:false ~force:true pid ;
             raise Stunnel_initialisation_failed
           ) ;
