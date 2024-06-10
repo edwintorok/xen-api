@@ -167,12 +167,10 @@ let open_secure_connection () =
   let host = !get_master_address () in
   let port = !Db_globs.https_port in
   let verify_cert = Stunnel_client.pool () in
-  debug "about to open connection in %s" __FUNCTION__;
   Stunnel.with_connect ~use_fork_exec_helper:true ~extended_diagnosis:true
     ~write_to_log:(fun x -> debug "stunnel: %s\n" x)
     ~verify_cert host port
   @@ fun st_proc ->
-  debug "at %s" __LOC__;
   let polly = Polly.create () in
   let finally () = Polly.close polly in
   Fun.protect ~finally @@ fun () ->
