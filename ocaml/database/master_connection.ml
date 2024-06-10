@@ -171,7 +171,10 @@ let open_secure_connection () =
     ~write_to_log:(fun x -> debug "stunnel: %s\n" x)
     ~verify_cert host port
   @@ fun st_proc ->
-  let fd_closed = Thread.wait_timed_read Unixfd.(!(st_proc.Stunnel.fd)) 5. in
+  let polly = Polly.create () in
+  let finally () = Polly.close polly in
+  Fun.protect ~finally @@ fun () ->
+  let fd_closed = Polly.wait polly 1 5000 (fun _ _ _ -> ()) > 0 in
   let proc_quit =
     try
       Unix.kill (Stunnel.getpid st_proc.Stunnel.pid) 0 ;
