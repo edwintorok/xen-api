@@ -1,0 +1,14 @@
+(library
+ (name measures)
+ (libraries
+  bechamel
+  (select
+   pmu.ml
+   from
+   (bechamel-perf -> pmu.linux.ml)
+   (-> pmu.default.ml))
+  (select
+   cpu.ml
+   from
+   (ocaml_intrinsics -> cpu.x86.ml)
+   (-> cpu.default.ml))))
