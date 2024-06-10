@@ -1116,7 +1116,7 @@ let xapi_globs_spec =
   ; ("max_spans", Int max_spans)
   ; ("max_traces", Int max_traces)
   ; ("max_observer_file_size", Int max_observer_file_size)
-  ; ("test_open", Int test_open)
+  ; ("test-open", Int test_open) (* for consistency with xenopsd *)
   ]
 
 let timeout ref str = ref := Xapi_stdext_unix.Unixext.Timeout.of_string str
