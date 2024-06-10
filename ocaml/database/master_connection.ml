@@ -167,11 +167,16 @@ let open_secure_connection () =
   let host = !get_master_address () in
   let port = !Db_globs.https_port in
   let verify_cert = Stunnel_client.pool () in
+  debug "about to open connection in %s" __FUNCTION__;
   Stunnel.with_connect ~use_fork_exec_helper:true ~extended_diagnosis:true
     ~write_to_log:(fun x -> debug "stunnel: %s\n" x)
     ~verify_cert host port
   @@ fun st_proc ->
-  let fd_closed = Thread.wait_timed_read Unixfd.(!(st_proc.Stunnel.fd)) 5. in
+  debug "at %s" __LOC__;
+  let polly = Polly.create () in
+  let finally () = Polly.close polly in
+  Fun.protect ~finally @@ fun () ->
+  let fd_closed = Polly.wait polly 1 5000 (fun _ _ _ -> ()) > 0 in
   let proc_quit =
     try
       Unix.kill (Stunnel.getpid st_proc.Stunnel.pid) 0 ;
@@ -232,6 +237,7 @@ let do_db_xml_rpc_persistent_with_reopen ~host:_ ~path (req : string) :
       in
       match !my_connection with
       | None ->
+          debug "Raising Goto_handler in %s" __FUNCTION__;
           raise Goto_handler
       | Some stunnel_proc ->
           let fd = stunnel_proc.Stunnel.fd in
