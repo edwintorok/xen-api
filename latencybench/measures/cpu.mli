@@ -1,1 +1,1 @@
-val instances: Bechamel.Measure.witness list
+val measurables: Measurable.t list

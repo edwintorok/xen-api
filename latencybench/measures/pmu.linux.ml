@@ -1,20 +1,25 @@
 open Bechamel_perf.Instance
 
-let instructions_per_cycle = Derived.div "IPC" cycles instructions
+let instructions_per_cycle = Measurable.div ~unit:"insn/cycle" ~scale:1. "IPC" cycles instructions
 
 let cache_miss_ratio =
-  Derived.percent_div "cache-miss-ratio" cache_misses cache_references
+  Measurable.percentage "cache-miss-ratio" cache_misses cache_references
 
 let branch_miss_ratio =
-  Derived.percent_div "branch-miss-ratio" branch_misses branch_instructions
+  Measurable.percentage "branch-miss-ratio" branch_misses branch_instructions
 
-let instances =
+let frequency =
+  (* cycles/ns *)
+  Measurable.div ~unit:"GHz" ~scale:1. "frequency" cycles Bechamel.Toolkit.Instance.monotonic_clock
+
+let measurables =
   [ instructions_per_cycle
   ; cache_miss_ratio
   ; branch_miss_ratio
-  ; page_faults
-  ; context_switches
-  ; cpu_migrations
-  ; alignment_faults
-  ; emulation_faults
-  ; task_clock ]
+  ; frequency
+  ; Measurable.cumulative page_faults
+  ; Measurable.cumulative context_switches
+  ; Measurable.cumulative cpu_migrations
+  ; Measurable.cumulative alignment_faults
+  ; Measurable.cumulative emulation_faults
+  ; Measurable.cumulative task_clock ]

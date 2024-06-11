@@ -23,4 +23,4 @@ let rdtsc =
   let measure = Measure.register (module Rdtsc) in
   Measure.instance (module Rdtsc) measure
   
-let instances = [ rdtsc ]
+let measurables = [ Measurable.cumulative rdtsc ]
