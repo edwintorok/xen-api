@@ -1,4 +1,5 @@
 (library
 	(name workloads)
+	(libraries ocaml_intrinsics)
 )
 

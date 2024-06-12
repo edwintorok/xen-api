@@ -2,11 +2,15 @@ open Bechamel
 
 type t = { predictors: string array ; measure: Measure.witness }
 
+let instance t = t.measure
+
 let make ~predictors measure = { predictors; measure }
 
 let cumulative measure = make ~predictors:[|Measure.run|] measure
 
 let one = Toolkit.One.label ()
+
+let mone = make ~predictors:[| one |] Toolkit.Instance.one
 
 let div ~unit ~scale label num denom =
   let module Div = struct

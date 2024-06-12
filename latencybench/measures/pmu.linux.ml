@@ -1,6 +1,6 @@
 open Bechamel_perf.Instance
 
-let instructions_per_cycle = Measurable.div ~unit:"insn/cycle" ~scale:1. "IPC" cycles instructions
+let instructions_per_cycle = Measurable.div ~unit:"IPC" ~scale:1. "IPC" cycles instructions
 
 let cache_miss_ratio =
   Measurable.percentage "cache-miss-ratio" cache_misses cache_references

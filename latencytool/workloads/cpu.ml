@@ -111,12 +111,26 @@ let make_cycle n =
     a.(stride_size_words*i) <- a.(stride_size_words*j);
     a.(stride_size_words*j) <- swap
   done;
-  a  
+  Ocaml_intrinsics.Fences.memory_fence ();
+  Sys.opaque_identity a  
 
-let rec cycle a sum i =
-  if i <> 0 then
-    let next = Sys.opaque_identity Array.unsafe_get a i in
-    cycle a (sum + next) next
+let max_data_size_log2 = 26
+
+(* should be just below real L1 size *)
+let min_cache_size_log2 = 14
+
+(* should be below real cache line size *)
+let min_stride_log2 = 4
+
+let operations_log2 = max_data_size_log2 + 1
+
+let rec read_cycle ~data ~remaining ~pos =
+  if remaining > 0 then
+    let remaining = remaining - 1
+    and pos = Array.unsafe_get data pos in
+    read_cycle ~data ~remaining ~pos
+  else 
+    Sys.opaque_identity pos
 
 let cache_misses2 () =
   (* we should look at getconf -a *_CACHE_SIZE here *)
@@ -126,13 +140,31 @@ let cache_misses2 () =
   (* TODO: l1+l2+l3 size..? look at cache miss rate if we exceed size
    *)
   let init () =
-    make_cycle (128*1024*1024)
+    make_cycle (32*1024*1024)
     (* TODO: store indexes here, that way speculative execution can't hide latencies... *)
   and work array =
-     let sum = cycle array 0 array.(0) in
+    let remaining = Array.length array in
+     let sum = read_cycle ~data:array ~remaining ~pos:0 in
      sum     
   in
   loop_with_shutdown init work
+
+let cache_misses2' () =
+  (* we should look at getconf -a *_CACHE_SIZE here *)
+  let l2cache_size = 1048576 in
+  (*let l2cache_size = 10240*10240 in*)
+  (* TODO *)
+  (* TODO: l1+l2+l3 size..? look at cache miss rate if we exceed size
+   *)
+  let init () =
+    make_cycle (32*1024*1024)
+    (* TODO: store indexes here, that way speculative execution can't hide latencies... *)
+  and work array =
+    let remaining = Array.length array in
+     let sum = read_cycle ~data:array ~remaining ~pos:0 in
+     sum     
+  in
+  init, work
 
 (*
 let cache_misses () =
