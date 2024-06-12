@@ -12,7 +12,7 @@ let instances = List.map Measures.Measurable.instance measurables
 let instances = [ Bechamel_perf.Instance.cache_misses; Bechamel_perf.Instance.cache_references; Instance.monotonic_clock]
 
 let benchmark tests =
-  let cfg = Benchmark.cfg ~stabilize:false () in
+  let cfg = Benchmark.cfg ~quota:(Time.second 1.) ~stabilize:false () in
   Benchmark.all cfg instances tests
 
 let analyze raw_results =
@@ -68,23 +68,27 @@ let () =
   cli (
     Test.make_indexed_with_resource
       ~name:"timeslice"
-      ~args:[75; 1000; 2000; 4000; 8000; 16000; 32000]
+      ~args:[1;75; 1000; 2000; 4000; 8000; 16000; 32000]
       ~allocate:(fun timeslice_us ->
         let timeslice = float timeslice_us *. 1e-6 in
         Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle (fun _ -> Thread.yield ()));
         let (_ : Unix.interval_timer_status) =
           Unix.setitimer Unix.ITIMER_VIRTUAL Unix.{it_interval = timeslice; it_value = timeslice}
         in
-        let loop, shutdown = Workloads.Cpu.cache_misses2 () in
         let init, work = Workloads.Cpu.cache_misses2' () in
         let wait = Mutex.create () in
         Mutex.lock wait;
-        wait, ref true, init (), work, shutdown, Array.init 8 @@ fun _ -> Thread.create worker (wait, loop)
+        wait, ref true, init (), work, Array.init 8 @@ fun _ ->
+          let loop, shutdown = Workloads.Cpu.cache_misses2 () in
+          shutdown, Thread.create worker (wait, loop)
       )
-      ~free:(fun (_, _, _,_, shutdown, threads) -> shutdown (); Array.iter Thread.join threads)
+      ~free:(fun (_, _, _,_, threads) -> Array.iter (fun (shutdown, thread) ->
+        shutdown ();
+        Thread.join thread
+      ) threads)
       Test.uniq
       @@ fun timeslice_us ->
-        Staged.stage (fun (wait, locked, a, work, _, threads) ->
+        Staged.stage (fun (wait, locked, a, work, _) ->
           Processor.Affinity.set_cpus [Processor.Topology.t |> List.tl |> List.hd];
           if !locked then begin
             Mutex.unlock wait;

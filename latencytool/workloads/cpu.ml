@@ -140,7 +140,7 @@ let cache_misses2 () =
   (* TODO: l1+l2+l3 size..? look at cache miss rate if we exceed size
    *)
   let init () =
-    make_cycle (32*1024*1024)
+    make_cycle (2*l2cache_size)
     (* TODO: store indexes here, that way speculative execution can't hide latencies... *)
   and work array =
     let remaining = Array.length array in
@@ -157,7 +157,7 @@ let cache_misses2' () =
   (* TODO: l1+l2+l3 size..? look at cache miss rate if we exceed size
    *)
   let init () =
-    make_cycle (32*1024*1024)
+    make_cycle (2*l2cache_size)
     (* TODO: store indexes here, that way speculative execution can't hide latencies... *)
   and work array =
     let remaining = Array.length array in
