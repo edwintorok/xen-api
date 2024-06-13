@@ -1,0 +1,4 @@
+(executable
+	(name yielding)
+	(libraries threads.posix mtime.clock.os unix)
+)
