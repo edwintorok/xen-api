@@ -149,6 +149,19 @@ let cache_misses2 () =
   in
   loop_with_shutdown init work
 
+let cache_misses3 () =
+  let init () =
+    let src = String.make (128*1024*1024) 'x' in
+    let dst = Bytes.create (String.length src) in
+    src, dst
+  in
+  let work (src, dst) =
+    Bytes.blit_string (Sys.opaque_identity src) 0 dst 0 (String.length src);
+    let (_:bytes) = Sys.opaque_identity dst in
+    ()
+  in
+  loop_with_shutdown init work
+
 let cache_misses2' () =
   (* we should look at getconf -a *_CACHE_SIZE here *)
   let l2cache_size = 1048576 in

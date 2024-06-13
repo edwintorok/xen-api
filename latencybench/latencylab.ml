@@ -79,7 +79,7 @@ let () =
         let wait = Mutex.create () in
         Mutex.lock wait;
         wait, ref true, init (), work, Array.init 8 @@ fun _ ->
-          let loop, shutdown = Workloads.Cpu.cache_misses2 () in
+          let loop, shutdown = Workloads.Cpu.cache_misses3 () in
           shutdown, Thread.create worker (wait, loop)
       )
       ~free:(fun (_, _, _,_, threads) -> Array.iter (fun (shutdown, thread) ->
