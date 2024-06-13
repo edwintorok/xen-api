@@ -10,7 +10,8 @@ module Yields = struct
   let make () = Operations.Yield.count
   let load = ignore
   let unload = ignore
-  let get t = Atomic.get t |> float_of_int
+  let get t =
+    Atomic.get t |> float_of_int
 end
 
 let yields =
