@@ -1,0 +1,5 @@
+(library
+	(name simple_workloads)
+	(package latencylab)
+	(libraries threads.posix unix)
+)

@@ -1,0 +1,4 @@
+(executable
+	(name workloads_bench)
+	(libraries simple_workloads bechamel bechamel-notty notty.unix unix)
+)
