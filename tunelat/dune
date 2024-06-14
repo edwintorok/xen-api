@@ -1,0 +1,4 @@
+(executable
+	(public_name tunelat)
+	(libraries simple_workloads mtime mtime.clock.os threads.posix)
+)

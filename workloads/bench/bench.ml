@@ -1,22 +1,25 @@
 open Bechamel
 open Simple_workloads
 
-module Yields = struct
-  type witness = int Atomic.t
+let instance_of_atomic ~name ~unit atomic =
+  let module M = struct
+    type witness = int Atomic.t
 
-  let name = "yields"
-  let label _ = name
-  let unit _ = "yield"
-  let make () = Operations.Yield.count
-  let load = ignore
-  let unload = ignore
-  let get t =
-    Atomic.get t |> float_of_int
-end
+    let name = name
+    let label _ = name
+    let unit _ = unit
+    let make () = atomic
+    let load = ignore
+    let unload = ignore
+    let get t =
+      Atomic.get t |> float_of_int
+  end
+  in
+  let measure = Measure.register (module M) in
+  Measure.instance (module M) measure
 
-let yields =
-  let measure = Measure.register (module Yields) in
-  Measure.instance (module Yields) measure
+let yields_name = "yields"
+let yields = instance_of_atomic ~name:yields_name ~unit:"yield" Operations.Yield.count
 
 let make ~workers ~name ~args ~worker ~allocate ~free test =
   let allocate n =
