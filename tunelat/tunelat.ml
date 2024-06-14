@@ -1,5 +1,23 @@
 open Simple_workloads
 
+(*
+  L2 sequential cache miss penalty = n=(2*L2) read time / 2 - L2 read time
+  L2 sequential cached read
+
+  timeslice: 1st one will miss, subsequent ones not
+
+  L2_full_cached_time + L2_full_miss_penalty + L2_full_cached_time + .. = timeslice
+
+  perf loss = L2_full_miss_penalty / timeslice <= 2.5% ->
+
+  this is for Xen...
+  L2_full_miss_penalty / 2.5% <= timeslice --> 5.4ms?
+  (will need also CAT for LLC?)
+
+ 
+*)
+
+
 let stop = Atomic.make false
 let worker () =
   while not (Atomic.get stop) do

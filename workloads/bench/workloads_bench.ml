@@ -25,9 +25,8 @@ let test_stride stride_size_bytes =
 let test2 = test_stride linesize
 
 let test_cycle stride_size_bytes =
-  let args = List.map (fun c -> c.Cachesize.size) caches in
+  let args = List.concat_map (fun c -> let s = c.Cachesize.size in [s / 2; s; s*2]) caches in
   (* we want to measure cache misses for all levels, so we need a final one  that is larger than all *)
-  let args = ((List.hd caches).Cachesize.sum * 2) :: args in
   Bechamel.Test.make_indexed_with_resource ~name:"random_read" ~args
     Bechamel.Test.uniq
   ~allocate:(Operations.CycleRead.allocate ~stride_size_bytes)
