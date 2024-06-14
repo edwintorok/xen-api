@@ -3,7 +3,6 @@ module Yield = struct
 
   let perform () =
     Thread.yield ();
-    Printf.eprintf "GET: %d\n%!" (Atomic.get count);
     Atomic.incr count
 
   let worker = perform

@@ -6,7 +6,7 @@ module Yields = struct
 
   let name = "yields"
   let label _ = name
-  let unit _ = ""
+  let unit _ = "yield"
   let make () = Operations.Yield.count
   let load = ignore
   let unload = ignore
@@ -18,9 +18,9 @@ let yields =
   let measure = Measure.register (module Yields) in
   Measure.instance (module Yields) measure
 
-let make ~name ~args ~worker ~allocate ~free test =
+let make ~workers ~name ~args ~worker ~allocate ~free test =
   let allocate n =
-    Workers.allocate worker n, allocate n
+    Workers.allocate worker workers, allocate n
   and free (workers, t) =
     Workers.free workers;
     free t
