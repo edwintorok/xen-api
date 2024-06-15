@@ -101,19 +101,19 @@ let tests f =
   make_tests f ~lo ~hi ~linesize []
   |> Bechamel.Test.make_grouped ~name:"strided_read"
 
-let predictors = [|Measure.run|]
+let predictor = Measure.run
 let instances = [ rdtsc ]
 
 let analyze raw_results =
-  let ols =
-    Analyze.ols ~r_square:false ~bootstrap:0 ~predictors
+  let ransac =
+    Analyze.ransac ~predictor ~filter_outliers:false
   in
   let results =
     List.map (fun instance ->
-      Analyze.all ols instance raw_results
+      Analyze.all ransac instance raw_results
     ) instances
   in
-  Analyze.merge ols instances results
+  Analyze.merge ransac instances results
 
 let print_suffix n =
   if n < 1 lsl 10 then
@@ -128,12 +128,12 @@ let print_results results =
   let tbl = Hashtbl.create 47 in
   let () =
     results |> Hashtbl.iter @@ fun _ result ->
-    result |> Hashtbl.iter @@ fun k' ols ->
-    ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
-    estimates |> List.iter @@ fun est ->
+    result |> Hashtbl.iter @@ fun k' ransac ->
+    let est = ransac |> Analyze.RANSAC.mean
+    and err = ransac |> Analyze.RANSAC.error in
     Scanf.sscanf k' "strided_read/%d:%d" @@ fun n stride ->
     let ops = n / stride in
-    Hashtbl.replace tbl (stride, n) (est /. float ops)
+    Hashtbl.replace tbl (stride, n) (est /. float ops, 1.96 *. err /. float ops)
   in
   let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
     IntSet.add stride strides, IntSet.add n columns
@@ -142,7 +142,8 @@ let print_results results =
   Printf.printf "%8s" "STRIDE";
   columns |> IntSet.iter (fun n ->
     print_char '\t';
-    print_suffix n
+    print_suffix n;
+    print_string "\t err"
   );
   print_char '\n';
 
@@ -151,9 +152,10 @@ let print_results results =
   let () =
     columns |> IntSet.iter @@ fun n ->
     print_char '\t';
-    Hashtbl.find_opt tbl (stride, n)
-    |> Option.iter @@ fun result ->
-    Printf.printf "%6.1f" result
+    match Hashtbl.find_opt tbl (stride, n) with
+    | Some (result, err) ->
+      Printf.printf "%6.1f\t%4.3f" result err
+    | None -> print_char '\t'
   in
   print_char '\n'
 
@@ -168,10 +170,12 @@ let set_timeslice slice =
 let () =
   let random = ref false in
   let timeslice = ref 0. in
+  let bench_time = ref 0.1 in
   Arg.parse [
     "--random", Arg.Set random, "Use random rather than sequential reads"
   ; "--threads", Arg.Set_int threads,"Use specified number of threads"
   ; "--timeslice", Arg.Set_float timeslice, "Set thread yield timeslice"
+  ; "--benchtime", Arg.Set_float bench_time, "Benchmark minimum time per cell"
   ] ignore "cacheplot [--random]";
   (* to allow equal number of memory reads to execute Strided_read.read with stride=N/2,
      and with stride=linesize we need an iteration limit of at least:
@@ -179,7 +183,7 @@ let () =
      and we might want to repeat this multiple times for accuracy
    *)
   let limit = 100 * (List.hd caches).Cachesize.size / linesize / 2 in
-  let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second 0.1) ~start:2 ~stabilize:false () in
+  let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
   let f = if !random then test_cycle_read else test_strided_read in
   if !timeslice > 0. then set_timeslice !timeslice;
   tests f |> Bechamel.Benchmark.all cfg instances |> analyze
