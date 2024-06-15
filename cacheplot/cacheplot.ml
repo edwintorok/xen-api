@@ -29,7 +29,7 @@ let test_strided_read ~linesize ~n =
     ~args:(build_strides ~n ~stride_size_bytes:(linesize/2) [])
     Test.uniq
     ~allocate:(fun _ -> Operations.StridedRead.allocate n)
-    ~free:ignore
+    ~free:(fun _ -> output_char stderr '.'; flush stderr)
     (fun stride_size_bytes -> Staged.stage (Operations.StridedRead.read ~stride_size_bytes))
 
 let rec make_tests ~linesize ~lo ~hi tests =
@@ -61,13 +61,50 @@ let analyze raw_results =
   in
   Analyze.merge ols instances results
 
+let print_suffix n =
+  if n < 1 lsl 10 then
+    Printf.printf "%6d" n
+  else if n < 1 lsl 20 then
+    Printf.printf "%3dKiB" (n lsr 10)
+  else Printf.printf "%3dMiB" (n lsr 20)
+
+module IntSet = Set.Make(Int)
+
+let print_results results =
+  let tbl = Hashtbl.create 47 in
+  let () =
+    results |> Hashtbl.iter @@ fun _ result ->
+    result |> Hashtbl.iter @@ fun k' ols ->
+    ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
+    estimates |> List.iter @@ fun est ->
+    Scanf.sscanf k' "strided_read/%d:%d" @@ fun n stride ->
+    let ops = n / stride in
+    Hashtbl.replace tbl (stride, n) (est /. float ops)
+  in
+  let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
+    IntSet.add stride strides, IntSet.add n columns
+  ) tbl (IntSet.empty, IntSet.empty) in
+
+  Printf.printf "%8s" "STRIDE";
+  columns |> IntSet.iter (fun n ->
+    print_char '\t';
+    print_suffix n
+  );
+  print_char '\n';
+
+  strides |> IntSet.iter @@ fun stride ->
+  Printf.printf "%8d" stride;
+  let () =
+    columns |> IntSet.iter @@ fun n ->
+    print_char '\t';
+    Hashtbl.find_opt tbl (stride, n)
+    |> Option.iter @@ fun result ->
+    Printf.printf "%6.1f" result
+  in
+  print_char '\n'
+
+
 let () =
-  let cfg = Bechamel.Benchmark.cfg ~quota:(Time.second 0.01) ~start:2 ~stabilize:false () in
+  let cfg = Bechamel.Benchmark.cfg ~quota:(Time.second 0.1) ~start:2 ~stabilize:false () in
   tests |> Bechamel.Benchmark.all cfg instances |> analyze
-  |> Hashtbl.iter @@ fun _ tbl ->
-  tbl |> Hashtbl.iter @@ fun k' ols ->
-  ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
-  estimates |> List.iter @@ fun est ->
-  Scanf.sscanf k' "strided_read/%d:%d" @@ fun n stride ->
-  let ops = n / stride in
-  Printf.printf "%d %d %f\n" n stride (est /. float ops)
+  |> print_results
