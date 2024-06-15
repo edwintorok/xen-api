@@ -23,8 +23,7 @@ module StridedRead = struct
       let _ = Sys.opaque_identity (Array.unsafe_get (Sys.opaque_identity data) pos) in
       read_from ~stride_size_words data len (pos + stride_size_words)    
 
-  let read ~stride_size_bytes data =
-    let stride_size_words = stride_size_bytes / word_size in
+  let[@inline always] read ~stride_size_words data =
     read_from ~stride_size_words data (Array.length data) 0 
 end
 

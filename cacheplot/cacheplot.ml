@@ -29,7 +29,8 @@ let threads = ref 0
 let worker ~stride_size_bytes n =
   (* always use strided read, faster *)
   let data = Operations.StridedRead.allocate n in
-  fun () -> Operations.StridedRead.read ~stride_size_bytes data
+  let stride_size_words = stride_size_bytes / Operations.word_size in
+  fun () -> Operations.StridedRead.read ~stride_size_words data
 
 let[@inline always] start_workers (ready, _) =
   Workers.StartStop.start ready
@@ -56,8 +57,10 @@ let test_strided_read ~linesize ~n =
       mfence ()
     )
     (fun stride_size_bytes ->
+      let stride_size_words = stride_size_bytes / Operations.word_size in
       Staged.stage (fun (data, _) ->
-        Operations.StridedRead.read ~stride_size_bytes data)
+         Operations.StridedRead.read ~stride_size_words data
+      )
     )
 
 let test_cycle_read ~linesize:_ ~n =
@@ -170,7 +173,13 @@ let () =
   ; "--threads", Arg.Set_int threads,"Use specified number of threads"
   ; "--timeslice", Arg.Set_float timeslice, "Set thread yield timeslice"
   ] ignore "cacheplot [--random]";
-  let cfg = Bechamel.Benchmark.cfg ~quota:(Time.second 0.1) ~start:2 ~stabilize:false () in
+  (* to allow equal number of memory reads to execute Strided_read.read with stride=N/2,
+     and with stride=linesize we need an iteration limit of at least:
+     limit = N/linesize/2
+     and we might want to repeat this multiple times for accuracy
+   *)
+  let limit = 100 * (List.hd caches).Cachesize.size / linesize / 2 in
+  let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second 0.1) ~start:2 ~stabilize:false () in
   let f = if !random then test_cycle_read else test_strided_read in
   if !timeslice > 0. then set_timeslice !timeslice;
   tests f |> Bechamel.Benchmark.all cfg instances |> analyze
