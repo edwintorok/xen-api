@@ -23,11 +23,12 @@ module StartStop = struct
     ; stop = Atomic.make false
   }
 
-  let start t =
-    Mutex.lock t.mutex;
-    Atomic.set t.start true;
-    Mutex.unlock t.mutex;
-    Condition.broadcast t.cond
+  let[@inline always] start t =
+    (* this is called from within a benchmarking routine,
+       do not make unnecessary syscalls
+     *)
+    if not (Atomic.exchange t.start true) then
+      Condition.broadcast t.cond
 
   let stop t = Atomic.set t.stop true
 end
