@@ -42,14 +42,17 @@ let test_strided_read ~linesize ~n =
     ~args:(build_strides ~n ~stride_size_bytes:(linesize/2) [])
     Test.uniq
     ~allocate:(fun stride_size_bytes ->
-      let r =
+      let data, threads =
         Operations.StridedRead.allocate n,
         let t = Workers.allocate (worker ~stride_size_bytes n) !threads in
         start_workers t;
         t
       in
+      let stride_size_words = stride_size_bytes / Operations.word_size in
+      (* warmup, otherwise vmin/vmax will be very different to the estimate *)
+      Sys.opaque_identity (Operations.StridedRead.read ~stride_size_words data);
       mfence ();
-      r
+      data, threads
     )
     ~free:(fun (_, threads) ->
       Workers.free threads;
@@ -102,18 +105,19 @@ let tests f =
   |> Bechamel.Test.make_grouped ~name:"strided_read"
 
 let predictor = Measure.run
-let instances = [ rdtsc ]
+let instance = rdtsc
 
 let analyze raw_results =
   let ols =
     Analyze.ols ~r_square:false ~predictors:[|predictor|] ~bootstrap:0
   in
-  let results =
-    List.map (fun instance ->
-      Analyze.all ols instance raw_results
-    ) instances
-  in
-  Analyze.merge ols instances results
+  let label = Measure.label instance in
+  raw_results |> Hashtbl.to_seq |> Seq.map @@ fun (name, result) ->
+  let vmin, vmax = result.Benchmark.lr |> Array.fold_left (fun (vmin,vmax) m ->
+    let v = Measurement_raw.get ~label m /. Measurement_raw.run m in
+    Float.min vmin v, Float.max vmax v
+  ) (Float.max_float, Float.min_float) in
+  name, Analyze.one ols instance result, vmin, vmax
 
 let print_suffix n =
   if n < 1 lsl 10 then
@@ -127,20 +131,12 @@ module IntSet = Set.Make(Int)
 let print_results results =
   let tbl = Hashtbl.create 47 in
   let () =
-    results |> Hashtbl.iter @@ fun _ result ->
-    result |> Hashtbl.iter @@ fun k' ols ->
+    results |> Seq.iter @@ fun (name, ols, vmin, vmax) ->
     ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
     estimates |> List.iter @@ fun est ->
-    Scanf.sscanf k' "strided_read/%d:%d" @@ fun n stride ->
+    Scanf.sscanf name "strided_read/%d:%d" @@ fun n stride ->
     let ops = float (n / stride) in
-    let est = est /. ops in
-    let vmin, vmax =
-      (* TODO: retrieve min/max above... *)
-      match Analyze.OLS.ci95 ols with
-      | None | Some [] -> est, est
-      | Some ({r;l} :: _) -> l, r
-    in
-    Hashtbl.replace tbl (stride, n) (est, vmin, vmax)
+    Hashtbl.replace tbl (stride, n) (est /. ops, vmin /. ops, vmax /. ops)
   in
   let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
     IntSet.add stride strides, IntSet.add n columns
@@ -150,7 +146,7 @@ let print_results results =
   columns |> IntSet.iter (fun n ->
     print_char '\t';
     print_suffix n;
-    print_string "\tmin\tmax"
+    Printf.printf "\t%6s\t%6s" "min" "max"
   );
   print_char '\n';
 
@@ -193,5 +189,5 @@ let () =
   let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
   let f = if !random then test_cycle_read else test_strided_read in
   if !timeslice > 0. then set_timeslice !timeslice;
-  tests f |> Bechamel.Benchmark.all cfg instances |> analyze
+  tests f |> Bechamel.Benchmark.all cfg [instance] |> analyze
   |> print_results
