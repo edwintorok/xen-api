@@ -105,15 +105,15 @@ let predictor = Measure.run
 let instances = [ rdtsc ]
 
 let analyze raw_results =
-  let ransac =
-    Analyze.ransac ~predictor ~filter_outliers:false
+  let ols =
+    Analyze.ols ~r_square:false ~predictors:[|predictor|] ~bootstrap:0
   in
   let results =
     List.map (fun instance ->
-      Analyze.all ransac instance raw_results
+      Analyze.all ols instance raw_results
     ) instances
   in
-  Analyze.merge ransac instances results
+  Analyze.merge ols instances results
 
 let print_suffix n =
   if n < 1 lsl 10 then
@@ -128,12 +128,19 @@ let print_results results =
   let tbl = Hashtbl.create 47 in
   let () =
     results |> Hashtbl.iter @@ fun _ result ->
-    result |> Hashtbl.iter @@ fun k' ransac ->
-    let est = ransac |> Analyze.RANSAC.mean
-    and err = ransac |> Analyze.RANSAC.error in
+    result |> Hashtbl.iter @@ fun k' ols ->
+    ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
+    estimates |> List.iter @@ fun est ->
     Scanf.sscanf k' "strided_read/%d:%d" @@ fun n stride ->
-    let ops = n / stride in
-    Hashtbl.replace tbl (stride, n) (est /. float ops, 1.96 *. err /. float ops)
+    let ops = float (n / stride) in
+    let est = est /. ops in
+    let vmin, vmax =
+      (* TODO: retrieve min/max above... *)
+      match Analyze.OLS.ci95 ols with
+      | None | Some [] -> est, est
+      | Some ({r;l} :: _) -> l, r
+    in
+    Hashtbl.replace tbl (stride, n) (est, vmin, vmax)
   in
   let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
     IntSet.add stride strides, IntSet.add n columns
@@ -143,7 +150,7 @@ let print_results results =
   columns |> IntSet.iter (fun n ->
     print_char '\t';
     print_suffix n;
-    print_string "\t err"
+    print_string "\tmin\tmax"
   );
   print_char '\n';
 
@@ -153,9 +160,9 @@ let print_results results =
     columns |> IntSet.iter @@ fun n ->
     print_char '\t';
     match Hashtbl.find_opt tbl (stride, n) with
-    | Some (result, err) ->
-      Printf.printf "%6.1f\t%4.3f" result err
-    | None -> print_char '\t'
+    | Some (result, vmin, vmax) ->
+      Printf.printf "%6.1f\t%6.1f\t%6.1f" result vmin vmax
+    | None -> print_char '\t'; print_char '\t'
   in
   print_char '\n'
 
