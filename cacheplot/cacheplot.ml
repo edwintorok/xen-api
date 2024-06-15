@@ -109,15 +109,20 @@ let instance = rdtsc
 
 let analyze raw_results =
   let ols =
-    Analyze.ols ~r_square:false ~predictors:[|predictor|] ~bootstrap:0
+    Analyze.ols ~r_square:true ~predictors:[|predictor|] ~bootstrap:0
   in
   let label = Measure.label instance in
-  raw_results |> Hashtbl.to_seq |> Seq.map @@ fun (name, result) ->
+  ols, raw_results, raw_results |> Hashtbl.to_seq |> Seq.map @@ fun (name, result) ->
   let vmin, vmax = result.Benchmark.lr |> Array.fold_left (fun (vmin,vmax) m ->
     let v = Measurement_raw.get ~label m /. Measurement_raw.run m in
     Float.min vmin v, Float.max vmax v
   ) (Float.max_float, Float.min_float) in
   name, Analyze.one ols instance result, vmin, vmax
+
+let analyze' ols raw_results results =
+  [results |> Seq.map (fun (name, ols, _, _) -> name, ols)
+  |> Hashtbl.of_seq]
+  |> Analyze.merge ols [instance], raw_results
 
 let print_suffix n =
   if n < 1 lsl 10 then
@@ -170,6 +175,8 @@ let set_timeslice slice =
   let (_:Unix.interval_timer_status) = Unix.setitimer Unix.ITIMER_VIRTUAL Unix.{it_value = slice; it_interval = slice} in
   ()
 
+let nothing _ = Ok ()
+
 let () =
   let random = ref false in
   let timeslice = ref 0. in
@@ -189,5 +196,17 @@ let () =
   let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
   let f = if !random then test_cycle_read else test_strided_read in
   if !timeslice > 0. then set_timeslice !timeslice;
-  tests f |> Bechamel.Benchmark.all cfg [instance] |> analyze
-  |> print_results
+  let ols, raw_results, results = tests f |> Bechamel.Benchmark.all cfg [instance] |> analyze in
+  print_results results;
+  let results = analyze' ols raw_results results in
+  let open Bechamel_js in
+  Out_channel.with_open_text "output.json" @@ fun ch ->
+  let res =
+    emit ~dst:(Channel ch) nothing ~compare ~x_label:Measure.run
+    ~y_label:(Measure.label instance)
+    results
+  in
+  match res with
+  | Ok () -> ()
+  | Error (`Msg err) -> invalid_arg err
+
