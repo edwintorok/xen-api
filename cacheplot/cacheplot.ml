@@ -43,9 +43,15 @@ let[@inline always] start_workers (ready, _) =
 
 let mfence = Ocaml_intrinsics.Fences.memory_fence
 
+let short = ref false
+
 let test_strided_read ~linesize ~n =
+  let args =
+    if !short then [2*linesize; 4096]
+    else build_strides ~n ~stride_size_bytes:(linesize/2) []
+  in
   Test.make_indexed_with_resource ~name:(string_of_int n)
-    ~args:(build_strides ~n ~stride_size_bytes:(linesize/2) [])
+    ~args
     Test.uniq
     ~allocate:(fun stride_size_bytes ->
       let data, threads =
@@ -210,30 +216,14 @@ let set_timeslice slice =
 
 let nothing _ = Ok ()
 
-let () =
-  let random = ref false in
-  let timeslice = ref 0. in
-  let bench_time = ref 0.1 in
-  Arg.parse [
-    "--random", Arg.Set random, "Use random rather than sequential reads"
-  ; "--threads", Arg.Set_int threads,"Use specified number of threads"
-  ; "--timeslice", Arg.Set_float timeslice, "Set thread yield timeslice"
-  ; "--benchtime", Arg.Set_float bench_time, "Benchmark minimum time per cell"
-  ] ignore "cacheplot [--random]";
-  (* to allow equal number of memory reads to execute Strided_read.read with stride=N/2,
-     and with stride=linesize we need an iteration limit of at least:
-     limit = N/linesize/2
-     and we might want to repeat this multiple times for accuracy
-   *)
-  let limit = 100 * (List.hd caches).Cachesize.size / linesize / 2 in
-  let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
-  let f = if !random then test_cycle_read else test_strided_read in
-  if !timeslice > 0. then set_timeslice !timeslice;
+let run_tests cfg random timeslice = 
+  let f = if random then test_cycle_read else test_strided_read in
+  if timeslice > 0. then set_timeslice timeslice;
   let ols, raw_results, results = tests f |> Bechamel.Benchmark.all cfg instances |> analyze in
   print_results results;
   let results = analyze' ols raw_results results in
   let open Bechamel_js in
-  Out_channel.with_open_text (Printf.sprintf "output%d_%f.json" !threads !timeslice) @@ fun ch ->
+  Out_channel.with_open_text (Printf.sprintf "output%d_%f.json" !threads timeslice) @@ fun ch ->
   let res =
     emit ~dst:(Channel ch) nothing ~compare ~x_label:Measure.run
     ~y_label:(Measure.label instance)
@@ -243,3 +233,36 @@ let () =
   | Ok () -> ()
   | Error (`Msg err) -> invalid_arg err
 
+let () =
+  let random = ref false in
+  let timeslice = ref 0. in
+  let bench_time = ref 0.1 in
+  let auto = ref false in
+  Arg.parse [
+    "--random", Arg.Set random, "Use random rather than sequential reads"
+  ; "--threads", Arg.Set_int threads,"Use specified number of threads"
+  ; "--timeslice", Arg.Set_float timeslice, "Set thread yield timeslice"
+  ; "--benchtime", Arg.Set_float bench_time, "Benchmark minimum time per cell"
+  ; "--short", Arg.Set short, "Test just 2 stride sizes"
+  ; "--auto", Arg.Set auto, "Test multiple timeslices"
+  ] ignore "cacheplot [--random]";
+  (* to allow equal number of memory reads to execute Strided_read.read with stride=N/2,
+     and with stride=linesize we need an iteration limit of at least:
+     limit = N/linesize/2
+     and we might want to repeat this multiple times for accuracy
+   *)
+  let limit = 100 * (List.hd caches).Cachesize.size / linesize / 2 in
+  let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
+  if !auto then begin
+   short := true;
+   threads := 0;
+   run_tests cfg !random 0.;
+   threads := 1;
+   run_tests cfg !random 0.;
+   [0.001;0.002;0.004;0.008;0.016; 0.032]
+   |> List.iter @@ fun timeslice ->
+   run_tests cfg !random timeslice;
+  end
+  else
+    run_tests cfg !random !timeslice
+  
