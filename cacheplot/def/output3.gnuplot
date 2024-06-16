@@ -1,5 +1,5 @@
 set terminal svg dynamic mouse standalone
-load 'parula.pal'
+load '../parula.pal'
 set datafile columnheader separator '\t'
 set logscale y 2
 set logscale x 2
@@ -15,6 +15,5 @@ set zlabel "cycles" rotate parallel
 set pm3d depthorder base
 
 set style fill transparent solid 0.75 noborder
-splot for [t=0:6] for [i=0:12] output(timeslice(t)) using (timeslice(t)):1:2+2*i:3+2*i:2+2*i with lines ls i notitle,\
+splot for [t=0:6] for [i=0:12] output(timeslice(t)) using (timeslice(t)):1:2+2*i with lines ls i notitle,\
 	for [i=0:12] output(0) using (100):1:2+2*i:3+2*i:2+2*i ls i title columnhead(2+2*i) with zerrorfill
-
