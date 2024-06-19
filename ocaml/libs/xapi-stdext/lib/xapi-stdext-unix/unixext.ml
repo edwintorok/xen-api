@@ -614,9 +614,6 @@ module Timer = struct
 
   let start ~timeout = {elapsed= Mtime_clock.counter (); timeout}
 
-  let elapsed {elapsed; _} = elapsed
-
-  let timeout {timeout; _} = timeout
 
   let remaining ?(attempt_delay = Mtime.Span.zero) t =
     let elapsed = Mtime.Span.add (Mtime_clock.count t.elapsed) attempt_delay in
@@ -627,6 +624,8 @@ module Timer = struct
       Excess difference
 
   let pp =
+    let elapsed {elapsed; _} = elapsed in
+    let timeout {timeout; _} = timeout in
     Fmt.record
       [
         Fmt.field "elapsed" elapsed (Fmt.using Mtime_clock.count Mtime.Span.pp)
