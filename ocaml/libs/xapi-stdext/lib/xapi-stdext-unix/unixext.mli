@@ -146,8 +146,18 @@ val try_read_string : ?limit:int -> Unix.file_descr -> string
 
 exception Timeout
 
+(** A "timeout" is a time span, relative to the start of an operation.
+  It is usually used to express a limit on the duration of an operation.
+
+  Not all time spans are timeouts, e.g. the difference between 2 timestamps (a duration) is not a timeout,
+  because it only expresses measured, elapsed time, not a limit.
+  
+  All timeouts are time spans, e.g. a 30s timeout on a read operation means that we should raise an exception if the
+  read operation doesn't complete within 30s from the moment it started.
+ *)
 module Timeout : sig
   type t = private Mtime.Span.t
+  (** upper bound for the duration of an operation *)
 
   val of_string : string -> t
   (** [of_string str] parses [str] as a floating point number in seconds.  *)
@@ -159,27 +169,37 @@ module Timeout : sig
 
   val to_string : t -> string
   (** [to_string t] converts the timeout [t] to a floating pointer number in seconds.
-    [t |> to_string |> of_string] will be equal to [t], but we are not the other way around:
+    [t |> to_string |> of_string] will be equal to [t], but not the other way around:
     [str |> of_string |> to_string] may not result in the exact same representation as the original one.
    *)
 
   val pp : t Fmt.t
 end
 
+(** A timer is started at the same time as a particular operation.
+  It measures elapsed time from that moment, and has a desired upper bound, its timeout.
+
+  At any moment we can query the timer and get the remaining time, which is either
+   [Spare] if the timeout has not been reached yet,
+   or [Excess] if the timer has already expired, i.e. we have already exceeded the timeout.
+
+ *)
 module Timer : sig
   val delay : Mtime.Span.t -> unit
   (** [delay dt] delays the execution of the current thread for [dt]. *)
 
   type t
+  (** a timer that was started at a particular moment in time, and measures time relative to it *)
 
   type remaining = Spare of Mtime.Span.t | Excess of Mtime.Span.t
 
   val start : timeout:Timeout.t -> t
-  (** [start ~timeout] *)
+  (** [start ~timeout] starts a timer, with the relative deadline [timeout]. *)
 
   val remaining : ?attempt_delay:Mtime.Span.t -> t -> remaining
   (** [remaining ?attempt_delay deadline] calculates the time remaining until the given [deadline].
     If [attempt_delay] is specified, then it is added to the elapsed time (i.e. subtracted from remaining time).
+    [attempt_delay] can be used to include the cost of an operation in the deadline, such that we complete the operation before the deadline.
    *)
 
   val pp : Format.formatter -> t -> unit
