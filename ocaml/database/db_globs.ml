@@ -5,7 +5,7 @@ open Xapi_stdext_unix
 let redo_log_block_device_io = ref "block_device_io"
 
 (** The delay between each attempt to connect to the block device I/O process *)
-let redo_log_connect_delay = ref Mtime.Span.(100 * ms)
+let redo_log_connect_delay = ref (Mtime.Span.(100 * ms) |> Unixext.Timeout.of_span)
 
 (** The maximum time, in seconds, for which we are prepared to wait for a response from the block device I/O process before assuming that it has died while emptying *)
 let redo_log_max_block_time_empty =

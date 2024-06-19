@@ -955,7 +955,6 @@ type xapi_globs_spec_ty =
   | Float of float ref
   | Int of int ref
   | Timeout of Xapi_stdext_unix.Unixext.Timeout.t ref
-  | Span of Mtime.Span.t ref
 
 let extauth_ad_backend = ref "winbind"
 
@@ -1098,7 +1097,7 @@ let xapi_globs_spec =
     , Timeout Db_globs.redo_log_max_block_time_writedb
     )
   ; ("redo_log_max_startup_time", Timeout Db_globs.redo_log_max_startup_time)
-  ; ("redo_log_connect_delay", Span Db_globs.redo_log_connect_delay)
+  ; ("redo_log_connect_delay", Timeout Db_globs.redo_log_connect_delay)
   ; ("default-vbd3-polling-duration", Int default_vbd3_polling_duration)
   ; ( "default-vbd3-polling-idle-threshold"
     , Int default_vbd3_polling_idle_threshold
@@ -1127,9 +1126,6 @@ let xapi_globs_spec =
 
 let timeout ref str = ref := Xapi_stdext_unix.Unixext.Timeout.of_string str
 
-let span ref str =
-  ref := (Xapi_stdext_unix.Unixext.Timeout.(of_string str) :> Mtime.Span.t)
-
 let options_of_xapi_globs_spec =
   List.map
     (fun (name, ty) ->
@@ -1141,8 +1137,6 @@ let options_of_xapi_globs_spec =
             Arg.Set_int x
         | Timeout x ->
             Arg.String (timeout x)
-        | Span x ->
-            Arg.String (span x)
         )
       , (fun () ->
           match ty with
@@ -1152,8 +1146,6 @@ let options_of_xapi_globs_spec =
               string_of_int !x
           | Timeout x ->
               Xapi_stdext_unix.Unixext.Timeout.to_string !x
-          | Span x ->
-              Xapi_stdext_unix.Unixext.Timeout.(!x |> of_span |> to_string)
         )
       , Printf.sprintf "Set the value of '%s'" name
       )
