@@ -185,7 +185,7 @@ end
 
  *)
 module Timer : sig
-  val delay : Mtime.Span.t -> unit
+  val delay : Timeout.t -> unit
   (** [delay dt] delays the execution of the current thread for [dt]. *)
 
   type t
@@ -196,7 +196,7 @@ module Timer : sig
   val start : timeout:Timeout.t -> t
   (** [start ~timeout] starts a timer, with the relative deadline [timeout]. *)
 
-  val remaining : ?attempt_delay:Mtime.Span.t -> t -> remaining
+  val remaining : ?attempt_delay:Timeout.t -> t -> remaining
   (** [remaining ?attempt_delay deadline] calculates the time remaining until the given [deadline].
     If [attempt_delay] is specified, then it is added to the elapsed time (i.e. subtracted from remaining time).
     [attempt_delay] can be used to include the cost of an operation in the deadline, such that we complete the operation before the deadline.
