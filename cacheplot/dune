@@ -1,4 +1,4 @@
 (executable
 	(name cacheplot)
-	(libraries simple_workloads bechamel ocaml_intrinsics csv unix threads.posix bechamel-js fmt)
+	(libraries simple_workloads bechamel ocaml_intrinsics unix threads.posix bechamel-js fmt)
 )

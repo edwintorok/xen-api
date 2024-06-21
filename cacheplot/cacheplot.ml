@@ -95,6 +95,12 @@ let test_cycle_read ~linesize:_ ~n =
       mfence ()
     )
     (fun _ -> Staged.stage (fun (data, _) ->
+      (* TODO: we should instead launch a request and wait for it, but without syscalls, to avoid syscall overhead?
+         e.g. shared memory page and busy loop?
+         or just do syscalls, but that means we'll always have high(er) overhead, unless we do some iteration when called too
+
+         although if we use taskset that'll include our parent too... maybe we need to do affinity ourselves?
+       *)
       Operations.CycleRead.read data))
 
 let rec make_tests f ~linesize ~lo ~hi tests =
@@ -118,7 +124,7 @@ let instance_of_atomic ~name ~unit atomic =
     type witness = int Atomic.t
 
     let name = name
-    let label _ = name
+   let label _ = name
     let unit _ = unit
     let make () = atomic
     let load = ignore
@@ -169,7 +175,7 @@ let print_suffix n =
 
 module IntSet = Set.Make(Int)
 
-let print_results results =
+let print_results ?(print_header=true) timeslice results =
   let tbl = Hashtbl.create 47 in
   let () =
     results |> List.hd |> Seq.iter @@ fun (name, ols, vmin) ->
@@ -182,17 +188,21 @@ let print_results results =
   let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
     IntSet.add stride strides, IntSet.add n columns
   ) tbl (IntSet.empty, IntSet.empty) in
-
-  Printf.printf "%8s" "STRIDE";
-  columns |> IntSet.iter (fun n ->
-    print_char '\t';
-    print_suffix n;
-    Printf.printf "\t%6s" "min"
-  );
-  print_char '\n';
+  if print_header then begin
+    output_char stderr '\n';
+    flush stderr;
+    Printf.printf "%8s\t%8s\t%8s" "THREADS" "TIMESLICE" "STRIDE";
+    columns |> IntSet.iter (fun n ->
+      print_char '\t';
+      print_suffix n;
+      Printf.printf "\t%6s" "min"
+    );
+    print_char '\n';
+  end;
 
   strides |> IntSet.iter @@ fun stride ->
-  Printf.printf "%8d" stride;
+  let timeslice = if !threads > 0 && timeslice < Float.epsilon then 0.05 (* default OCaml tick thread if we don't set one ourselves *) else timeslice in
+  Printf.printf "%8d\t%8.6f\t%8d" !threads timeslice stride;
   let () =
     columns |> IntSet.iter @@ fun n ->
     print_char '\t';
@@ -216,11 +226,7 @@ let set_timeslice slice =
 
 let nothing _ = Ok ()
 
-let run_tests cfg random timeslice = 
-  let f = if random then test_cycle_read else test_strided_read in
-  if timeslice > 0. then set_timeslice timeslice;
-  let ols, raw_results, results = tests f |> Bechamel.Benchmark.all cfg instances |> analyze in
-  print_results results;
+let print_bechamel_results (ols, raw_results, results) timeslice =
   let results = analyze' ols raw_results results in
   let open Bechamel_js in
   Out_channel.with_open_text (Printf.sprintf "output%d_%f.json" !threads timeslice) @@ fun ch ->
@@ -232,6 +238,14 @@ let run_tests cfg random timeslice =
   match res with
   | Ok () -> ()
   | Error (`Msg err) -> invalid_arg err
+
+let run_tests ?print_header cfg random timeslice = 
+  let f = if random then test_cycle_read else test_strided_read in
+  if timeslice > 0. then set_timeslice timeslice;
+  let ols, raw_results, results = tests f |> Bechamel.Benchmark.all cfg instances |> analyze in
+  print_results ?print_header timeslice results;
+  print_bechamel_results (ols, raw_results, results) timeslice
+
 
 let () =
   let random = ref false in
@@ -258,10 +272,10 @@ let () =
    threads := 0;
    run_tests cfg !random 0.;
    threads := 1;
-   run_tests cfg !random 0.;
+   run_tests ~print_header:false cfg !random 0.;
    [0.001;0.002;0.004;0.008;0.016; 0.032]
    |> List.iter @@ fun timeslice ->
-   run_tests cfg !random timeslice;
+   run_tests ~print_header:false cfg !random timeslice;
   end
   else
     run_tests cfg !random !timeslice
