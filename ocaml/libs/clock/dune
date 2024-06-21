@@ -6,7 +6,6 @@
     astring
     ptime
     ptime.clock.os
-    xapi-stdext-date
   )
 )
 
