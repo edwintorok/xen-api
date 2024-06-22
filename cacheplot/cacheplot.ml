@@ -1,12 +1,6 @@
 open Simple_workloads
 open Bechamel
 
-(* TODO: need to filter outliers,
-   getting a lot of those with timeslice switches...
-   but isn't that exactly what we *want* to see?
-   most measurements will be fine, but we get the ocasionnal large one..
- *)
-
 module Rdtsc = struct
   type witness = unit
   let make = ignore
@@ -26,99 +20,6 @@ let rdtsc =
   let measure = Measure.register (module Rdtsc) in
   Measure.instance (module Rdtsc) measure
 
-let rec build_strides ~n ~stride_size_bytes results =
-  if stride_size_bytes > n / 2 then results
-  else build_strides ~n ~stride_size_bytes:(stride_size_bytes * 2) (stride_size_bytes :: results)
-
-let threads = ref 0
-
-let worker ~stride_size_bytes n =
-  (* always use strided read, faster *)
-  let data = Operations.StridedRead.allocate n in
-  let stride_size_words = stride_size_bytes / Operations.word_size in
-  fun () -> Operations.StridedRead.read ~stride_size_words data
-
-let[@inline always] start_workers (ready, _) =
-  Workers.StartStop.start ready
-
-let mfence = Ocaml_intrinsics.Fences.memory_fence
-
-let short = ref false
-
-let test_strided_read ~linesize ~n =
-  let args =
-    if !short then [2*linesize; 4096]
-    else build_strides ~n ~stride_size_bytes:(linesize/2) []
-  in
-  Test.make_indexed_with_resource ~name:(string_of_int n)
-    ~args
-    Test.uniq
-    ~allocate:(fun stride_size_bytes ->
-      let data, threads =
-        Operations.StridedRead.allocate n,
-        let t = Workers.allocate (worker ~stride_size_bytes n) !threads in
-        start_workers t;
-        t
-      in
-      mfence ();
-      data, threads
-    )
-    ~free:(fun (_, threads) ->
-      Workers.free threads;
-      output_char stderr '.'; flush stderr;
-      mfence ()
-    )
-    (fun stride_size_bytes ->
-      let stride_size_words = stride_size_bytes / Operations.word_size in
-      Staged.stage (fun (data, _) ->
-         Operations.StridedRead.read ~stride_size_words data
-      )
-    )
-
-let test_cycle_read ~linesize:_ ~n =
-  Test.make_indexed_with_resource ~name:(string_of_int n)
-    ~args:(build_strides ~n ~stride_size_bytes:Operations.word_size [])
-    Test.uniq
-    ~allocate:(fun stride_size_bytes ->
-      let r =
-       Operations.CycleRead.allocate ~stride_size_bytes n,
-       let t = Workers.allocate (worker ~stride_size_bytes n) !threads in
-       start_workers t;
-       t
-      in
-      mfence ();
-      r
-    )
-    ~free:(fun (_, threads) ->
-      Workers.free threads;
-      output_char stderr '.'; flush stderr;
-      mfence ()
-    )
-    (fun _ -> Staged.stage (fun (data, _) ->
-      (* TODO: we should instead launch a request and wait for it, but without syscalls, to avoid syscall overhead?
-         e.g. shared memory page and busy loop?
-         or just do syscalls, but that means we'll always have high(er) overhead, unless we do some iteration when called too
-
-         although if we use taskset that'll include our parent too... maybe we need to do affinity ourselves?
-       *)
-      Operations.CycleRead.read data))
-
-let rec make_tests f ~linesize ~lo ~hi tests =
-  if lo > hi then tests
-  else begin
-    let test = f ~linesize ~n:lo in
-    make_tests f ~linesize ~lo:(lo*2) ~hi (test :: tests)
-  end
-  
-let caches = Cachesize.caches ()
-let linesize = List.fold_left Int.max 0 (List.map (fun c -> c.Cachesize.linesize) caches)
-
-let tests f =
-  let hi = (List.hd caches).Cachesize.size * 2
-  and lo = (caches |> List.rev |> List.hd).Cachesize.size / 2 in
-  make_tests f ~lo ~hi ~linesize []
-  |> Bechamel.Test.make_grouped ~name:"strided_read"
-
 let instance_of_atomic ~name ~unit atomic =
   let module M = struct
     type witness = int Atomic.t
@@ -136,24 +37,134 @@ let instance_of_atomic ~name ~unit atomic =
   let measure = Measure.register (module M) in
   Measure.instance (module M) measure
 
-let yields_name = "yields"
-let yields = instance_of_atomic ~name:yields_name ~unit:"yield" Operations.Yield.count
+let yields = instance_of_atomic ~name:"yields" ~unit:"yield" Operations.Yield.count
 
-let predictor = Measure.run
+let read_operations = Atomic.make 0
+
+let reads = instance_of_atomic ~name:"operations" ~unit:"read" read_operations
+
+module type READ = sig
+  type t
+  val allocate : stride_size_bytes:int -> int -> t
+  val read : stride_size_words:int -> t -> unit
+end
+
+module Make(R: READ) = struct
+  type t = R.t * int
+  let allocate ~stride_size_bytes n =
+    let operations = n / stride_size_bytes in
+    R.allocate ~stride_size_bytes n, operations
+  
+  let[@inline] read ~stride_size_words (data, operations) =
+    let r = Sys.opaque_identity (R.read ~stride_size_words data) in
+    let (_:int) = Atomic.fetch_and_add read_operations operations in    
+    r
+end
+
+module StridedRead = Make(struct
+  type t = int array
+  let allocate ~stride_size_bytes:_ n = Operations.StridedRead.allocate n
+  let[@inline] read ~stride_size_words data = Operations.StridedRead.read ~stride_size_words data
+end)
+
+module CycleRead = Make(struct
+  type t = int array
+  let allocate = Operations.CycleRead.allocate
+  let[@inline] read ~stride_size_words:_ data = Operations.CycleRead.read data
+end)
+
+let[@inline] start_workers (ready, _) =
+  Workers.StartStop.start ready
+
+let mfence = Ocaml_intrinsics.Fences.memory_fence
+
+let short = ref false
+
+let worker ~stride_size_bytes n =
+  (* always use strided read, faster *)
+  let data = StridedRead.allocate ~stride_size_bytes n in
+  let stride_size_words = stride_size_bytes / Operations.word_size in
+  fun () ->
+  StridedRead.read ~stride_size_words data
+
+let rec build_strides ~n ~stride_size_bytes results =
+  if stride_size_bytes > n / 2 then results
+  else build_strides ~n ~stride_size_bytes:(stride_size_bytes * 2) (stride_size_bytes :: results)
+
+let threads = ref 0
+
+let[@inline] test_read (module R: READ) ~linesize ~hi ~n =
+  let min_stride_size = linesize/2 in
+  let args =
+    if !short then [2*linesize; 4096]
+    else build_strides ~n ~stride_size_bytes:min_stride_size []
+  in
+  Test.make_indexed_with_resource ~name:(string_of_int n)
+    ~args
+    Test.uniq
+    ~allocate:(fun stride_size_bytes ->
+      let data, threads =
+        R.allocate ~stride_size_bytes n,
+        let t = Workers.allocate (worker ~stride_size_bytes n) !threads in
+        start_workers t;
+        t
+      in
+      mfence ();
+      data, threads
+    )
+    ~free:(fun (_, threads) ->
+      Workers.free threads;
+      output_char stderr '.'; flush stderr;
+      mfence ()
+    )
+    (fun stride_size_bytes ->
+      let stride_size_words = stride_size_bytes / Operations.word_size in
+      (* do same number of reads overall, even with large strides, or small arrays,
+         this tries to ensure we get interrupted similar number of times
+       *)
+      let loops = (stride_size_bytes / min_stride_size) * (hi / n) in
+      Staged.stage (fun (data, _) ->
+         for _ = 1 to loops do
+           Sys.opaque_identity (R.read ~stride_size_words data)
+         done
+      )
+    )
+
+let test_strided_read ~linesize ~hi ~n = test_read (module StridedRead) ~linesize ~hi ~n
+let test_cycle_read ~linesize ~hi ~n = test_read (module CycleRead) ~linesize ~hi ~n
+
+let rec make_tests f ~linesize ~lo ~hi tests =
+  if lo > hi then tests
+  else begin
+    let test = f ~linesize ~hi ~n:lo in
+    make_tests f ~linesize ~lo:(lo*2) ~hi (test :: tests)
+  end
+  
+let caches = Cachesize.caches ()
+let linesize = List.fold_left Int.max 0 (List.map (fun c -> c.Cachesize.linesize) caches)
+
+let tests f =
+  let hi = (List.hd caches).Cachesize.size * 2
+  and lo = (caches |> List.rev |> List.hd).Cachesize.size / 2 in
+  make_tests f ~lo ~hi ~linesize []
+  |> Bechamel.Test.make_grouped ~name:"strided_read"
+
+
+let predictor = Measure.label reads
 let instance = rdtsc
-let instances = [instance; yields]
+let instances = [instance; reads]
 
 let analyze raw_results =
   let ols =
     (* don't use yields here as predictor (even though it results in better R^2), it results in a very underestimated rdtsc/run, lower than min measured! *)
-    Analyze.ols ~r_square:true ~predictors:[|predictor;(*Measure.label yields*)|] ~bootstrap:0
+    Analyze.ols ~r_square:true ~predictors:[|predictor|] ~bootstrap:0
   in
   ols, raw_results,
   instances |> List.map @@ fun instance ->
   let label = Measure.label instance in
   raw_results |> Hashtbl.to_seq |> Seq.map @@ fun (name, result) ->
   let vmin = result.Benchmark.lr |> Array.fold_left (fun vmin m ->
-    let v = Measurement_raw.get ~label m /. Measurement_raw.run m in
+    let v = Measurement_raw.get ~label m /. Measurement_raw.get ~label:predictor m in
     Float.min vmin v
   ) Float.max_float in
   let r = Analyze.one ols instance result in
@@ -179,11 +190,11 @@ let print_results ?(print_header=true) timeslice results =
   let tbl = Hashtbl.create 47 in
   let () =
     results |> List.hd |> Seq.iter @@ fun (name, ols, vmin) ->
+    Format.eprintf "%a@," Analyze.OLS.pp ols;
     ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
     estimates |> List.iter @@ fun est ->
     Scanf.sscanf name "strided_read/%d:%d" @@ fun n stride ->
-    let ops = float (n / stride) in
-    Hashtbl.replace tbl (stride, n) (est /. ops, vmin /. ops)
+    Hashtbl.replace tbl (stride, n) (est, vmin)
   in
   let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
     IntSet.add stride strides, IntSet.add n columns
@@ -221,7 +232,9 @@ let handler (_:int) =
 
 let set_timeslice slice =
   Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle handler);
-  let (_:Unix.interval_timer_status) = Unix.setitimer Unix.ITIMER_VIRTUAL Unix.{it_value = slice; it_interval = slice} in
+  let signal, kind = if (slice < 0.001) then Sys.sigalrm, Unix.ITIMER_REAL else Sys.sigvtalrm, Unix.ITIMER_VIRTUAL in
+  Sys.set_signal signal (Sys.Signal_handle handler);
+  let (_:Unix.interval_timer_status) = Unix.setitimer kind Unix.{it_value = slice; it_interval = slice} in
   ()
 
 let nothing _ = Ok ()
@@ -231,7 +244,7 @@ let print_bechamel_results (ols, raw_results, results) timeslice =
   let open Bechamel_js in
   Out_channel.with_open_text (Printf.sprintf "output%d_%f.json" !threads timeslice) @@ fun ch ->
   let res =
-    emit ~dst:(Channel ch) nothing ~compare ~x_label:Measure.run
+    emit ~dst:(Channel ch) nothing ~compare ~x_label:(Measure.label reads)
     ~y_label:(Measure.label instance)
     results
   in
@@ -280,3 +293,6 @@ let () =
   else
     run_tests cfg !random !timeslice
   
+(* TODO: latency measurements where we make syscalls form one process,
+   and wait until the other process replies, that runs the busy thread, and then the rr thread
+ *)
