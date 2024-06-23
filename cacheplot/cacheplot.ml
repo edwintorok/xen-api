@@ -20,6 +20,13 @@ let rdtsc =
   let measure = Measure.register (module Rdtsc) in
   Measure.instance (module Rdtsc) measure
 
+
+let rec retry_eintr f a b c d =
+  try f a b c d
+  with Unix.Unix_error(Unix.EINTR, _, _) ->
+    retry_eintr f a b c d
+  
+
 let instance_of_atomic ~name ~unit atomic =
   let module M = struct
     type witness = int Atomic.t
@@ -93,16 +100,15 @@ let rec build_strides ~n ~stride_size_bytes results =
 
 let threads = ref 0
 
+let process = ref false
+
 let[@inline] test_read (module R: READ) ~linesize ~hi ~n =
   let min_stride_size = linesize/2 in
   let args =
-    if !short then [2*linesize; 4096]
+    if !short then [2*linesize(*; 4096*)]
     else build_strides ~n ~stride_size_bytes:min_stride_size []
   in
-  Test.make_indexed_with_resource ~name:(string_of_int n)
-    ~args
-    Test.uniq
-    ~allocate:(fun stride_size_bytes ->
+  let allocate stride_size_bytes =
       let data, threads =
         R.allocate ~stride_size_bytes n,
         let t = Workers.allocate (worker ~stride_size_bytes n) !threads in
@@ -111,13 +117,11 @@ let[@inline] test_read (module R: READ) ~linesize ~hi ~n =
       in
       mfence ();
       data, threads
-    )
-    ~free:(fun (_, threads) ->
+  and free (_, threads) =
       Workers.free threads;
       output_char stderr '.'; flush stderr;
       mfence ()
-    )
-    (fun stride_size_bytes ->
+  and run stride_size_bytes =
       let stride_size_words = stride_size_bytes / Operations.word_size in
       (* do same number of reads overall, even with large strides, or small arrays,
          this tries to ensure we get interrupted similar number of times
@@ -128,7 +132,56 @@ let[@inline] test_read (module R: READ) ~linesize ~hi ~n =
            Sys.opaque_identity (R.read ~stride_size_words data)
          done
       )
-    )
+  in
+  let allocate_process stride_size_bytes =
+    let s1, s2 = Unix.socketpair Unix.PF_UNIX Unix.SOCK_STREAM 0 in
+    let pid = Unix.fork () in
+    if pid = 0 then begin
+      (* child *)
+      Unix.close s1;
+      let b = Bytes.create 1 in
+      let run = run stride_size_bytes in
+      let data = allocate stride_size_bytes in
+      while retry_eintr Unix.read s2 b 0 1 > 0 do
+        Staged.unstage run data;
+        let n = Unix.write_substring s2 "y" 0 1 in
+        assert (n = 1)
+      done;
+      (* we could free it, but we are exiting anyway *)
+      exit 1
+    end
+    else begin
+      Unix.close s2;
+      let operations = n / stride_size_bytes in
+      let loops = (stride_size_bytes / min_stride_size) * (hi / n) in
+      pid, s1, Bytes.create 1, loops * operations
+    end
+  and free_process (pid, s1, _, _) =
+    Unix.close s1;
+    Unix.kill pid Sys.sigkill;
+    output_char stderr '.'; flush stderr
+  and run_process (_stride_size_bytes, s1, buf, operations) =
+    let n = Unix.write_substring s1 "x" 0 1 in
+    assert (n = 1);
+    let n = retry_eintr Unix.read s1 buf 0 1 in
+    assert (n = 1);
+    Atomic.fetch_and_add read_operations operations
+  in 
+  if !process then
+    Test.make_indexed_with_resource ~name:(string_of_int n)
+      ~args
+      Test.uniq
+      ~allocate:allocate_process
+      ~free:free_process
+      (fun _ -> Staged.stage run_process)
+  else
+    Test.make_indexed_with_resource ~name:(string_of_int n)
+      ~args
+      Test.uniq
+      ~allocate
+      ~free
+      run
+
 
 let test_strided_read ~linesize ~hi ~n = test_read (module StridedRead) ~linesize ~hi ~n
 let test_cycle_read ~linesize ~hi ~n = test_read (module CycleRead) ~linesize ~hi ~n
@@ -191,10 +244,15 @@ let print_results ?(print_header=true) timeslice results =
   let () =
     results |> List.hd |> Seq.iter @@ fun (name, ols, vmin) ->
     Format.eprintf "%a@," Analyze.OLS.pp ols;
-    ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
-    estimates |> List.iter @@ fun est ->
-    Scanf.sscanf name "strided_read/%d:%d" @@ fun n stride ->
-    Hashtbl.replace tbl (stride, n) (est, vmin)
+    let r_square = Analyze.OLS.r_square ols in
+    if r_square = None || Option.get r_square >= 0.8 then
+      (* skip bad points *)
+      ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
+      estimates |> List.iter @@ fun est ->
+      Scanf.sscanf name "strided_read/%d:%d" @@ fun n stride ->
+      Hashtbl.replace tbl (stride, n) (est, vmin)
+    else
+      Format.eprintf "dropping %s: %a@," name Analyze.OLS.pp ols
   in
   let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
     IntSet.add stride strides, IntSet.add n columns
@@ -271,6 +329,7 @@ let () =
   ; "--timeslice", Arg.Set_float timeslice, "Set thread yield timeslice"
   ; "--benchtime", Arg.Set_float bench_time, "Benchmark minimum time per cell"
   ; "--short", Arg.Set short, "Test just 2 stride sizes"
+  ; "--process", Arg.Set process, "Measure latency using process and sockets"
   ; "--auto", Arg.Set auto, "Test multiple timeslices"
   ] ignore "cacheplot [--random]";
   (* to allow equal number of memory reads to execute Strided_read.read with stride=N/2,
@@ -282,13 +341,15 @@ let () =
   let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
   if !auto then begin
    short := true;
-   threads := 0;
-   run_tests cfg !random 0.;
+(*   threads := 0;
+   run_tests cfg !random 0.;*)
    threads := 1;
-   run_tests ~print_header:false cfg !random 0.;
-   [0.001;0.002;0.004;0.008;0.016; 0.032]
-   |> List.iter @@ fun timeslice ->
-   run_tests ~print_header:false cfg !random timeslice;
+   let () = 
+    [3.125e-5;6.25e-5;0.000125;0.00025;0.0005;0.001;0.002;0.004;0.008;0.016; 0.032]
+     |> List.iteri @@ fun i timeslice ->
+     run_tests ~print_header:(i = 0) cfg !random timeslice;
+   in
+   run_tests ~print_header:false cfg !random 0.
   end
   else
     run_tests cfg !random !timeslice
