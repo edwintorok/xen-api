@@ -236,14 +236,18 @@ let analyze raw_results =
   instances |> List.map @@ fun instance ->
   let label = Measure.label instance in
   raw_results |> Hashtbl.to_seq |> Seq.filter_map @@ fun (name, result) ->
-  let vmin = result.Benchmark.lr |> Array.fold_left (fun vmin m ->
+  let vmin, vmax = result.Benchmark.lr |> Array.fold_left (fun (vmin,vmax) m ->
     let v = Measurement_raw.get ~label m /. Measurement_raw.get ~label:predictor m in
-    Float.min vmin v
-  ) Float.max_float in
+    Float.min vmin v, Float.max vmax v
+  ) (Float.max_float, 0.) in
   try
     let r = Analyze.one (ols ~bootstrap) instance result in
     (*Format.eprintf "%a@." Analyze.OLS.pp r;*)
-    Some (name, r, vmin)
+    let vmin, vmax = match Analyze.OLS.ci95 r with
+      | Some [ci95] -> let open Analyze.OLS.Ci95 in ci95.l, ci95.r
+      | _ -> vmin, vmax
+    in
+    Some (name, r, (vmin, vmax))
   with _ ->
     (* if bootstrap fails, we drop *)
     let r = Analyze.one (ols ~bootstrap:0) instance result in
@@ -268,7 +272,7 @@ module IntSet = Set.Make(Int)
 let print_results ?(print_header=true) timeslice results =
   let tbl = Hashtbl.create 47 in
   let () =
-    results |> List.hd |> Seq.iter @@ fun (name, ols, vmin) ->
+    results |> List.hd |> Seq.iter @@ fun (name, ols, (vmin, vmax)) ->
     Format.eprintf "%a@," Analyze.OLS.pp ols;
     let r_square = Analyze.OLS.r_square ols in
     if r_square = None || Option.get r_square >= 0.8 then
@@ -276,7 +280,7 @@ let print_results ?(print_header=true) timeslice results =
       ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
       estimates |> List.iter @@ fun est ->
       Scanf.sscanf name "strided_read/%d:%d" @@ fun n stride ->
-      Hashtbl.replace tbl (stride, n) (est, vmin)
+      Hashtbl.replace tbl (stride, n) (est, vmin, vmax)
     else
       (* TODO: this means we won't print some headers if we drop all measurements for that one on first iteration *)
       Format.eprintf "dropping %s: %a@," name Analyze.OLS.pp ols
@@ -291,7 +295,8 @@ let print_results ?(print_header=true) timeslice results =
     columns |> IntSet.iter (fun n ->
       print_char '\t';
       print_suffix n;
-      Printf.printf "\t%6s" "min"
+      Printf.printf "\t%6s" "min";
+      Printf.printf "\t%6s" "max"
     );
     print_char '\n';
   end;
@@ -303,12 +308,12 @@ let print_results ?(print_header=true) timeslice results =
     columns |> IntSet.iter @@ fun n ->
     print_char '\t';
     match Hashtbl.find_opt tbl (stride, n) with
-    | Some (result, vmin) ->
+    | Some (result, vmin, vmax) ->
       (* no vmax: otherwise it'll include outliers,
          e.g. where something else runs on the system..
        *)
-      Printf.printf "%6.1f\t%6.1f" result vmin
-    | None -> print_char '\t';
+      Printf.printf "%6.1f\t%6.1f\t%6.1f" result vmin vmax
+    | None -> print_string "\t\t"
   in
   print_char '\n'
 
