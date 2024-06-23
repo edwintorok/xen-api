@@ -102,7 +102,17 @@ let threads = ref 0
 
 let process = ref false
 
-let[@inline] test_read (module R: READ) ~linesize ~hi ~n =
+let handler (_:int) =
+  Operations.Yield.perform ()
+
+let set_timeslice slice =
+  Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle handler);
+  let signal, kind = if (slice < 0.001) then Sys.sigalrm, Unix.ITIMER_REAL else Sys.sigvtalrm, Unix.ITIMER_VIRTUAL in
+  Sys.set_signal signal (Sys.Signal_handle handler);
+  let (_:Unix.interval_timer_status) = Unix.setitimer kind Unix.{it_value = slice; it_interval = slice} in
+  ()
+
+let[@inline] test_read (module R: READ) ~timeslice ~linesize ~hi ~n =
   let min_stride_size = linesize/2 in
   let args =
     if !short then [2*linesize(*; 4096*)]
@@ -138,12 +148,13 @@ let[@inline] test_read (module R: READ) ~linesize ~hi ~n =
     let pid = Unix.fork () in
     if pid = 0 then begin
       (* child *)
+      if timeslice > 0. then set_timeslice timeslice;
       Unix.close s1;
       let b = Bytes.create 1 in
       let run = run stride_size_bytes in
       let data = allocate stride_size_bytes in
       while retry_eintr Unix.read s2 b 0 1 > 0 do
-        Staged.unstage run data;
+        let () = Sys.opaque_identity (Staged.unstage run data) in
         let n = Unix.write_substring s2 "y" 0 1 in
         assert (n = 1)
       done;
@@ -186,43 +197,58 @@ let[@inline] test_read (module R: READ) ~linesize ~hi ~n =
 let test_strided_read ~linesize ~hi ~n = test_read (module StridedRead) ~linesize ~hi ~n
 let test_cycle_read ~linesize ~hi ~n = test_read (module CycleRead) ~linesize ~hi ~n
 
-let rec make_tests f ~linesize ~lo ~hi tests =
+let rec make_tests f ~timeslice ~linesize ~lo ~hi tests =
   if lo > hi then tests
   else begin
-    let test = f ~linesize ~hi ~n:lo in
-    make_tests f ~linesize ~lo:(lo*2) ~hi (test :: tests)
+    let test = f ~linesize ~hi ~n:lo ~timeslice in
+    make_tests f ~timeslice ~linesize ~lo:(lo*2) ~hi (test :: tests)
   end
   
 let caches = Cachesize.caches ()
 let linesize = List.fold_left Int.max 0 (List.map (fun c -> c.Cachesize.linesize) caches)
 
-let tests f =
-  let hi = (List.hd caches).Cachesize.size * 2
-  and lo = (caches |> List.rev |> List.hd).Cachesize.size / 2 in
-  make_tests f ~lo ~hi ~linesize []
-  |> Bechamel.Test.make_grouped ~name:"strided_read"
+let tests timeslice f =
+  let tests =
+    let hi = (List.hd caches).Cachesize.size * 2
+    and lo = (caches |> List.rev |> List.hd).Cachesize.size / 2 in
+    if !short then
+      lo :: List.rev_map (fun c -> c.Cachesize.size * 2) caches
+      |> List.map (fun n -> f ~linesize ~hi ~n ~timeslice)
+    else
+      make_tests f ~timeslice ~lo ~hi ~linesize []
+  in
+  Bechamel.Test.make_grouped ~name:"strided_read" tests
 
 
 let predictor = Measure.label reads
 let instance = rdtsc
 let instances = [instance; reads]
 
+let bootstrap = ref false
+
 let analyze raw_results =
+  let bootstrap = if !bootstrap then 3000 else 0 in
   let ols =
     (* don't use yields here as predictor (even though it results in better R^2), it results in a very underestimated rdtsc/run, lower than min measured! *)
-    Analyze.ols ~r_square:true ~predictors:[|predictor|] ~bootstrap:0
+    Analyze.ols ~r_square:true ~predictors:[|predictor|]
   in
-  ols, raw_results,
+  ols ~bootstrap, raw_results,
   instances |> List.map @@ fun instance ->
   let label = Measure.label instance in
-  raw_results |> Hashtbl.to_seq |> Seq.map @@ fun (name, result) ->
+  raw_results |> Hashtbl.to_seq |> Seq.filter_map @@ fun (name, result) ->
   let vmin = result.Benchmark.lr |> Array.fold_left (fun vmin m ->
     let v = Measurement_raw.get ~label m /. Measurement_raw.get ~label:predictor m in
     Float.min vmin v
   ) Float.max_float in
-  let r = Analyze.one ols instance result in
-  (*Format.eprintf "%a@." Analyze.OLS.pp r;*)
-  name, r, vmin
+  try
+    let r = Analyze.one (ols ~bootstrap) instance result in
+    (*Format.eprintf "%a@." Analyze.OLS.pp r;*)
+    Some (name, r, vmin)
+  with _ ->
+    (* if bootstrap fails, we drop *)
+    let r = Analyze.one (ols ~bootstrap:0) instance result in
+    Format.eprintf "Dropping (bootstrap failure) %s, %a@," name Analyze.OLS.pp r;
+    None
 
 let analyze' ols raw_results results =
   results |> List.map (fun x -> x |> Seq.map (fun (name, ols, _) ->
@@ -252,6 +278,7 @@ let print_results ?(print_header=true) timeslice results =
       Scanf.sscanf name "strided_read/%d:%d" @@ fun n stride ->
       Hashtbl.replace tbl (stride, n) (est, vmin)
     else
+      (* TODO: this means we won't print some headers if we drop all measurements for that one on first iteration *)
       Format.eprintf "dropping %s: %a@," name Analyze.OLS.pp ols
   in
   let strides, columns = Hashtbl.fold (fun (stride, n) _ (strides, columns) ->
@@ -285,16 +312,6 @@ let print_results ?(print_header=true) timeslice results =
   in
   print_char '\n'
 
-let handler (_:int) =
-  Operations.Yield.perform ()
-
-let set_timeslice slice =
-  Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle handler);
-  let signal, kind = if (slice < 0.001) then Sys.sigalrm, Unix.ITIMER_REAL else Sys.sigvtalrm, Unix.ITIMER_VIRTUAL in
-  Sys.set_signal signal (Sys.Signal_handle handler);
-  let (_:Unix.interval_timer_status) = Unix.setitimer kind Unix.{it_value = slice; it_interval = slice} in
-  ()
-
 let nothing _ = Ok ()
 
 let print_bechamel_results (ols, raw_results, results) timeslice =
@@ -313,7 +330,7 @@ let print_bechamel_results (ols, raw_results, results) timeslice =
 let run_tests ?print_header cfg random timeslice = 
   let f = if random then test_cycle_read else test_strided_read in
   if timeslice > 0. then set_timeslice timeslice;
-  let ols, raw_results, results = tests f |> Bechamel.Benchmark.all cfg instances |> analyze in
+  let ols, raw_results, results = tests timeslice f |> Bechamel.Benchmark.all cfg instances |> analyze in
   print_results ?print_header timeslice results;
   print_bechamel_results (ols, raw_results, results) timeslice
 
@@ -331,6 +348,7 @@ let () =
   ; "--short", Arg.Set short, "Test just 2 stride sizes"
   ; "--process", Arg.Set process, "Measure latency using process and sockets"
   ; "--auto", Arg.Set auto, "Test multiple timeslices"
+  ; "--bootstrap", Arg.Set bootstrap, "Calculate confidence intervals"
   ] ignore "cacheplot [--random]";
   (* to allow equal number of memory reads to execute Strided_read.read with stride=N/2,
      and with stride=linesize we need an iteration limit of at least:
