@@ -112,11 +112,19 @@ let set_timeslice slice =
   let (_:Unix.interval_timer_status) = Unix.setitimer kind Unix.{it_value = slice; it_interval = slice} in
   ()
 
+let short_stride_size = ref 0
+
 let[@inline] test_read (module R: READ) ~timeslice ~linesize ~hi ~n =
-  let min_stride_size = linesize/2 in
+  let min_stride_size = linesize in
   let args =
-    if !short then [2*linesize(*; 4096*)]
+    if !short then [Int.max !short_stride_size linesize(*; 4096*)]
     else build_strides ~n ~stride_size_bytes:min_stride_size []
+  in
+  let loops ~stride_size_bytes =
+      (* do same number of reads overall, even with large strides, or small arrays,
+         this tries to ensure we get interrupted similar number of times
+       *)
+      (stride_size_bytes / min_stride_size) * (hi / n)
   in
   let allocate stride_size_bytes =
       let data, threads =
@@ -126,18 +134,14 @@ let[@inline] test_read (module R: READ) ~timeslice ~linesize ~hi ~n =
         t
       in
       mfence ();
-      data, threads
-  and free (_, threads) =
+      data, threads, loops ~stride_size_bytes
+  and free (_, threads, _) =
       Workers.free threads;
       output_char stderr '.'; flush stderr;
       mfence ()
   and run stride_size_bytes =
       let stride_size_words = stride_size_bytes / Operations.word_size in
-      (* do same number of reads overall, even with large strides, or small arrays,
-         this tries to ensure we get interrupted similar number of times
-       *)
-      let loops = (stride_size_bytes / min_stride_size) * (hi / n) in
-      Staged.stage (fun (data, _) ->
+      Staged.stage (fun (data, _, loops) ->
          for _ = 1 to loops do
            Sys.opaque_identity (R.read ~stride_size_words data)
          done
@@ -164,8 +168,7 @@ let[@inline] test_read (module R: READ) ~timeslice ~linesize ~hi ~n =
     else begin
       Unix.close s2;
       let operations = n / stride_size_bytes in
-      let loops = (stride_size_bytes / min_stride_size) * (hi / n) in
-      pid, s1, Bytes.create 1, loops * operations
+      pid, s1, Bytes.create 1, loops ~stride_size_bytes * operations
     end
   and free_process (pid, s1, _, _) =
     Unix.close s1;
@@ -209,12 +212,22 @@ let linesize = List.fold_left Int.max 0 (List.map (fun c -> c.Cachesize.linesize
 
 let tests timeslice f =
   let tests =
-    let hi = (List.hd caches).Cachesize.size * 2
-    and lo = (caches |> List.rev |> List.hd).Cachesize.size / 2 in
+    let lo = (caches |> List.rev |> List.hd).Cachesize.size / 2 in
     if !short then
-      lo :: List.rev_map (fun c -> c.Cachesize.size * 2) caches
+      (* TODO: this could be factored out if we constructed the list of sizes first in both cases *)
+      let hi = (List.hd caches).Cachesize.size * 3/4 in
+      (* TODO: for larger stride size we may want to allocate a larger array, to ensure these properties *)
+      (* fits L1: L1*0.75,
+         fits L2: L2*0.75,
+         fits L3: L3*0.75
+         to reduce measurement time we don't include L3*2, which measure main memory access times
+         we use 0.75*L to avoid the last few dropping out due to extra code/overhead,
+            e.g. when handling the socket
+      *)
+      lo :: List.rev_map (fun c -> c.Cachesize.size * 3/4) caches
       |> List.map (fun n -> f ~linesize ~hi ~n ~timeslice)
     else
+      let hi = (List.hd caches).Cachesize.size in
       make_tests f ~timeslice ~lo ~hi ~linesize []
   in
   Bechamel.Test.make_grouped ~name:"strided_read" tests
@@ -233,6 +246,7 @@ let analyze raw_results =
     Analyze.ols ~r_square:true ~predictors:[|predictor|]
   in
   ols ~bootstrap, raw_results,
+  (* TODO: we probably only need to run OLS on the instance we care about *)
   instances |> List.map @@ fun instance ->
   let label = Measure.label instance in
   raw_results |> Hashtbl.to_seq |> Seq.filter_map @@ fun (name, result) ->
@@ -275,7 +289,7 @@ let print_results ?(print_header=true) timeslice results =
     results |> List.hd |> Seq.iter @@ fun (name, ols, (vmin, vmax)) ->
     Format.eprintf "%a@," Analyze.OLS.pp ols;
     let r_square = Analyze.OLS.r_square ols in
-    if r_square = None || Option.get r_square >= 0.8 then
+    if r_square = None || Option.get r_square >= 0.2 then
       (* skip bad points *)
       ols |> Analyze.OLS.estimates |> Option.iter @@ fun estimates ->
       estimates |> List.iter @@ fun est ->
@@ -312,7 +326,7 @@ let print_results ?(print_header=true) timeslice results =
       (* no vmax: otherwise it'll include outliers,
          e.g. where something else runs on the system..
        *)
-      Printf.printf "%6.1f\t%6.1f\t%6.1f" result vmin vmax
+      Printf.printf "%6.1f\t%6.3f\t%6.3f" result vmin vmax
     | None -> print_string "\t\t"
   in
   print_char '\n'
@@ -322,7 +336,8 @@ let nothing _ = Ok ()
 let print_bechamel_results (ols, raw_results, results) timeslice =
   let results = analyze' ols raw_results results in
   let open Bechamel_js in
-  Out_channel.with_open_text (Printf.sprintf "output%d_%f.json" !threads timeslice) @@ fun ch ->
+  let name = Printf.sprintf "output%d_%f.json" !threads timeslice in
+  Out_channel.with_open_text name @@ fun ch ->
   let res =
     emit ~dst:(Channel ch) nothing ~compare ~x_label:(Measure.label reads)
     ~y_label:(Measure.label instance)
@@ -330,14 +345,62 @@ let print_bechamel_results (ols, raw_results, results) timeslice =
   in
   match res with
   | Ok () -> ()
-  | Error (`Msg err) -> invalid_arg err
+  | Error (`Msg err) ->
+    Format.eprintf "Cannot save results for %s: %s" name err
+
+let raw = ref false
+
+let header = ref []
+
+let print_raw_results ?(print_header=false) raw_results timeslice =
+  let label = Measure.label instance in
+  let timeslice = if !threads > 0 && timeslice < Float.epsilon then 0.05 (* default OCaml tick thread if we don't set one ourselves *) else timeslice in
+  if print_header then begin
+    header := List.of_seq (
+      raw_results |> Hashtbl.to_seq_keys |> Seq.map @@ fun name ->
+      Scanf.sscanf name "strided_read/%d:%d" @@ fun n _stride ->
+      n, name) |> List.sort (fun (a, _) (b, _) -> Int.compare a b);
+    Printf.printf "TIMESLICE";
+    let () = 
+      !header |> List.iter @@ fun (n, _) ->
+      print_char '\t';
+      print_suffix n
+    in
+    print_char '\n'
+  end;
+  let rows = (raw_results |> Hashtbl.to_seq_values |> Seq.take 1 |> List.of_seq |> List.hd).Benchmark.lr |> Array.length in
+  for i = 0 to rows - 1 do
+    Printf.printf "%8.6f" timeslice;
+    let () =
+     !header |> List.iter @@ fun (_, name) ->
+     match Hashtbl.find_opt raw_results name with
+     | Some result when i < Array.length result.Benchmark.lr ->
+        let m = result.Benchmark.lr.(i) in
+        let cycles_per_op = Measurement_raw.get ~label m /. Measurement_raw.get ~label:predictor m in
+        Printf.printf "\t%6.3f" cycles_per_op
+     | _ -> print_char '\t' (* missing *)
+    in
+    Printf.printf "\n"
+  done
 
 let run_tests ?print_header cfg random timeslice = 
   let f = if random then test_cycle_read else test_strided_read in
   if timeslice > 0. then set_timeslice timeslice;
-  let ols, raw_results, results = tests timeslice f |> Bechamel.Benchmark.all cfg instances |> analyze in
-  print_results ?print_header timeslice results;
-  print_bechamel_results (ols, raw_results, results) timeslice
+  let raw_results = tests timeslice f |> Bechamel.Benchmark.all cfg instances in
+  if !raw then
+    print_raw_results ?print_header raw_results timeslice
+  else
+    let ols, raw_results, results = raw_results |> analyze in
+    print_results ?print_header timeslice results;
+    print_bechamel_results (ols, raw_results, results) timeslice
+
+let timeslices =
+  let step = 0.5
+  and count = 25
+  in
+  let default_timeslice = 0.05 in
+  Seq.ints 1 |> Seq.map (fun i -> default_timeslice *. 2. ** (-. float i *. step))
+  |> Seq.take count |> List.of_seq
 
 
 let () =
@@ -354,21 +417,28 @@ let () =
   ; "--process", Arg.Set process, "Measure latency using process and sockets"
   ; "--auto", Arg.Set auto, "Test multiple timeslices"
   ; "--bootstrap", Arg.Set bootstrap, "Calculate confidence intervals"
+  ; "--short-stride-size", Arg.Set_int short_stride_size, "Short stride size (default: 2*linesize)"
+  ; "--raw", Arg.Set raw, "Print raw measurements only for boxplot"
   ] ignore "cacheplot [--random]";
+  (* 
+
+  TODO: because we defined our own 'loops' below, we don't need a high limit here
+  
   (* to allow equal number of memory reads to execute Strided_read.read with stride=N/2,
      and with stride=linesize we need an iteration limit of at least:
      limit = N/linesize/2
      and we might want to repeat this multiple times for accuracy
    *)
   let limit = 100 * (List.hd caches).Cachesize.size / linesize / 2 in
-  let cfg = Bechamel.Benchmark.cfg ~limit ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
+  *)
+  let cfg = Bechamel.Benchmark.cfg ~quota:(Time.second !bench_time) ~start:2 ~stabilize:false () in
   if !auto then begin
    short := true;
 (*   threads := 0;
    run_tests cfg !random 0.;*)
    threads := 1;
    let () = 
-    [3.125e-5;6.25e-5;0.000125;0.00025;0.0005;0.001;0.002;0.004;0.008;0.016; 0.032]
+     timeslices |> List.rev
      |> List.iteri @@ fun i timeslice ->
      run_tests ~print_header:(i = 0) cfg !random timeslice;
    in
