@@ -614,7 +614,6 @@ module Timer = struct
 
   let start ~timeout = {elapsed= Mtime_clock.counter (); timeout}
 
-
   let remaining ?(attempt_delay = Mtime.Span.zero) t =
     let elapsed = Mtime.Span.add (Mtime_clock.count t.elapsed) attempt_delay in
     let difference = Mtime.Span.abs_diff t.timeout elapsed in

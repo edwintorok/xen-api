@@ -156,8 +156,8 @@ exception Timeout
   read operation doesn't complete within 30s from the moment it started.
  *)
 module Timeout : sig
-  type t = private Mtime.Span.t
   (** upper bound for the duration of an operation *)
+  type t = private Mtime.Span.t
 
   val of_string : string -> t
   (** [of_string str] parses [str] as a floating point number in seconds.  *)
@@ -188,8 +188,8 @@ module Timer : sig
   val delay : Timeout.t -> unit
   (** [delay dt] delays the execution of the current thread for [dt]. *)
 
-  type t
   (** a timer that was started at a particular moment in time, and measures time relative to it *)
+  type t
 
   type remaining = Spare of Mtime.Span.t | Excess of Mtime.Span.t
 
