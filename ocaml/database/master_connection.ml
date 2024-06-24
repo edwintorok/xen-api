@@ -174,6 +174,7 @@ let open_secure_connection () =
   let polly = Polly.create () in
   let finally () = Polly.close polly in
   Fun.protect ~finally @@ fun () ->
+  Polly.add polly Unixfd.(!(st_proc.Stunnel.fd)) Polly.Events.(inp);
   let fd_closed = Polly.wait polly 1 5000 (fun _ _ _ -> ()) > 0 in
   let proc_quit =
     try
