@@ -83,9 +83,11 @@
   (modules database_server_main)
   (libraries
     dune-build-info
+    xapi-log
     http_lib
     httpsvr
     threads.posix
+    stunnel
     xapi_database
     xapi-stdext-threads
     xapi-stdext-unix
