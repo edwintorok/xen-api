@@ -163,11 +163,13 @@ exception Goto_handler
     on slave start and then every time after the master restarts and we reconnect. *)
 let on_database_connection_established = ref (fun () -> ())
 
+let use_fork_exec_helper = ref true
+
 let open_secure_connection () =
   let host = !get_master_address () in
   let port = !Db_globs.https_port in
   let verify_cert = Stunnel_client.pool () in
-  Stunnel.with_connect ~use_fork_exec_helper:true ~extended_diagnosis:true
+  Stunnel.with_connect ~use_fork_exec_helper:!use_fork_exec_helper ~extended_diagnosis:true
     ~write_to_log:(fun x -> debug "stunnel: %s\n" x)
     ~verify_cert host port
   @@ fun st_proc ->
@@ -175,7 +177,9 @@ let open_secure_connection () =
   let finally () = Polly.close polly in
   Fun.protect ~finally @@ fun () ->
   Polly.add polly Unixfd.(!(st_proc.Stunnel.fd)) Polly.Events.(inp);
+  D.debug "waiting";
   let fd_closed = Polly.wait polly 1 5000 (fun _ _ _ -> ()) > 0 in
+  D.debug "wait finished";
   let proc_quit =
     try
       Unix.kill (Stunnel.getpid st_proc.Stunnel.pid) 0 ;

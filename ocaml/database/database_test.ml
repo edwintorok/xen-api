@@ -17,9 +17,6 @@ let name_label = "name__label"
 let name_description = "name__description"
 
 module Tests =
-functor
-  (Client : Db_interface.DB_ACCESS)
-  ->
   struct
     let name = "thevmname"
 
@@ -154,6 +151,7 @@ functor
 
     (* Verify the ref_index contents are correct for a given [tblname] and [key] (uuid/ref) *)
     let check_ref_index t tblname key =
+      let module Client = (val Db_cache.get t : Db_interface.DB_ACCESS) in
       match Ref_index.lookup key with
       | None ->
           (* We should fail to find the row *)
@@ -274,6 +272,7 @@ functor
       ()
 
     let check_events t =
+      let module Client = (val Db_cache.get t : Db_interface.DB_ACCESS) in
       let dump db g =
         let tables = Db_cache_types.Database.tableset db in
         Db_cache_types.TableSet.fold_over_recent g
@@ -485,6 +484,7 @@ functor
         else
           Db_ref.Remote
       in
+      let module Client = (val Db_cache.get t : Db_interface.DB_ACCESS) in
       let vbd_ref = "waz" in
       let vbd_uuid = "whatever" in
       check_many_to_many () ;
