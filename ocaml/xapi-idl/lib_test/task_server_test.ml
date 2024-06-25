@@ -381,9 +381,80 @@ let test_cancel_trigger () =
   assert_bool "cancel points xxx" (!xxx = 0) ;
   assert_bool "cancel points dbg" (!dbg = 6)
 
+let next =
+  let counter = ref 0 in
+  fun () ->
+    let result = string_of_int !counter in
+    incr counter;
+    result
+
+let barrier n =
+  let reached = ref 0
+  and m = Mutex.create ()
+  and c = Condition.create ()  in
+  fun () ->
+  Mutex.lock m;
+  incr reached;
+  (* wait until everyone else has reached the barrier *)
+  while !reached < n do
+    Condition.wait c m
+  done;
+  (* everyone is at the barrier, release anyone who is still waiting,
+     don't modify [reached] anymore, this barrier is single-use.
+   *)
+  Condition.broadcast c;
+  Mutex.unlock m
+
+let unwrap = function
+  | Ok r -> r
+  | Error (`Exn_trap (e, bt)) -> Printexc.raise_with_backtrace e bt
+  | Error `Notrun -> failwith "thread not run"
+
+let sync_start_threads n f =
+  let wait = barrier (n+1) in
+  let results = Array.make n (Error `Notrun) in
+  let worker i =
+    let (_:int list) = Thread.sigmask Unix.SIG_UNBLOCK [Sys.sigalrm] in
+    wait ();
+    results.(i) <- Rresult.R.trap_exn f ()
+  in
+  let interval = 1e-4 in
+  Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ ->
+    Printexc.print_raw_backtrace stderr (Printexc.get_callstack 10);
+    Thread.yield ()));
+  let (_:Unix.interval_timer_status) =
+    Unix.setitimer Unix.ITIMER_REAL Unix.{it_value=interval;it_interval=interval}
+  in
+  let threads = Array.init n (Thread.create worker) in
+  wait ();
+  Array.iter Thread.join threads;
+  Sys.set_signal Sys.sigalrm (Sys.Signal_ignore);
+  Array.map unwrap results
+  
+module StringSet = Set.Make(String)
+
+let test_next_race () =
+  for _ = 1 to 1000 do
+    let ids =
+      sync_start_threads 100 (fun () ->
+        Array.init 1000 (fun _ -> Sys.opaque_identity (next ())))
+    in
+    let duplicates, _ =
+      ids |> Array.fold_left (Array.fold_left (fun (bad, acc) id ->
+        if StringSet.mem id acc then begin
+          Printf.eprintf "Duplicate id: %s\n" id;
+          bad+1, acc
+        end else begin
+          bad, StringSet.add id acc
+        end
+      )) (0, StringSet.empty)
+    in
+    Alcotest.(check' int ~msg:"duplicates" ~expected:0 ~actual:duplicates)
+  done
+
 let tests =
-  [
-    ("Test adding a task", `Quick, test_add)
+  [ ("Test next_task_id race condition", `Slow, test_next_race)
+  ; ("Test adding a task", `Quick, test_add)
   ; ("Test removing a task", `Quick, test_destroy)
   ; ("Test run", `Quick, test_run)
   ; ("Test raise", `Quick, test_raise)
