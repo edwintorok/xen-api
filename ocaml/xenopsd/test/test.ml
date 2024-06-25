@@ -91,7 +91,8 @@ let wait_for_tasks id =
     List.iter
       (function
         | Dynamic.Task id' ->
-            if task_ended dbg id' then ids := StringSet.remove id' !ids
+            (* ignore events on tasks that are not ours, they may have been deleted *)
+            if StringSet.mem id' !ids && task_ended dbg id' then ids := StringSet.remove id' !ids
         | _ ->
             ()
         )
