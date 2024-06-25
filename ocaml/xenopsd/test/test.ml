@@ -100,6 +100,7 @@ let wait_for_tasks id =
 
 let success_task id =
   let t = Client.TASK.stat dbg id in
+  D.debug "%s: destroying task %s" __FUNCTION__ id;
   Client.TASK.destroy dbg id ;
   match t.Task.state with
   | Task.Completed _ ->
@@ -119,6 +120,7 @@ let success_task id =
 
 let fail_not_built_task id =
   let t = Client.TASK.stat dbg id in
+  D.debug "%s: destroying task %s" __FUNCTION__ id;
   Client.TASK.destroy dbg id ;
   match t.Task.state with
   | Task.Completed _ ->
@@ -140,6 +142,7 @@ let fail_not_built_task id =
 
 let fail_invalid_vcpus_task id =
   let t = Client.TASK.stat dbg id in
+  D.debug "%s: destroying task %s" __FUNCTION__ id;
   Client.TASK.destroy dbg id ;
   match t.Task.state with
   | Task.Completed _ ->
@@ -515,6 +518,7 @@ let vm_test_parallel_start_shutdown _ =
   ) ;
   let t = Unix.gettimeofday () in
   let tasks = List.map (fun id -> Client.VM.start dbg id false) ids in
+  D.debug "Waiting for tasks: %s" (String.concat ", " tasks);
   wait_for_tasks tasks ;
   if !verbose_timings then (
     Printf.fprintf stderr "Cleaning up tasks\n" ;

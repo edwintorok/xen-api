@@ -1873,8 +1873,10 @@ let rec perform_atomic ~progress_callback ?subtask:_ ?result (op : atomic)
           (fun (id, task_handle, task_state) ->
             match task_state with
             | Some (Task.Completed _) ->
+                D.debug "%s: destroying completed task %s" __FUNCTION__ id;
                 TASK.destroy' id ; None
             | Some (Task.Failed e) ->
+                D.debug "%s: destroying failed task %s" __FUNCTION__ id;
                 TASK.destroy' id ;
                 let e =
                   match Rpcmarshal.unmarshal Errors.error.Rpc.Types.ty e with
@@ -2388,6 +2390,7 @@ let perform_atomics atomics t =
 let rec immediate_operation dbg _id op =
   let task = Xenops_task.add tasks dbg (fun t -> perform op t ; None) in
   let task_id = Xenops_task.id_of_handle task in
+  D.debug "%s: destroying task %s" __FUNCTION__ task_id;
   TASK.destroy' task_id ;
   Debug.with_thread_associated dbg
     (fun () ->
@@ -3504,8 +3507,10 @@ module VM = struct
     let task_id = Xenops_task.id_of_handle task in
     match Xenops_task.get_state task with
     | Task.Completed _ ->
+        D.debug "%s: destroying completed task %s" __FUNCTION__ task_id;
         TASK.destroy' task_id
     | Task.Failed e ->
+        D.debug "%s: destroying failed task %s" __FUNCTION__ task_id;
         TASK.destroy' task_id ;
         let e =
           match Rpcmarshal.unmarshal Errors.error.Rpc.Types.ty e with
