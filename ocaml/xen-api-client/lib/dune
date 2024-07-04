@@ -6,7 +6,7 @@
     cohttp
     xapi-rrd
     uri
-    uuid
+    uuidm
     xmlm
     xapi-client
     xapi-types
