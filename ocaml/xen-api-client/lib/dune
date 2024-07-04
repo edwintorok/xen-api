@@ -8,7 +8,7 @@
     uri
     uuidm
     xmlm
-    xapi-client
+    (re_export xapi-client)
     xapi-types
   )
 )

@@ -15,10 +15,8 @@
     rpclib.json
     rpclib.xml
     uri
-    xapi-client
     xapi-consts
-    xen-api-client
-    xmlm
+    (re_export xen-api-client)
   )
   (wrapped false)
 )
