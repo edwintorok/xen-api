@@ -1,5 +1,5 @@
 (library
-  (name xmllight2)
+  (name xml_light2)
   (modules xml)
   (wrapped false)
   (libraries
@@ -13,7 +13,7 @@
   (name xmlpp)
   (modules xmlpp)
   (libraries
-    xml-light2
+    xml_light2
   )
 )
 

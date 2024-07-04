@@ -155,7 +155,7 @@
     xapi-tracing-export
     xapi-xenopsd
     xenstore_transport.unix
-    xml-light2
+    xml_light2
     xmlm
     xxhash
     yojson

@@ -261,7 +261,7 @@ install: build doc sdk doc-json
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
 		xapi_client xapi-schema xapi-consts xapi-cli-protocol xapi-datamodel xapi_types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
-		gzip http-lib pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
+		gzip http-lib pciutil sexpr stunnel uuid xml_light2 zstd xapi-compression safe-resources \
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
 		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
 		xapi-nbd varstored-guard xapi-log xapi-open-uri xapi-tracing xapi-tracing-export xapi-expiry-alerts cohttp-posix \
@@ -283,7 +283,7 @@ uninstall:
 	dune uninstall --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
 		xapi_client xapi-schema xapi-consts xapi-cli-protocol xapi-datamodel xapi_types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
-		gzip http-lib pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
+		gzip http-lib pciutil sexpr stunnel uuid xml_light2 zstd xapi-compression safe-resources \
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
 		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
 		xapi-open-uri xapi-tracing xapi-tracing-export xapi-expiry-alerts cohttp-posix \

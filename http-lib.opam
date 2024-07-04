@@ -25,7 +25,7 @@ depends: [
   "xapi-stdext-pervasives" {= version}
   "xapi-stdext-threads" {= version}
   "xapi-tracing" {= version}
-  "xml-light2" {= version}
+  "xml_light2" {= version}
   "odoc" {with-doc}
 ]
 build: [

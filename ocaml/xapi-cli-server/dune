@@ -32,7 +32,7 @@
     xapi-stdext-unix
     xapi-tracing
     xmlm
-    xml-light2
+    xml_light2
   )
   (preprocess (pps ppx_deriving_rpc))
   (wrapped false)

@@ -24,7 +24,7 @@
    sexplib
    sexplib0
    threads.posix
-   tracing
+   (re_export tracing)
    unix
    uri
    uuidm
@@ -54,7 +54,7 @@
    rpclib.json
    sexplib
    sexplib0
-   tracing
+   (re_export tracing)
    threads.posix
    xapi-backtrace
    xapi-idl

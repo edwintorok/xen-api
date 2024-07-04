@@ -50,7 +50,7 @@
     xapi_types
     xapi-stdext-pervasives
     xapi-xenopsd
-    xml-light2
+    xml_light2
   )
   (deps
     (source_tree test_data)
@@ -94,7 +94,7 @@
     xapi-stdext-date
     xapi-stdext-threads
     xapi-stdext-unix
-    xml-light2
+    xml_light2
     yojson
   )
   (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))

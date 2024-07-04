@@ -46,7 +46,7 @@
     xapi-stdext-std
     xapi-stdext-threads
     xapi-stdext-unix
-    xml-light2
+    xml_light2
     xmlm
   )
   (preprocess
@@ -100,7 +100,7 @@
     sexplib
     sexplib0
     xapi_database
-    xml-light2
+    xml_light2
   )
 )
 
@@ -116,7 +116,7 @@
     alcotest
     dune-build-info
     xapi_database
-    xml-light2
+    xml_light2
   )
 )
 

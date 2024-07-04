@@ -1,10 +1,12 @@
 (library
  (name tracing)
+ (package xen-api-client)
  (modules tracing)
  (libraries re uri xapi-log xapi-stdext-threads threads.posix))
 
 (library
  (name tracing_export)
+ (package xen-api-client)
  (modules tracing_export)
  (libraries
   cohttp

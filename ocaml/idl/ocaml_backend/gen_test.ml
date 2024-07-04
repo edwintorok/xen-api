@@ -87,7 +87,7 @@ let gen_test highapi =
                      (API.rpc_of_%s x));"
                     (OU.alias_of_ty ty)
                 ; "close_out oc;"
-                ; sprintf "let oc = open_out \"xml-light2_%s.xml\" in"
+                ; sprintf "let oc = open_out \"xml_light2_%s.xml\" in"
                     (OU.alias_of_ty ty)
                 ; sprintf
                     "Printf.fprintf oc \"%%s\" (Xml.to_string \

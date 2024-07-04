@@ -36,7 +36,7 @@
 )
 
 (package
-  (name xml-light2)
+  (name xml_light2)
 )
 
 (package
@@ -435,7 +435,7 @@ This package provides an Lwt compatible interface to the library.")
     (xapi-stdext-pervasives (= :version))
     (xapi-stdext-threads (= :version))
     (xapi-tracing (= :version))
-    (xml-light2 (= :version))
+    (xml_light2 (= :version))
     (odoc :with-doc)
   )
 )

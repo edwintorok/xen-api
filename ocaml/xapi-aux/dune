@@ -15,7 +15,7 @@
     xapi-stdext-threads
     xapi-stdext-unix
     xapi_types
-    xml-light2
+    xml_light2
   )
   (wrapped false)
 )
