@@ -1,6 +1,5 @@
 (library
   (name expiry_alert)
-  (public_name xapi-expiry-alerts)
   (libraries
     astring
     xapi_client

@@ -1,6 +1,5 @@
 (library
  (name xcp_memory)
- (public_name xapi-idl.memory)
  (modules (:standard \ memory_cli))
  (libraries
    result

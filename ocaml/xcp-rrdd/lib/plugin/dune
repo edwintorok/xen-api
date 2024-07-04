@@ -1,6 +1,5 @@
 (library
   (name rrdd_plugin_base)
-  (public_name rrdd-plugin.base)
   (flags (:standard -bin-annot))
   (wrapped false)
   (modules utils reporter)
@@ -24,7 +23,6 @@
 
 (library
   (name rrdd_plugin_local)
-  (public_name rrdd-plugin.local)
   (flags (:standard -bin-annot))
   (wrapped false)
   (modules reporter_local)
@@ -42,7 +40,6 @@
 
 (library
   (name rrdd_plugin)
-  (public_name rrdd-plugin)
   (flags (:standard -bin-annot))
   (wrapped false)
   (modules rrdd_plugin)

@@ -1,6 +1,5 @@
 (library
   (name rrd_transport_lib)
-  (public_name rrd-transport.lib)
   (wrapped false)
   (libraries
     astring

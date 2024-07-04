@@ -1,6 +1,5 @@
 (library
   (name ezxenstore_watch)
-  (public_name ezxenstore.watch)
   (wrapped false)
   (libraries
     ezxenstore_core

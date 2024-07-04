@@ -1,6 +1,5 @@
 (library
   (name xapi_stdext_unix)
-  (public_name xapi-stdext-unix)
   (libraries
     fd-send-recv
     integers

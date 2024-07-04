@@ -1,6 +1,5 @@
 (library
   (name message_switch_core)
-  (public_name message-switch-core)
   (libraries
     astring
     cohttp

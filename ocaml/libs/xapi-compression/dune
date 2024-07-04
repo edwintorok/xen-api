@@ -1,6 +1,5 @@
 (library
   (name xapi_compression)
-  (public_name xapi-compression)
   (modules xapi_compression)
   (libraries
     forkexec

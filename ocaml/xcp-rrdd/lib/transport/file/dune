@@ -1,6 +1,5 @@
 (library
   (name rrd_transport_file)
-  (public_name rrd-transport.file)
   (wrapped false)
   (libraries
     bigarray-compat

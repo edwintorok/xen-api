@@ -1,6 +1,5 @@
 (library
  (name xapi_idl_guard_privileged)
- (public_name xapi-idl.guard.privileged)
  (modules (:standard \ xapiguard_cli))
  (libraries
    result

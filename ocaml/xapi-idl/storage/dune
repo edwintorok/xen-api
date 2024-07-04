@@ -1,6 +1,5 @@
 (library
  (name xcp_storage_interface_types)
- (public_name xapi-idl.storage.interface.types)
  (modules vdi_automaton)
  (libraries
    result
@@ -14,7 +13,6 @@
 
 (library
  (name xcp_storage_interface)
- (public_name xapi-idl.storage.interface)
  (modules storage_interface)
  (libraries
    astring
@@ -32,7 +30,6 @@
 
 (library
  (name xcp_storage)
- (public_name xapi-idl.storage)
  (modules
   (:standard \ storage_interface storage_test vdi_automaton suite
     vdi_automaton_test))

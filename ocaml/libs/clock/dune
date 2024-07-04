@@ -1,6 +1,5 @@
 (library
   (name clock)
-  (public_name clock)
   (modules date timer)
   (libraries
     astring

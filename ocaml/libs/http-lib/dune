@@ -1,6 +1,5 @@
 (library
   (name http_lib)
-  (public_name http-lib)
   (modes best)
   (wrapped false)
   (modules (:standard \ http_svr http_proxy server_io http_test radix_tree_test test_client test_server bufio_test))

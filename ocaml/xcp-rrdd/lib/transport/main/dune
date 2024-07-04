@@ -1,6 +1,5 @@
 (library
   (name rrd_transport)
-  (public_name rrd-transport)
   (wrapped false)
   (libraries
     (re_export rrd_transport_lib)

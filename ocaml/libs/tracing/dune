@@ -1,13 +1,11 @@
 (library
  (name tracing)
  (modules tracing)
- (libraries re uri xapi-log xapi-stdext-threads threads.posix)
- (public_name xapi-tracing))
+ (libraries re uri xapi-log xapi-stdext-threads threads.posix))
 
 (library
  (name tracing_export)
  (modules tracing_export)
- (public_name xapi-tracing-export)
  (libraries
   cohttp
   cohttp-posix

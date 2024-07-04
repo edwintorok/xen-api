@@ -1,6 +1,5 @@
 (library
   (name zstd)
-  (public_name zstd)
   (libraries
     (re_export xapi-compression)
   )
