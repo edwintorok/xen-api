@@ -6,8 +6,8 @@
   (libraries
     dune-build-info
     http_lib
-    xapi-client
-    xapi-types
+    xapi_client
+    xapi_types
   )
 )
 

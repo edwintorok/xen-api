@@ -24,7 +24,7 @@
     xapi-inventory
     xapi-log
     xapi-test-utils
-    xapi-types
+    xapi_types
     xapi-stdext-date
     xapi-stdext-unix
   )

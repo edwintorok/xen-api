@@ -8,9 +8,9 @@
     http_lib
     threads.posix
     uuid
-    xapi-client
+    xapi_client
     xapi-consts
-    xapi-types
+    xapi_types
     xapi-stdext-std
     xapi-stdext-threads
     xapi-stdext-unix

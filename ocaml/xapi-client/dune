@@ -10,15 +10,15 @@
 
 (library
   (name xapi_client)
-  (public_name xapi-client)
   (flags (:standard -w -50))
+  (package xen-api-client)
   (libraries
     mtime
     mtime.clock.os
     (re_export rpclib.core)
     xapi-consts
     xapi-log
-    xapi-types
+    xapi_types
     xapi-stdext-date
     xapi-stdext-pervasives
   )

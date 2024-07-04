@@ -24,10 +24,10 @@ depends: [
   "rpclib"
   "uri"
   "uuid" {= version}
-  "xapi-client" {= version}
+  "xapi_client" {= version}
   "xapi-idl" {= version}
   "xapi-rrd" {= version}
-  "xapi-types" {= version}
+  "xapi_types" {= version}
   "xmlm"
   "odoc" {with-doc}
 ]

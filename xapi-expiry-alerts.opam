@@ -18,9 +18,9 @@ depends: [
   "ocaml"
   "dune"
   "astring"
-  "xapi-client"
+  "xapi_client"
   "xapi-consts"
-  "xapi-types"
+  "xapi_types"
   "xapi-stdext-date"
 ]
 build: [

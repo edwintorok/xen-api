@@ -6,8 +6,6 @@
     alcotest
     rpclib.xml
     uri
-    xapi-client
-    xapi-types
     xen-api-client
   )
 )

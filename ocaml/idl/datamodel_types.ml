@@ -426,7 +426,7 @@ type api_value =
 [@@deriving rpc]
 
 (* For convenience, we use the same value here as is defined in the Ref module in
- * xapi-types. It's not terribly important, since all refs should be validated before
+ * xapi_types. It's not terribly important, since all refs should be validated before
  * use anyway, but it's nice to be consistent *)
 let null_ref = "OpaqueRef:NULL"
 

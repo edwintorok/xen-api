@@ -21,8 +21,8 @@
     xapi_database
     xapi-datamodel
     xapi-log
-    xapi-types
-    xapi-client
+    xapi_types
+    xapi_client
     xapi-cli-protocol
     xapi_aux
     xapi-stdext-date

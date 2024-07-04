@@ -11,7 +11,7 @@
     xapi-consts
     xapi-log
     xapi-stdext-date
-    xapi-types
+    xapi_types
     uuid
   )
   (action (run %{test} --color=always))

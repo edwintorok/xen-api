@@ -21,7 +21,7 @@ depends: [
   "xapi-stdext-pervasives"
   "xapi-stdext-std"
   "xapi-stdext-unix"
-  "xapi-types"
+  "xapi_types"
 ]
 synopsis: "The xapi toolstack daemon which implements the XenAPI"
 description: """

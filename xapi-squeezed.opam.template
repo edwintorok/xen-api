@@ -21,7 +21,7 @@ depends: [
   "xapi-stdext-pervasives"
   "xapi-stdext-threads"
   "xapi-stdext-unix"
-  "xapi-types"
+  "xapi_types"
   "xenctrl" {>= "0.9.20"}
   "xenstore"
   "xenstore_transport"

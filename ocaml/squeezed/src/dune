@@ -24,7 +24,7 @@
     xapi-idl
     xapi-idl.memory
     xapi-log
-    xapi-types
+    xapi_types
     uuid
     re
     re.str

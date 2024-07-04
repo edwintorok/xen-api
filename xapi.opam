@@ -51,7 +51,7 @@ depends: [
   "base-unix"
   "uuid"
   "x509"
-  "xapi-client"
+  "xapi_client"
   "xapi-cli-protocol"
   "xapi-consts"
   "xapi-datamodel"
@@ -64,7 +64,7 @@ depends: [
   "xapi-stdext-zerocheck"
   "xapi-test-utils" {with-test}
   "xapi-tracing"
-  "xapi-types"
+  "xapi_types"
   "xapi-xenopsd"
   "xapi-idl"
   "xapi-inventory"

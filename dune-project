@@ -74,10 +74,10 @@
    rpclib
    uri
    (uuid (= :version))
-   (xapi-client (= :version))
+   (xapi_client (= :version))
    (xapi-idl (= :version))
    (xapi-rrd (= :version))
-   (xapi-types (= :version))
+   (xapi_types (= :version))
    xmlm
   )
 )
@@ -103,7 +103,7 @@
 )
 
 (package
-  (name xapi-types)
+  (name xapi_types)
 )
 
 (package
@@ -262,7 +262,7 @@
 )
 
 (package
-  (name xapi-client)
+  (name xapi_client)
 )
 
 (package

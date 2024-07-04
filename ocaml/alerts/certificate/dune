@@ -4,9 +4,9 @@
   (libraries
     astring
     xapi-expiry-alerts
-    xapi-client
+    xapi_client
     xapi-consts
-    xapi-types
+    xapi_types
     xapi-stdext-date
   )
 )
@@ -21,8 +21,8 @@
     certificate_check
     dune-build-info
     http_lib
-    xapi-client
-    xapi-types
+    xapi_client
+    xapi_types
     xapi-stdext-pervasives
   )
 )

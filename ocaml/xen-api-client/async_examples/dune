@@ -10,8 +10,6 @@
     core
     core_kernel
     dune-build-info
-    xapi-consts
-    xapi-types
     xen-api-client
     xen-api-client-async
   )
@@ -32,8 +30,6 @@
     ppx_sexp_conv.runtime-lib
     rpclib.json
     sexplib0
-    xapi-consts
-    xapi-types
     xen-api-client
     xen-api-client-async
   )

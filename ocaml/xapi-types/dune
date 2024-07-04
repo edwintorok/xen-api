@@ -10,8 +10,8 @@
 
 (library
   (name xapi_types)
-  (public_name xapi-types)
   (flags (:standard -w -33))
+  (package xen-api-client)
   (libraries
     astring
     rpclib.core

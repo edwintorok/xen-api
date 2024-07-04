@@ -4,12 +4,14 @@
   (wrapped false)
   (libraries
     cohttp
-    xapi-rrd
     uri
     uuidm
     xmlm
-    (re_export xapi-client)
-    xapi-types
+    ; internal libraries with wrapped=false, reexport them,
+    ; so we don't need to keep them public
+    (re_export rrd)
+    (re_export xapi_client)
+    (re_export xapi_types)
   )
 )
 

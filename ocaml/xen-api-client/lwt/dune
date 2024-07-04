@@ -17,7 +17,6 @@
     (re_export xen-api-client)
     xapi-consts
     xapi-stdext-std
-    xapi-types
   )
 )
 

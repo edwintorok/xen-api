@@ -10,10 +10,10 @@
     threads.posix
     xapi-consts
     xapi-cli-protocol
-    xapi-client
+    xapi_client
     xapi-datamodel
     xapi-inventory
-    xapi-types
+    xapi_types
     xapi-stdext-pervasives
     xapi-stdext-std
     xapi-stdext-threads

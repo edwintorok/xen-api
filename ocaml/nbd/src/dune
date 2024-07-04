@@ -19,7 +19,7 @@
   vbd_store
   xapi-consts
   xapi-inventory
-  xapi-types
+  xapi_types
   xen-api-client-lwt
   )
 )

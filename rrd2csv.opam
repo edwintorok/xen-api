@@ -16,7 +16,7 @@ depends: [
   "ocaml"
   "dune"
   "http-lib"
-  "xapi-client"
+  "xapi_client"
   "xapi-idl"
   "xapi-rrd"
   "xapi-stdext-std"

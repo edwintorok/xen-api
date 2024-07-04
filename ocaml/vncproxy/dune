@@ -7,9 +7,9 @@
     dune-build-info
     http_lib
     stunnel
-    xapi-client
+    xapi_client
     xapi-consts
-    xapi-types
+    xapi_types
     xapi-stdext-unix
     xapi-stdext-pervasives
   )

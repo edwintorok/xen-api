@@ -23,7 +23,7 @@
   xapi-idl.xen.interface
   xapi-idl.guard.varstored
   xapi-log
-  xapi-types
+  xapi_types
   xen-api-client-lwt
  )
 )

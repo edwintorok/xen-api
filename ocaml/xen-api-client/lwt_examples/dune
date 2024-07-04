@@ -7,8 +7,6 @@
     lwt
     lwt.unix
     uri
-    xapi-consts
-    xapi-types
     xen-api-client
     xen-api-client-lwt
   )
@@ -24,8 +22,6 @@
     lwt
     lwt.unix
     uri
-    xapi-consts
-    xapi-types
     xen-api-client
     xen-api-client-lwt
   )
@@ -45,9 +41,6 @@
     lwt.unix
     ssl
     uri
-    xapi-consts
-    xapi-rrd
-    xapi-types
     xen-api-client
     xen-api-client-lwt
   )

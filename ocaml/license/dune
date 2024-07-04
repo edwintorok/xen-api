@@ -4,8 +4,8 @@
   (libraries
     http_lib
     xapi-consts
-    xapi-client
-    xapi-types
+    xapi_client
+    xapi_types
     xapi-stdext-date
   )
 )
@@ -20,8 +20,8 @@
     daily_license_check
     dune-build-info
     http_lib
-    xapi-client
-    xapi-types
+    xapi_client
+    xapi_types
     xapi-stdext-date
     xapi-stdext-pervasives
   )

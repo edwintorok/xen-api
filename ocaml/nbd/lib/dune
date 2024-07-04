@@ -12,7 +12,7 @@
   lwt_log
   lwt.unix
   rpclib.core
-  xapi-types
+  xapi_types
   xen-api-client-lwt
  )
 )

@@ -8,12 +8,12 @@
     http_lib
     threads.posix
     xapi-idl.rrd
-    xapi-client
+    xapi_client
     xapi-rrd
     xapi-stdext-pervasives
     xapi-stdext-std
     xapi-stdext-threads
-    xapi-types
+    xapi_types
     xmlm
   )
 )
