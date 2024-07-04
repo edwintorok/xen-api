@@ -4,8 +4,6 @@
   (wrapped false)
   (libraries
     cohttp
-    re.str
-    rpclib
     xapi-rrd
     uri
     uuid
