@@ -3,7 +3,6 @@
   (public_name xen-api-client)
   (wrapped false)
   (libraries
-    astring
     cohttp
     re.str
     rpclib
