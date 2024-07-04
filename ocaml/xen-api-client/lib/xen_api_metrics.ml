@@ -38,7 +38,7 @@ module Legend = struct
   type t = string * cf * cls * [`Generic] Uuidx.t
 
   let of_string x =
-    match Astring.String.cuts ~sep:":" ~empty:false x with
+    match String.split_on_char ':' x with
     | [cf; cls; uuid; name] -> (
       match cf_of_string cf with
       | `Error x ->
