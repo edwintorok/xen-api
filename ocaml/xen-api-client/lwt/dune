@@ -9,7 +9,6 @@
     lwt
     lwt_ssl
     lwt.unix
-    re.str
     rpclib.core
     rpclib.json
     rpclib.xml
