@@ -14,7 +14,6 @@ depends: [
   "astring"
   "rpclib"
   "rrd-transport" {= version}
-  "xapi-forkexecd" {= version}
   "xapi-stdext-pervasives" {= version}
   "xapi_stdext_std" {= version}
   "xapi-stdext-threads" {= version}

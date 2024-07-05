@@ -4,6 +4,6 @@
  (libraries forkexec))
 
 (install
- (package xapi-forkexecd)
+ (package xapi)
  (section sbin)
  (files (fe_cli.exe as forkexecd-cli)))

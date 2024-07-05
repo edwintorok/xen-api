@@ -11,6 +11,6 @@
   ))
 
 (install
- (package xapi-forkexecd)
+ (package xapi)
  (section sbin)
  (files (fe_main.exe as forkexecd)))

@@ -1,6 +1,6 @@
 (library
  (name forkexec)
- (public_name forkexec)
+ (package xapi)
  (wrapped false)
  (libraries
    astring

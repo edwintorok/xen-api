@@ -13,23 +13,6 @@
 (maintainers "Xapi project maintainers")
 (homepage "https://xapi-project.github.io/")
 
-(package
-  (name zstd)
-)
-
-
-(package
-  (name clock)
-  (synopsis "Xapi's library for managing time")
-  (authors "Jonathan Ludlam" "Pau Ruiz Safont")
-  (depends
-    (ocaml (>= 4.12))
-    (alcotest :with-test)
-    astring
-    mtime
-    ptime
-  )
-)
 
 (package
   (name xapi-rrdd-plugin)
@@ -135,7 +118,6 @@
    (xapi-stdext-threads (= :version))
    (xapi_stdext_unix (= :version))
    (xapi-tracing (= :version))
-   (zstd (= :version))
   )
   (synopsis "Export traces in multiple protocols and formats")
   (description "This library export traces is able to push traces to http endpoints or generate compressed tarballs in the filesystem.")
@@ -170,7 +152,6 @@
    astring
    rpclib
    (rrd-transport (= :version))
-   (xapi-forkexecd (= :version))
    (xapi-stdext-pervasives (= :version))
    (xapi_stdext_std (= :version))
    (xapi-stdext-threads (= :version))
@@ -224,10 +205,6 @@
 )
 
 (package
-  (name xapi-forkexecd)
-)
-
-(package
   (name xapi-expiry-alerts)
 )
 
@@ -237,10 +214,6 @@
 
 (package
   (name xapi_consts)
-)
-
-(package
-  (name xapi-compression)
 )
 
 (package
@@ -417,20 +390,10 @@ This package provides an Lwt compatible interface to the library.")
   )
 )
 
-(package
-  (name gzip)
-)
 
-(package
-  (name forkexec)
-)
 
 (package
   (name ezxenstore)
-)
-
-(package
-  (name cohttp-posix)
 )
 
 (package
