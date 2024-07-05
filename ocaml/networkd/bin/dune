@@ -28,10 +28,10 @@
   rresult
   threads.posix
   xapi-client
-  xapi-consts
-  xapi-consts.xapi_version
+  xapi_consts
+  xapi_consts.xapi_version
   xapi-stdext-pervasives
-  xapi-stdext-std
+  xapi_stdext_std
   xapi-stdext-threads
   xapi-stdext-unix
   xapi-inventory

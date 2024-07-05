@@ -1,6 +1,6 @@
 (library
   (name xapi_stdext_pervasives)
-  (public_name xapi-stdext-pervasives)
+  (package xen-api-client)
   (libraries
     logs
     xapi-backtrace)

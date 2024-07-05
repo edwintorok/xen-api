@@ -44,7 +44,7 @@
   xapi-rrd
   xapi-stdext-date
   xapi-stdext-pervasives
-  xapi-stdext-std
+  xapi_stdext_std
   xapi-stdext-threads
   xapi-stdext-unix
   xapi-xenopsd

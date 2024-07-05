@@ -1,6 +1,6 @@
 (library
-  (public_name xapi-stdext-threads)
   (name  xapi_stdext_threads)
+  (package xen-api-client)
   (modules :standard \ threadext_test)
   (libraries
     threads.posix

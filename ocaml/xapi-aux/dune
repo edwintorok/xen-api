@@ -8,7 +8,7 @@
     ipaddr.unix
     tar
     threads.posix
-    xapi-consts
+    xapi_consts
     xapi-idl.network
     xapi-inventory
     xapi-log

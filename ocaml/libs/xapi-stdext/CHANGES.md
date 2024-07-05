@@ -52,7 +52,7 @@
 ## v4.15.0 (14-Dec-2020)
  - XSI-894 handle iso8601's with no timezone
  - maintenance: format xstringext files with ocamlformat
- - xapi-stdext-std: Do not duplicate functions from Stdlib
+ - xapi_stdext_std: Do not duplicate functions from Stdlib
  - CP-34643: add tests for xstringext
  - maintenance: reformat pervasivesext with ocamlformat
  - CP-34643: Deprecated non-idiomatic pervasivesext functions

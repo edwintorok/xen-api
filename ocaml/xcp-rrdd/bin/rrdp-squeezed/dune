@@ -7,7 +7,7 @@
     dune-build-info
     rrdd-plugin
     rrdd-plugins.libs
-    xapi-stdext-std
+    xapi_stdext_std
     ezxenstore
     ezxenstore.watch
     xapi-idl.rrd

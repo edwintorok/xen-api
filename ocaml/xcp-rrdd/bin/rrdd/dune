@@ -20,7 +20,7 @@
     threads.posix
     uuid
     xapi-backtrace
-    xapi-consts
+    xapi_consts
     xapi-idl.network
     xapi-idl.rrd
     xapi-inventory
@@ -58,7 +58,7 @@
     threads.posix
     uuid
     xapi-backtrace
-    xapi-consts.xapi_version
+    xapi_consts.xapi_version
     xapi-idl
     xapi-idl.network
     xapi-idl.rrd

@@ -16,7 +16,7 @@ depends: [
   "forkexec"
   "safe-resources"
   "uuid"
-  "xapi-consts"
+  "xapi_consts"
   "xapi-log"
   "xapi-inventory"
   "xapi-stdext-pervasives"

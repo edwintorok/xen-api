@@ -5,9 +5,9 @@
     dune-build-info
     fmt
     xapi-datamodel
-    xapi-consts
+    xapi_consts
     xapi-stdext-unix
-    xapi-stdext-std
+    xapi_stdext_std
     yojson
   )
 )

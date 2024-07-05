@@ -1,6 +1,6 @@
 (library
   (name xapi_consts)
-  (public_name xapi-consts)
+  (package xen-api-client)
   (wrapped false)
   (libraries
     xapi_version

@@ -9,9 +9,9 @@
     threads.posix
     uuid
     xapi-client
-    xapi-consts
+    xapi_consts
     xapi-types
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-threads
     xapi-stdext-unix
   )

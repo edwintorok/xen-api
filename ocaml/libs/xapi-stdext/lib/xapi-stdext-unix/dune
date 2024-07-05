@@ -1,6 +1,6 @@
 (library
   (name xapi_stdext_unix)
-  (public_name xapi-stdext-unix)
+  (package xen-api-client)
   (libraries
     fd-send-recv
     integers

@@ -16,7 +16,7 @@
     rresult
     x509
     xapi-backtrace
-    xapi-consts
+    xapi_consts
     xapi-log
     xapi-inventory
     xapi-stdext-unix
@@ -58,7 +58,7 @@
     result
     rresult
     x509
-    xapi-consts
+    xapi_consts
     xapi-stdext-unix
   )
   (deps

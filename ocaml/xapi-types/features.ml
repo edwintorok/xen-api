@@ -183,7 +183,7 @@ let of_assoc_list l =
       if v then Some f else None
     with _ -> if List.mem f enabled_when_unknown then Some f else None
   in
-  (* Filter_map to avoid having to carry the whole xapi-stdext-std
+  (* Filter_map to avoid having to carry the whole xapi_stdext_std
    * Note that the following is not tail recursive, in this case I
    * have chosen such implementation because the feature list is small
    * and the implementation looks readable and fairly self-contained.

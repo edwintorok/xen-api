@@ -14,9 +14,9 @@ depends: [
   "ocaml"
   "dune" {build & >= "1.4"}
   "base-threads"
-  "xapi-consts"
+  "xapi_consts"
   "xapi-datamodel"
-  "xapi-stdext-std"
+  "xapi_stdext_std"
   "xapi-stdext-unix"
 ]
 synopsis: "The xapi toolstack daemon which implements the XenAPI"

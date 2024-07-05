@@ -8,10 +8,10 @@
     rpclib.core
     rpclib.json
     uuid
-    xapi-consts
+    xapi_consts
     xapi-datamodel
     xapi-stdext-pervasives
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-unix
   )
   (preprocess (pps ppx_deriving_rpc))

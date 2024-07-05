@@ -7,7 +7,7 @@
     CommonFunctions
     dune-build-info
     mustache
-    xapi-consts
+    xapi_consts
     xapi-datamodel
   )
 )

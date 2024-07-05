@@ -1,6 +1,6 @@
 (library
   (name inventory)
-  (public_name xapi-inventory)
+  (package xen-api-client)
   (wrapped false)
   (libraries
     uuidm

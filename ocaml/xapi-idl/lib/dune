@@ -29,7 +29,7 @@
    uri
    uuidm
    xapi-backtrace
-   xapi-consts
+   xapi_consts
    xapi-log
    xapi-open-uri
    xapi-stdext-pervasives

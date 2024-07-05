@@ -116,8 +116,8 @@
     x509
     xapi_aux
     xapi-backtrace
-    (re_export xapi-consts)
-    xapi-consts.xapi_version
+    (re_export xapi_consts)
+    xapi_consts.xapi_version
     xapi-client
     xapi-cli-protocol
     xapi_cli_server
@@ -147,7 +147,7 @@
     xapi-stdext-date
     xapi-stdext-encodings
     xapi-stdext-pervasives
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-threads
     xapi-stdext-unix
     xapi-stdext-zerocheck

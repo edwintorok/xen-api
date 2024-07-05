@@ -18,7 +18,7 @@
     rpclib.json
     rpclib.xml
     uuid
-    xapi-consts
+    xapi_consts
     xapi-rrd
     xapi-stdext-date
     xapi-stdext-unix

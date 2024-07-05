@@ -22,7 +22,7 @@ depends: [
   "xapi-idl"
   "xapi-inventory"
   "xapi-stdext-pervasives"
-  "xapi-stdext-std"
+  "xapi_stdext_std"
   "xapi-stdext-threads"
   "xapi-stdext-unix"
   "xapi-test-utils"

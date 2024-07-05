@@ -8,7 +8,7 @@
     http_lib
     stunnel
     xapi-client
-    xapi-consts
+    xapi_consts
     xapi-types
     xapi-stdext-unix
     xapi-stdext-pervasives

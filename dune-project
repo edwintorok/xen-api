@@ -172,7 +172,7 @@
    (rrd-transport (= :version))
    (xapi-forkexecd (= :version))
    (xapi-stdext-pervasives (= :version))
-   (xapi-stdext-std (= :version))
+   (xapi_stdext_std (= :version))
    (xapi-stdext-threads (= :version))
    (xapi-stdext-unix (= :version))
    (xapi-idl (= :version))
@@ -236,7 +236,7 @@
 )
 
 (package
-  (name xapi-consts)
+  (name xapi_consts)
 )
 
 (package
@@ -478,7 +478,7 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name xapi-stdext-std)
+  (name xapi_stdext_std)
   (synopsis "Xapi's standard library extension, Stdlib")
   (depends
     (ocaml (>= 4.08.0))

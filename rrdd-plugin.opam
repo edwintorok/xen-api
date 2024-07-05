@@ -16,7 +16,7 @@ depends: [
   "rrd-transport" {= version}
   "xapi-forkexecd" {= version}
   "xapi-stdext-pervasives" {= version}
-  "xapi-stdext-std" {= version}
+  "xapi_stdext_std" {= version}
   "xapi-stdext-threads" {= version}
   "xapi-stdext-unix" {= version}
   "xapi-idl" {= version}

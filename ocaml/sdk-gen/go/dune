@@ -18,9 +18,9 @@
     CommonFunctions
     astring
     (re_export mustache)
-    (re_export xapi-consts)
+    (re_export xapi_consts)
     (re_export xapi-datamodel)
-    xapi-stdext-std
+    xapi_stdext_std
   )
 )
 

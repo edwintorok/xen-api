@@ -6,11 +6,11 @@
     dune-build-info
     sexpr
     uuid
-    xapi-consts
+    xapi_consts
     xapi-datamodel
     xapi-log
     xapi-stdext-pervasives
-    xapi-stdext-std
+    xapi_stdext_std
   )
 )
 

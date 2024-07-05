@@ -8,14 +8,14 @@
     http_lib
     rpclib.core
     threads.posix
-    xapi-consts
+    xapi_consts
     xapi-cli-protocol
     xapi-client
     xapi-datamodel
     xapi-inventory
     xapi-types
     xapi-stdext-pervasives
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-threads
     xapi-stdext-unix
     xml-light2

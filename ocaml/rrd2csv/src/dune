@@ -11,7 +11,7 @@
     xapi-client
     xapi-rrd
     xapi-stdext-pervasives
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-threads
     xapi-types
     xmlm

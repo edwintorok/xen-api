@@ -14,10 +14,10 @@
     sexpr
     threads
     xapi-backtrace
-    xapi-consts
+    xapi_consts
     xapi-schema
     xapi-stdext-date
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-unix
   )
   (wrapped false)
@@ -32,7 +32,7 @@
     dune-build-info
     mustache
     xapi-datamodel
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-pervasives
     xapi-stdext-unix
   )
@@ -70,7 +70,7 @@
   (libraries
     dune-build-info
     xapi-datamodel
-    xapi-consts.xapi_version
+    xapi_consts.xapi_version
   )
   (promote (until-clean))
  )

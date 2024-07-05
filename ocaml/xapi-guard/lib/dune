@@ -46,7 +46,7 @@
   uuidm
   uri
   xapi-backtrace
-  xapi-consts
+  xapi_consts
   xapi-idl
   xapi-idl.guard.privileged
   xapi-idl.guard.varstored

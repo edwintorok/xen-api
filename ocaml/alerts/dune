@@ -4,7 +4,7 @@
   (libraries
     astring
     xapi-client
-    xapi-consts
+    xapi_consts
     xapi-types
     xapi-stdext-date
   )

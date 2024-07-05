@@ -5,7 +5,7 @@
     astring
     xapi-datamodel
     mustache
-    xapi-stdext-std
+    xapi_stdext_std
   )
   (modules_without_implementation license)
 )

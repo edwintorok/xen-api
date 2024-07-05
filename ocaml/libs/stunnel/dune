@@ -8,7 +8,7 @@
     safe-resources
     threads.posix
     uuid
-    xapi-consts
+    xapi_consts
     xapi-inventory
     xapi-log
     xapi-stdext-pervasives

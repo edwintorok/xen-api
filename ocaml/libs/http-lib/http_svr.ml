@@ -321,7 +321,7 @@ module Server = struct
 end
 
 let escape uri =
-  (* from xapi-stdext-std xstringext *)
+  (* from xapi_stdext_std xstringext *)
   let escaped ~rules string =
     let aux h t =
       ( if List.mem_assoc h rules then

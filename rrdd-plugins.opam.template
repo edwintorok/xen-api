@@ -18,7 +18,7 @@ depends: [
   "inotify"
   "rrdd-plugin"
   "uuid"
-  "xapi-stdext-std"
+  "xapi_stdext_std"
   "xapi-stdext-unix"
   "xenctrl"
   "xenstore"

@@ -15,10 +15,10 @@ depends: [
   "ppx_deriving_rpc"
   "rpclib"
   "base-threads"
-  "xapi-consts"
+  "xapi_consts"
   "xapi-schema"
   "xapi-stdext-date"
-  "xapi-stdext-std"
+  "xapi_stdext_std"
   "xapi-stdext-unix"
 ]
 synopsis: "The xapi toolstack daemon which implements the XenAPI"

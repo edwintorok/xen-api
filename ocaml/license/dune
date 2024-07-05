@@ -3,7 +3,7 @@
   (modules daily_license_check)
   (libraries
     http_lib
-    xapi-consts
+    xapi_consts
     xapi-client
     xapi-types
     xapi-stdext-date

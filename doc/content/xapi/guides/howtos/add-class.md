@@ -360,7 +360,7 @@ in the `gen_cmds` value:
 
 Error messages used by an implementation are introduced in two files:
 
-    (* ocaml/xapi-consts/api_errors.ml *)
+    (* ocaml/xapi_consts/api_errors.ml *)
     let pvs_farm_contains_running_proxies = "PVS_FARM_CONTAINS_RUNNING_PROXIES"
     let pvs_farm_contains_servers = "PVS_FARM_CONTAINS_SERVERS"
     let pvs_farm_sr_already_added = "PVS_FARM_SR_ALREADY_ADDED"

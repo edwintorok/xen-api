@@ -15,8 +15,8 @@
     ssl
     uri
     xen-api-client.client
-    xapi-consts
-    xapi-stdext-std
+    xapi_consts
+    xapi_stdext_std
     xen-api-client.types
     xen-api-client
     xmlm
