@@ -4,10 +4,10 @@
   (wrapped false)
   (libraries
     cohttp
-    xapi-rrd
     uri
     uuidm
     xmlm
+    xen-api-client.rrd
     xen-api-client.client
     xen-api-client.types
   )

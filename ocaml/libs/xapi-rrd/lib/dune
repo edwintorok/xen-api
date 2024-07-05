@@ -1,6 +1,6 @@
 (library
   (name rrd)
-  (public_name xapi-rrd)
+  (public_name xen-api-client.rrd)
   (flags (:standard -w -39))
   (wrapped false)
   (libraries
@@ -13,3 +13,9 @@
   (preprocess (pps ppx_deriving_rpc))
 )
 
+(library
+  (public_name xapi-rrd)
+  (name xapi_rrd_compat)
+  (modules)
+  (libraries (re_export xen-api-client.rrd))
+)

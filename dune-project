@@ -69,13 +69,15 @@
    dune-build-info
    (alcotest :with-test)
    astring
+   base-bigarray
+   base-unix
    (cohttp (>= "0.22.0"))
    mtime
    re
    rpclib
    uri
    (xapi-idl (= :version))
-   (xapi-rrd (= :version))
+   uuidm
    xmlm
   )
 )
@@ -183,23 +185,7 @@
   (synopsis "Performance monitoring daemon for xapi")
   (description "This daemon monitors 'datasources' i.e. time-varying values such as performance counters and records the samples in RRD archives. These archives can be used to examine historical performance trends.")
   (depends
-   (ocaml (>= "4.02.0"))
-   dune-build-info
-   (alcotest :with-test)
-   astring
-   (gzip (= :version))
-   (http-lib (= :version))
-   inotify
-   io-page
-   mtime
-   ppx_deriving_rpc
-   rpclib
-   (ezxenstore (= :version))
-   xapi-backtrace
-   (xapi-idl (= :version))
-   (xapi-rrd (= :version))
-   (xapi-stdext-threads (= :version))
-   (xapi-stdext-unix (= :version))
+   xen-api-client (= :version)
   )
 )
 
