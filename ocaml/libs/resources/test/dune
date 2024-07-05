@@ -1,5 +1,5 @@
 (tests
-  (package safe-resources)
+  (package xapi)
   (names test)
   (action (run %{test} -e))
   (libraries

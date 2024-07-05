@@ -25,6 +25,6 @@
  (preprocess (pps ppx_deriving_rpc)))
 
 (install
- (package varstored-guard)
+ (package xapi)
  (section sbin)
  (files (main.exe as varstored-guard)))

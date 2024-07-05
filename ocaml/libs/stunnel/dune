@@ -1,6 +1,6 @@
 (library
   (name stunnel)
-  (public_name stunnel)
+  (package xapi)
   (wrapped false)
   (libraries
     astring

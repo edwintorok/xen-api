@@ -11,8 +11,8 @@
     core_unix
     core_unix.time_unix
     dune-build-info
-    message-switch-async
-    message-switch-unix
+    message_switch_async
+    message_switch_unix
     result
     rpclib.core
     rpclib.json

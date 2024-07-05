@@ -1,6 +1,6 @@
 (library
  (name open_uri)
- (public_name xapi-open-uri)
+ (package xapi)
  (libraries
    cohttp
    safe-resources

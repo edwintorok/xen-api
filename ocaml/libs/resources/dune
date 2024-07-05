@@ -1,6 +1,6 @@
 (library
   (name safe_resources)
-  (public_name safe-resources)
+  (package xapi)
   (libraries
     logs
     xapi-backtrace

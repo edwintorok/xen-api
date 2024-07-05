@@ -1,7 +1,7 @@
 (executable
   (name wsproxy)
   (public_name wsproxy)
-  (package wsproxy)
+  (package xapi)
   (libraries
    fmt
    logs

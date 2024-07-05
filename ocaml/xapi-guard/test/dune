@@ -17,7 +17,7 @@
   xapi-types
   xapi_version
   xen-api-client-lwt)
- (package varstored-guard)
+  (package xapi)
  )
 
 (executable

@@ -1,6 +1,6 @@
 (library
  (name log)
- (public_name xapi-log)
+ (package xapi)
  (foreign_stubs
    (language c)
    (names syslog_stubs))

@@ -1,6 +1,6 @@
 (library
   (name xapi_datamodel)
-  (public_name xapi-datamodel)
+  (package xen-api-client)
   (modules datamodel datamodel_common datamodel_utils datamodel_types
     datamodel_errors datamodel_roles datamodel_vm datamodel_host
     datamodel_pool datamodel_cluster datamodel_cluster_host dm_api escaping
@@ -44,7 +44,7 @@
     (:x datamodel_main.exe)
     (source_tree templates)
   )
-  (package xapi-datamodel)
+  (package xapi)
   (action (run %{x} -closed -markdown))
 )
 
@@ -58,14 +58,14 @@
     rpclib.json
     xapi_datamodel
   )
-  (package xapi-datamodel)
+  (package xapi)
 )
 
 (executable
   (modes exe)
   (name gen_lifecycle)
   (public_name gen_lifecycle)
-  (package xapi-datamodel)
+  (package xapi)
   (modules gen_lifecycle)
   (libraries
     dune-build-info

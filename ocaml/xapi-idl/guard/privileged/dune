@@ -15,7 +15,7 @@
  (public_name xapiguard_cli)
  (modes exe)
  (modules xapiguard_cli)
- (package varstored-guard)
+ (package xapi)
  (libraries
    cmdliner
    dune-build-info
@@ -29,5 +29,5 @@
 (rule
  (alias runtest)
  (deps xapiguard_cli.exe)
- (package varstored-guard)
+ (package xapi)
  (action (run %{deps} --help=plain)))

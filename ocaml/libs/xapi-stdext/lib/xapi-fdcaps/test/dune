@@ -1,5 +1,5 @@
 (tests
-	(package xapi_stdext_unix)
+	(package xapi)
 	(names test_safefd test_properties test_operations)
 	(libraries xapi_fdcaps alcotest fmt)
 )

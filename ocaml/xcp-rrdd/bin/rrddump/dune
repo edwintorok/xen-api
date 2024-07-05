@@ -1,6 +1,5 @@
 (executable
   (modes exe)
-  (name rrddump)
   (public_name rrddump)
   (libraries
     dune-build-info
@@ -9,6 +8,6 @@
     xapi-rrd.unix
     xmlm
   )
-  (package rrddump)
+  (package xapi)
 )
 

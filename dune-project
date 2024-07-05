@@ -15,14 +15,6 @@
 
 
 (package
-  (name xapi-rrdd-plugin)
-)
-
-(package
-  (name xml-light2)
-)
-
-(package
   (name xapi-sdk)
   (license "BSD-2-Clause")
   (synopsis "Xen API SDK generation code")
@@ -38,7 +30,6 @@
 (package
   (name xen-api-client-lwt)
 )
-
 
 (package
   (name xen-api-client-async)
@@ -70,35 +61,13 @@
 )
 
 (package
-  (name xapi-xenopsd-xc)
-)
-
-(package
-  (name xapi-xenopsd-simulator)
-)
-
-(package
-  (name xapi-xenopsd-cli)
-)
-
-(package
-  (name xapi-xenopsd)
-)
-
-(package
   (name xapi-types)
 )
 
 (package
   (name xapi-tracing)
   (depends
-   ocaml
-   dune
-   (alcotest :with-test)
-   re
-   uri
-   (xapi-log (= :version))
-   (xapi-stdext-threads (= :version))
+   (xen-api-client (= :version))
   )
   (synopsis "Allows to instrument code to generate tracing information")
   (description "This library provides modules to allow gathering runtime traces.")
@@ -107,40 +76,10 @@
 (package
   (name xapi-tracing-export)
   (depends
-   ocaml
-   cohttp-posix
-   dune
-   cohttp
-   rpclib
-   ppx_deriving_rpc
-   (xapi-log (= :version))
-   (xapi-open-uri (= :version))
-   (xapi-stdext-threads (= :version))
-   (xapi_stdext_unix (= :version))
-   (xapi-tracing (= :version))
+   (xen-api-client (= :version))
   )
   (synopsis "Export traces in multiple protocols and formats")
   (description "This library export traces is able to push traces to http endpoints or generate compressed tarballs in the filesystem.")
-)
-
-(package
-  (name xapi-storage-script)
-)
-
-(package
-  (name xapi-storage-cli)
-)
-
-(package
-  (name xapi-storage)
-)
-
-(package
-  (name xapi-squeezed)
-)
-
-(package
-  (name xapi-schema)
 )
 
 (package
@@ -162,58 +101,7 @@
 )
 
 (package
-  (name xapi-rrdd)
-  (synopsis "Performance monitoring daemon for xapi")
-  (description "This daemon monitors 'datasources' i.e. time-varying values such as performance counters and records the samples in RRD archives. These archives can be used to examine historical performance trends.")
-  (depends
-   xen-api-client (= :version)
-  )
-)
-
-(package
-  (name xapi-rrd-transport-utils)
-  (synopsis "Shared-memory protocols for exposing performance counters")
-  (description "VMs running on a Xen host can use this library to expose performance counters which can be sampled by the xapi performance monitoring daemon.")
-  (authors "John Else")
-  (depends
-   ocaml
-   cmdliner
-   (rrd-transport (= :version))
-   (xapi-idl (= :version))
-   (xapi-rrd (= :version))
-  )
-)
-
-(package
-  (name xapi-open-uri)
-)
-
-(package
-  (name xapi-networkd)
-)
-
-(package
-  (name xapi-nbd)
-)
-
-(package
-  (name xapi-log)
-)
-
-(package
   (name xapi-idl)
-)
-
-(package
-  (name xapi-expiry-alerts)
-)
-
-(package
-  (name xapi-datamodel)
-)
-
-(package
-  (name xapi_consts)
 )
 
 (package
@@ -221,27 +109,7 @@
 )
 
 (package
-  (name xapi-cli-protocol)
-)
-
-(package
   (name xapi)
-)
-
-(package
-  (name wsproxy)
-  (synopsis "Websockets proxy for VNC traffic")
-  (authors "Jon Ludlam" "Marcello Seri")
-  (license "LGPL-2.0-only WITH OCaml-LGPL-linking-exception")
-  (depends
-    (alcotest :with-test)
-    (base64 (>= "3.1.0"))
-    fmt
-    logs
-    (lwt (>= "3.0.0"))
-    re
-    (qcheck-core :with-test)
-  )
 )
 
 (package
@@ -280,54 +148,8 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name varstored-guard)
-)
-
-(package
-  (name stunnel)
-)
-
-(package
-  (name sexpr)
-)
-
-(package
-  (name safe-resources)
-)
-
-(package
-  (name rrddump)
-)
-
-(package
-  (name rrdd-plugins)
-)
-
-(package
-  (name rrd2csv)
-)
-
-(package
-  (name rrd-transport)
-  (synopsis "Shared-memory protocols for exposing system metrics")
-  (description "VMs running on a Xen host can use this library to expose performance counters which can be sampled by xapi's metric daemon.")
-  (authors "John Else")
-  (depends
-    (alcotest :with-test)
-    astring
-    cstruct
-    crc
-    yojson
-    (xapi-idl (= :version))
-    (xapi-rrd (= :version))
-    (odoc :with-doc)
-  )
-)
-
-(package
   (name pciutil)
 )
-
 
 (package
   (name ezxenstore)
@@ -335,101 +157,4 @@ This package provides an Lwt compatible interface to the library.")
 
 (package
   (name xapi-rrd)
-)
-
-(package
-  (name xapi_inventory)
-)
-
-(package
-  (name xapi-stdext-date)
-  (synopsis "Xapi's standard library extension, Dates")
-  (authors "Jonathan Ludlam")
-  (depends
-    (clock (= :version))
-    ptime
-  )
-)
-
-(package
-  (name xapi-stdext-encodings)
-  (synopsis "Xapi's standard library extension, Encodings")
-  (authors "Jonathan Ludlam")
-  (depends
-    (ocaml (>= 4.13.0))
-    (alcotest (and (>= 0.6.0) :with-test))
-    (odoc :with-doc)
-    (bechamel :with-test)
-    (bechamel-notty :with-test)
-    (notty :with-test)
-  )
-)
-
-(package
-  (name xapi-stdext-pervasives)
-  (synopsis "Xapi's standard library extension, Pervasives")
-  (authors "Jonathan Ludlam")
-  (depends
-    (ocaml (>= 4.08))
-    logs
-    (odoc :with-doc)
-    xapi-backtrace
-  )
-)
-
-(package
-  (name xapi_stdext_std)
-  (synopsis "Xapi's standard library extension, Stdlib")
-  (depends
-    (ocaml (>= 4.08.0))
-    (alcotest :with-test)
-    (odoc :with-doc)
-  )
-)
-
-(package
-  (name xapi-stdext-threads)
-  (synopsis "Xapi's standard library extension, Threads")
-  (authors "Jonathan Ludlam")
-  (depends
-    ocaml
-    base-threads
-    base-unix
-    (odoc :with-doc)
-    (xapi-stdext-pervasives (= :version))
-    (mtime :with-test)
-    (xapi_stdext_unix (= :version))
-  )
-)
-
-(package
-  (name xapi_stdext_unix)
-  (synopsis "Xapi's standard library extension, Unix")
-  (authors "Jonathan Ludlam")
-  (depends
-    (ocaml (>= 4.12.0))
-    (alcotest :with-test)
-    base-unix
-    (bisect_ppx :with-test)
-    (fd-send-recv (>= 2.0.0))
-    fmt
-    (mtime (and (>= 2.0.0) :with-test))
-    (logs :with-test)
-    (qcheck-core (and (>= 0.21.2) :with-test))
-    (odoc :with-doc)
-    xapi-backtrace
-    unix-errno
-    (xapi-stdext-pervasives (= :version))
-    polly
-  )
-)
-
-(package
-  (name xapi-stdext-zerocheck)
-  (synopsis "Xapi's standard library extension, Zerocheck")
-  (authors "Jonathan Ludlam")
-  (depends
-    ocaml
-    (odoc :with-doc)
-  )
 )

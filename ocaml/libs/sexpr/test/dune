@@ -1,5 +1,5 @@
 (test
  (name test_sexpr)
- (package sexpr)
+ (package xapi)
  (modules test_sexpr)
  (libraries sexpr astring rresult qcheck-core alcotest threads.posix))

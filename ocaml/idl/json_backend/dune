@@ -17,7 +17,7 @@
   (deps
     (:x gen_json.exe)
   )
-  (package xapi-datamodel)
+  (package xapi)
   (action (run %{x}))
 )
 

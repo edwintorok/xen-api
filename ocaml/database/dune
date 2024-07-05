@@ -4,7 +4,7 @@
 
 (library
   (name xapi_schema)
-  (public_name xapi-schema)
+  (package xapi)
   (modules
     db_names db_exn schema string_marshall_helper string_unmarshall_helper
     test_schemas)
