@@ -70,14 +70,13 @@
    (alcotest :with-test)
    astring
    (cohttp (>= "0.22.0"))
+   mtime
    re
    rpclib
    uri
    (uuid (= :version))
-   (xapi-client (= :version))
    (xapi-idl (= :version))
    (xapi-rrd (= :version))
-   (xapi-types (= :version))
    xmlm
   )
 )

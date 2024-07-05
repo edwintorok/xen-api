@@ -8,8 +8,8 @@
     uri
     uuidm
     xmlm
-    xapi-client
-    xapi-types
+    xen-api-client.client
+    xen-api-client.types
   )
 )
 

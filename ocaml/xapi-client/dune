@@ -10,7 +10,7 @@
 
 (library
   (name xapi_client)
-  (public_name xapi-client)
+  (public_name xen-api-client.client)
   (flags (:standard -w -50))
   (libraries
     mtime
@@ -22,6 +22,15 @@
     xapi-stdext-date
     xapi-stdext-pervasives
   )
+  (wrapped false)
+)
+
+; backward compat
+(library
+  (public_name xapi-client)
+  (modules)
+  (name xapi_client_compat)
+  (libraries (re_export xen-api-client.client))
   (wrapped false)
 )
 

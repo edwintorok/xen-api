@@ -15,7 +15,7 @@
     rpclib.json
     rpclib.xml
     uri
-    xapi-client
+    xen-api-client.client
     xapi-consts
     xen-api-client
     xmlm

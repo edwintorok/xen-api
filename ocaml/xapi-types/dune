@@ -10,7 +10,7 @@
 
 (library
   (name xapi_types)
-  (public_name xapi-types)
+  (public_name xen-api-client.types)
   (flags (:standard -w -33))
   (libraries
     astring
@@ -19,11 +19,26 @@
     rpclib.xml
     uuid
     xapi-consts
+    xapi-rrd
     xapi-stdext-date
     xapi-stdext-unix
     xapi-idl
+    xmlm
   )
   (wrapped false)
   (preprocess (per_module ((pps ppx_deriving_rpc) API Event_types Features SecretString)))
+)
+
+
+; backward compatibility
+; internally: to avoid renaming lots of dependencies
+; externally: to avoid inter-project PR dependencies
+; Once everything external (and internal) got converted we can drop this
+(library
+  (public_name xapi-types)
+  (name xapi_types_compat)
+  (modules)
+  (libraries (re_export xen-api-client.types))
+  (wrapped false)
 )
 
