@@ -10,23 +10,8 @@ homepage: "https://xapi-project.github.io/"
 bug-reports: "https://github.com/xapi-project/xen-api/issues"
 depends: [
   "dune" {>= "3.0"}
-  "ocaml" {>= "4.02.0"}
-  "dune-build-info"
-  "alcotest" {with-test}
-  "astring"
-  "gzip" {= version}
-  "http-lib" {= version}
-  "inotify"
-  "io-page"
-  "mtime"
-  "ppx_deriving_rpc"
-  "rpclib"
-  "ezxenstore" {= version}
-  "xapi-backtrace"
-  "xapi-idl" {= version}
-  "xapi-rrd" {= version}
-  "xapi-stdext-threads" {= version}
-  "xapi-stdext-unix" {= version}
+  "xen-api-client"
+  "=" {version}
   "odoc" {with-doc}
 ]
 build: [

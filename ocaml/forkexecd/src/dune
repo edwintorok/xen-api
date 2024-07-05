@@ -7,7 +7,7 @@
    forkexec
    uuid
    xapi-log
-   xapi-stdext-unix
+   xapi_stdext_unix
   ))
 
 (install

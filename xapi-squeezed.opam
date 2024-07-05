@@ -23,7 +23,7 @@ depends: [
   "xapi-log"
   "xapi-stdext-pervasives"
   "xapi-stdext-threads"
-  "xapi-stdext-unix"
+  "xapi_stdext_unix"
   "xapi-types"
   "xenctrl" {>= "0.9.20"}
   "xenstore"

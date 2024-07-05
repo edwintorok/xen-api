@@ -5,7 +5,7 @@
   (libraries
     alcotest
     xapi-stdext-pervasives
-    xapi-stdext-unix
+    xapi_stdext_unix
     xenctrl
     unix
     squeeze

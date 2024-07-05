@@ -46,7 +46,7 @@
   xapi-stdext-pervasives
   xapi_stdext_std
   xapi-stdext-threads
-  xapi-stdext-unix
+  xapi_stdext_unix
   xapi-xenopsd
   xapi-xenopsd.c_stubs
   xapi-xenopsd-xc.c_stubs
@@ -75,8 +75,8 @@
   uuid
   xapi-idl
   xapi-idl.xen.interface
-  xapi-inventory
-  xapi-stdext-unix
+  xapi_inventory
+  xapi_stdext_unix
   xapi-xenopsd
   xenctrl
   xenstore_transport.unix
@@ -96,7 +96,7 @@
   uuid
   xapi-idl.memory
   xapi-stdext-date
-  xapi-stdext-unix
+  xapi_stdext_unix
   xenctrl
   xenopsd_xc
   xenstore_transport.unix
@@ -110,7 +110,7 @@
  (libraries
   dune-build-info
   xapi-stdext-date
-  xapi-stdext-unix
+  xapi_stdext_unix
   xapi-xenopsd
   xenctrl
  )

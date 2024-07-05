@@ -10,7 +10,7 @@
     xapi-stdext-pervasives
     xapi_stdext_std
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     threads.posix
     xapi-rrd
     rrd-transport.file
@@ -36,7 +36,7 @@
     xapi-idl.rrd
     xapi-log
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

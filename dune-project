@@ -48,7 +48,7 @@
    astring
    mustache
    (xapi-datamodel (= :version))
-   (xapi-stdext-unix (and (= :version) :with-test))
+   (xapi_stdext_unix (and (= :version) :with-test))
   )
   (allow_empty)
 )
@@ -133,7 +133,7 @@
    (xapi-log (= :version))
    (xapi-open-uri (= :version))
    (xapi-stdext-threads (= :version))
-   (xapi-stdext-unix (= :version))
+   (xapi_stdext_unix (= :version))
    (xapi-tracing (= :version))
    (zstd (= :version))
   )
@@ -174,7 +174,7 @@
    (xapi-stdext-pervasives (= :version))
    (xapi_stdext_std (= :version))
    (xapi-stdext-threads (= :version))
-   (xapi-stdext-unix (= :version))
+   (xapi_stdext_unix (= :version))
    (xapi-idl (= :version))
    xenstore_transport
   )
@@ -438,7 +438,7 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name xapi-inventory)
+  (name xapi_inventory)
 )
 
 (package
@@ -498,12 +498,12 @@ This package provides an Lwt compatible interface to the library.")
     (odoc :with-doc)
     (xapi-stdext-pervasives (= :version))
     (mtime :with-test)
-    (xapi-stdext-unix (= :version))
+    (xapi_stdext_unix (= :version))
   )
 )
 
 (package
-  (name xapi-stdext-unix)
+  (name xapi_stdext_unix)
   (synopsis "Xapi's standard library extension, Unix")
   (authors "Jonathan Ludlam")
   (depends

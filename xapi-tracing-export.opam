@@ -18,7 +18,7 @@ depends: [
   "xapi-log" {= version}
   "xapi-open-uri" {= version}
   "xapi-stdext-threads" {= version}
-  "xapi-stdext-unix" {= version}
+  "xapi_stdext_unix" {= version}
   "xapi-tracing" {= version}
   "zstd" {= version}
   "odoc" {with-doc}

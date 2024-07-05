@@ -17,7 +17,7 @@
     xapi-cli-protocol
     xapi-stdext-pervasives
     xapi_stdext_std
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

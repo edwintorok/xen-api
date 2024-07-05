@@ -18,7 +18,7 @@ depends: [
   "xapi-stdext-pervasives" {= version}
   "xapi_stdext_std" {= version}
   "xapi-stdext-threads" {= version}
-  "xapi-stdext-unix" {= version}
+  "xapi_stdext_unix" {= version}
   "xapi-idl" {= version}
   "xenstore_transport"
   "odoc" {with-doc}

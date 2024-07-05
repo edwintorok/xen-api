@@ -23,13 +23,13 @@
     xapi_consts
     xapi-idl.network
     xapi-idl.rrd
-    xapi-inventory
+    xapi_inventory
     xapi-log
     xapi-rrd
     xapi-rrd.unix
     xapi-rrdd
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xmlm
     yojson
   )
@@ -58,7 +58,7 @@
     threads.posix
     uuid
     xapi-backtrace
-    xapi_consts.xapi_version
+    xapi_version
     xapi-idl
     xapi-idl.network
     xapi-idl.rrd
@@ -67,7 +67,7 @@
     xapi-rrdd
     xapi-stdext-pervasives
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xenctrl
     xenstore
     xenstore.unix

@@ -1,11 +1,11 @@
 (library
-  (name inventory)
+  (name xapi_inventory)
   (package xen-api-client)
   (wrapped false)
   (libraries
     uuidm
     astring
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi-stdext-threads
     threads.posix
   )

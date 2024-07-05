@@ -11,7 +11,7 @@
   ; we don't want it inlined
   (flags (:standard -opaque))
   (libraries
-    xapi-inventory
+    xapi_inventory
     dune-build-info
   )
   (wrapped false)

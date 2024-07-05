@@ -18,7 +18,7 @@
     xapi-schema
     xapi-stdext-date
     xapi_stdext_std
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
   (wrapped false)
   (preprocess (per_module ((pps ppx_deriving_rpc) Datamodel_types)))
@@ -34,7 +34,7 @@
     xapi-datamodel
     xapi_stdext_std
     xapi-stdext-pervasives
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 
@@ -70,7 +70,7 @@
   (libraries
     dune-build-info
     xapi-datamodel
-    xapi_consts.xapi_version
+    xapi_version
   )
   (promote (until-clean))
  )

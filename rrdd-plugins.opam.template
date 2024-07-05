@@ -19,7 +19,7 @@ depends: [
   "rrdd-plugin"
   "uuid"
   "xapi_stdext_std"
-  "xapi-stdext-unix"
+  "xapi_stdext_unix"
   "xenctrl"
   "xenstore"
   "mtime"

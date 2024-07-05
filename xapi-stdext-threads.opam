@@ -14,7 +14,7 @@ depends: [
   "odoc" {with-doc}
   "xapi-stdext-pervasives" {= version}
   "mtime" {with-test}
-  "xapi-stdext-unix" {= version}
+  "xapi_stdext_unix" {= version}
 ]
 build: [
   ["dune" "subst"] {dev}

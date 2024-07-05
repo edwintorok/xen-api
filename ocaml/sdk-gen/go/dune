@@ -6,7 +6,7 @@
     CommonFunctions
     mustache
     xapi-datamodel
-    xapi-stdext-unix
+    xapi_stdext_unix
     gen_go_helper
   )
 )

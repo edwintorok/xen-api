@@ -6,7 +6,7 @@
     fmt
     xapi-datamodel
     xapi_consts
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi_stdext_std
     yojson
   )

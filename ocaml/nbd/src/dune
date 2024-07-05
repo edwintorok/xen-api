@@ -18,7 +18,7 @@
   uuid
   vbd_store
   xapi_consts
-  xapi-inventory
+  xapi_inventory
   xapi-types
   xen-api-client-lwt
   )

@@ -106,10 +106,10 @@
 ## 4.3.0 (30-May-2018):
 * CP-28365: improve backtraces by using finally
 
-## 4.2.0 (25-May-2018): -- xapi-stdext-unix only
+## 4.2.0 (25-May-2018): -- xapi_stdext_unix only
 * unixext: update interface to mimick the ocaml Unix one
 
-## 4.1.0 (25-Apr-2018): -- xapi-stdext-unix only
+## 4.1.0 (25-Apr-2018): -- xapi_stdext_unix only
 * really_write:
 	- use single_write_substring and avoid an unsafe coercion
 	- remove deprecation and make robust against EINTR

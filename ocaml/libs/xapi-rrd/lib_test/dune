@@ -8,7 +8,7 @@
     alcotest
     unix
     xapi-rrd
-    xapi-stdext-unix
+    xapi_stdext_unix
     rpclib.xml
     xmlm
   )

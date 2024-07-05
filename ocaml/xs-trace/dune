@@ -7,7 +7,7 @@
     uri
     tracing
     tracing_export
-    xapi-stdext-unix
+    xapi_stdext_unix
     zstd
   )
 )

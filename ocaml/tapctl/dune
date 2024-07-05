@@ -9,7 +9,7 @@
     rpclib.json
     threads.posix
     forkexec
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi-stdext-threads
   )
 )

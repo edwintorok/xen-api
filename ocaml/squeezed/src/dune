@@ -7,8 +7,7 @@
   (libraries
     xapi-stdext-threads
     xapi-stdext-pervasives
-    xapi-stdext-unix
-    xapi_version
+    xapi_stdext_unix
     astring
     dune-build-info
     rpclib.core
@@ -20,7 +19,7 @@
     xenstore_transport
     xenstore_transport.unix
     rpclib
-    xapi_consts.xapi_version
+    xapi_version
     xapi-idl
     xapi-idl.memory
     xapi-log

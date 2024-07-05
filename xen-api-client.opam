@@ -19,13 +19,15 @@ depends: [
   "dune-build-info"
   "alcotest" {with-test}
   "astring"
+  "base-bigarray"
+  "base-unix"
   "cohttp" {>= "0.22.0"}
   "mtime"
   "re"
   "rpclib"
   "uri"
   "xapi-idl" {= version}
-  "xapi-rrd" {= version}
+  "uuidm"
   "xmlm"
   "odoc" {with-doc}
 ]

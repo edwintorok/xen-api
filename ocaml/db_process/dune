@@ -6,7 +6,7 @@
   (libraries
     dune-build-info
     unix
-    xapi-inventory
+    xapi_inventory
     xapi_database
     xapi-log
   )

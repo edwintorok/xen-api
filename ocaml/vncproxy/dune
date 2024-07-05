@@ -10,7 +10,7 @@
     xapi-client
     xapi_consts
     xapi-types
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi-stdext-pervasives
   )
 )

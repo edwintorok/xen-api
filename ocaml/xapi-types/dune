@@ -21,7 +21,7 @@
     xapi_consts
     xapi-rrd
     xapi-stdext-date
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi-idl
     xmlm
   )

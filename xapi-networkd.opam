@@ -22,11 +22,11 @@ depends: [
   "rpclib"
   "systemd"
   "xapi-idl"
-  "xapi-inventory"
+  "xapi_inventory"
   "xapi-stdext-pervasives"
   "xapi_stdext_std"
   "xapi-stdext-threads"
-  "xapi-stdext-unix"
+  "xapi_stdext_unix"
   "xapi-test-utils"
   "xen-api-client"
 ]

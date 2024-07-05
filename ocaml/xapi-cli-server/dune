@@ -29,7 +29,7 @@
     xapi-stdext-pervasives
     xapi_stdext_std
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi-tracing
     xmlm
     xml-light2

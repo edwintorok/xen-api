@@ -34,7 +34,7 @@
    xapi-open-uri
    xapi-stdext-pervasives
    xapi-stdext-threads
-   xapi-inventory
+   xapi_inventory
    xmlm
  )
  (wrapped false)

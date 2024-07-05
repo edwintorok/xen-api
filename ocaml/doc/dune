@@ -12,7 +12,7 @@
     xapi-datamodel
     xapi-stdext-pervasives
     xapi_stdext_std
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
   (preprocess (pps ppx_deriving_rpc))
 )

@@ -36,7 +36,7 @@ depends: [
   "xapi-stdext-pervasives"
   "xapi-stdext-threads"
   "xapi-tracing"
-  "xapi-inventory"
+  "xapi_inventory"
   "xmlm"
 ]
 synopsis: "Interface descriptions and common boilerplate for xapi services"

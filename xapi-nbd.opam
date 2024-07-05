@@ -22,7 +22,7 @@ depends: [
   "nbd-unix"
   "uri"
   "uuid"
-  "xapi-inventory"
+  "xapi_inventory"
   "xapi-tracing"
   "xen-api-client-lwt"
 ]

@@ -3,7 +3,7 @@
   (public_name pciutil)
   (libraries
     threads
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

@@ -20,7 +20,7 @@ depends: [
   "uuid"
   "xapi-log"
   "xapi-stdext-pervasives"
-  "xapi-stdext-unix"
+  "xapi_stdext_unix"
   "xapi-tracing"
 ]
 synopsis: "Sub-process control service for xapi"

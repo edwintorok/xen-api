@@ -18,8 +18,8 @@
     xapi-backtrace
     xapi_consts
     xapi-log
-    xapi-inventory
-    xapi-stdext-unix
+    xapi_inventory
+    xapi_stdext_unix
   )
 )
 
@@ -34,7 +34,7 @@
     dune-build-info
     gencertlib
     x509
-    xapi-inventory
+    xapi_inventory
     xapi_aux
     xapi-log
   )
@@ -59,7 +59,7 @@
     rresult
     x509
     xapi_consts
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
   (deps
     (source_tree test_data)

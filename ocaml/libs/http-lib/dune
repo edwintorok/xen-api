@@ -22,13 +22,13 @@
     uuid
     uri
     xapi-backtrace
-    xapi_consts.xapi_version
+    xapi_version
     xapi-idl.updates
     xapi-log
     xapi-stdext-date
     xapi-stdext-pervasives
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xml-light2
     tracing
   )
@@ -49,7 +49,7 @@
     xapi-log
     xapi-stdext-pervasives
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 
@@ -103,7 +103,7 @@
     stunnel
     threads.posix
     xapi-stdext-pervasives
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 
@@ -118,7 +118,7 @@
     safe-resources
     threads.posix
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

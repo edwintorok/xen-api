@@ -8,7 +8,7 @@
     safe-resources
     xapi-log
     xapi-stdext-pervasives
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

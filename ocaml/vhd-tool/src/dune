@@ -29,7 +29,7 @@
     vhd-format-lwt
     tapctl
     xapi_stdext_std
-    xapi-stdext-unix
+    xapi_stdext_unix
     xenstore
     xenstore.client
     xenstore.unix

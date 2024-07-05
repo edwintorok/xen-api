@@ -25,7 +25,7 @@ depends: [
   "yojson"
   "alcotest" {with-test}
   "crowbar" {with-test}
-  "xapi-stdext-unix" {with-test}
+  "xapi_stdext_unix" {with-test}
 ]
 available: [arch != "ppc64"]
 synopsis: "RRD library for use with xapi"

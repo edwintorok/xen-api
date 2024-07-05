@@ -46,7 +46,7 @@
     xapi-stdext-pervasives
     xapi_stdext_std
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xml-light2
     xmlm
   )
@@ -67,7 +67,7 @@
     xapi_database
     xapi-log
     xapi-stdext-pervasives
-    xapi-stdext-unix
+    xapi_stdext_unix
     uuid
   )
 )
@@ -83,7 +83,7 @@
     threads.posix
     xapi_database
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

@@ -16,10 +16,10 @@ depends: [
   "uuid"
   "xapi_consts"
   "xapi-log"
-  "xapi-inventory"
+  "xapi_inventory"
   "xapi-stdext-pervasives"
   "xapi-stdext-threads"
-  "xapi-stdext-unix"
+  "xapi_stdext_unix"
 ]
 synopsis: "Library required by xapi"
 description: """

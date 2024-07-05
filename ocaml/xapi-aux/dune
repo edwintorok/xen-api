@@ -10,10 +10,10 @@
     threads.posix
     xapi_consts
     xapi-idl.network
-    xapi-inventory
+    xapi_inventory
     xapi-log
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi-types
     xml-light2
   )

@@ -7,7 +7,7 @@
     cdrom
     threads
     unix
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

@@ -9,7 +9,7 @@
 * maintenance: fix travis
 
 ## v1.2.1 (3 Dec 2018):
-- Removed conflict between xcp-inventory and xapi-inventory.
+- Removed conflict between xcp-inventory and xapi_inventory.
 - Ported build to dune and deprecated the old package xcp-inventory.
 
 ## v1.2.0 (9 Jan 2018):

@@ -12,7 +12,7 @@ depends: [
   "astring"
   "mustache"
   "xapi-datamodel" {= version}
-  "xapi-stdext-unix" {= version & with-test}
+  "xapi_stdext_unix" {= version & with-test}
   "odoc" {with-doc}
 ]
 build: [

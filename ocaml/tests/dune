@@ -44,7 +44,7 @@
     xapi-stdext-date
     xapi_stdext_std
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xapi-test-utils
     xapi-tracing
     xapi-types
@@ -93,7 +93,7 @@
     xapi-types
     xapi-stdext-date
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
     xml-light2
     yojson
   )
@@ -131,7 +131,7 @@
 (package xapi)
 (modes (best exe))
 (modules test_observer)
-(libraries alcotest fmt tracing xapi_internal tests_common yojson log uri xapi-stdext-unix re ppx_deriving.runtime xapi_stdext_std xapi-tracing-export))
+(libraries alcotest fmt tracing xapi_internal tests_common yojson log uri xapi_stdext_unix re ppx_deriving.runtime xapi_stdext_std xapi-tracing-export))
 
 (rule
   (alias runtest)

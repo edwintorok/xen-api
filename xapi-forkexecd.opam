@@ -19,7 +19,7 @@ depends: [
   "forkexec"
   "systemd" {>= "1.2"}
   "uuid"
-  "xapi-stdext-unix"
+  "xapi_stdext_unix"
 ]
 conflicts: [
   "fd-send-recv" {< "2.0.0"}

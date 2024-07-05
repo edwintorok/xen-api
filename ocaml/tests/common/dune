@@ -21,12 +21,12 @@
     xapi-idl.network
     xapi-idl.xen.interface
     xapi_internal
-    xapi-inventory
+    xapi_inventory
     xapi-log
     xapi-test-utils
     xapi-types
     xapi-stdext-date
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

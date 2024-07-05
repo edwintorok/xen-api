@@ -41,7 +41,7 @@
    xapi-stdext-date
    xapi-stdext-pervasives
    xapi-stdext-threads
-   xapi-stdext-unix
+   xapi_stdext_unix
    xapi-tracing
    xapi-tracing-export
    xmlm

@@ -9,11 +9,11 @@
     threads.posix
     uuid
     xapi_consts
-    xapi-inventory
+    xapi_inventory
     xapi-log
     xapi-stdext-pervasives
     xapi-stdext-threads
-    xapi-stdext-unix
+    xapi_stdext_unix
   )
 )
 

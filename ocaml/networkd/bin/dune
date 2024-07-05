@@ -29,12 +29,12 @@
   threads.posix
   xapi-client
   xapi_consts
-  xapi_consts.xapi_version
+  xapi_version
   xapi-stdext-pervasives
   xapi_stdext_std
   xapi-stdext-threads
-  xapi-stdext-unix
-  xapi-inventory
+  xapi_stdext_unix
+  xapi_inventory
   xapi-idl
   xapi-idl.network
   xapi-log

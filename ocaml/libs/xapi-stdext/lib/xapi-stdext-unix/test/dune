@@ -16,8 +16,8 @@
  (modes exe)
  (name test_systemd)
  (modules test_systemd)
- (libraries xapi-stdext-unix))
+ (libraries xapi_stdext_unix))
 
 (cram
- (package xapi-stdext-unix)
+ (package xapi_stdext_unix)
  (deps test_systemd.exe))
