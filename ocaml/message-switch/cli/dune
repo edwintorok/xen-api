@@ -14,7 +14,7 @@
 )
 
 (install
- (package message-switch-cli)
+ (package xapi)
  (section sbin)
  (files (main.exe as message-cli))
 )

@@ -32,7 +32,7 @@
 )
 
 (install
-  (package message-switch)
+  (package xapi)
   (section sbin)
   (files (switch_main.exe as message-switch))
 )

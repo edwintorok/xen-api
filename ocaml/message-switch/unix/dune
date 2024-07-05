@@ -1,6 +1,6 @@
 (library
   (name message_switch_unix)
-  (public_name message-switch-unix)
+  (package xapi)
   (modules
     protocol_unix
     protocol_unix_scheduler

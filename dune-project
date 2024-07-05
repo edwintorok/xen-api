@@ -328,69 +328,6 @@ This package provides an Lwt compatible interface to the library.")
   (name pciutil)
 )
 
-(package
-  (name message-switch-async)
-)
-
-(package
-  (name message-switch-lwt)
-)
-
-(package
-  (name message-switch-core)
-  (synopsis "A simple store-and-forward message switch")
-  (description "The switch stores messages in queues with well-known names. Clients use a simple HTTP protocol to enqueue and dequeue messages.")
-  (depends
-    astring
-    (cohttp (>= "0.21.1"))
-    ppx_deriving_rpc
-    ppx_sexp_conv
-    rpclib
-    sexplib
-    (xapi-log (= :version))
-    (xapi-stdext-threads (= :version))
-    (odoc :with-doc)
-  )
-)
-
-(package
-  (name message-switch-cli)
-)
-
-(package
-  (name message-switch-unix)
-)
-
-(package
-  (name message-switch)
-)
-
-(package
-  (name http-lib)
-  (synopsis "An HTTP required used by xapi")
-  (description "This library allows xapi to perform varios activities related to the HTTP protocol.")
-  (depends
-    (alcotest :with-test)
-    astring
-    (base64 (>= "3.1.0"))
-    rpclib
-    (safe-resources(= :version))
-    sha
-    (stunnel (= :version))
-    (uuid (= :version))
-    xapi-backtrace
-    (xapi-idl (= :version))
-    (xapi-log (= :version))
-    (xapi-stdext-date (= :version))
-    (xapi-stdext-pervasives (= :version))
-    (xapi-stdext-threads (= :version))
-    (xapi-tracing (= :version))
-    (xml-light2 (= :version))
-    (odoc :with-doc)
-  )
-)
-
-
 
 (package
   (name ezxenstore)

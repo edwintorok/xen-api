@@ -1,6 +1,6 @@
 (library
   (name message_switch_async)
-  (public_name message-switch-async)
+  (package xapi)
   (libraries
     (re_export async)
     (re_export async_unix)

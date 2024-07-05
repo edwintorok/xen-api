@@ -1,6 +1,6 @@
 (library
   (name message_switch_core)
-  (public_name message-switch-core)
+  (package xapi)
   (libraries
     astring
     cohttp

@@ -1,6 +1,6 @@
 (library
   (name message_switch_lwt)
-  (public_name message-switch-lwt)
+  (package xapi)
   (libraries
     cohttp-lwt-unix
     message-switch-core
