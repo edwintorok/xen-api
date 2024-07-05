@@ -74,7 +74,6 @@
    re
    rpclib
    uri
-   (uuid (= :version))
    (xapi-idl (= :version))
    (xapi-rrd (= :version))
    xmlm
@@ -113,7 +112,6 @@
    (alcotest :with-test)
    re
    uri
-   (uuid :with-test)
    (xapi-log (= :version))
    (xapi-stdext-threads (= :version))
   )
@@ -197,7 +195,6 @@
    ppx_deriving_rpc
    rpclib
    (ezxenstore (= :version))
-   (uuid (= :version))
    xapi-backtrace
    (xapi-idl (= :version))
    (xapi-rrd (= :version))
@@ -284,7 +281,6 @@
     logs
     (lwt (>= "3.0.0"))
     re
-    uuid
     (qcheck-core :with-test)
   )
 )
@@ -326,10 +322,6 @@ This package provides an Lwt compatible interface to the library.")
 
 (package
   (name varstored-guard)
-)
-
-(package
-  (name uuid)
 )
 
 (package

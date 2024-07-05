@@ -14,7 +14,6 @@ depends: [
   "alcotest" {with-test}
   "re"
   "uri"
-  "uuid" {with-test}
   "xapi-log" {= version}
   "xapi-stdext-threads" {= version}
   "odoc" {with-doc}

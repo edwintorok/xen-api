@@ -1,7 +1,7 @@
 (library
   (name uuid)
-  (public_name uuid)
   (modules uuidx)
+  (package xen-api-client)
   (libraries
     unix (re_export uuidm)
   )
@@ -10,7 +10,7 @@
 
 (test
   (name uuid_test)
-  (package uuid)
+  (package xen-api-client)
   (modules uuid_test)
   (libraries alcotest fmt uuid)
   )

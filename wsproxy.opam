@@ -14,7 +14,6 @@ depends: [
   "logs"
   "lwt" {>= "3.0.0"}
   "re"
-  "uuid"
   "qcheck-core" {with-test}
   "odoc" {with-doc}
 ]
