@@ -9,6 +9,7 @@
     unix
     xapi-rrd
     xapi-stdext-unix
+    xmlm
   )
 )
 

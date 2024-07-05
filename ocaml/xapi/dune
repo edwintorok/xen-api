@@ -65,6 +65,7 @@
     cstruct
     base64
     cohttp
+    cohttp-posix
     domain-name
     ezxenstore.core
     fmt
@@ -72,7 +73,8 @@
     gencertlib
     gzip
     hex
-    http_lib
+    http-lib
+    httpsvr
     ipaddr
     magic-mime
     message-switch-core
@@ -86,6 +88,7 @@
     pci
     psq
     ptime
+    ptime.clock.os
     rpclib.core
     rpclib.json
     rpclib.xml
@@ -139,6 +142,8 @@
     xapi-log
     xapi-open-uri
     xapi-rrd
+    xapi-tracing
+    xapi-tracing-export
     xapi-types
     xapi-stdext-date
     xapi-stdext-encodings
@@ -147,7 +152,6 @@
     xapi-stdext-threads
     xapi-stdext-unix
     xapi-stdext-zerocheck
-    xapi-tracing
     xapi-xenopsd
     xenstore_transport.unix
     xml-light2

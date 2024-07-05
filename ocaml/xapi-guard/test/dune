@@ -10,11 +10,12 @@
   lwt
   rpclib.core
   uri
-  uuid
+  uuidm
   xapi_guard
   xapi_guard_server
   xapi-log
   xapi-types
+  xapi-consts.xapi_version
   xen-api-client-lwt)
  (package varstored-guard)
  )
@@ -23,6 +24,7 @@
  (name cache_test)
  (modules cache_test)
  (libraries
+   fmt
    logs
    logs.fmt
    logs.lwt
@@ -30,6 +32,9 @@
    lwt.unix
    mtime
    mtime.clock.os
+   result
    uuidm
-   xapi_guard)
+   xapi_guard
+   xapi-log
+ )
  (preprocess (pps ppx_deriving_rpc)))

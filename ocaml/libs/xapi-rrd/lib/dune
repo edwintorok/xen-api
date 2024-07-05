@@ -5,6 +5,7 @@
   (wrapped false)
   (libraries
     bigarray
+    rpclib.core
     rpclib.json
     xmlm
     yojson
