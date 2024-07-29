@@ -1554,7 +1554,7 @@ let dequarantine_ops vgpus =
 
 let parallel name ~id lst = Parallel (id, Printf.sprintf "%s VM=%s" name id, lst)
 
-let parallel_map name ~id f lst = parallel name ~id (List.map f lst)
+let parallel_map name ~id f lst = [parallel name ~id (List.map f lst)]
 
 let parallel_rw_ro name ~id ~vbds_rw ~vbds_ro f =
   List.map
@@ -1598,14 +1598,14 @@ let rec atomics_of_operation = function
           (List.map @@ fun vbd -> VBD_plug vbd.Vbd.id)
         (* rw vbds must be plugged before ro vbds, see vbd_plug_sets *)
       ; List.map (fun vif -> VIF_set_active (vif.Vif.id, true)) vifs
-      ; List.map (fun vif -> VIF_plug vif.Vif.id) vifs
+      ; parallel_map "VIF.plug" ~id (fun vif -> VIF_plug vif.Vif.id) vifs
       ; List.map (fun vgpu -> VGPU_set_active (vgpu.Vgpu.id, true)) vgpus
-      ; List.map (fun pci -> PCI_plug (pci.Pci.id, false)) pcis_sriov
+      ; parallel_map "PCI.plug false" ~id (fun pci -> PCI_plug (pci.Pci.id, false)) pcis_sriov
       ; [VM_create_device_model (id, false)]
         (* PCI and USB devices are hot-plugged into HVM guests via QEMU, so the
            following operations occur after creating the device models *)
-      ; List.map (fun pci -> PCI_plug (pci.Pci.id, true)) pcis_other
-      ; List.map (fun vusb -> VUSB_plug vusb.Vusb.id) vusbs
+      ; parallel_map "PCI.plug true" ~id (fun pci -> PCI_plug (pci.Pci.id, true)) pcis_other
+      ; parallel_map "VUSB.plug" ~id (fun vusb -> VUSB_plug vusb.Vusb.id) vusbs
         (* At this point the domain is considered survivable. *)
       ; [VM_set_domain_action_request (id, None)]
       ]
