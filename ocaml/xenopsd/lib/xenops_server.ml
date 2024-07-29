@@ -1552,6 +1552,15 @@ let dequarantine_ops vgpus =
          fun vgpu -> PCI_dequarantine vgpu.physical_pci_address
        )
 
+let parallel name ~id lst = Parallel (id, Printf.sprintf "%s VM=%s" name id, lst)
+
+let parallel_map name ~id f lst = parallel name ~id (List.map f lst)
+
+let parallel_rw_ro name ~id ~vbds_rw ~vbds_ro f =
+  List.map
+    (fun (ty, vbds) -> parallel (String.concat " " [name; ty]) ~id @@ f vbds)
+    [("RW", vbds_rw); ("RO", vbds_ro)]
+
 let rec atomics_of_operation = function
   | VM_start (id, force) ->
       let vbds_rw, vbds_ro = VBD_DB.vbds id |> vbd_plug_sets in
@@ -1576,36 +1585,18 @@ let rec atomics_of_operation = function
           (vbds_rw @ vbds_ro)
         (* keeping behaviour of vbd_plug_order: rw vbds must be plugged before
            ro vbds, see vbd_plug_sets *)
-      ; List.map
-          (fun (ty, vbds) ->
-            Parallel
-              ( id
-              , Printf.sprintf "VBD.epoch_begin %s vm=%s" ty id
-              , List.filter_map
-                  (fun vbd ->
-                    Option.map
-                      (fun x ->
-                        VBD_epoch_begin (vbd.Vbd.id, x, vbd.Vbd.persistent)
-                      )
-                      vbd.Vbd.backend
-                  )
-                  vbds
+      ; parallel_rw_ro "VBD.epoch_begin" ~id ~vbds_rw ~vbds_ro (fun vbds ->
+            List.filter_map
+              (fun vbd ->
+                Option.map
+                  (fun x -> VBD_epoch_begin (vbd.Vbd.id, x, vbd.Vbd.persistent))
+                  vbd.Vbd.backend
               )
-          )
-          [("RW", vbds_rw); ("RO", vbds_ro)]
-      ; [
-          (* rw vbds must be plugged before ro vbds, see vbd_plug_sets *)
-          Parallel
-            ( id
-            , Printf.sprintf "VBD.plug RW vm=%s" id
-            , List.map (fun vbd -> VBD_plug vbd.Vbd.id) vbds_rw
-            )
-        ; Parallel
-            ( id
-            , Printf.sprintf "VBD.plug RO vm=%s" id
-            , List.map (fun vbd -> VBD_plug vbd.Vbd.id) vbds_ro
-            )
-        ]
+              vbds
+        )
+      ; parallel_rw_ro "VBD.plug" ~id ~vbds_rw ~vbds_ro
+          (List.map @@ fun vbd -> VBD_plug vbd.Vbd.id)
+        (* rw vbds must be plugged before ro vbds, see vbd_plug_sets *)
       ; List.map (fun vif -> VIF_set_active (vif.Vif.id, true)) vifs
       ; List.map (fun vif -> VIF_plug vif.Vif.id) vifs
       ; List.map (fun vgpu -> VGPU_set_active (vgpu.Vgpu.id, true)) vgpus
