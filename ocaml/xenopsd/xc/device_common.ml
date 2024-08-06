@@ -326,37 +326,36 @@ let list_frontends_seq ~xs ?for_devids domid =
   |> List.to_seq
   |> Seq.flat_map @@ fun k ->
      let dir = sprintf "%s/%s" frontend_dir (string_of_kind k) in
-     let devids =
-       match for_devids with
-       | None ->
-           dir |> readdir ~xs |> List.to_seq |> Seq.filter_map parse_int
-       | Some devids -> (
-           (* check that any specified devids are present in frontend_dir *)
-           devids
-           |> List.to_seq
-           |> Seq.filter @@ fun devid ->
-              try
-                ignore (xs.Xs.read (sprintf "%s/%d" dir devid)) ;
-                true
-              with _ -> false
-         )
-     in
-     devids
-     |> Seq.filter_map @@ fun devid ->
-        (* domain [domid] believes it has a frontend for device [devid] *)
-        let frontend = {domid; kind= k; devid} in
-        try
-          let link = xs.Xs.read (sprintf "%s/%d/backend" dir devid) in
-          match parse_backend_link link with
-          | Some b ->
-              Some {backend= b; frontend}
-          | None ->
-              None
-        with _ -> None
+     ( match for_devids with
+     | None ->
+         dir |> readdir ~xs |> List.to_seq |> Seq.filter_map parse_int
+     | Some devids ->
+         (* check that any specified devids are present in frontend_dir *)
+         devids
+         |> List.to_seq
+         |> Seq.filter (fun devid ->
+                try
+                  ignore (xs.Xs.read (sprintf "%s/%d" dir devid)) ;
+                  true
+                with _ -> false
+            )
+     )
+     |> Seq.map (fun devid -> (dir, {domid; kind= k; devid}))
 
 let list_frontends ~xs ?for_devids domid =
-  list_frontends_seq ~xs ?for_devids domid |> List.of_seq
-  
+  list_frontends_seq ~xs ?for_devids domid
+  |> Seq.filter_map (fun (dir, frontend) ->
+         try
+           let link = xs.Xs.read (sprintf "%s/%d/backend" dir frontend.devid) in
+           match parse_backend_link link with
+           | Some b ->
+               Some {backend= b; frontend}
+           | None ->
+               None
+         with _ -> None
+     )
+  |> List.of_seq
+
 (* NB: we only read data from the backend directory. Therefore this gives the
    "backend's point of view". *)
 let list_backends ~xs domid =

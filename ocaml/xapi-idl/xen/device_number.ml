@@ -218,3 +218,12 @@ let of_string ~hvm name =
     of_disk_number hvm n
   in
   match maybe_disk with None -> of_linux_device name | dev -> dev
+
+let of_id ~hvm name =
+  let r = match of_linux_device name with
+  | Some (Xen, n, p) when hvm && n < 4 ->
+    (* xvda is actually 768 and not 51712 *)
+    Some (Ide, n, p) 
+  | x -> x
+  in
+  Option.map to_xenstore_key r

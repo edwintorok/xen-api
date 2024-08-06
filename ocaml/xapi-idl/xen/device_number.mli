@@ -48,3 +48,8 @@ val of_xenstore_key : int -> t
 val of_disk_number : bool -> int -> t option
 (** [of_disk_number hvm n] returns the interface corresponding to disk number
     [n] which depends on whether the guest is [hvm] or not. *)
+
+val of_id: hvm:bool -> string -> int option
+(** [of_id ~hvm id] converts the backend [id] into a xenstore device id.
+    i.e. [xvda] into [768], etc.
+ *)
