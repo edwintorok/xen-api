@@ -254,6 +254,12 @@ let get_private_data_path_of_device (x : device) =
     (get_private_path x.frontend.domid)
     (string_of_kind x.backend.kind)
     x.backend.devid
+  
+let get_private_data_path_of_frontend_device (x : endpoint) =
+  sprintf "%s/private/%s/%d"
+    (get_private_path x.domid)
+    (string_of_kind x.kind)
+    x.devid
 
 (** Location of the device node's extra xenserver xenstore keys *)
 let extra_xenserver_path_of_device ~xs (x : device) =
@@ -341,6 +347,9 @@ let list_frontends_seq ~xs ?for_devids domid =
             )
      )
      |> Seq.map (fun devid -> (dir, {domid; kind= k; devid}))
+
+let list_frontends_only ~xs ?for_devids domid =
+  list_frontends_seq ~xs ?for_devids domid |> Seq.map snd |> List.of_seq
 
 let list_frontends ~xs ?for_devids domid =
   list_frontends_seq ~xs ?for_devids domid

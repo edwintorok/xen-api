@@ -798,10 +798,10 @@ let device_by_id _xc xs vm kind id =
   | Some frontend_domid -> (
       let fetch_all_from_xenstore_f () =
         (* expensive *)
-        let devices = Device_common.list_frontends ~xs frontend_domid in
+        let devices = Device_common.list_frontends_only ~xs frontend_domid in
         let key = _device_id kind in
         let id_of_device device =
-          let path = Device_common.get_private_data_path_of_device device in
+          let path = Device_common.get_private_data_path_of_frontend_device device in
           try Some (xs.Xs.read (Printf.sprintf "%s/%s" path key))
           with _ -> None
         in
@@ -810,10 +810,10 @@ let device_by_id _xc xs vm kind id =
       in
       let fetch_one_from_xenstore_f cached_device =
         let cached_frontend_devid =
-          cached_device.Device_common.frontend.Device_common.devid
+          cached_device.Device_common.devid
         in
         let xenstored_device =
-          Device_common.list_frontends ~xs ~for_devids:[cached_frontend_devid]
+          Device_common.list_frontends_only ~xs ~for_devids:[cached_frontend_devid]
             frontend_domid
         in
         match xenstored_device with [] -> raise Not_found | x :: _ -> x
@@ -4940,8 +4940,8 @@ module Actions = struct
 
   let add_device_watch xs dev =
     let open Device_common in
-    debug "Adding watches for: %s" (string_of_device dev) ;
-    let domid = dev.frontend.domid in
+    debug "Adding watches for: %s" (string_of_endpoint dev) ;
+    let domid = dev.domid in
     let token = watch_token domid in
     List.iter (Xenstore_watch.watch ~xs token) (watches_of_device dev) ;
     device_watches :=
@@ -4970,7 +4970,7 @@ module Actions = struct
           domid
       else
         let devices = IntMap.find domid !device_watches in
-        let devices' = Device_common.list_frontends ~xs domid in
+        let devices' = Device_common.list_frontends_only ~xs domid in
         let old_devices =
           Xapi_stdext_std.Listext.List.set_difference devices devices'
         in

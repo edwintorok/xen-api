@@ -94,6 +94,7 @@ val get_private_path : Xenctrl.domid -> string
 val get_private_path_by_uuid : 'a Uuidx.t -> string
 
 val get_private_data_path_of_device : device -> string
+val get_private_data_path_of_frontend_device : endpoint -> string
 
 val extra_xenserver_path_of_device :
   xs:Ezxenstore_core.Xenstore.Xs.xsh -> device -> string
@@ -120,6 +121,18 @@ val list_frontends :
     frontend in [domid]. This function only reads data stored in the frontend
     directory.*)
 
+val list_frontends_only :
+     xs:Ezxenstore_core.Xenstore.Xs.xsh
+  -> ?for_devids:int list
+  -> Xenctrl.domid
+  -> endpoint list
+(** [list_frontends_only xs domid] returns a list of frontend devices where there is a
+    frontend in [domid]. This function only reads data stored in the frontend
+    directory.
+    This is more efficient than {!val:list_frontends}, because it doesn't resolve the
+    backend links and performs only O(1) xenstore queries.
+*)
+    
 val list_devices_between :
      xs:Ezxenstore_core.Xenstore.Xs.xsh
   -> Xenctrl.domid
