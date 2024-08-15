@@ -6,6 +6,8 @@
    (names syslog_stubs))
  (libraries
    astring
+   ambient-context.tls
+   ambient-context.thread_local
    fmt
    mtime
    logs

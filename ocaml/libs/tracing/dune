@@ -1,7 +1,7 @@
 (library
  (name tracing)
  (modules tracing)
- (libraries ambient-context.unix opentelemetry re uri xapi-log xapi-stdext-threads threads.posix)
+ (libraries ambient-context.tls ambient-context.thread_local ambient-context.unix opentelemetry re uri xapi-log xapi-stdext-threads threads.posix)
  (public_name xapi-tracing))
 
 (library
@@ -9,6 +9,7 @@
  (modules tracing_export)
  (public_name xapi-tracing-export)
  (libraries
+  ambient-context.tls
   cohttp
   cohttp-posix
   opentelemetry

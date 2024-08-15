@@ -29,6 +29,9 @@ val with_thread_associated :
 val with_thread_named : string -> ('a -> 'b) -> 'a -> 'b
 (** Do an action with a name associated with the current thread *)
 
+val set_current_span_trace : span_id:string -> trace_id:string -> unit
+val end_current_span: unit -> unit
+
 module type BRAND = sig
   val name : string
 end

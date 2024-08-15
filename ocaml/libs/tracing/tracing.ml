@@ -512,8 +512,8 @@ module TracerProvider = struct
         ) ;
         if enabled then set_observe true
     )
-    (* if we used Lwt we might want to set an Ambient_context storage provider, but the default TLS provider
-       is the correct one to use with Unix threads *)
+  (* if we used Lwt we might want to set an Ambient_context storage provider, but the default TLS provider
+     is the correct one to use with Unix threads *)
 
   let get_tracer_providers_unlocked () =
     Hashtbl.fold (fun _ provider acc -> provider :: acc) tracer_providers []
@@ -626,7 +626,10 @@ module Tracer = struct
           attributes t.provider.attributes
       in
       let span = Span.start ~attributes ~name ~parent ~span_kind () in
-      Spans.add_to_spans ~span ; Ok (Some span)
+      Debug.set_current_span_trace ~span_id:span.context.span_id
+        ~trace_id:span.context.trace_id ;
+      Spans.add_to_spans ~span ;
+      Ok (Some span)
 
   let update_span_with_parent span (parent : Span.t option) =
     if Atomic.get observe then
@@ -664,7 +667,7 @@ module Tracer = struct
                  Span.set_ok span
            in
            let span = Span.finish ~span () in
-           Spans.mark_finished span ; span
+           Debug.end_current_span () ; Spans.mark_finished span ; span
          )
          span
       )

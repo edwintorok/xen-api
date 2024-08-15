@@ -160,6 +160,16 @@ let otel_level_of =
   | Syslog.Debug ->
       Severity_number_debug
 
+module TLS = Ambient_context_tls.TLS
+
+let context_key = TLS.create ()
+
+let set_current_span_trace ~span_id ~trace_id  =
+  TLS.set context_key (span_id, trace_id)
+
+let end_current_span () =
+  TLS.remove context_key
+
 let output_log brand level priority s =
   if not (is_disabled brand level) then (
     let msg = format false brand priority s in
@@ -167,9 +177,21 @@ let output_log brand level priority s =
       Printf.printf "%s\n%!" (format true brand priority s) ;
     Otel.Logs.(
       let time = Otel.Timestamp_ns.now_unix_ns () in
+      let span_id, trace_id =
+        match TLS.get context_key with
+        | None ->
+            (None, None)
+        | Some (span_id, trace_id) ->
+            ( Some (Otel.Span_id.of_hex span_id)
+            , Some (Otel.Trace_id.of_hex trace_id)
+            )
+      in
       (* task will be linked through span ids, no need to add task name again here *)
       emit
-        [make_str ~time ~severity:(otel_level_of level) ~log_level:priority s]
+        [
+          make_str ?span_id ?trace_id ~time ~severity:(otel_level_of level)
+            ~log_level:priority s
+        ]
     ) ;
     Syslog.log (get_facility ()) level (escape msg)
   )
