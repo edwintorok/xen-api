@@ -17,6 +17,7 @@ module D = Debug.Make (struct let name = "tracing_export" end)
 module Delay = Xapi_stdext_threads.Threadext.Delay
 open D
 open Tracing
+module Otel = Opentelemetry
 
 let ( let@ ) f x = f x
 
@@ -30,7 +31,9 @@ let set_host_id id = host_id := id
 
 let service_name = ref "unknown"
 
-let set_service_name name = service_name := name
+let set_service_name name =
+  Otel.Globals.service_name := name ;
+  service_name := name
 
 let get_service_name () = !service_name
 
@@ -135,13 +138,13 @@ module Destination = struct
 
     let lock = Mutex.create ()
 
-    let make_file_name () =
+    let make_file_name ?(ext = ".ndjson") () =
       let date = Ptime_clock.now () |> Ptime.to_rfc3339 ~frac_s:6 in
       let ( // ) = Filename.concat in
       let name =
         !trace_log_dir
         // String.concat "-" [get_service_name (); !host_id; date]
-        ^ ".ndjson"
+        ^ ext
       in
       file_name := Some name ;
       name
@@ -155,23 +158,28 @@ module Destination = struct
       let content = str ^ "\n" in
       ignore @@ Unix.write_substring fd content 0 (String.length content)
 
-    let export json =
+    let export_to ?ext writer =
       try
         let file_name =
-          match !file_name with None -> make_file_name () | Some x -> x
+          match !file_name with None -> make_file_name ?ext () | Some x -> x
         in
         Xapi_stdext_unix.Unixext.mkdir_rec (Filename.dirname file_name) 0o700 ;
         let@ fd = file_name |> with_fd in
-        write fd json ;
+        writer fd ;
         if (Unix.fstat fd).st_size >= !max_file_size then (
           debug "Tracing: Rotating file %s > %d" file_name !max_file_size ;
           if !compress_tracing_files then
             Zstd.Fast.compress_file Zstd.Fast.compress ~file_path:file_name
               ~file_ext:"zst" ;
-          ignore @@ make_file_name ()
+          ignore @@ make_file_name ?ext ()
         ) ;
         Ok ()
       with e -> Error e
+
+    let export json = export_to (fun fd -> write fd json)
+
+    let with_raw_stream f =
+      Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () -> f export_to)
 
     let with_stream f =
       Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () -> f export)
@@ -237,6 +245,95 @@ module Destination = struct
       with e -> Error e
   end
 
+  module FileCollector = struct
+    open Otel.Proto
+    open Otel.Collector
+
+    (* batching can be done in a batching collector *)
+
+    (* OCaml's runtime already has an internal lock around channel operations,
+       however for efficient Pbrt.Encoder.write_chunks (avoiding to_string),
+       we need a lock around the encoder
+    *)
+
+    let with_encoder =
+      (* protected by the mutex in File.with_raw_stream *)
+      let encoder = Pbrt.Encoder.create () in
+      fun f ->
+        let (_ : (_, _) result) =
+          let@ export = File.with_raw_stream in
+          Pbrt.Encoder.reset encoder ;
+          f encoder ;
+          let@ fd = export ~ext:".otel" in
+          let write buf pos len =
+            let (_ : int) = Unix.write fd buf pos len in
+            ()
+          in
+          Pbrt.Encoder.write_chunks write encoder
+        in
+        ()
+
+    let send_logs : Logs.resource_logs list sender =
+      {
+        send=
+          (fun resource_logs ~ret ->
+            let m =
+              Logs_service.default_export_logs_service_request ~resource_logs ()
+            in
+            let () =
+              let@ encoder = with_encoder in
+              Logs_service.encode_pb_export_logs_service_request m encoder
+            in
+            ret ()
+          )
+      }
+
+    let send_metrics : Metrics.resource_metrics list sender =
+      {
+        send=
+          (fun resource_metrics ~ret ->
+            let m =
+              Metrics_service.default_export_metrics_service_request
+                ~resource_metrics ()
+            in
+            let () =
+              let@ encoder = with_encoder in
+              Metrics_service.encode_pb_export_metrics_service_request m encoder
+            in
+            ret ()
+          )
+      }
+
+    let send_trace : Trace.resource_spans list sender =
+      {
+        send=
+          (fun resource_spans ~ret ->
+            let m =
+              Trace_service.default_export_trace_service_request ~resource_spans
+                ()
+            in
+            let () =
+              let@ encoder = with_encoder in
+              Trace_service.encode_pb_export_trace_service_request m encoder
+            in
+            ret ()
+          )
+      }
+
+    let signal_emit_gc_metrics () = () (* not implemented *)
+
+    let on_tick = Atomic.make (Otel.AList.make ())
+
+    let tick () =
+      on_tick |> Atomic.get |> Otel.AList.get |> List.iter (fun f -> f ())
+
+    let set_on_tick_callbacks lst = Atomic.set on_tick lst
+
+    let cleanup () = ()
+  end
+
+  (* TODO: BatchingCollector *)
+
   let export_to_endpoint parent traces endpoint =
     debug "Tracing: About to export" ;
     try
@@ -292,6 +389,8 @@ module Destination = struct
 
   let create_exporter () =
     enable_span_garbage_collector () ;
+    (* TODO: MUST have separate flag, because this exports a lot of internal logs *)
+    Otel.Collector.set_backend (module FileCollector) ;
     Thread.create
       (fun () ->
         let signaled = ref false in

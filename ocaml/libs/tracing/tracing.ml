@@ -512,6 +512,8 @@ module TracerProvider = struct
         ) ;
         if enabled then set_observe true
     )
+    (* if we used Lwt we might want to set an Ambient_context storage provider, but the default TLS provider
+       is the correct one to use with Unix threads *)
 
   let get_tracer_providers_unlocked () =
     Hashtbl.fold (fun _ provider acc -> provider :: acc) tracer_providers []

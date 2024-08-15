@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+module Otel = Opentelemetry
+
 module Mutex = struct
   include Mutex
 
@@ -138,11 +140,37 @@ let set_facility f = facility := f
 
 let get_facility () = !facility
 
+let otel_level_of =
+  let open Otel.Logs in
+  function
+  | Syslog.Emerg ->
+      Severity_number_fatal3
+  | Syslog.Alert ->
+      Severity_number_fatal2
+  | Syslog.Crit ->
+      Severity_number_fatal
+  | Syslog.Err ->
+      Severity_number_error
+  | Syslog.Warning ->
+      Severity_number_warn
+  | Syslog.Notice ->
+      Severity_number_info4
+  | Syslog.Info ->
+      Severity_number_info
+  | Syslog.Debug ->
+      Severity_number_debug
+
 let output_log brand level priority s =
   if not (is_disabled brand level) then (
     let msg = format false brand priority s in
     if !print_debug then
       Printf.printf "%s\n%!" (format true brand priority s) ;
+    Otel.Logs.(
+      let time = Otel.Timestamp_ns.now_unix_ns () in
+      (* task will be linked through span ids, no need to add task name again here *)
+      emit
+        [make_str ~time ~severity:(otel_level_of level) ~log_level:priority s]
+    ) ;
     Syslog.log (get_facility ()) level (escape msg)
   )
 

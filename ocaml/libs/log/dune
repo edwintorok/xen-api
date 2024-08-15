@@ -9,6 +9,7 @@
    fmt
    mtime
    logs
+   opentelemetry
    threads.posix
    xapi-backtrace
  )
