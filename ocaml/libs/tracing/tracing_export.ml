@@ -189,7 +189,8 @@ module Destination = struct
     module Request = Cohttp.Request.Make (Cohttp_posix_io.Buffered_IO)
     module Response = Cohttp.Response.Make (Cohttp_posix_io.Buffered_IO)
 
-    let export ?(headers=[]) ?(content_type="application/json") ~url () body =
+    let export ?(verbose = false) ?(headers = [])
+        ?(content_type = "application/json") ~url () body =
       try
         let content_headers =
           [
@@ -211,17 +212,23 @@ module Destination = struct
         in
         let split_header s =
           match Astring.String.cut ~sep:":" s with
-          | Some (k, v) -> k, String.trim v
-          | None -> s, ""
+          | Some (k, v) ->
+              (k, String.trim v)
+          | None ->
+              (s, "")
         in
         let headers =
-          List.concat [headers |> List.map split_header ; content_headers; host_headers] |> Cohttp.Header.of_list
+          List.concat
+            [headers |> List.map split_header; content_headers; host_headers]
+          |> Cohttp.Header.of_list
         in
 
         Open_uri.with_open_uri url (fun fd ->
             let request =
               Cohttp.Request.make ~meth:`POST ~version:`HTTP_1_1 ~headers url
             in
+            if verbose then
+              Format.eprintf "> %a@." Cohttp.Request.pp_hum request ;
             (* `with_open_uri` already closes the `fd`. And therefore
                according to the documentation of `in_channel_of_descr` and
                `out_channel_of_descr` we should not close the channels on top of
@@ -236,14 +243,22 @@ module Destination = struct
             flush oc ;
             match try Response.read ic with _ -> `Eof with
             | `Eof ->
+                if verbose then
+                  prerr_endline "EOF";
                 Ok ()
             | `Invalid x ->
+                if verbose then
+                  Format.eprintf "INVALID: %s@." x;
                 Error (Failure ("invalid read: " ^ x))
             | `Ok response
               when Cohttp.Code.(response.status |> code_of_status |> is_error)
               ->
+                if verbose then
+                  Format.eprintf "> %a@." Cohttp.Response.pp_hum response;
                 Error (Failure (Cohttp.Code.string_of_status response.status))
-            | `Ok _ ->
+            | `Ok response ->
+                if verbose then
+                  Format.eprintf "> %a@." Cohttp.Response.pp_hum response;
                 Ok ()
         )
       with e -> Error e

@@ -16,10 +16,10 @@ module Exporter = struct
   module Unixext = Xapi_stdext_unix.Unixext
 
   (* Submit JSON/Protobuf to a specified endpoint. *)
-  let submit_data ?(is_protobuf=false) ~headers url json =
+  let submit_data ?(is_protobuf=false) ~verbose ~headers url json =
     let content_type = if is_protobuf then Some "application/x-protobuf" else None in
     if json <> "" then
-      match Tracing_export.Destination.Http.export ?content_type ~headers ~url () json with
+      match Tracing_export.Destination.Http.export ~verbose ?content_type ~headers ~url () json with
       | Error err ->
           Printf.eprintf "Error: %s" (Printexc.to_string err) ;
           exit 1
@@ -27,10 +27,10 @@ module Exporter = struct
           ()
 
   (** Export traces from file system to a remote endpoint. *)
-  let export erase headers src dst =
+  let export erase verbose headers src dst =
     let dst = Uri.of_string dst in
     let is_protobuf = String.ends_with ~suffix:".otel" src in
-    let submit_json = submit_data ~is_protobuf ~headers dst in
+    let submit_json = submit_data ~verbose ~is_protobuf ~headers dst in
     let rec export_file = function
       | path when Sys.is_directory path ->
           (* Recursively export trace files. *)
@@ -78,7 +78,11 @@ module Cli = struct
     let doc = "Extra HTTP headers to send" in
     Arg.(value & opt (list string) [] & info ["H"; "header"] ~docv:"HEADER" ~doc)
 
-  let export_term ~erase = Term.(const Exporter.export $ const erase $ headers $ src $ dst)
+  let verbose =
+    let doc = "Show verbose CURL output" in
+    Arg.(value & flag & info ["v"; "verbose"] ~doc)
+
+  let export_term ~erase = Term.(const Exporter.export $ const erase $ verbose $ headers $ src $ dst)
 
   let cp_cmd =
     let term = export_term ~erase:false in
