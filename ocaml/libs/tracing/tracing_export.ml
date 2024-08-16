@@ -134,11 +134,11 @@ module Destination = struct
 
     let set_compress_tracing_files enabled = compress_tracing_files := enabled
 
-    let file_name = ref None
+    let file_name = Hashtbl.create 7
 
     let lock = Mutex.create ()
 
-    let make_file_name ?(ext = ".ndjson") () =
+    let make_file_name ~ext () =
       let date = Ptime_clock.now () |> Ptime.to_rfc3339 ~frac_s:6 in
       let ( // ) = Filename.concat in
       let name =
@@ -146,7 +146,7 @@ module Destination = struct
         // String.concat "-" [get_service_name (); !host_id; date]
         ^ ext
       in
-      file_name := Some name ;
+      Hashtbl.replace file_name ext name;
       name
 
     let with_fd file_name =
@@ -158,10 +158,10 @@ module Destination = struct
       let content = str ^ "\n" in
       ignore @@ Unix.write_substring fd content 0 (String.length content)
 
-    let export_to ?ext writer =
+    let export_to ?(ext = ".ndjson") writer =
       try
         let file_name =
-          match !file_name with None -> make_file_name ?ext () | Some x -> x
+          match Hashtbl.find_opt file_name ext with None -> make_file_name ~ext () | Some x -> x
         in
         Xapi_stdext_unix.Unixext.mkdir_rec (Filename.dirname file_name) 0o700 ;
         let@ fd = file_name |> with_fd in
@@ -171,7 +171,7 @@ module Destination = struct
           if !compress_tracing_files then
             Zstd.Fast.compress_file Zstd.Fast.compress ~file_path:file_name
               ~file_ext:"zst" ;
-          ignore @@ make_file_name ?ext ()
+          ignore @@ make_file_name ~ext ()
         ) ;
         Ok ()
       with e -> Error e
@@ -254,11 +254,11 @@ module Destination = struct
               when Cohttp.Code.(response.status |> code_of_status |> is_error)
               ->
                 if verbose then
-                  Format.eprintf "> %a@." Cohttp.Response.pp_hum response;
+                  Format.eprintf "< %a@." Cohttp.Response.pp_hum response;
                 Error (Failure (Cohttp.Code.string_of_status response.status))
             | `Ok response ->
                 if verbose then
-                  Format.eprintf "> %a@." Cohttp.Response.pp_hum response;
+                  Format.eprintf "< %a@." Cohttp.Response.pp_hum response;
                 Ok ()
         )
       with e -> Error e

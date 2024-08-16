@@ -89,7 +89,7 @@ let gettimestring () =
     allocate a new string only when necessary *)
 let escape = Astring.String.Ascii.escape
 
-let format include_time brand priority message =
+let format ?context include_time brand priority message =
   let id = get_thread_id () in
   let task, name =
     (* if the task's client is known, attach it to the task's name *)
@@ -104,9 +104,10 @@ let format include_time brand priority message =
     | Some {desc; client= Some client} ->
         (desc, Printf.sprintf "%s->%s" client name)
   in
-  Printf.sprintf "[%s%5s||%d %s|%s|%s] %s"
+  let span_id, trace_id = Option.value context ~default:("", "") in
+  Printf.sprintf "[%s%5s|%s%s|%d %s|%s|%s] %s"
     (if include_time then gettimestring () else "")
-    priority id name task brand message
+    priority span_id trace_id id name task brand message
 
 let print_debug = ref false
 
@@ -164,19 +165,20 @@ module TLS = Ambient_context_tls.TLS
 
 let context_key = TLS.create ()
 
-let set_current_span_trace ~span_id ~trace_id  =
+let set_current_span_trace ~span_id ~trace_id =
   TLS.set context_key (span_id, trace_id)
 
-let end_current_span () =
-  TLS.remove context_key
+let end_current_span () = TLS.remove context_key
 
 let output_log brand level priority s =
   if not (is_disabled brand level) then (
-    let msg = format false brand priority s in
+    let context = TLS.get context_key in
+    let msg = format ?context false brand priority s in
     if !print_debug then
       Printf.printf "%s\n%!" (format true brand priority s) ;
     Otel.Logs.(
       let time = Otel.Timestamp_ns.now_unix_ns () in
+      (* task will be linked through span ids, no need to add task name again here *)
       let span_id, trace_id =
         match TLS.get context_key with
         | None ->
@@ -186,7 +188,6 @@ let output_log brand level priority s =
             , Some (Otel.Trace_id.of_hex trace_id)
             )
       in
-      (* task will be linked through span ids, no need to add task name again here *)
       emit
         [
           make_str ?span_id ?trace_id ~time ~severity:(otel_level_of level)
