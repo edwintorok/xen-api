@@ -104,10 +104,12 @@ let format ?context include_time brand priority message =
     | Some {desc; client= Some client} ->
         (desc, Printf.sprintf "%s->%s" client name)
   in
-  let span_id, trace_id = Option.value context ~default:("", "") in
-  Printf.sprintf "[%s%5s|%s%s|%d %s|%s|%s] %s"
+  let context = match context with
+  | Some (span_id, trace_id) -> String.concat "-" [trace_id; span_id]
+  | None -> "" in
+  Printf.sprintf "[%s%5s|%s|%d %s|%s|%s] %s"
     (if include_time then gettimestring () else "")
-    priority span_id trace_id id name task brand message
+    priority context id name task brand message
 
 let print_debug = ref false
 
