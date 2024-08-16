@@ -189,12 +189,11 @@ module Destination = struct
     module Request = Cohttp.Request.Make (Cohttp_posix_io.Buffered_IO)
     module Response = Cohttp.Response.Make (Cohttp_posix_io.Buffered_IO)
 
-    let export ~url json =
+    let export ?(headers=[]) ?(content_type="application/json") ~url () body =
       try
-        let body = json in
         let content_headers =
           [
-            ("Content-Type", "application/json")
+            ("Content-Type", content_type)
           ; ("Content-Length", string_of_int (String.length body))
           ]
         in
@@ -210,8 +209,13 @@ module Destination = struct
         let host_headers =
           Option.fold ~none:[] ~some:(fun h -> [("Host", h)]) host
         in
+        let split_header s =
+          match Astring.String.cut ~sep:":" s with
+          | Some (k, v) -> k, String.trim v
+          | None -> s, ""
+        in
         let headers =
-          List.concat [content_headers; host_headers] |> Cohttp.Header.of_list
+          List.concat [headers |> List.map split_header ; content_headers; host_headers] |> Cohttp.Header.of_list
         in
 
         Open_uri.with_open_uri url (fun fd ->
@@ -341,7 +345,7 @@ module Destination = struct
           let export, name =
             match endpoint with
             | Url url ->
-                (Http.export ~url, "Tracing.Http.export")
+                (Http.export ~url (), "Tracing.Http.export")
             | Bugtool ->
                 (file_export, "Tracing.File.export")
           in

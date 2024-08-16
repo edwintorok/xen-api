@@ -10,6 +10,7 @@
  (public_name xapi-tracing-export)
  (libraries
   ambient-context.tls
+  astring
   cohttp
   cohttp-posix
   opentelemetry

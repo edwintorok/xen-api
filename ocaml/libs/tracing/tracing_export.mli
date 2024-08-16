@@ -78,9 +78,10 @@ module Destination : sig
        endpoint.
     *)
   module Http : sig
-    val export : url:Uri.t -> string -> (unit, exn) result
-    (** [export ~url json] forcefully flushes json formatted spans [json] to the
-        given [url] .
+    val export : ?headers:string list -> ?content_type:string -> url:Uri.t -> unit -> string -> (unit, exn) result
+    (** [export ?headers ?content_type ~url data] forcefully flushes spans [data] to the
+        given [url].
+        By default [data] is expected to be in JSON format, but [~content_type] can override that.
       *)
   end
 end
