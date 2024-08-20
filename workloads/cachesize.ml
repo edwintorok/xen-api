@@ -2,7 +2,9 @@ let getconf conf =
   let ch = Unix.open_process_in (Filename.quote_command "getconf" [conf]) in
   let finally () = let (_:Unix.process_status) = Unix.close_process_in ch in () in
   Fun.protect ~finally @@ fun () ->
-  input_line ch |> int_of_string
+  match input_line ch with
+  | "undefined" -> 0
+  | s -> int_of_string s
 
 (* These are glibc specific, but not arch specific. Will likely fail if [getconf] was compiled with musl. *)
 

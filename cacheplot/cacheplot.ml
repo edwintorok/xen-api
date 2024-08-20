@@ -107,7 +107,7 @@ let handler (_:int) =
 
 let set_timeslice slice =
   Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle handler);
-  let signal, kind = if (slice < 0.001) then Sys.sigalrm, Unix.ITIMER_REAL else Sys.sigvtalrm, Unix.ITIMER_VIRTUAL in
+  let signal, kind = if (slice < 0.004) then Sys.sigalrm, Unix.ITIMER_REAL else Sys.sigvtalrm, Unix.ITIMER_VIRTUAL in
   Sys.set_signal signal (Sys.Signal_handle handler);
   let (_:Unix.interval_timer_status) = Unix.setitimer kind Unix.{it_value = slice; it_interval = slice} in
   ()
