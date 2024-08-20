@@ -167,6 +167,29 @@ let setify =
   in
   loop []
 
+(** How long to let an OCaml thread run, before
+    switching to another thread.
+    This needs to be as small as possible to reduce latency.
+
+    Too small values reduce performance due to context switching overheads
+  
+    4ms = 1/HZ in Dom0 seems like a good default,
+    a better value will be written by a boot time service.
+ *)
+let timeslice = ref 0.05
+
+let timeslice_real = ref false
+
+let apply_timeslice () =
+  Debug.log_to_stdout ();
+  let real, interval = (!timeslice_real, !timeslice) in
+  D.debug "Setting timeslice to %.3fs (%s)" interval
+    (if real then "ITIMER_REAL" else "ITIMER_VIRTUAL") ;
+  if interval >= 0.05 then
+    D.debug "Timeslice same as or larger than default: not setting"
+  else
+    Xapi_timeslice.Timeslice.set ~real interval
+
 let common_options =
   [
     ( "use-switch"
@@ -244,6 +267,17 @@ let common_options =
     , Arg.Set_string config_dir
     , (fun () -> !config_dir)
     , "Location of directory containing configuration file fragments"
+    )
+  ; ( "timeslice"
+    , Arg.Set_float timeslice
+    , (fun () -> Printf.sprintf "%.3f" !timeslice)
+    , "timeslice in seconds"
+    )
+  ; ( "timeslice_real"
+    , Arg.Set timeslice_real
+    , (fun () -> string_of_bool !timeslice_real)
+    , "whether to use ITIMER_REAL for timeslices (only do this if VIRTUAL is \
+       buggy)"
     )
   ]
 
@@ -463,6 +497,7 @@ let configure_common ~options ~resources arg_parse_fn =
         failwith (String.concat "\n" lines)
     )
     resources ;
+  apply_timeslice () ;
   Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
 let configure ?(options = []) ?(resources = []) () =
