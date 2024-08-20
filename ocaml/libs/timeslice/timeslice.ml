@@ -33,3 +33,4 @@ let clear ?(real = false) () =
   in
   (* be safe, and assume there might be some spurious deliveries *)
   Sys.set_signal signal Sys.Signal_ignore
+
