@@ -27,6 +27,7 @@
     xapi-types
     xapi-stdext-date
     xapi-stdext-unix
+    xapi_timeslice
   )
 )
 
