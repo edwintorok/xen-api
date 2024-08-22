@@ -1,0 +1,5 @@
+(executable
+	(public_name xshwtune)
+	(libraries xapi_timeslice unix xapi-log)
+	(package xapi)
+)
