@@ -164,6 +164,7 @@ install: build doc sdk doc-json
 	make -C scripts install
 	make -C python3 install
 	cp -f _build/install/default/bin/xapi $(DESTDIR)$(OPTDIR)/bin/xapi
+	cp -f _build/install/default/bin/xshwtune $(DESTDIR)$(BINDIR)/xshwtune
 	scripts/install.sh 755 ocaml/quicktest/quicktest $(DESTDIR)$(OPTDIR)/debug
 	cp -f _build/install/default/bin/quicktestbin $(DESTDIR)$(OPTDIR)/debug/quicktestbin
 	scripts/install.sh 644 _build/install/default/share/xapi/rbac_static.csv $(DESTDIR)$(OPTDIR)/debug
