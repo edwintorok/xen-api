@@ -58,6 +58,7 @@ install:
 	$(IDATA) xapi-domains.service $(DESTDIR)/usr/lib/systemd/system/xapi-domains.service
 	$(IDATA) generate-iscsi-iqn.service $(DESTDIR)/usr/lib/systemd/system/generate-iscsi-iqn.service
 	$(IDATA) xapi.service $(DESTDIR)/usr/lib/systemd/system/xapi.service
+	$(IDATA) xshwtune.service $(DESTDIR)/usr/lib/systemd/system/xshwtune.service
 	$(IDATA) attach-static-vdis.service $(DESTDIR)/usr/lib/systemd/system/attach-static-vdis.service
 	$(IDATA) save-boot-info.service $(DESTDIR)/usr/lib/systemd/system/save-boot-info.service
 	$(IDATA) mpathalert.service $(DESTDIR)/usr/lib/systemd/system/mpathalert.service
