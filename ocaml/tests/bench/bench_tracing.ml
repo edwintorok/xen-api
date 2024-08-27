@@ -79,14 +79,14 @@ let benchmarks =
         (Staged.stage trace_test_off)
     ; test_tracing_on ~use_busy:1 ~name:"overhead(on, no span, workload)"
         (Staged.stage trace_test_off)
-      (* ; test_tracing_on ~use_busy:2 ~name:"overhead(on, no span, workload2)"
-           (Staged.stage trace_test_off)*)
+    ; test_tracing_on ~use_busy:2 ~name:"overhead(on, no span, workload2)"
+        (Staged.stage trace_test_off)
     ; test_tracing_on ~use_busy:0 ~name:"overhead(on, create span, no workload)"
         (Staged.stage trace_test_span)
     ; test_tracing_on ~use_busy:1 ~name:"overhead(on, create span, workload)"
         (Staged.stage trace_test_span)
-      (* ; test_tracing_on ~use_busy:2 ~name:"overhead(on, create span, workload2)"
-           (Staged.stage trace_test_span)*)
+    ; test_tracing_on ~use_busy:2 ~name:"overhead(on, create span, workload2)"
+        (Staged.stage trace_test_span)
     ]
 
 let () = Bechamel_simple_cli.cli benchmarks

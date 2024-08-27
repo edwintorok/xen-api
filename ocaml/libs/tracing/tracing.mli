@@ -57,8 +57,6 @@ end
 module SpanContext : sig
   type t
 
-  val context : string -> string -> t
-
   val to_traceparent : t -> string
 
   val of_traceparent : string -> t option
