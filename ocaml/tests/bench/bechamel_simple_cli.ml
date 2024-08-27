@@ -5,7 +5,7 @@ open Toolkit
 let instances = Instance.[monotonic_clock; minor_allocated; major_allocated]
 
 let benchmark tests =
-  let cfg = Benchmark.cfg () in
+  let cfg = Benchmark.cfg ~quota:(Time.second 5.0) () in
   Benchmark.all cfg instances tests
 
 let analyze raw_results =
