@@ -220,7 +220,7 @@ val with_child_trace :
 (** [with_child_trace ?attributes ?parent ~name f] is like {!val:with_tracing}, but
   only creates a span if the [parent] span exists. *)
 
-val get_observe : unit -> bool
+val get_observe: unit -> bool
 
 val validate_attribute : string * string -> bool
 
