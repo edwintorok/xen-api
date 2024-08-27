@@ -83,13 +83,24 @@ module Content = struct
              )
         in
         {
-          id= s |> Span.get_context |> SpanContext.span_id_of_span_context
-        ; traceId= s |> Span.get_context |> SpanContext.trace_id_of_span_context
+          id=
+            s
+            |> Span.get_context
+            |> SpanContext.span_id_of_span_context
+            |> Span_id.to_string
+        ; traceId=
+            s
+            |> Span.get_context
+            |> SpanContext.trace_id_of_span_context
+            |> Trace_id.to_string
         ; parentId=
             s
             |> Span.get_parent
             |> Option.map (fun x ->
-                   x |> Span.get_context |> SpanContext.span_id_of_span_context
+                   x
+                   |> Span.get_context
+                   |> SpanContext.span_id_of_span_context
+                   |> Span_id.to_string
                )
         ; name= s |> Span.get_name
         ; timestamp= int_of_float (Span.get_begin_time s *. 1000000.)

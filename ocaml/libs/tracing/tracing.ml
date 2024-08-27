@@ -150,18 +150,62 @@ module SpanEvent = struct
   type t = {name: string; time: float; attributes: string Attributes.t}
 end
 
+module Trace_id : sig
+  type t
+
+  val make : unit -> t
+
+  val of_string : string -> t
+
+  val to_string : t -> string
+end = struct
+  type t = int64 * int64
+
+  let make () = (Random.bits64 (), Random.bits64 ())
+
+  let of_string s = Scanf.sscanf s "%Lx%Lx" (fun a b -> (a, b))
+
+  let to_string (a, b) = Printf.sprintf "%Lx%Lx" a b
+end
+
+module Span_id : sig
+  type t
+
+  val make : unit -> t
+
+  val of_string : string -> t
+
+  val to_string : t -> string
+end = struct
+  type t = int64
+
+  let make = Random.bits64
+
+  let of_string s = Scanf.sscanf s "%Lx" Fun.id
+
+  let to_string = Printf.sprintf "%Lx"
+end
+
 module SpanContext = struct
-  type t = {trace_id: string; span_id: string} [@@deriving rpcty]
+  type t = {trace_id: Trace_id.t; span_id: Span_id.t} [@@deriving rpcty]
 
-  let context trace_id span_id = {trace_id; span_id}
+  let context trace_id span_id =
+    {trace_id; span_id}
 
-  let to_traceparent t = Printf.sprintf "00-%s-%s-01" t.trace_id t.span_id
+  let to_traceparent t =
+    Printf.sprintf "00-%s-%s-01"
+      (Trace_id.to_string t.trace_id)
+      (Span_id.to_string t.span_id)
 
   let of_traceparent traceparent =
     let elements = String.split_on_char '-' traceparent in
     match elements with
     | ["00"; trace_id; span_id; _] ->
-        Some {trace_id; span_id}
+        Some
+          {
+            trace_id= Trace_id.of_string trace_id
+          ; span_id= Span_id.of_string span_id
+          }
     | _ ->
         None
 
@@ -197,17 +241,15 @@ module Span = struct
 
   let get_context t = t.context
 
-  let generate_id n = String.init n (fun _ -> "0123456789abcdef".[Random.int 16])
-
   let start ?(attributes = Attributes.empty) ~name ~parent ~span_kind () =
     let trace_id =
       match parent with
       | None ->
-          generate_id 32
+          Trace_id.make ()
       | Some span_parent ->
           span_parent.context.trace_id
     in
-    let span_id = generate_id 16 in
+    let span_id = Span_id.make () in
     let context : SpanContext.t = {trace_id; span_id} in
     (* Using gettimeofday over Mtime as it is better for sharing timestamps between the systems *)
     let begin_time = Unix.gettimeofday () in
@@ -389,7 +431,7 @@ module Spans = struct
   let since () =
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
         let copy = !finished_spans in
-        finished_spans := ([], 0);
+        finished_spans := ([], 0) ;
         reset_throttled () ;
         copy
     )
@@ -421,7 +463,7 @@ module Spans = struct
                       if not_throttled () then
                         debug
                           "Tracing: Span %s timed out, forcibly finishing now"
-                          span.Span.context.span_id ;
+                          (Span_id.to_string span.Span.context.span_id) ;
                       let span =
                         Span.finish ~span
                           ~attributes:
