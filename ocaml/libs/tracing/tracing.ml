@@ -298,14 +298,18 @@ module Span = struct
 end
 
 module Spans = struct
+  let disable_span_gc = Atomic.make true
+  
   let lock = Mutex.create ()
 
   let spans = Hashtbl.create 100
 
   let span_count () =
-    Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        Hashtbl.length spans
-    )
+    if Atomic.get disable_span_gc then 0
+    else
+      Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
+          Hashtbl.length spans
+      )
 
   let max_spans = Atomic.make 2500
 
@@ -318,6 +322,8 @@ module Spans = struct
   let finished_spans = Hashtbl.create 100
 
   let span_hashtbl_is_empty () =
+    if Atomic.get disable_span_gc then true
+    else
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
         Hashtbl.length spans = 0
     )
@@ -328,6 +334,8 @@ module Spans = struct
     )
 
   let add_to_spans ~(span : Span.t) =
+    if Atomic.get disable_span_gc then ()
+    else
     let key = span.context.trace_id in
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
         match Hashtbl.find_opt spans key with
@@ -346,6 +354,8 @@ module Spans = struct
     )
 
   let remove_from_spans span =
+    if Atomic.get disable_span_gc then (Some span)
+    else
     let key = span.Span.context.trace_id in
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
         match Hashtbl.find_opt spans key with
@@ -451,6 +461,8 @@ module Spans = struct
       )
 
     let initialise_thread ~timeout =
+      if Atomic.get disable_span_gc then ()
+      else
       Atomic.set span_timeout timeout ;
       span_timeout_thread :=
         Some
