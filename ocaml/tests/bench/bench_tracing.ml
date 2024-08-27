@@ -1,5 +1,12 @@
 open Bechamel
 
+(* TODO: need to make start/stop workload a bechamel "measurement",
+   that way it runs in the proper place
+
+   just start/stop the atomic var (maybe thread yield on start, to 'kick it'),
+   but then the thread needs to stop efficiently, e.g. using cond vars.
+   so maybe use cond vars for kicking too?
+ *)
 let ( let@ ) f x = f x
 
 let trace_test_inner span =
@@ -89,4 +96,7 @@ let benchmarks =
         (Staged.stage trace_test_span)
     ]
 
-let () = Bechamel_simple_cli.cli benchmarks
+let () =
+  Tracing.Spans.set_max_spans 100_000_000;
+  Tracing.Spans.set_max_traces 100_000_000;
+  Bechamel_simple_cli.cli benchmarks
