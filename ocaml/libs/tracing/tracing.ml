@@ -378,9 +378,17 @@ module Spans = struct
               Some span
       )
 
-  let[@inline never] add_to_finished_max () =
-    debug "%s exceeded max traces when adding to finished span table"
-      __FUNCTION__
+  let warn_threshold = Mtime.Span.(10 * min)
+
+  let[@inline never] add_to_finished_max =
+    let warned = Atomic.make (Mtime_clock.counter ()) in
+    fun () ->
+    let elapsed = Mtime_clock.count (Atomic.get warned) in
+    if Mtime.Span.compare elapsed warn_threshold >= 0 then begin
+      Atomic.set warned (Mtime_clock.counter ());
+      debug "%s exceeded max traces when adding to finished span table"
+        __FUNCTION__
+    end
 
   let rec add_to_finished span =
     let old = Atomic.get finished_spans in
