@@ -299,13 +299,14 @@ end
 
 module Spans = struct
   let disable_span_gc = Atomic.make true
-  
+
   let lock = Mutex.create ()
 
   let spans = Hashtbl.create 100
 
   let span_count () =
-    if Atomic.get disable_span_gc then 0
+    if Atomic.get disable_span_gc then
+      0
     else
       Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
           Hashtbl.length spans
@@ -319,105 +320,92 @@ module Spans = struct
 
   let set_max_traces x = Atomic.set max_traces x
 
-  let finished_spans = Hashtbl.create 100
+  let finished_spans = Atomic.make ([], 0)
 
   let span_hashtbl_is_empty () =
-    if Atomic.get disable_span_gc then true
+    if Atomic.get disable_span_gc then
+      true
     else
-    Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        Hashtbl.length spans = 0
-    )
+      Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
+          Hashtbl.length spans = 0
+      )
 
   let finished_span_hashtbl_is_empty () =
-    Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        Hashtbl.length finished_spans = 0
-    )
+    match Atomic.get finished_spans with [], _ -> true | _ -> false
 
   let add_to_spans ~(span : Span.t) =
-    if Atomic.get disable_span_gc then ()
+    if Atomic.get disable_span_gc then
+      ()
     else
-    let key = span.context.trace_id in
-    Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        match Hashtbl.find_opt spans key with
-        | None ->
-            if Hashtbl.length spans < Atomic.get max_traces then
-              Hashtbl.add spans key [span]
-            else
-              debug "%s exceeded max traces when adding to span table"
-                __FUNCTION__
-        | Some span_list ->
-            if List.length span_list < Atomic.get max_spans then
-              Hashtbl.replace spans key (span :: span_list)
-            else
-              debug "%s exceeded max traces when adding to span table"
-                __FUNCTION__
-    )
+      let key = span.context.trace_id in
+      Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
+          match Hashtbl.find_opt spans key with
+          | None ->
+              if Hashtbl.length spans < Atomic.get max_traces then
+                Hashtbl.add spans key [span]
+              else
+                debug "%s exceeded max traces when adding to span table"
+                  __FUNCTION__
+          | Some span_list ->
+              if List.length span_list < Atomic.get max_spans then
+                Hashtbl.replace spans key (span :: span_list)
+              else
+                debug "%s exceeded max traces when adding to span table"
+                  __FUNCTION__
+      )
 
   let remove_from_spans span =
-    if Atomic.get disable_span_gc then (Some span)
+    if Atomic.get disable_span_gc then
+      Some span
     else
-    let key = span.Span.context.trace_id in
-    Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        match Hashtbl.find_opt spans key with
-        | None ->
-            debug "%s span does not exist or already finished" __FUNCTION__ ;
-            None
-        | Some span_list ->
-            ( match
-                List.filter (fun x -> x.Span.context <> span.context) span_list
-              with
-            | [] ->
-                Hashtbl.remove spans key
-            | filtered_list ->
-                Hashtbl.replace spans key filtered_list
-            ) ;
-            Some span
-    )
+      let key = span.Span.context.trace_id in
+      Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
+          match Hashtbl.find_opt spans key with
+          | None ->
+              debug "%s span does not exist or already finished" __FUNCTION__ ;
+              None
+          | Some span_list ->
+              ( match
+                  List.filter
+                    (fun x -> x.Span.context <> span.context)
+                    span_list
+                with
+              | [] ->
+                  Hashtbl.remove spans key
+              | filtered_list ->
+                  Hashtbl.replace spans key filtered_list
+              ) ;
+              Some span
+      )
 
-  let add_to_finished span =
-    let key = span.Span.context.trace_id in
-    Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        match Hashtbl.find_opt finished_spans key with
-        | None ->
-            if Hashtbl.length finished_spans < Atomic.get max_traces then
-              Hashtbl.add finished_spans key [span]
-            else
-              debug "%s exceeded max traces when adding to finished span table"
-                __FUNCTION__
-        | Some span_list ->
-            if List.length span_list < Atomic.get max_spans then
-              Hashtbl.replace finished_spans key (span :: span_list)
-            else
-              debug "%s exceeded max traces when adding to finished span table"
-                __FUNCTION__
-    )
+  let[@inline never] add_to_finished_max () =
+    debug "%s exceeded max traces when adding to finished span table"
+      __FUNCTION__
+
+  let rec add_to_finished span =
+    let old = Atomic.get finished_spans in
+    let lst, n = old in
+    if n >= Atomic.get max_spans then
+      add_to_finished_max ()
+    else
+      let next = (span :: lst, n + 1) in
+      (* TODO: we should use Saturn instead of hand-coding atomic lists *)
+      if not (Atomic.compare_and_set finished_spans old next) then (
+        Thread.yield () ;
+        (* should use Domain_shims and cpu_relax instead *)
+        add_to_finished span
+      )
 
   let mark_finished span = Option.iter add_to_finished (remove_from_spans span)
 
-  let span_is_finished x =
-    match x with
-    | None ->
-        false
-    | Some (span : Span.t) ->
-        Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-            match Hashtbl.find_opt finished_spans span.context.trace_id with
-            | None ->
-                false
-            | Some span_list ->
-                List.mem span span_list
-        )
 
   (** since copies the existing finished spans and then clears the existing spans as to only export them once  *)
   let since () =
-    Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        let copy = Hashtbl.copy finished_spans in
-        Hashtbl.clear finished_spans ;
-        copy
-    )
+    Atomic.exchange finished_spans ([], 0)
 
   let dump () =
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        Hashtbl.(copy spans, Hashtbl.copy finished_spans)
+        Hashtbl.(copy spans, Atomic.get finished_spans |> fst)
     )
 
   module GC = struct
@@ -461,9 +449,10 @@ module Spans = struct
       )
 
     let initialise_thread ~timeout =
-      if Atomic.get disable_span_gc then ()
+      if Atomic.get disable_span_gc then
+        ()
       else
-      Atomic.set span_timeout timeout ;
+        Atomic.set span_timeout timeout ;
       span_timeout_thread :=
         Some
           (Thread.create
@@ -545,7 +534,7 @@ module TracerProvider = struct
         Atomic.set current no_op ;
         Xapi_stdext_threads.Threadext.Mutex.execute Spans.lock (fun () ->
             Hashtbl.clear Spans.spans ;
-            Hashtbl.clear Spans.finished_spans
+            Atomic.set Spans.finished_spans ([],0)
         )
     | Some enabled ->
         Atomic.set current enabled
@@ -657,8 +646,6 @@ module Tracer = struct
          )
          span
       )
-
-  let span_is_finished x = Spans.span_is_finished x
 
   let span_hashtbl_is_empty () = Spans.span_hashtbl_is_empty ()
 
