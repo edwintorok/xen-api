@@ -134,11 +134,10 @@ end
 
 module Attributes = struct
   include Map.Make (String)
-  
+
   let merge_element map (key, value) = add key value map
-  
-  let merge_into into list =
-    List.fold_left merge_element into list
+
+  let merge_into into list = List.fold_left merge_element into list
 
   let of_list list = List.to_seq list |> of_seq
 
@@ -194,8 +193,7 @@ end
 module SpanContext = struct
   type t = {trace_id: Trace_id.t; span_id: Span_id.t} [@@deriving rpcty]
 
-  let context trace_id span_id =
-    {trace_id; span_id}
+  let context trace_id span_id = {trace_id; span_id}
 
   let to_traceparent t =
     Printf.sprintf "00-%s-%s-01"
@@ -246,7 +244,8 @@ module Span = struct
 
   let get_context t = t.context
 
-  let start ?(attributes = Attributes.empty) ~name ~parent ~span_kind () =
+  let start ?(attributes = Attributes.empty) ~name ~parent ~span_kind ~timestamp
+      () =
     let trace_id =
       match parent with
       | None ->
@@ -257,7 +256,7 @@ module Span = struct
     let span_id = Span_id.make () in
     let context : SpanContext.t = {trace_id; span_id} in
     (* Using gettimeofday over Mtime as it is better for sharing timestamps between the systems *)
-    let begin_time = Unix.gettimeofday () in
+    let begin_time = timestamp in
     let end_time = None in
     let status : Status.t = {status_code= Status.Unset; _description= None} in
     let links = [] in
@@ -292,11 +291,11 @@ module Span = struct
   let get_attributes span =
     Attributes.fold (fun k v tags -> (k, v) :: tags) span.attributes []
 
-  let finish ?(attributes = Attributes.empty) ~span () =
+  let finish ?(attributes = Attributes.empty) ~span ~timestamp () =
     let attributes =
       Attributes.union (fun _k a _b -> Some a) attributes span.attributes
     in
-    {span with end_time= Some (Unix.gettimeofday ()); attributes}
+    {span with end_time= Some timestamp; attributes}
 
   let set_span_kind span span_kind = {span with span_kind}
 
@@ -352,6 +351,36 @@ module Span = struct
         span
 end
 
+(* TODO: add Saturn as a dependency and use that  *)
+module AtomicQueue = struct
+  type 'a t = ('a list * int) Atomic.t
+
+  let empty = ([], 0)
+
+  let make () = Atomic.make empty
+
+  let rec push t ~limit e =
+    (* TODO: max spans protection *)
+    let ((lst, n) as prev) = Atomic.get t in
+    if n >= limit then
+      false
+    else
+      let next = (e :: lst, n + 1) in
+      (* optimistic concurrency: if there is no contention then the
+         compare-and-set below will succeed, and we don't need to
+         acquire any locks (make syscalls)
+      *)
+      if Atomic.compare_and_set t prev next then
+        true
+      else (
+        (* conflict with another thread/domain, backoff and try again *)
+        Thread.yield () (* TODO: use Domain_shims.Domain.cpu_relax *) ;
+        (push [@tailcall]) t ~limit e
+      )
+
+  let pop_all t = Atomic.exchange t empty
+end
+
 module Spans = struct
   let lock = Mutex.create ()
 
@@ -369,6 +398,21 @@ module Spans = struct
   let max_traces = Atomic.make 1000
 
   let set_max_traces x = Atomic.set max_traces x
+
+  let actions : (unit -> unit) AtomicQueue.t = AtomicQueue.make ()
+
+  let flush () =
+    let queue, _ = AtomicQueue.pop_all actions in
+    Printf.eprintf "Executing %d items\n" (List.length queue) ;
+    (* must execute items in the order in which they were inserted,
+       e.g. creating a span must run before finishing it
+    *)
+    List.iter (fun f -> f ()) (List.rev queue)
+
+  let push action =
+    if not (AtomicQueue.push ~limit:(Atomic.get max_spans) actions action) then
+      if not_throttled () then
+        debug "%s exceeded max traces when adding to span table" __FUNCTION__
 
   let finished_spans = ref ([], 0)
 
@@ -434,6 +478,7 @@ module Spans = struct
 
   (** since copies the existing finished spans and then clears the existing spans as to only export them once  *)
   let since () =
+    flush () ;
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
         let copy = !finished_spans in
         finished_spans := ([], 0) ;
@@ -470,7 +515,7 @@ module Spans = struct
                           "Tracing: Span %s timed out, forcibly finishing now"
                           (Span_id.to_string span.Span.context.span_id) ;
                       let span =
-                        Span.finish ~span
+                        Span.finish ~span ~timestamp:(Unix.gettimeofday ())
                           ~attributes:
                             (Attributes.singleton "gc_inactive_span_timeout"
                                (string_of_float elapsed)
@@ -612,7 +657,7 @@ end
 
 let get_observe () = TracerProvider.(get_current ()).enabled
 
-module Tracer = struct
+module TracerBuild = struct
   type t = TracerProvider.t
 
   let get_tracer ~name:_ = TracerProvider.get_current ()
@@ -632,41 +677,24 @@ module Tracer = struct
     }
 
   let start ~tracer:t ?(attributes = []) ?(span_kind = SpanKind.Internal) ~name
-      ~parent () : (Span.t option, exn) result =
+      ~parent ~timestamp () : (Span.t option, exn) result =
     let open TracerProvider in
     (* Do not start span if the TracerProvider is disabled*)
     if not t.enabled then
       ok_none
     else
       let attributes = Attributes.merge_into t.attributes attributes in
-      let span = Span.start ~attributes ~name ~parent ~span_kind () in
+      let span =
+        Span.start ~attributes ~name ~parent ~span_kind ~timestamp ()
+      in
       Spans.add_to_spans ~span ; Ok (Some span)
 
-  let update_span_with_parent span (parent : Span.t option) =
+  let update_span span =
     if (TracerProvider.get_current ()).enabled then
-      match parent with
-      | None ->
-          Some span
-      | Some parent ->
-          span
-          |> Spans.remove_from_spans
-          |> Option.map (fun existing_span ->
-                 let old_context = Span.get_context existing_span in
-                 let new_context : SpanContext.t =
-                   SpanContext.context
-                     (SpanContext.trace_id_of_span_context parent.context)
-                     old_context.span_id
-                 in
-                 let updated_span = {existing_span with parent= Some parent} in
-                 let updated_span = {updated_span with context= new_context} in
+      let (_ : _ option) = Spans.remove_from_spans span in
+      Spans.add_to_spans ~span
 
-                 let () = Spans.add_to_spans ~span:updated_span in
-                 updated_span
-             )
-    else
-      Some span
-
-  let finish ?error span =
+  let finish ?error ~timestamp span =
     Ok
       (Option.map
          (fun span ->
@@ -677,16 +705,82 @@ module Tracer = struct
              | None ->
                  Span.set_ok span
            in
-           let span = Span.finish ~span () in
+           let span = Span.finish ~span ~timestamp () in
            Spans.mark_finished span ; span
          )
          span
       )
+end
 
-  let span_hashtbl_is_empty () = Spans.span_hashtbl_is_empty ()
+module Tracer = struct
+  type t = TracerBuild.t
+
+  let span_of_span_context = TracerBuild.span_of_span_context
+
+  let get_tracer = TracerBuild.get_tracer
+
+  let flush = Spans.flush
+
+  let start ~tracer ?(attributes = []) ?(span_kind = SpanKind.Internal) ~name
+      ~parent () =
+    let open TracerProvider in
+    let timestamp = Unix.gettimeofday () in
+    if not tracer.enabled then
+      ()
+    else
+      Spans.push (fun () ->
+          prerr_endline "START" ;
+          let (_ : (_, _) result) =
+            TracerBuild.start ~tracer ~attributes ~span_kind ~name ~parent
+              ~timestamp ()
+          in
+          ()
+      ) ;
+    ok_none
+
+  let update_span_with_parent (existing_span : Span.t) (parent : Span.t option)
+      =
+    if (TracerProvider.get_current ()).enabled then (
+      match parent with
+      | None ->
+          Some existing_span
+      | Some parent ->
+          let old_context = Span.get_context existing_span in
+          let new_context : SpanContext.t =
+            SpanContext.context
+              (SpanContext.trace_id_of_span_context parent.context)
+              old_context.span_id
+          in
+          let updated_span = {existing_span with parent= Some parent} in
+          let updated_span = {updated_span with context= new_context} in
+
+          Spans.push (fun () ->
+              prerr_endline "UPDATE" ;
+              TracerBuild.update_span updated_span
+          ) ;
+          Some updated_span
+    ) else
+      Some existing_span
+
+  let finish ?error span =
+    ( if (TracerProvider.get_current ()).enabled then
+        let timestamp = Unix.gettimeofday () in
+        Spans.push (fun () ->
+            prerr_endline "FINISH" ;
+            let (_ : (_, _) result) =
+              TracerBuild.finish ?error ~timestamp span
+            in
+            ()
+        )
+    ) ;
+    ok_none
+
+  let span_hashtbl_is_empty () =
+    Atomic.get Spans.actions |> snd = 0 && Spans.span_hashtbl_is_empty ()
 
   let finished_span_hashtbl_is_empty () =
-    Spans.finished_span_hashtbl_is_empty ()
+    Atomic.get Spans.actions |> snd = 0
+    && Spans.finished_span_hashtbl_is_empty ()
 end
 
 let enable_span_garbage_collector ?(timeout = 86400.) () =

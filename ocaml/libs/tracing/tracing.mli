@@ -115,6 +115,8 @@ module Spans : sig
 
   val span_count : unit -> int
 
+  val flush : unit -> unit
+
   val since : unit -> Span.t list * int
 
   val dump : unit -> (Trace_id.t, Span.t list) Hashtbl.t * (Span.t list * int)
@@ -152,6 +154,8 @@ module Tracer : sig
   val span_hashtbl_is_empty : unit -> bool
 
   val finished_span_hashtbl_is_empty : unit -> bool
+
+  val flush : unit -> unit
 end
 
 (** [TracerProvider] module provides ways to intereact with the tracer providers. 

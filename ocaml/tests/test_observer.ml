@@ -410,12 +410,15 @@ let test_hashtbl_leaks () =
   let span = start_test_span () in
   ( match span with
   | Ok x ->
+      Tracer.flush () ;
       Alcotest.(check bool)
         "Spans are collected in span hashtable"
         (Tracer.span_hashtbl_is_empty ())
         false ;
 
       let _ = Tracer.finish x in
+      Tracer.flush ();
+      Spans.flush () ;
       Alcotest.(check bool)
         "Span finish removes span from span hashtable"
         (Tracer.span_hashtbl_is_empty ())
