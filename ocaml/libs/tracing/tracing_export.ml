@@ -248,9 +248,7 @@ module Destination = struct
             | Bugtool ->
                 (file_export, "Tracing.File.export")
           in
-          let all_spans =
-            Hashtbl.fold (fun _ spans acc -> spans @ acc) traces []
-          in
+          let all_spans, count = traces in
           let attributes =
             [
               ("export.span.count", all_spans |> List.length |> string_of_int)
@@ -258,9 +256,7 @@ module Destination = struct
             ; ( "xs.tracing.spans_table.count"
               , Spans.span_count () |> string_of_int
               )
-            ; ( "xs.tracing.finished_spans_table.count"
-              , traces |> Hashtbl.length |> string_of_int
-              )
+            ; ("xs.tracing.finished_spans_table.count", string_of_int count)
             ]
           in
           let@ _ = with_tracing ~parent ~attributes ~name in
@@ -273,17 +269,15 @@ module Destination = struct
       debug "Tracing: unable to export span : %s" (Printexc.to_string exn)
 
   let flush_spans () =
-    let span_list = Spans.since () in
-    let attributes =
-      [("export.traces.count", Hashtbl.length span_list |> string_of_int)]
-    in
+    let ((_span_list, span_count) as span_info) = Spans.since () in
+    let attributes = [("export.traces.count", string_of_int span_count)] in
     let@ parent =
       with_tracing ~parent:None ~attributes ~name:"Tracing.flush_spans"
     in
     TracerProvider.get_tracer_providers ()
     |> List.filter TracerProvider.get_enabled
     |> List.concat_map TracerProvider.get_endpoints
-    |> List.iter (export_to_endpoint parent span_list)
+    |> List.iter (export_to_endpoint parent span_info)
 
   let delay = Delay.make ()
 

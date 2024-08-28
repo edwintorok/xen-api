@@ -105,10 +105,10 @@ module Spans : sig
 
   val span_count : unit -> int
 
-  val since : unit -> (string, Span.t list) Hashtbl.t
+  val since : unit -> Span.t list * int
 
   val dump :
-    unit -> (string, Span.t list) Hashtbl.t * (string, Span.t list) Hashtbl.t
+    unit -> (string, Span.t list) Hashtbl.t * (Span.t list * int)
 end
 
 module Tracer : sig

@@ -323,7 +323,7 @@ module Spans = struct
 
   let set_max_traces x = Atomic.set max_traces x
 
-  let finished_spans = Hashtbl.create 100
+  let finished_spans = ref ([], 0)
 
   let span_hashtbl_is_empty () =
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
@@ -332,7 +332,7 @@ module Spans = struct
 
   let finished_span_hashtbl_is_empty () =
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        Hashtbl.length finished_spans = 0
+        snd !finished_spans = 0
     )
 
   let add_to_spans ~(span : Span.t) =
@@ -374,21 +374,13 @@ module Spans = struct
     )
 
   let add_to_finished span =
-    let key = span.Span.context.trace_id in
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        match Hashtbl.find_opt finished_spans key with
-        | None ->
-            if Hashtbl.length finished_spans < Atomic.get max_traces then
-              Hashtbl.add finished_spans key [span]
-            else if not_throttled () then
-              debug "%s exceeded max traces when adding to finished span table"
-                __FUNCTION__
-        | Some span_list ->
-            if List.length span_list < Atomic.get max_spans then
-              Hashtbl.replace finished_spans key (span :: span_list)
-            else if not_throttled () then
-              debug "%s exceeded max traces when adding to finished span table"
-                __FUNCTION__
+        let spans, n = !finished_spans in
+        if n < Atomic.get max_spans then
+          finished_spans := (span :: spans, n + 1)
+        else if not_throttled () then
+          debug "%s exceeded max traces when adding to finished span table"
+            __FUNCTION__
     )
 
   let mark_finished span = Option.iter add_to_finished (remove_from_spans span)
@@ -396,15 +388,15 @@ module Spans = struct
   (** since copies the existing finished spans and then clears the existing spans as to only export them once  *)
   let since () =
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        let copy = Hashtbl.copy finished_spans in
-        Hashtbl.clear finished_spans ;
+        let copy = !finished_spans in
+        finished_spans := ([], 0);
         reset_throttled () ;
         copy
     )
 
   let dump () =
     Xapi_stdext_threads.Threadext.Mutex.execute lock (fun () ->
-        Hashtbl.(copy spans, Hashtbl.copy finished_spans)
+        Hashtbl.(copy spans, !finished_spans)
     )
 
   module GC = struct
@@ -532,7 +524,7 @@ module TracerProvider = struct
         Atomic.set current no_op ;
         Xapi_stdext_threads.Threadext.Mutex.execute Spans.lock (fun () ->
             Hashtbl.clear Spans.spans ;
-            Hashtbl.clear Spans.finished_spans
+            Spans.finished_spans := ([], 0)
         )
     | Some enabled ->
         Atomic.set current enabled

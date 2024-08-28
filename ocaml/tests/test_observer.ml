@@ -386,11 +386,7 @@ let test_all_spans_finish () =
   let remaining_spans, finished_spans = Spans.dump () in
   let result =
     Hashtbl.fold
-      (fun k v acc ->
-        Option.fold ~none:0 ~some:List.length (Hashtbl.find_opt finished_spans k)
-        = List.length v
-        && acc
-      )
+      (fun _k v acc -> snd finished_spans = List.length v && acc)
       active_spans true
   in
   Alcotest.(check bool)
@@ -440,8 +436,8 @@ let test_hashtbl_leaks () =
       let _, finished_spans = Spans.dump () in
       let filtered_spans_count =
         finished_spans
-        |> Hashtbl.to_seq_values
-        |> Seq.concat_map List.to_seq
+        |> fst
+        |> List.to_seq
         |> Seq.filter filter_export_spans
         |> Seq.length
       in
