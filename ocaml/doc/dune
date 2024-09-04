@@ -7,7 +7,7 @@
     rpclib.json
     uuid
     xapi-consts
-    xapi-datamodel
+    xapi_datamodel
     xapi-stdext-pervasives
     xapi-stdext-std
     xapi-stdext-unix
@@ -21,7 +21,7 @@
     (:x jsapi.exe)
     (source_tree templates)
   )
-  (package xapi-datamodel)
+  (package xapi)
   (action (run %{x}))
 )
 
@@ -31,7 +31,7 @@
     (:x jsapi.exe)
     (source_tree templates)
   )
-  (package xapi-datamodel)
+  (package xapi)
   (action (run %{x}))
 )
 

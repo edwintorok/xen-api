@@ -20,7 +20,7 @@
     xapi-consts
     xapi_version
     xapi_database
-    xapi-datamodel
+    xapi_datamodel
     xapi-log
     xapi-types
     xapi-client

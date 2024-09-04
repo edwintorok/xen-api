@@ -1,6 +1,5 @@
 (library
   (name xapi_datamodel)
-  (public_name xapi-datamodel)
   (modules datamodel datamodel_common datamodel_utils datamodel_types
     datamodel_errors datamodel_roles datamodel_vm datamodel_host
     datamodel_pool datamodel_cluster datamodel_cluster_host dm_api escaping
@@ -14,7 +13,7 @@
     threads
     xapi-backtrace
     xapi-consts
-    xapi-schema
+    xapi_schema
     xapi-stdext-date
     xapi-stdext-std
   )
@@ -28,7 +27,7 @@
   (modules datamodel_main dot_backend dtd_backend markdown_backend)
   (libraries
     mustache
-    xapi-datamodel
+    xapi_datamodel
     xapi-stdext-std
     xapi-stdext-pervasives
     xapi-stdext-unix
@@ -41,7 +40,7 @@
     (:x datamodel_main.exe)
     (source_tree templates)
   )
-  (package xapi-datamodel)
+  (package xapi)
   (action (run %{x} -closed -markdown))
 )
 
@@ -54,17 +53,17 @@
     rpclib.json
     xapi_datamodel
   )
-  (package xapi-datamodel)
+  (package xapi)
 )
 
 (executable
   (modes exe)
   (name gen_lifecycle)
   (public_name gen_lifecycle)
-  (package xapi-datamodel)
+  (package xapi)
   (modules gen_lifecycle)
   (libraries    
-    xapi-datamodel
+    xapi_datamodel
     xapi-consts.xapi_version
   )
   (promote (until-clean))

@@ -6,7 +6,7 @@
     CommonFunctions
     
     mustache
-    xapi-datamodel
+    xapi_datamodel
   )
 )
 

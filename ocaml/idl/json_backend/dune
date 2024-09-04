@@ -3,7 +3,7 @@
   (name gen_json)
   (libraries    
     fmt
-    xapi-datamodel
+    xapi_datamodel
     xapi-consts
     xapi-stdext-unix
     xapi-stdext-std
@@ -16,7 +16,7 @@
   (deps
     (:x gen_json.exe)
   )
-  (package xapi-datamodel)
+  (package xapi)
   (action (run %{x}))
 )
 

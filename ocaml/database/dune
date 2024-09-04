@@ -4,7 +4,6 @@
 
 (library
   (name xapi_schema)
-  (public_name xapi-schema)
   (modules
     db_names db_exn schema string_marshall_helper string_unmarshall_helper
     test_schemas)
@@ -36,9 +35,9 @@
     httpsvr
     uuid
     xapi-backtrace
-    xapi-datamodel
+    xapi_datamodel
     xapi-log
-    (re_export xapi-schema)
+    (re_export xapi_schema)
     xapi-idl.updates
     xapi-stdext-encodings
     xapi-stdext-pervasives

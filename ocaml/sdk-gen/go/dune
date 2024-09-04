@@ -5,7 +5,7 @@
   (libraries
     CommonFunctions
     mustache
-    xapi-datamodel
+    xapi_datamodel
     xapi-stdext-unix
     gen_go_helper
   )
@@ -20,7 +20,7 @@
     astring
     (re_export mustache)
     (re_export xapi-consts)
-    (re_export xapi-datamodel)
+    (re_export xapi_datamodel)
     xapi-stdext-std
   )
 )

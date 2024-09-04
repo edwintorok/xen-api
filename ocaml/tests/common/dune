@@ -15,7 +15,7 @@
     xapi_aux
     xapi-consts
     xapi_database
-    xapi-datamodel
+    xapi_datamodel
     xapi-idl
     xapi-idl.memory
     xapi-idl.network

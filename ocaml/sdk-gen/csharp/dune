@@ -8,7 +8,7 @@
     
     mustache
     xapi-consts
-    xapi-datamodel
+    xapi_datamodel
   )
 )
 
@@ -20,7 +20,7 @@
     CommonFunctions
     
     mustache
-    xapi-datamodel
+    xapi_datamodel
     xmllight2
     str
   )

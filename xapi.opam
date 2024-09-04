@@ -51,7 +51,6 @@ depends: [
   "xapi-client" {= version}
   "xapi-cli-protocol" {= version}
   "xapi-consts" {= version}
-  "xapi-datamodel" {= version}
   "xapi-expiry-alerts" {= version}
   "xapi-idl" {= version}
   "xapi-inventory" {= version}

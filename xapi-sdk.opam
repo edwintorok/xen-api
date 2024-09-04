@@ -11,7 +11,6 @@ depends: [
   "alcotest" {with-test}
   "astring"
   "mustache"
-  "xapi-datamodel" {= version}
   "xapi-stdext-unix" {= version & with-test}
   "odoc" {with-doc}
 ]

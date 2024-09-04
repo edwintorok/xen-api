@@ -5,7 +5,7 @@
     astring
     uuidm
     xapi-consts
-    xapi-datamodel
+    xapi_datamodel
     xapi-log
     xapi-stdext-std
   )

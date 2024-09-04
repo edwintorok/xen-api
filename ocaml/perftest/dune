@@ -11,7 +11,7 @@
     xapi-consts
     xapi-cli-protocol
     xapi-client
-    xapi-datamodel
+    xapi_datamodel
     xapi-inventory
     xapi-types
     xapi-stdext-pervasives

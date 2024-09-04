@@ -19,7 +19,7 @@ depends: [
   "base-threads"
   "uuid"
   "xapi-consts"
-  "xapi-datamodel"
+  "xapi_datamodel"
   "xapi-stdext-date"
   "xapi-stdext-pervasives"
   "xapi-stdext-std"

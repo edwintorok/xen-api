@@ -4,7 +4,7 @@
   (wrapped false)
   (libraries
     astring
-    xapi-datamodel
+    xapi_datamodel
     mustache
     xapi-stdext-std
   )

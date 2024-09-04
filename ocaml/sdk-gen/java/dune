@@ -7,7 +7,7 @@
     
     mustache
     str
-    xapi-datamodel
+    xapi_datamodel
   )
 )
 

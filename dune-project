@@ -50,7 +50,6 @@
    (alcotest :with-test)
    astring
    mustache
-   (xapi-datamodel (= :version))
    (xapi-stdext-unix (and (= :version) :with-test))
   )
   (allow_empty)
@@ -158,10 +157,6 @@
 
 (package
   (name xapi-squeezed)
-)
-
-(package
-  (name xapi-schema)
 )
 
 (package
@@ -281,10 +276,6 @@
 )
 
 (package
-  (name xapi-datamodel)
-)
-
-(package
   (name xapi-consts)
 )
 
@@ -346,7 +337,6 @@
     (xapi-client (= :version))
     (xapi-cli-protocol (= :version))
     (xapi-consts (= :version))
-    (xapi-datamodel (= :version))
     (xapi-expiry-alerts (= :version))
     (xapi-idl (= :version))
     (xapi-inventory (= :version))

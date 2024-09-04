@@ -35,7 +35,7 @@
     xapi_cli_server
     xapi-consts
     xapi_database
-    xapi-datamodel
+    xapi_datamodel
     xapi-idl
     xapi-idl.storage.interface
     xapi-idl.xen.interface

@@ -18,7 +18,7 @@ depends: [
   "base-threads"
   "xapi-cli-protocol"
   "xapi-consts"
-  "xapi-datamodel"
+  "xapi_datamodel"
   "xapi-stdext-pervasives"
   "xapi-stdext-std"
   "xapi-stdext-unix"
