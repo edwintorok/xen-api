@@ -111,26 +111,12 @@
    ocaml
    astring
    rpclib
-   (rrd-transport (= :version))
    (xapi-forkexecd (= :version))
    (xapi-stdext-pervasives (= :version))
    (xapi-stdext-threads (= :version))
    (xapi-stdext-unix (= :version))
    (xapi-idl (= :version))
    xenstore_transport
-  )
-)
-
-(package
-  (name xapi-rrd-transport-utils)
-  (synopsis "Shared-memory protocols for exposing performance counters")
-  (description "VMs running on a Xen host can use this library to expose performance counters which can be sampled by the xapi performance monitoring daemon.")
-  (authors "John Else")
-  (depends
-   ocaml
-   cmdliner
-   (rrd-transport (= :version))
-   (xapi-idl (= :version))
   )
 )
 
@@ -341,22 +327,6 @@ This package provides an Lwt compatible interface to the library.")
 
 (package
   (name rrd2csv)
-)
-
-(package
-  (name rrd-transport)
-  (synopsis "Shared-memory protocols for exposing system metrics")
-  (description "VMs running on a Xen host can use this library to expose performance counters which can be sampled by xapi's metric daemon.")
-  (authors "John Else")
-  (depends
-    (alcotest :with-test)
-    astring
-    cstruct
-    crc
-    yojson
-    (xapi-idl (= :version))
-    (odoc :with-doc)
-  )
 )
 
 (package

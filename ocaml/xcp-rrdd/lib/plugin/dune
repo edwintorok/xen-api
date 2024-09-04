@@ -12,8 +12,8 @@
     xapi-stdext-unix
     threads.posix
     xapi_rrd
-    rrd-transport.file
-    rrd-transport.lib
+    rrd_transport_file
+    rrd_transport_lib
     xapi_idl_rrd
     xapi-log
     xenstore_transport.unix
@@ -29,8 +29,8 @@
   (modules reporter_local)
   (libraries
     rrdd-plugin.base
-    rrd-transport.file
-    rrd-transport.lib
+    rrd_transport_file
+    rrd_transport_lib
     threads.posix
     xapi_idl_rrd
     xapi-log
@@ -48,7 +48,7 @@
   (libraries
     rrdd-plugin.base
     rrdd-plugin.local
-    rrd-transport
+    rrd_transport
     threads.posix
     xapi_idl_rrd
     xapi_idl_rrd_interface_types

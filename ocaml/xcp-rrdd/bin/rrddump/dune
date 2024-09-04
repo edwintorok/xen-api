@@ -4,7 +4,7 @@
   (public_name rrddump)
   (libraries
     
-    rrd-transport
+    rrd_transport
     xapi_rrd
     xapi_rrd_unix
     xmlm

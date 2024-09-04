@@ -1,11 +1,11 @@
 (tests
   (names test_unit test_scale)
-  (package rrd-transport)
+  (package rrdd-plugin)
   (libraries
     alcotest
     
     fmt
-    rrd-transport
+    rrd_transport
     xapi_idl_rrd
     xapi_rrd
   )

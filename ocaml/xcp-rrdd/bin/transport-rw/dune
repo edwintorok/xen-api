@@ -6,7 +6,7 @@
   (libraries
     cmdliner
     
-    rrd-transport
+    rrd_transport
     threads.posix
     xapi_idl_rrd
     xapi_rrd

@@ -138,8 +138,8 @@
     re
     result
     rresult
-    rrd-transport.lib
-    rrd-transport.file
+    rrd_transport_lib
+    rrd_transport_file
     rrdd-plugin.base
     rrdd-plugin.local
     sexplib

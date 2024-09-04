@@ -201,7 +201,7 @@ install: build doc sdk doc-json
 	install -D _build/install/default/bin/rrddump $(DESTDIR)/usr/bin/rrddump
 # rrd-cli
 	install -D _build/install/default/bin/rrd-cli $(DESTDIR)/usr/bin/rrd-cli
-# rrd-transport
+# rrd_transport
 	install -D _build/install/default/bin/rrdreader $(DESTDIR)/usr/bin/rrdreader
 	install -D _build/install/default/bin/rrdwriter $(DESTDIR)/usr/bin/rrdwriter
 # rrdd-plugins
@@ -255,7 +255,7 @@ install: build doc sdk doc-json
 # dune can install libraries and several other files into the right locations
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
 		xapi-client xapi-consts xapi-cli-protocol xapi-types \
-		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
+		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin \
 		xml-light2  \
 		message-switch-lwt xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
 		xapi-nbd varstored-guard xapi-log xapi-tracing-export xapi-expiry-alerts cohttp-posix \
@@ -276,7 +276,7 @@ uninstall:
 	# only removes what was installed with `dune install`
 	dune uninstall --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
 		xapi-client xapi-consts xapi-cli-protocol xapi-types \
-		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
+		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin \
 		uuid xml-light2 \
 		message-switch-lwt \ xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
 		xapi-tracing-export xapi-expiry-alerts cohttp-posix \
