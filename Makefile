@@ -254,7 +254,7 @@ install: build doc sdk doc-json
 	install -m 755 _build/install/default/bin/wsproxy $(DESTDIR)$(LIBEXECDIR)/wsproxy
 # dune can install libraries and several other files into the right locations
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
-		xapi-client xapi-consts xapi-cli-protocol xapi-types \
+		xapi-client xapi-consts xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin \
 		xml-light2  \
 		message-switch-lwt xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
@@ -275,7 +275,7 @@ install: build doc sdk doc-json
 uninstall:
 	# only removes what was installed with `dune install`
 	dune uninstall --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
-		xapi-client xapi-consts xapi-cli-protocol xapi-types \
+		xapi-client xapi-consts xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin \
 		uuid xml-light2 \
 		message-switch-lwt \ xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-log \

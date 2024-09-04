@@ -43,7 +43,6 @@ depends: [
   "tar-unix"
   "x509"
   "xapi-client" {= version}
-  "xapi-cli-protocol" {= version}
   "xapi-consts" {= version}
   "xapi-expiry-alerts" {= version}
   "xapi-idl" {= version}

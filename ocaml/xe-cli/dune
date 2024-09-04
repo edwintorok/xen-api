@@ -14,7 +14,7 @@
     uri
     yojson
     xapi-backtrace
-    xapi-cli-protocol
+    xapi_cli_protocol
     xapi-stdext-pervasives
     xapi_stdext_std
     xapi-stdext-unix

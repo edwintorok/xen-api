@@ -9,7 +9,7 @@
     rpclib.core
     threads.posix
     xapi-consts
-    xapi-cli-protocol
+    xapi_cli_protocol
     xapi-client
     xapi_datamodel
     xapi-inventory

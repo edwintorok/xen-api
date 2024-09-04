@@ -1,7 +1,7 @@
 (test
   (name test_cli_protocol)
   (modes exe)
-  (package xapi-cli-protocol)
+  (package xapi)
   (libraries
     alcotest
     xapi_cli_protocol

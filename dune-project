@@ -177,10 +177,6 @@
 )
 
 (package
-  (name xapi-cli-protocol)
-)
-
-(package
   (name xapi)
   (synopsis "The toolstack daemon which implements the XenAPI")
   (description "This daemon exposes the XenAPI and is used by clients such as 'xe' and 'XenCenter' to manage clusters of Xen-enabled hosts.")
@@ -218,7 +214,6 @@
     tar-unix
     x509
     (xapi-client (= :version))
-    (xapi-cli-protocol (= :version))
     (xapi-consts (= :version))
     (xapi-expiry-alerts (= :version))
     (xapi-idl (= :version))

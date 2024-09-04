@@ -1,6 +1,6 @@
 (library
   (name xapi_cli_protocol)
-  (public_name xapi-cli-protocol)
+  (package xapi)
   (libraries
     threads
     xapi-stdext-unix

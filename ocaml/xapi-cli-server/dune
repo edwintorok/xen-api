@@ -24,7 +24,7 @@
     xapi-log
     xapi-types
     xapi-client
-    xapi-cli-protocol
+    xapi_cli_protocol
     xapi_aux
     xapi-stdext-date
     xapi-stdext-pervasives

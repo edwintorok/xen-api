@@ -160,7 +160,7 @@
     xapi-backtrace
     (re_export xapi-consts)
     xapi-client
-    xapi-cli-protocol
+    xapi_cli_protocol
     xapi_cli_server
     xapi_database
     xapi_datamodel
