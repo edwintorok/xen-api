@@ -14,7 +14,6 @@ depends: [
   "conf-libssl"
   "cstruct" {>= "3.0.0"}
   "ezxenstore" {= version}
-  "forkexec" {= version}
   "io-page"
   "lwt"
   "nbd-unix"

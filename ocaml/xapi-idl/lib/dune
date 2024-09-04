@@ -29,7 +29,7 @@
    xapi-backtrace
    xapi-consts
    xapi-log
-   xapi-open-uri
+   xapi_open_uri
    xapi-stdext-pervasives
    xapi-stdext-threads
    xapi-inventory

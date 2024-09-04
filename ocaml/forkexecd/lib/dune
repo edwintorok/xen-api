@@ -1,6 +1,6 @@
 (library
  (name forkexec)
- (public_name forkexec)
+ (package xen-api-client)
  (wrapped false)
  (libraries
    astring

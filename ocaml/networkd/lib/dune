@@ -21,7 +21,7 @@
   xapi-inventory
   xapi-idl.network
   xapi-log
-  xapi-open-uri
+  xapi_open_uri
   yojson
  )
  (wrapped false)

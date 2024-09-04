@@ -48,9 +48,9 @@
   xapi-stdext-std
   xapi-stdext-threads
   xapi-stdext-unix
-  xapi-xenopsd
-  xapi-xenopsd.c_stubs
-  xapi-xenopsd-xc.c_stubs
+  xapi_xenopsd
+  xapi_xenopsd_c_stubs
+  xapi_xenopsd_xc_c_stubs
   xenctrl
   xenstore
   xenstore_transport.unix
@@ -67,7 +67,7 @@
  (name xenops_xc_main)
  (modes exe)
  (public_name xenopsd-xc)
- (package xapi-xenopsd-xc)
+ (package xapi)
  (modules xenops_xc_main)
 
  (libraries
@@ -78,7 +78,7 @@
   xapi-idl.xen.interface
   xapi-inventory
   xapi-stdext-unix
-  xapi-xenopsd
+  xapi_xenopsd
   xenctrl
   xenstore_transport.unix
   xenopsd_xc
@@ -112,7 +112,7 @@
   
   xapi-stdext-date
   xapi-stdext-unix
-  xapi-xenopsd
+  xapi_xenopsd
   xenctrl
  )
 )
@@ -138,7 +138,7 @@
   ezxenstore.core
   threads.posix
   xapi-idl.xen.interface
-  xapi-xenopsd
+  xapi_xenopsd
   xenctrl
   xenopsd_xc
   xenstore_transport.unix
@@ -162,5 +162,5 @@
 (install
  (section man)
  (files xenopsd-xc.1.gz)
- (package xapi-xenopsd-xc)
+ (package xapi)
 )

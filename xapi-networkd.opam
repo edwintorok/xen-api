@@ -11,8 +11,6 @@ depends: [
   "alcotest" {with-test}
   "astring"
   "base-threads"
-  "forkexec" {= version}
-  "http-lib" {= version}
   "mtime"
   "netlink"
   "re"

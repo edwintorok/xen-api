@@ -256,10 +256,10 @@ install: build doc sdk doc-json
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
 		xapi-client xapi-consts xapi-cli-protocol xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
-		gzip http-lib pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
+		pciutil sexpr uuid xml-light2 safe-resources \
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
-		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
-		xapi-nbd varstored-guard xapi-log xapi-open-uri xapi-tracing xapi-tracing-export xapi-expiry-alerts cohttp-posix \
+		message-switch-unix xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
+		xapi-nbd varstored-guard xapi-log xapi-tracing xapi-tracing-export xapi-expiry-alerts cohttp-posix \
 		xapi-rrd xapi-inventory clock \
 		xapi-stdext-date xapi-stdext-encodings xapi-stdext-pervasives xapi-stdext-std xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
 # docs
@@ -278,10 +278,10 @@ uninstall:
 	dune uninstall --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
 		xapi-client xapi-consts xapi-cli-protocol xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
-		gzip http-lib pciutil sexpr stunnel uuid xml-light2 zstd xapi-compression safe-resources \
+		pciutil sexpr uuid xml-light2 safe-resources \
 		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
-		message-switch-unix xapi-idl forkexec xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
-		xapi-open-uri xapi-tracing xapi-tracing-export xapi-expiry-alerts cohttp-posix \
+		message-switch-unix xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
+		xapi-tracing xapi-tracing-export xapi-expiry-alerts cohttp-posix \
 		xapi-rrd xapi-inventory clock \
 		xapi-stdext-date xapi-stdext-encodings xapi-stdext-pervasives xapi-stdext-std xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
 

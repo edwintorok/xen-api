@@ -16,11 +16,9 @@ depends: [
   "rpclib"
   "ppx_deriving_rpc"
   "xapi-log" {= version}
-  "xapi-open-uri" {= version}
   "xapi-stdext-threads" {= version}
   "xapi-stdext-unix" {= version}
   "xapi-tracing" {= version}
-  "zstd" {= version}
   "odoc" {with-doc}
 ]
 build: [

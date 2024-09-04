@@ -1,6 +1,5 @@
 (library
   (name http_lib)
-  (public_name http-lib)
   (modes best)
   (wrapped false)
   (modules (:standard \ http_svr http_proxy server_io http_test radix_tree_test test_client test_server bufio_test bufio_test_run))
@@ -56,7 +55,7 @@
 
 (tests
   (names http_test radix_tree_test)
-  (package http-lib)
+  (package xapi)
   (modes (best exe))
   (modules http_test radix_tree_test)
   (libraries
@@ -69,7 +68,7 @@
 
 (test
   (name bufio_test_run)
-  (package http-lib)
+  (package xapi)
   (modes (best exe))
   (modules bufio_test_run)
   (libraries

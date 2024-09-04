@@ -21,7 +21,7 @@
   threads.posix
   uri
   xapi-log
-  xapi-open-uri
+  xapi_open_uri
   xapi-stdext-threads
   xapi-stdext-unix
   zstd)

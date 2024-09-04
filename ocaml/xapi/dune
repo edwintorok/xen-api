@@ -185,7 +185,7 @@
     (re_export xapi_internal_minimal)
     xapi-inventory
     xapi-log
-    xapi-open-uri
+    xapi_open_uri
     xapi-rrd
     (re_export xapi-types)
     xapi-stdext-date
@@ -198,7 +198,7 @@
     xapi-tracing
     xapi-tracing-export
     xapi_version
-    xapi-xenopsd
+    xapi_xenopsd
     xenstore_transport.unix
     xml-light2
     xmlm

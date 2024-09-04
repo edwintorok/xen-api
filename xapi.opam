@@ -23,7 +23,6 @@ depends: [
   "ezxenstore" {= version}
   "fmt" {with-test}
   "hex"
-  "http-lib" {with-test & = version}
   "ipaddr"
   "mirage-crypto"
   "mirage-crypto-pk"
@@ -43,7 +42,6 @@ depends: [
   "rresult"
   "sexpr"
   "sha"
-  "stunnel" {= version}
   "tar"
   "tar-unix"
   "uuid" {= version}
@@ -64,10 +62,8 @@ depends: [
   "xapi-test-utils" {with-test}
   "xapi-tracing" {= version}
   "xapi-types" {= version}
-  "xapi-xenopsd" {= version}
   "xml-light2" {= version}
   "yojson"
-  "zstd" {= version}
   "odoc" {with-doc}
 ]
 build: [

@@ -15,7 +15,6 @@ build: [
 depends: [
   "ocaml"
   "dune"
-  "http-lib"
   "xapi-client"
   "xapi-idl"
   "xapi-rrd"

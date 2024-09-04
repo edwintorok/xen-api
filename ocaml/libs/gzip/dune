@@ -1,8 +1,7 @@
 (library
   (name gzip)
-  (public_name gzip)
   (libraries
-    (re_export xapi-compression)
+    (re_export xapi_compression)
   )
 )
 

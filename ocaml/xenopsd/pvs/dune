@@ -1,7 +1,7 @@
 (executable
  (name pvs_proxy_setup)
  (public_name pvs-proxy-ovs-setup)
- (package xapi-xenopsd-xc)
+ (package xapi)
  (libraries ezxenstore.core bos xapi-consts.xapi_version xapi-idl cmdliner log rresult)
 )
 

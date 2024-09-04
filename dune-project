@@ -14,10 +14,6 @@
 (maintainers "Xapi project maintainers")
 (homepage "https://xapi-project.github.io/")
 
-(package
-  (name zstd)
-)
-
 
 (package
   (name clock)
@@ -88,22 +84,6 @@
 )
 
 (package
-  (name xapi-xenopsd-xc)
-)
-
-(package
-  (name xapi-xenopsd-simulator)
-)
-
-(package
-  (name xapi-xenopsd-cli)
-)
-
-(package
-  (name xapi-xenopsd)
-)
-
-(package
   (name xapi-types)
 )
 
@@ -133,11 +113,9 @@
    rpclib
    ppx_deriving_rpc
    (xapi-log (= :version))
-   (xapi-open-uri (= :version))
    (xapi-stdext-threads (= :version))
    (xapi-stdext-unix (= :version))
    (xapi-tracing (= :version))
-   (zstd (= :version))
   )
   (synopsis "Export traces in multiple protocols and formats")
   (description "This library export traces is able to push traces to http endpoints or generate compressed tarballs in the filesystem.")
@@ -186,8 +164,6 @@
    (ocaml (>= "4.02.0"))
    (alcotest :with-test)
    astring
-   (gzip (= :version))
-   (http-lib (= :version))
    inotify
    io-page
    mtime
@@ -219,10 +195,6 @@
 )
 
 (package
-  (name xapi-open-uri)
-)
-
-(package
   (name xapi-networkd)
   (authors "Jon Ludlam")
   (synopsis "The XCP networking daemon")
@@ -230,8 +202,6 @@
     (alcotest :with-test)
     astring
     base-threads
-    (forkexec (= :version))
-    (http-lib (= :version))
     mtime
     netlink
     re
@@ -265,7 +235,6 @@
   (description "This daemon creates and manages sub-processes on behalf of xapi.")
   (depends
    astring
-   (forkexec (= :version))
    (uuid (= :version))
    (xapi-stdext-unix (= :version))
   )
@@ -277,10 +246,6 @@
 
 (package
   (name xapi-consts)
-)
-
-(package
-  (name xapi-compression)
 )
 
 (package
@@ -309,7 +274,6 @@
     (ezxenstore (= :version))
     (fmt :with-test)
     hex
-    (http-lib (and :with-test (= :version))) ; the public library is only used for testing
     ipaddr
     mirage-crypto
     mirage-crypto-pk
@@ -329,7 +293,6 @@
     rresult
     sexpr
     sha
-    (stunnel (= :version))
     tar
     tar-unix
     (uuid (= :version))
@@ -350,10 +313,8 @@
     (xapi-test-utils :with-test)
     (xapi-tracing (= :version))
     (xapi-types (= :version))
-    (xapi-xenopsd (= :version))
     (xml-light2 (= :version))
     yojson
-    (zstd (= :version))
   )
 )
 
@@ -384,7 +345,6 @@
     conf-libssl
     (cstruct (>= "3.0.0"))
     (ezxenstore (= :version))
-    (forkexec (= :version))
     io-page
     lwt
     nbd-unix
@@ -441,10 +401,6 @@ This package provides an Lwt compatible interface to the library.")
 
 (package
   (name uuid)
-)
-
-(package
-  (name stunnel)
 )
 
 (package
@@ -533,52 +489,6 @@ This package provides an Lwt compatible interface to the library.")
 
 (package
   (name message-switch)
-)
-
-(package
-  (name http-lib)
-  (synopsis "An HTTP required used by xapi")
-  (description "This library allows xapi to perform varios activities related to the HTTP protocol.")
-  (depends
-    (alcotest :with-test)
-    astring
-    (base64 (>= "3.1.0"))
-    rpclib
-    (safe-resources(= :version))
-    sha
-    (stunnel (= :version))
-    (uuid (= :version))
-    xapi-backtrace
-    (xapi-idl (= :version))
-    (xapi-log (= :version))
-    (xapi-stdext-date (= :version))
-    (xapi-stdext-pervasives (= :version))
-    (xapi-stdext-threads (= :version))
-    (xapi-tracing (= :version))
-    (xml-light2 (= :version))
-    (odoc :with-doc)
-  )
-)
-
-(package
-  (name gzip)
-)
-
-(package
-  (name forkexec)
-  (synopsis "Process-spawning library")
-  (description "Client and server library to spawn processes.")
-  (depends
-    base-threads
-    (fd-send-recv (>= "2.0.0"))
-    ppx_deriving_rpc
-    rpclib
-    (uuid (= :version))
-    (xapi-log (= :version))
-    (xapi-stdext-pervasives (= :version))
-    (xapi-stdext-unix (= :version))
-    (xapi-tracing (= :version))
-  )
 )
 
 (package

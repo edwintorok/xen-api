@@ -1,11 +1,11 @@
 (executable
  (name xenops_simulator_main)
  (public_name xenopsd-simulator)
- (package xapi-xenopsd-simulator)
+ (package xapi)
  (libraries
    
    xapi-idl.xen.interface
-   xapi-xenopsd
+   xapi_xenopsd
  )
 )
 
@@ -26,5 +26,5 @@
 (install
  (section man)
  (files xenopsd-simulator.1.gz)
- (package xapi-xenopsd-simulator)
+ (package xapi)
 )

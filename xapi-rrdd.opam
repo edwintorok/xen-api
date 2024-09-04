@@ -13,8 +13,6 @@ depends: [
   "ocaml" {>= "4.02.0"}
   "alcotest" {with-test}
   "astring"
-  "gzip" {= version}
-  "http-lib" {= version}
   "inotify"
   "io-page"
   "mtime"
