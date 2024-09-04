@@ -12,7 +12,7 @@
 (executable
  (name networkd)
  (public_name xapi-networkd)
- (package xapi-networkd)
+ (package xapi)
  (modes exe)
  (libraries
   astring
