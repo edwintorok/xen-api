@@ -24,6 +24,6 @@
   )
 )
 (install
- (package xapi-nbd)
+ (package xapi)
  (section sbin)
  (files (main.exe as xapi-nbd)))

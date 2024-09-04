@@ -1,6 +1,6 @@
 (test
  (name suite)
- (package xapi-nbd)
+ (package xapi)
  (libraries
   alcotest
   alcotest-lwt

@@ -142,10 +142,6 @@
 )
 
 (package
-  (name xapi-nbd)
-)
-
-(package
   (name xapi-log)
 )
 
