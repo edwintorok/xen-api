@@ -42,7 +42,6 @@ depends: [
   "sha"
   "tar"
   "tar-unix"
-  "uuid" {= version}
   "x509"
   "xapi-client" {= version}
   "xapi-cli-protocol" {= version}

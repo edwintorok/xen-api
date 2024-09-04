@@ -22,7 +22,6 @@ depends: [
   "re"
   "rpclib"
   "uri"
-  "uuid" {= version}
   "xapi-client" {= version}
   "xapi-idl" {= version}
   "xapi-rrd" {= version}

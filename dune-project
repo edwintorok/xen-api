@@ -55,7 +55,6 @@
    re
    rpclib
    uri
-   (uuid (= :version))
    (xapi-client (= :version))
    (xapi-idl (= :version))
    (xapi-rrd (= :version))
@@ -138,7 +137,6 @@
    ppx_deriving_rpc
    rpclib
    (ezxenstore (= :version))
-   (uuid (= :version))
    xapi-backtrace
    (xapi-idl (= :version))
    (xapi-rrd (= :version))
@@ -202,7 +200,6 @@
   (description "This daemon creates and manages sub-processes on behalf of xapi.")
   (depends
    astring
-   (uuid (= :version))
    (xapi-stdext-unix (= :version))
   )
 )
@@ -260,7 +257,6 @@
     sha
     tar
     tar-unix
-    (uuid (= :version))
     x509
     (xapi-client (= :version))
     (xapi-cli-protocol (= :version))
@@ -295,7 +291,6 @@
     logs
     (lwt (>= "3.0.0"))
     re
-    uuid
     (qcheck-core :with-test)
   )
 )
@@ -362,10 +357,6 @@ This package provides an Lwt compatible interface to the library.")
 
 (package
   (name varstored-guard)
-)
-
-(package
-  (name uuid)
 )
 
 (package
