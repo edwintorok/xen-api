@@ -16,10 +16,6 @@
 
 
 (package
-  (name xapi-rrdd-plugin)
-)
-
-(package
   (name xml-light2)
 )
 
