@@ -21,7 +21,7 @@
     (re_export mustache)
     (re_export xapi-consts)
     (re_export xapi_datamodel)
-    xapi-stdext-std
+    xapi_stdext_std
   )
 )
 

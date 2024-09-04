@@ -15,7 +15,7 @@
     xapi-consts
     xapi_schema
     xapi-stdext-date
-    xapi-stdext-std
+    xapi_stdext_std
   )
   (wrapped false)
   (preprocess (per_module ((pps ppx_deriving_rpc) Datamodel_types)))
@@ -28,7 +28,7 @@
   (libraries
     mustache
     xapi_datamodel
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-pervasives
     xapi-stdext-unix
   )

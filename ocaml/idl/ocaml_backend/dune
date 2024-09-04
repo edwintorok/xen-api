@@ -7,7 +7,7 @@
     xapi-consts
     xapi_datamodel
     xapi-log
-    xapi-stdext-std
+    xapi_stdext_std
   )
 )
 

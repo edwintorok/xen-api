@@ -6,7 +6,7 @@
     xapi_datamodel
     xapi-consts
     xapi-stdext-unix
-    xapi-stdext-std
+    xapi_stdext_std
     yojson
   )
 )

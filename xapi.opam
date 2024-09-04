@@ -52,7 +52,6 @@ depends: [
   "xapi-log" {= version}
   "xapi-stdext-date" {= version}
   "xapi-stdext-pervasives" {= version}
-  "xapi-stdext-std" {= version}
   "xapi-stdext-threads" {= version}
   "xapi-stdext-unix" {= version}
   "xapi-stdext-zerocheck" {= version}

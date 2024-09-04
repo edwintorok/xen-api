@@ -16,7 +16,7 @@
     xapi-backtrace
     xapi-cli-protocol
     xapi-stdext-pervasives
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-unix
   )
 )

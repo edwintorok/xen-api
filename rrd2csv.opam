@@ -18,7 +18,7 @@ depends: [
   "xapi-client"
   "xapi-idl"
   "xapi_rrd"
-  "xapi-stdext-std"
+  "xapi_stdext_std"
   "xapi-stdext-threads"
 ]
 synopsis: "Convert XenServer RRD data into CSV format"

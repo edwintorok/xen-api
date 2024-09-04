@@ -17,7 +17,7 @@ depends: [
   "xapi-consts"
   "xapi_datamodel"
   "xapi-stdext-pervasives"
-  "xapi-stdext-std"
+  "xapi_stdext_std"
   "xapi-stdext-unix"
 ]
 synopsis: "The xapi toolstack daemon which implements the XenAPI"

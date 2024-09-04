@@ -105,7 +105,7 @@ let start_upload ~chunked ~uri =
     | None ->
         headers
     | Some x -> (
-      match Xapi_stdext_std.Xstringext.String.split ~limit:2 ':' x with
+      match String.split_on_char ':' x with
       | [user; pass] ->
           let b = Cohttp.Auth.string_of_credential (`Basic (user, pass)) in
           Header.add headers "authorization" b

@@ -43,7 +43,7 @@
     xapi_internal
     xapi-log
     xapi-stdext-date
-    xapi-stdext-std
+    xapi_stdext_std
     xapi-stdext-threads
     xapi-stdext-unix
     xapi-test-utils
@@ -156,7 +156,7 @@
 (package xapi)
 (modes (best exe))
 (modules test_observer)
-(libraries alcotest fmt xapi_tracing xapi_internal tests_common yojson log uri xapi-stdext-unix re ppx_deriving.runtime xapi-stdext-std xapi-tracing-export))
+(libraries alcotest fmt xapi_tracing xapi_internal tests_common yojson log uri xapi-stdext-unix re ppx_deriving.runtime xapi_stdext_std xapi-tracing-export))
 
 (rule
   (alias runtest)

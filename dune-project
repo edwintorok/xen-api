@@ -114,7 +114,6 @@
    (rrd-transport (= :version))
    (xapi-forkexecd (= :version))
    (xapi-stdext-pervasives (= :version))
-   (xapi-stdext-std (= :version))
    (xapi-stdext-threads (= :version))
    (xapi-stdext-unix (= :version))
    (xapi-idl (= :version))
@@ -150,7 +149,6 @@
     (xapi-idl (= :version))
     xapi-inventory
     (xapi-stdext-pervasives (= :version))
-    (xapi-stdext-std (= :version))
     (xapi-stdext-threads (= :version))
     (xapi-stdext-unix (= :version))
     xapi-test-utils
@@ -243,7 +241,6 @@
     (xapi-log (= :version))
     (xapi-stdext-date (= :version))
     (xapi-stdext-pervasives (= :version))
-    (xapi-stdext-std (= :version))
     (xapi-stdext-threads (= :version))
     (xapi-stdext-unix (= :version))
     (xapi-stdext-zerocheck (= :version))
@@ -450,16 +447,6 @@ This package provides an Lwt compatible interface to the library.")
     logs
     (odoc :with-doc)
     xapi-backtrace
-  )
-)
-
-(package
-  (name xapi-stdext-std)
-  (synopsis "Xapi's standard library extension, Stdlib")
-  (depends
-    (ocaml (>= 4.08.0))
-    (alcotest :with-test)
-    (odoc :with-doc)
   )
 )
 
