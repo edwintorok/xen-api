@@ -425,20 +425,6 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name xapi-stdext-encodings)
-  (synopsis "Xapi's standard library extension, Encodings")
-  (authors "Jonathan Ludlam")
-  (depends
-    (ocaml (>= 4.13.0))
-    (alcotest (and (>= 0.6.0) :with-test))
-    (odoc :with-doc)
-    (bechamel :with-test)
-    (bechamel-notty :with-test)
-    (notty :with-test)
-  )
-)
-
-(package
   (name xapi-stdext-pervasives)
   (synopsis "Xapi's standard library extension, Pervasives")
   (authors "Jonathan Ludlam")

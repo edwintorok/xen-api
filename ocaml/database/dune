@@ -10,7 +10,7 @@
   (libraries
     sexpr
     xapi-log
-    xapi-stdext-encodings
+    xapi_stdext_encodings
   )
   (wrapped false)
   (preprocess (per_module ((pps ppx_sexp_conv) Schema)))
@@ -39,7 +39,7 @@
     xapi-log
     (re_export xapi_schema)
     xapi-idl.updates
-    xapi-stdext-encodings
+    xapi_stdext_encodings
     xapi-stdext-pervasives
     xapi_stdext_std
     xapi-stdext-threads

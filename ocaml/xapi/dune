@@ -187,7 +187,7 @@
     xapi_rrd
     (re_export xapi-types)
     xapi-stdext-date
-    xapi-stdext-encodings
+    xapi_stdext_encodings
     xapi-stdext-pervasives
     xapi_stdext_std
     xapi-stdext-threads
@@ -217,7 +217,7 @@
   (name xapi_internal_server_only)
   (modes best)
   (modules server)
-  (libraries xapi_internal_minimal http_lib rpclib.core xapi-types xapi-log xapi-stdext-encodings xapi-consts xapi-backtrace xapi-stdext-date rpclib.json)
+  (libraries xapi_internal_minimal http_lib rpclib.core xapi-types xapi-log xapi_stdext_encodings xapi-consts xapi-backtrace xapi-stdext-date rpclib.json)
   (wrapped false)
 )
 
@@ -246,7 +246,7 @@
     (re_export xapi_internal_server_only)
     xapi-log
     xapi-stdext-date
-    xapi-stdext-encodings
+    xapi_stdext_encodings
     xapi-stdext-pervasives
     xapi_stdext_std
     xapi-stdext-threads
