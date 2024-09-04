@@ -20,18 +20,6 @@
 )
 
 (package
-  (name xapi-sdk)
-  (license "BSD-2-Clause")
-  (synopsis "Xen API SDK generation code")
-  (depends
-   (alcotest :with-test)
-   astring
-   mustache
-   (xapi-stdext-unix (and (= :version) :with-test))
-  )
-  (allow_empty)
-)
-(package
   (name xen-api-client-lwt)
 )
 
