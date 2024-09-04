@@ -1,12 +1,12 @@
 (executable
   (modes exe)
   (name rrdp_xenpm)
-  (package rrdd-plugins)
+  (package xapi)
   (public_name xcp-rrdd-xenpm)
   (libraries
     
     rrdd-plugin
-    rrdd-plugins.libs
+    rrdd_plugins_libs
     str
     xapi_idl_rrd
     xapi-log

@@ -318,18 +318,6 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name rrddump)
-)
-
-(package
-  (name rrdd-plugins)
-)
-
-(package
-  (name rrd2csv)
-)
-
-(package
   (name message-switch-lwt)
 )
 

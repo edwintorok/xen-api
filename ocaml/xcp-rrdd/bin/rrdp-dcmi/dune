@@ -1,12 +1,12 @@
 (executable
   (modes exe)
   (name rrdp_dcmi)
-  (package rrdd-plugins)
+  (package xapi)
   (public_name xcp-rrdd-dcmi)
   (libraries
     
     rrdd-plugin
-    rrdd-plugins.libs
+    rrdd_plugins_libs
     xapi_idl_rrd
     xapi-log
     xapi_rrd
