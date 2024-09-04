@@ -1,8 +1,10 @@
 (library
- (name tracing)
+ (name xapi_tracing)
  (modules tracing)
  (libraries re uri xapi-log xapi-stdext-threads threads.posix)
- (public_name xapi-tracing))
+ (package xapi-tracing-export)
+ (wrapped false)
+)
 
 (library
  (name tracing_export)
@@ -10,14 +12,14 @@
  (public_name xapi-tracing-export)
  (libraries
   cohttp
-  cohttp-posix
+  cohttp_posix
   ptime
   ptime.clock.os
   rpclib.core
   rpclib.json
   result
   rresult
-  tracing
+  xapi_tracing
   threads.posix
   uri
   xapi-log
@@ -31,5 +33,5 @@
 (test
  (name test_tracing)
  (modules test_tracing)
- (package xapi-tracing)
- (libraries tracing alcotest fmt uuid xapi-log))
+ (package xapi-tracing-export)
+ (libraries xapi_tracing alcotest fmt uuid xapi-log))

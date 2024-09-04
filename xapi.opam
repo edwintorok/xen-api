@@ -31,7 +31,6 @@ depends: [
   "mtime"
   "opentelemetry-client-ocurl"
   "pci"
-  "pciutil" {= version}
   "ppx_deriving_rpc"
   "ppx_sexp_conv"
   "ppx_deriving"
@@ -40,7 +39,6 @@ depends: [
   "rpclib"
   "rrdd-plugin" {= version}
   "rresult"
-  "sexpr"
   "sha"
   "tar"
   "tar-unix"
@@ -60,7 +58,7 @@ depends: [
   "xapi-stdext-unix" {= version}
   "xapi-stdext-zerocheck" {= version}
   "xapi-test-utils" {with-test}
-  "xapi-tracing" {= version}
+  "xapi-tracing-export" {= version}
   "xapi-types" {= version}
   "xml-light2" {= version}
   "yojson"

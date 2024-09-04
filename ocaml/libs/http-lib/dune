@@ -29,7 +29,7 @@
     xapi-stdext-threads
     xapi-stdext-unix
     xml-light2
-    tracing
+    xapi_tracing
   )
 )
 
@@ -44,7 +44,7 @@
     ipaddr
     polly
     threads.posix
-    tracing
+    xapi_tracing
     uri
     xapi-log
     xapi-stdext-pervasives

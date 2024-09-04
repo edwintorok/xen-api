@@ -6,7 +6,7 @@
    astring
    cmdliner
    cohttp
-   cohttp-posix
+   cohttp_posix
    fd-send-recv
    logs
    message-switch-core
@@ -22,7 +22,7 @@
    sexplib
    sexplib0
    threads.posix
-   tracing
+   xapi_tracing
    unix
    uri
    uuidm
@@ -52,7 +52,7 @@
    rpclib.json
    sexplib
    sexplib0
-   tracing
+   xapi_tracing
    threads.posix
    xapi-backtrace
    xapi-idl

@@ -16,21 +16,6 @@
 
 
 (package
-  (name clock)
-  (synopsis "Xapi's library for managing time")
-  (authors "Jonathan Ludlam" "Pau Ruiz Safont")
-  (depends
-    (ocaml (>= 4.12))
-    (alcotest :with-test)
-    astring
-    mtime
-    ptime
-    (qcheck-core :with-test)
-    (qcheck-alcotest :with-test)
-  )
-)
-
-(package
   (name xapi-rrdd-plugin)
 )
 
@@ -88,26 +73,9 @@
 )
 
 (package
-  (name xapi-tracing)
-  (depends
-   ocaml
-   dune
-   (alcotest :with-test)
-   re
-   uri
-   (uuid :with-test)
-   (xapi-log (= :version))
-   (xapi-stdext-threads (= :version))
-  )
-  (synopsis "Allows to instrument code to generate tracing information")
-  (description "This library provides modules to allow gathering runtime traces.")
-)
-
-(package
   (name xapi-tracing-export)
   (depends
    ocaml
-   cohttp-posix
    dune
    cohttp
    rpclib
@@ -176,7 +144,6 @@
    (xapi-rrd (= :version))
    (xapi-stdext-threads (= :version))
    (xapi-stdext-unix (= :version))
-   xapi-tracing
   )
 )
 
@@ -282,7 +249,6 @@
     mtime
     opentelemetry-client-ocurl
     pci
-    (pciutil (= :version))
     ppx_deriving_rpc
     ppx_sexp_conv
     ppx_deriving
@@ -291,7 +257,6 @@
     rpclib
     (rrdd-plugin (= :version))
     rresult
-    sexpr
     sha
     tar
     tar-unix
@@ -311,7 +276,7 @@
     (xapi-stdext-unix (= :version))
     (xapi-stdext-zerocheck (= :version))
     (xapi-test-utils :with-test)
-    (xapi-tracing (= :version))
+    (xapi-tracing-export (= :version))
     (xapi-types (= :version))
     (xml-light2 (= :version))
     yojson
@@ -404,10 +369,6 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name sexpr)
-)
-
-(package
   (name safe-resources)
 )
 
@@ -438,10 +399,6 @@ This package provides an Lwt compatible interface to the library.")
     (xapi-rrd (= :version))
     (odoc :with-doc)
   )
-)
-
-(package
-  (name pciutil)
 )
 
 (package
@@ -496,10 +453,6 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name cohttp-posix)
-)
-
-(package
   (name xapi-rrd)
 )
 
@@ -512,7 +465,6 @@ This package provides an Lwt compatible interface to the library.")
   (synopsis "Xapi's standard library extension, Dates")
   (authors "Jonathan Ludlam")
   (depends
-    (clock (= :version))
     ptime
   )
 )

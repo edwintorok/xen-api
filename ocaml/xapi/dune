@@ -66,7 +66,7 @@
     xapi-types
     xapi_database
     mtime
-    tracing
+    xapi_tracing
     uuid
     rpclib.core
     threads.posix
@@ -151,7 +151,6 @@
     tar
     tar-unix
     threads.posix
-    tracing
     unixpwd
     uri
     uuid
@@ -195,7 +194,7 @@
     xapi-stdext-threads
     xapi-stdext-unix
     xapi-stdext-zerocheck
-    xapi-tracing
+    xapi_tracing
     xapi-tracing-export
     xapi_version
     xapi_xenopsd
@@ -237,7 +236,7 @@
     rpclib.xml
     stunnel
     threads.posix
-    tracing
+    xapi_tracing
     xapi-backtrace
     xapi-client
     xapi-consts

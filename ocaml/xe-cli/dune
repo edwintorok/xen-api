@@ -10,7 +10,7 @@
     safe-resources
     stunnel
     threads
-    tracing
+    xapi_tracing
     uri
     yojson
     xapi-backtrace

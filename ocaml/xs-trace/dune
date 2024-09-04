@@ -5,7 +5,7 @@
   (package xapi)
   (libraries
     uri
-    tracing
+    xapi_tracing
     cmdliner
     tracing_export
     xapi-stdext-unix
