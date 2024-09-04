@@ -9,9 +9,9 @@
     cstruct
     rpclib.core
     rpclib.json
-    xapi-rrd
+    xapi_rrd
     threads
-    xapi-idl.rrd
+    xapi_idl_rrd
     yojson
   )
 )

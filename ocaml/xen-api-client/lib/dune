@@ -7,7 +7,7 @@
     cohttp
     re.str
     rpclib
-    xapi-rrd
+    xapi_rrd
     uri
     uuid
     xmlm

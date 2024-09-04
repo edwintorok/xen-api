@@ -16,7 +16,6 @@ depends: [
   "crc"
   "yojson"
   "xapi-idl" {= version}
-  "xapi-rrd" {= version}
   "odoc" {with-doc}
 ]
 build: [

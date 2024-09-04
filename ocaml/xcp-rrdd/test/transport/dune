@@ -6,8 +6,8 @@
     
     fmt
     rrd-transport
-    xapi-idl.rrd
-    xapi-rrd
+    xapi_idl_rrd
+    xapi_rrd
   )
 )
 

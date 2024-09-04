@@ -54,7 +54,7 @@
    threads.posix
    xapi-idl
    xapi-idl.cluster
-   xapi-idl.rrd
+   xapi_idl_rrd
    xapi-idl.memory
    xapi-idl.updates
    xapi-idl.network

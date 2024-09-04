@@ -10,9 +10,9 @@
     xapi-stdext-std
     ezxenstore
     ezxenstore.watch
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-log
-    xapi-rrd
+    xapi_rrd
     xenctrl
     xenstore
     xenstore.unix

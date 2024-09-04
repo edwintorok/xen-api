@@ -159,7 +159,6 @@
     xapi_aux
     xapi-backtrace
     (re_export xapi-consts)
-    xapi-consts.xapi_version
     xapi-client
     xapi-cli-protocol
     xapi_cli_server
@@ -167,9 +166,9 @@
     xapi_datamodel
     xapi-idl
     xapi-idl.cluster
-    xapi-idl.rrd
-    xapi-idl.rrd.interface
-    xapi-idl.rrd.interface.types
+    xapi_idl_rrd
+    xapi_idl_rrd_interface
+    xapi_idl_rrd_interface_types
     xapi-idl.storage
     xapi-idl.storage.interface
     xapi-idl.storage.interface.types
@@ -185,7 +184,7 @@
     xapi-inventory
     xapi-log
     xapi_open_uri
-    xapi-rrd
+    xapi_rrd
     (re_export xapi-types)
     xapi-stdext-date
     xapi-stdext-encodings
@@ -254,7 +253,7 @@
     xapi-stdext-unix
     xapi-types
     xapi_aux
-    xapi-consts.xapi_version
+    xapi_version
     xapi_cli_server
     xapi_database
     xapi_internal)

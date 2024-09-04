@@ -12,10 +12,10 @@
     xapi-stdext-threads
     xapi-stdext-unix
     threads.posix
-    xapi-rrd
+    xapi_rrd
     rrd-transport.file
     rrd-transport.lib
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-log
     xenstore_transport.unix
     xenstore.unix
@@ -33,7 +33,7 @@
     rrd-transport.file
     rrd-transport.lib
     threads.posix
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-log
     xapi-stdext-threads
     xapi-stdext-unix
@@ -51,10 +51,10 @@
     rrdd-plugin.local
     rrd-transport
     threads.posix
-    xapi-idl.rrd
-    xapi-idl.rrd.interface.types
+    xapi_idl_rrd
+    xapi_idl_rrd_interface_types
     xapi-log
-    xapi-rrd
+    xapi_rrd
   )
 )
 

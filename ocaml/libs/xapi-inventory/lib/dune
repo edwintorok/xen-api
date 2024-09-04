@@ -1,5 +1,5 @@
 (library
-  (name inventory)
+  (name xapi_inventory)
   (public_name xapi-inventory)
   (wrapped false)
   (libraries

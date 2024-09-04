@@ -57,7 +57,6 @@
    uri
    (xapi-client (= :version))
    (xapi-idl (= :version))
-   (xapi-rrd (= :version))
    (xapi-types (= :version))
    xmlm
   )
@@ -124,28 +123,6 @@
 )
 
 (package
-  (name xapi-rrdd)
-  (synopsis "Performance monitoring daemon for xapi")
-  (description "This daemon monitors 'datasources' i.e. time-varying values such as performance counters and records the samples in RRD archives. These archives can be used to examine historical performance trends.")
-  (depends
-   (ocaml (>= "4.02.0"))
-   (alcotest :with-test)
-   astring
-   inotify
-   io-page
-   mtime
-   ppx_deriving_rpc
-   rpclib
-   (ezxenstore (= :version))
-   xapi-backtrace
-   (xapi-idl (= :version))
-   (xapi-rrd (= :version))
-   (xapi-stdext-threads (= :version))
-   (xapi-stdext-unix (= :version))
-  )
-)
-
-(package
   (name xapi-rrd-transport-utils)
   (synopsis "Shared-memory protocols for exposing performance counters")
   (description "VMs running on a Xen host can use this library to expose performance counters which can be sampled by the xapi performance monitoring daemon.")
@@ -155,7 +132,6 @@
    cmdliner
    (rrd-transport (= :version))
    (xapi-idl (= :version))
-   (xapi-rrd (= :version))
   )
 )
 
@@ -383,7 +359,6 @@ This package provides an Lwt compatible interface to the library.")
     crc
     yojson
     (xapi-idl (= :version))
-    (xapi-rrd (= :version))
     (odoc :with-doc)
   )
 )
@@ -437,10 +412,6 @@ This package provides an Lwt compatible interface to the library.")
 
 (package
   (name ezxenstore)
-)
-
-(package
-  (name xapi-rrd)
 )
 
 (package

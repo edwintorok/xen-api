@@ -2,14 +2,14 @@
   (modes exe)
   (names reader writer)
   (public_names rrdreader rrdwriter)
-  (package xapi-rrd-transport-utils)
+  (package rrdd-plugin)
   (libraries
     cmdliner
     
     rrd-transport
     threads.posix
-    xapi-idl.rrd
-    xapi-rrd
+    xapi_idl_rrd
+    xapi_rrd
   )
 )
 

@@ -8,9 +8,9 @@
     rrdd-plugin
     rrdd-plugins.libs
     str
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-log
-    xapi-rrd
+    xapi_rrd
     xenctrl
   )
 )

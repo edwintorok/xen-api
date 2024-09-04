@@ -35,14 +35,14 @@
   xapi-idl
   xapi-idl.memory
   xapi-idl.network
-  xapi-idl.rrd
+  xapi_idl_rrd
   xapi-idl.storage
   xapi-idl.storage.interface
   xapi-idl.guard.privileged
   xapi-idl.xen.interface
   xapi-idl.xen.interface.types
   xapi-log
-  xapi-rrd
+  xapi_rrd
   xapi-stdext-date
   xapi-stdext-pervasives
   xapi-stdext-std

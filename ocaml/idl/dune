@@ -64,7 +64,7 @@
   (modules gen_lifecycle)
   (libraries    
     xapi_datamodel
-    xapi-consts.xapi_version
+    xapi_version
   )
   (promote (until-clean))
  )

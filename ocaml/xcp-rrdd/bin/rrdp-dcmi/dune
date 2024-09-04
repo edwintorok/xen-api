@@ -7,9 +7,9 @@
     
     rrdd-plugin
     rrdd-plugins.libs
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-log
-    xapi-rrd
+    xapi_rrd
     astring
   )
 )

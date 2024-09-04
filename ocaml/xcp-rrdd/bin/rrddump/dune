@@ -5,8 +5,8 @@
   (libraries
     
     rrd-transport
-    xapi-rrd
-    xapi-rrd.unix
+    xapi_rrd
+    xapi_rrd_unix
     xmlm
   )
   (package rrddump)

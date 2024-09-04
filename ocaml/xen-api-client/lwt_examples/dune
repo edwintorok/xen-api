@@ -46,7 +46,7 @@
     ssl
     uri
     xapi-consts
-    xapi-rrd
+    xapi_rrd
     xapi-types
     xen-api-client
     xen-api-client-lwt

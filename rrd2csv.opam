@@ -17,7 +17,7 @@ depends: [
   "dune"
   "xapi-client"
   "xapi-idl"
-  "xapi-rrd"
+  "xapi_rrd"
   "xapi-stdext-std"
   "xapi-stdext-threads"
 ]

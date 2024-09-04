@@ -22,13 +22,13 @@
     uri
     xapi-backtrace
     xapi-consts
-    xapi-consts.xapi_version
+    xapi_version
     xapi-idl
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-idl.storage
     xapi-idl.storage.interface
     xapi-log
-    xapi-rrd
+    xapi_rrd
     xapi-stdext-date
     xapi-storage
   )

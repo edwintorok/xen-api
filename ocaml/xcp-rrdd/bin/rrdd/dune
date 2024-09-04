@@ -5,7 +5,7 @@
   (modules (:standard \ xcp_rrdd))
   (libraries
     astring
-    
+    rrdd_libs    
     ezxenstore
     gzip
     http_lib
@@ -22,12 +22,11 @@
     xapi-backtrace
     xapi-consts
     xapi-idl.network
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-inventory
     xapi-log
-    xapi-rrd
-    xapi-rrd.unix
-    xapi-rrdd
+    xapi_rrd
+    xapi_rrd_unix
     xapi-stdext-threads
     xapi-stdext-unix
     xmlm
@@ -39,11 +38,11 @@
   (modes exe)
   (name xcp_rrdd)
   (public_name xcp-rrdd)
-  (package xapi-rrdd)
+  (package xapi)
   (modules xcp_rrdd)
   (libraries
     astring
-    
+    rrdd_libs
     ezxenstore.core
     ezxenstore.watch
     forkexec
@@ -58,13 +57,12 @@
     threads.posix
     uuid
     xapi-backtrace
-    xapi-consts.xapi_version
+    xapi_version
     xapi-idl
     xapi-idl.network
-    xapi-idl.rrd
+    xapi_idl_rrd
     xapi-log
-    xapi-rrd
-    xapi-rrdd
+    xapi_rrd
     xapi-stdext-pervasives
     xapi-stdext-threads
     xapi-stdext-unix

@@ -1,50 +1,50 @@
 (library
- (name xcp_rrd_interface_types)
- (public_name xapi-idl.rrd.interface.types)
+ (name xapi_idl_rrd_interface_types)
+ (package rrdd-plugin)
  (modules data_source)
  (libraries
    result
    rpclib.core
    rresult
    xapi-idl
-   xapi-rrd
+   xapi_rrd
  )
  (wrapped false)
  (preprocess (pps ppx_deriving_rpc)))
 
 (library
- (name xcp_rrd_interface)
- (public_name xapi-idl.rrd.interface)
+ (name xapi_idl_rrd_interface)
+ (package rrdd-plugin)
  (modules rrd_interface)
  (libraries
    result
    rpclib.core
    rresult
    xapi-idl
-   xapi-idl.rrd.interface.types
-   xapi-rrd
+   xapi_idl_rrd_interface_types
+   xapi_rrd
  )
  (wrapped false)
  (preprocess (pps ppx_deriving_rpc)))
 
 (library
- (name xcp_rrd)
- (public_name xapi-idl.rrd)
+ (name xapi_idl_rrd)
+ (package rrdd-plugin)
  (modules (:standard \ data_source rrd_interface rrd_cli))
  (libraries
    rpclib.core
    threads.posix
    xapi-idl
-   (re_export xapi-idl.rrd.interface)
-   (re_export xapi-idl.rrd.interface.types)
-   xapi-rrd
+   (re_export xapi_idl_rrd_interface)
+   (re_export xapi_idl_rrd_interface_types)
+   xapi_rrd
  )
  (wrapped false))
 
 (executable
  (name rrd_cli)
  (public_name rrd-cli)
- (package xapi-rrdd)
+ (package xapi)
  (modules rrd_cli)
  (modes exe)
  (libraries
@@ -54,12 +54,12 @@
    rpclib.core
    rpclib.markdown
    xapi-idl
-   xapi-idl.rrd
+   xapi_idl_rrd
  ))
 
 (rule
  (alias runtest)
  (deps (:x rrd_cli.exe))
- (package xapi-rrdd)
+ (package xapi)
  (action (run %{x} --help=plain)))
 

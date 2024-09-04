@@ -29,7 +29,7 @@
   threads.posix
   xapi-client
   xapi-consts
-  xapi-consts.xapi_version
+  xapi_version
   xapi-stdext-pervasives
   xapi-stdext-std
   xapi-stdext-threads

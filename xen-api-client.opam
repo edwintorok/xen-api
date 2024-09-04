@@ -24,7 +24,6 @@ depends: [
   "uri"
   "xapi-client" {= version}
   "xapi-idl" {= version}
-  "xapi-rrd" {= version}
   "xapi-types" {= version}
   "xmlm"
   "odoc" {with-doc}
