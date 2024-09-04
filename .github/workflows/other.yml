@@ -45,17 +45,6 @@ jobs:
         env:
           SKIP: no-commit-to-branch
 
-      - name: Install dependencies only needed for python 2
-        if: ${{ matrix.python-version == '2.7' }}
-        run: pip install enum
-
-      - name: Install dependencies only needed for python 3
-        if: ${{ matrix.python-version != '2.7' }}
-        run: pip install opentelemetry-api opentelemetry-exporter-zipkin-json opentelemetry-sdk pandas pytype toml wrapt
-
-      - name: Install common dependencies for Python ${{matrix.python-version}}
-        run: pip install future mock pytest-coverage pytest-mock
-
       - name: Run Pytest for python 2 and get code coverage
         if: ${{ matrix.python-version == '2.7' }}
         run: >

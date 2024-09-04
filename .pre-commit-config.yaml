@@ -53,4 +53,4 @@ repos:
         # developers have such version installed, it can be configured here:
         # language_version: python3.11
         require_serial: true
-        additional_dependencies: [pandas, pytype]
+        additional_dependencies: [pandas, pytype, opentelemetry-api, opentelemetry-exporter-zipkin-json, opentelemetry-sdk, toml, wrapt, future, mock, pytest-coverage, pytest-mock]
