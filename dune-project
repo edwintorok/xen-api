@@ -182,7 +182,6 @@
     (xapi-stdext-pervasives (= :version))
     (xapi-stdext-threads (= :version))
     (xapi-stdext-unix (= :version))
-    (xapi-stdext-zerocheck (= :version))
     (xapi-test-utils :with-test)
     (xapi-tracing-export (= :version))
     (xapi-types (= :version))
@@ -320,11 +319,3 @@ This package provides an Lwt compatible interface to the library.")
   )
 )
 
-(package
-  (name xapi-stdext-zerocheck)
-  (synopsis "Xapi's standard library extension, Zerocheck")
-  (authors "Jonathan Ludlam")
-  (depends
-    (odoc :with-doc)
-  )
-)

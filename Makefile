@@ -260,7 +260,7 @@ install: build doc sdk doc-json
 		message-switch-lwt xapi-idl xapi-storage xapi-storage-script xapi-storage-cli \
 		xapi-log xapi-tracing-export xapi-expiry-alerts \
 		xapi-inventory \
-		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
+		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix
 # docs
 	mkdir -p $(DESTDIR)$(DOCDIR)
 	cp -r $(XAPIDOC)/jekyll $(DESTDIR)$(DOCDIR)
@@ -281,7 +281,7 @@ uninstall:
 		message-switch-lwt \ xapi-idl xapi-storage xapi-storage-script xapi-log \
 		xapi-tracing-export xapi-expiry-alerts \
 		xapi-inventory clock \
-		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
+		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix
 
 compile_flags.txt: Makefile
 	(ocamlc -config-var ocamlc_cflags;\
