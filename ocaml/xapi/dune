@@ -192,7 +192,7 @@
     xapi_stdext_std
     xapi-stdext-threads
     xapi-stdext-unix
-    xapi-stdext-zerocheck
+    xapi_stdext_zerocheck
     xapi_tracing
     xapi-tracing-export
     xapi_version

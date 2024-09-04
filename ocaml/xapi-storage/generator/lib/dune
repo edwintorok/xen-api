@@ -1,6 +1,5 @@
 (library
   (name xapi_storage)
-  (public_name xapi-storage)
   (modules apis common control data files plugin task)
   (preprocess (per_module
                 ((pps ppx_deriving_rpc) Common Control Data Plugin Task)))

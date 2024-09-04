@@ -30,19 +30,19 @@
     xapi-log
     xapi_rrd
     xapi-stdext-date
-    xapi-storage
+    xapi_storage
   )
   (preprocess (pps ppx_deriving_rpc ppx_sexp_conv))
 )
 
 (install
- (package xapi-storage-script)
+ (package xapi)
  (section sbin)
  (files (main.exe as xapi-storage-script)))
 
 (rule
   (targets xapi-storage-script.8)
-  (package xapi-storage-script)
+  (package xapi)
   (deps
     (:x main.exe)
   )
@@ -51,13 +51,13 @@
 
 (install
   (section man)
-  (package xapi-storage-script)
+  (package xapi)
   (files (xapi-storage-script.8 as man8/xapi-storage-script.8))
 )
 
 (rule
   (alias runtest-python)
-  (package xapi-storage-script)
+  (package xapi)
   (deps
     (:x main.exe)
     (source_tree test/volume)

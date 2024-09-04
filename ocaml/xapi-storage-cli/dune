@@ -15,6 +15,6 @@
   (preprocess (pps ppx_deriving_rpc))
 )
 (install
- (package xapi-storage-cli)
+ (package xapi)
  (section sbin)
  (files (main.exe as sm-cli)))

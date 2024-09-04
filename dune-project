@@ -84,22 +84,6 @@
 )
 
 (package
-  (name xapi-storage-script)
-)
-
-(package
-  (name xapi-storage-cli)
-)
-
-(package
-  (name xapi-storage)
-)
-
-(package
-  (name xapi-squeezed)
-)
-
-(package
   (name rrdd-plugin)
   (synopsis "A plugin library for the xapi performance monitoring daemon")
   (description "This library allows one to expose a datasource which can then be sampled by the performance monitoring daemon.")

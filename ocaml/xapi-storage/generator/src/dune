@@ -1,11 +1,11 @@
 (executable
   (name main)
   (libraries
-    xapi-storage
     unix
     cmdliner
     rpclib.core
     rpclib.markdown
+    xapi_storage
   )
 )
 

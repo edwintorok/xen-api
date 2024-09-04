@@ -52,7 +52,6 @@ depends: [
   "xapi-stdext-pervasives" {= version}
   "xapi-stdext-threads" {= version}
   "xapi-stdext-unix" {= version}
-  "xapi-stdext-zerocheck" {= version}
   "xapi-test-utils" {with-test}
   "xapi-tracing-export" {= version}
   "xapi-types" {= version}
