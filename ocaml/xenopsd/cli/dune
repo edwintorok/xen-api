@@ -18,9 +18,9 @@
       uuid
       uuidm
       xapi-idl
-      xapi-idl.xen
-      xapi-idl.xen.interface
-      xapi-idl.xen.interface.types
+      xapi_idl_xen
+      xapi_idl_xen_interface
+      xapi_idl_xen_interface_types
       xapi-stdext-pervasives
   )
   (preprocess (per_module ((pps ppx_deriving_rpc) Common Xn_cfg_types)))

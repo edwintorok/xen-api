@@ -21,8 +21,8 @@
   uuidm
   uri
   xapi_guard
-  xapi-idl.xen.interface
-  xapi-idl.guard.varstored
+  xapi_idl_xen_interface
+  xapi_idl_guard_varstored
   xapi-log
   xapi-types
   xen-api-client-lwt
@@ -50,6 +50,6 @@
   xapi-consts
   xapi-idl
   xapi-idl.guard.privileged
-  xapi-idl.guard.varstored
+  xapi_idl_guard_varstored
  )
  (preprocess (per_module ((pps ppx_deriving_rpc) Types Varstored_interface))))

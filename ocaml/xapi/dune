@@ -172,9 +172,9 @@
     xapi-idl.storage
     xapi-idl.storage.interface
     xapi-idl.storage.interface.types
-    xapi-idl.xen
-    xapi-idl.xen.interface
-    xapi-idl.xen.interface.types
+    xapi_idl_xen
+    xapi_idl_xen_interface
+    xapi_idl_xen_interface_types
     xapi-idl.network
     xapi-idl.v6
     xapi-idl.memory

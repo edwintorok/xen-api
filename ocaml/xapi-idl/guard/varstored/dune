@@ -1,12 +1,11 @@
 (library
  (name xapi_idl_guard_varstored)
- (public_name xapi-idl.guard.varstored)
  (modules (:standard \ varstored_cli))
  (libraries
    (re_export rpclib.core)
    threads
-   xapi-idl.xen
-   xapi-idl.xen.interface
+   xapi_idl_xen
+   xapi_idl_xen_interface
    xcp
  )
  (preprocess (pps ppx_deriving_rpc)))
@@ -22,7 +21,7 @@
    rpclib.core
    rpclib.markdown
    xapi-idl
-   xapi-idl.guard.varstored
+   xapi_idl_guard_varstored
  ))
 
 (rule

@@ -39,8 +39,8 @@
   xapi-idl.storage
   xapi-idl.storage.interface
   xapi-idl.guard.privileged
-  xapi-idl.xen.interface
-  xapi-idl.xen.interface.types
+  xapi_idl_xen_interface
+  xapi_idl_xen_interface_types
   xapi-log
   xapi_rrd
   xapi-stdext-date
@@ -75,7 +75,7 @@
   ezxenstore.core
   uuid
   xapi-idl
-  xapi-idl.xen.interface
+  xapi_idl_xen_interface
   xapi-inventory
   xapi-stdext-unix
   xapi_xenopsd
@@ -137,7 +137,7 @@
   
   ezxenstore.core
   threads.posix
-  xapi-idl.xen.interface
+  xapi_idl_xen_interface
   xapi_xenopsd
   xenctrl
   xenopsd_xc

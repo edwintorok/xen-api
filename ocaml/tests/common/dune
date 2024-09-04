@@ -19,7 +19,7 @@
     xapi-idl
     xapi-idl.memory
     xapi-idl.network
-    xapi-idl.xen.interface
+    xapi_idl_xen_interface
     xapi_internal
     xapi-inventory
     xapi-log

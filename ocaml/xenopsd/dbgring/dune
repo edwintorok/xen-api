@@ -12,7 +12,7 @@
    xenstore_transport
    xenstore_transport.unix
    threads
-   xapi-idl.xen
+   xapi_idl_xen
    rpclib.core
    uutf
    xapi-log

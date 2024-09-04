@@ -32,9 +32,9 @@
    xapi-idl.storage.interface
    xapi-idl.updates
    xapi-idl.guard.privileged
-   xapi-idl.xen
-   xapi-idl.xen.interface
-   xapi-idl.xen.interface.types
+   xapi_idl_xen
+   xapi_idl_xen_interface
+   xapi_idl_xen_interface_types
    xapi-log
    xapi_open_uri
    xapi-stdext-date

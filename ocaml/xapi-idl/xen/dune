@@ -1,6 +1,5 @@
 (library
- (name xcp_xen_interface_types)
- (public_name xapi-idl.xen.interface.types)
+ (name xapi_idl_xen_interface_types)
  (modules xenops_types device_number)
  (libraries
    astring
@@ -17,15 +16,14 @@
  (preprocess (pps ppx_deriving_rpc ppx_sexp_conv)))
 
 (library
- (name xcp_xen_interface)
- (public_name xapi-idl.xen.interface)
+ (name xapi_idl_xen_interface)
  (modules xenops_interface)
  (libraries
    result
    rpclib.core
    rresult
    xapi-idl
-   xapi-idl.xen.interface.types
+   xapi_idl_xen_interface_types
    xapi-log
  )
  (flags (:standard -w -27))
@@ -33,8 +31,7 @@
  (preprocess (pps ppx_deriving_rpc)))
 
 (library
- (name xcp_xen)
- (public_name xapi-idl.xen)
+ (name xapi_idl_xen)
  (modules (:standard \ device_number xenops_interface xenops_types))
  (libraries
    result
@@ -42,6 +39,6 @@
    rpclib.json
    threads
    xapi-idl
-   xapi-idl.xen.interface
+   xapi_idl_xen_interface
  )
  (wrapped false))

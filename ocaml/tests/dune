@@ -38,8 +38,8 @@
     xapi_datamodel
     xapi-idl
     xapi-idl.storage.interface
-    xapi-idl.xen.interface
-    xapi-idl.xen.interface.types
+    xapi_idl_xen_interface
+    xapi_idl_xen_interface_types
     xapi_internal
     xapi-log
     xapi-stdext-date
@@ -111,7 +111,7 @@
     xapi-idl.cluster
     xapi-idl.storage
     xapi-idl.storage.interface
-    xapi-idl.xen
+    xapi_idl_xen
     xapi_internal
     xapi-test-utils
     xapi_tracing
