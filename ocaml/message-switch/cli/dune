@@ -3,8 +3,8 @@
   (name main)
   (libraries
     cmdliner
-    message-switch-core
-    message-switch-unix
+    message_switch_core
+    message_switch_unix
     mtime
     rpclib.core
     rpclib.json
@@ -14,7 +14,7 @@
 )
 
 (install
- (package message-switch-cli)
+ (package xapi)
  (section sbin)
  (files (main.exe as message-cli))
 )

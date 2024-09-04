@@ -1,6 +1,5 @@
 (library
   (name message_switch_async)
-  (public_name message-switch-async)
   (libraries
     (re_export async)
     (re_export async_unix)
@@ -11,7 +10,7 @@
     core_unix
     core_kernel
     core_unix.time_unix
-    message-switch-core
+    message_switch_core
   )
 )
 

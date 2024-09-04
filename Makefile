@@ -256,10 +256,9 @@ install: build doc sdk doc-json
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
 		xapi-client xapi-consts xapi-cli-protocol xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
-		uuid xml-light2 \
-		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
-		message-switch-unix xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
-		xapi-nbd varstored-guard xapi-log xapi-tracing-export xapi-expiry-alerts \
+		xml-light2  \
+		message-switch-lwt xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
+		xapi-nbd varstored-guard xapi-log xapi-tracing-export xapi-expiry-alerts cohttp-posix \
 		xapi-inventory \
 		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
 # docs
@@ -279,10 +278,9 @@ uninstall:
 		xapi-client xapi-consts xapi-cli-protocol xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin rrd-transport \
 		uuid xml-light2 \
-		message-switch message-switch-async message-switch-cli message-switch-core message-switch-lwt \
-		message-switch-unix xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
-		xapi-tracing-export xapi-expiry-alerts \
-		xapi-inventory \
+		message-switch-lwt \ xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
+		xapi-tracing-export xapi-expiry-alerts cohttp-posix \
+		xapi-inventory clock \
 		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
 
 compile_flags.txt: Makefile

@@ -216,7 +216,6 @@
     mirage-crypto
     mirage-crypto-pk
     (mirage-crypto-rng (>= "0.11.0"))
-    (message-switch-unix (= :version))
     mtime
     opentelemetry-client-ocurl
     pci
@@ -361,50 +360,7 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name message-switch-async)
-)
-
-(package
   (name message-switch-lwt)
-)
-
-(package
-  (name message-switch-core)
-  (synopsis "A simple store-and-forward message switch")
-  (description "The switch stores messages in queues with well-known names. Clients use a simple HTTP protocol to enqueue and dequeue messages.")
-  (depends
-    astring
-    (cohttp (>= "0.21.1"))
-    ppx_deriving_rpc
-    ppx_sexp_conv
-    rpclib
-    sexplib
-    (xapi-log (= :version))
-    (xapi-stdext-threads (= :version))
-    (odoc :with-doc)
-  )
-)
-
-(package
-  (name message-switch-cli)
-)
-
-(package
-  (name message-switch-unix)
-  (synopsis "A simple store-and-forward message switch")
-  (description "The switch stores messages in queues with well-known names. Clients use a simple HTTP protocol to enqueue and dequeue messages.")
-  (depends
-    base-threads
-    cohttp
-    (message-switch-core (= :version))
-    ppx_deriving_rpc
-    rpclib
-    (xapi-stdext-threads (= :version))
-  )
-)
-
-(package
-  (name message-switch)
 )
 
 (package

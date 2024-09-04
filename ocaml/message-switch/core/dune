@@ -1,6 +1,6 @@
 (library
   (name message_switch_core)
-  (public_name message-switch-core)
+  (package xen-api-client)
   (libraries
     astring
     cohttp

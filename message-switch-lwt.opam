@@ -18,7 +18,7 @@ depends: [
   "odoc" {with-doc}
   "cohttp-lwt-unix"
   "lwt" {>= "3.0.0"}
-  "message-switch-core"
+  "message_switch_core"
 ]
 synopsis: "A simple store-and-forward message switch"
 description: """

@@ -3,7 +3,7 @@
   (public_name message-switch-lwt)
   (libraries
     cohttp-lwt-unix
-    message-switch-core
+    message_switch_core
     (re_export lwt)
     (re_export lwt.unix)
   )

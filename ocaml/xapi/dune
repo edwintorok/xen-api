@@ -119,8 +119,8 @@
     ipaddr
     ipaddr.unix
     magic-mime
-    message-switch-core
-    message-switch-unix
+    message_switch_core
+    message_switch_unix
     mirage-crypto
     mirage-crypto-rng
     mirage-crypto-rng.unix

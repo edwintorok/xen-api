@@ -22,9 +22,9 @@ depends: [
   "ipaddr"
   "logs"
   "lwt" {>= "5.0.0"}
-  "message-switch-async" {with-test}
-  "message-switch-core"
-  "message-switch-unix"
+  "message_switch_async" {with-test}
+  "message_switch_core"
+  "message_switch_unix"
   "mtime"
   "ppx_deriving_rpc"
   "ppx_sexp_conv"

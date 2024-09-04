@@ -9,8 +9,8 @@
    cohttp_posix
    fd-send-recv
    logs
-   message-switch-core
-   message-switch-unix
+   message_switch_core
+   message_switch_unix
    mtime
    mtime.clock.os
    re

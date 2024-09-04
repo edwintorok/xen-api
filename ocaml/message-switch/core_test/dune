@@ -13,9 +13,9 @@
     lock_test_lwt
   )
   (libraries
-    message-switch-unix
-    message-switch-core
-    message-switch-async
+    message_switch_unix
+    message_switch_core
+    message_switch_async
     message-switch-lwt
     threads.posix
   )
@@ -27,7 +27,7 @@
     lock_test_async.exe
   )
   (action (run ./lock_test_async.exe))
-  (package message-switch)
+  (package xapi)
 )
 
 (rule
@@ -36,7 +36,7 @@
     lock_test_lwt.exe
   )
   (action (run ./lock_test_lwt.exe))
-  (package message-switch)
+  (package xapi)
 )
 
 
@@ -54,7 +54,7 @@
     ../cli/main.exe
   )
   (action (run ./basic-rpc-test.sh))
-  (package message-switch)
+  (package xapi)
 )
 
 (rule
@@ -71,7 +71,7 @@
     ../cli/main.exe
   )
   (action (setenv SECS 5 (run ./basic-rpc-test.sh)))
-  (package message-switch)
+  (package xapi)
 )
 
 
@@ -89,6 +89,6 @@
     ../cli/main.exe
   )
   (action (run ./concur-rpc-test.sh))
-  (package message-switch)
+  (package xapi)
 )
 

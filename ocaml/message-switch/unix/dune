@@ -1,13 +1,13 @@
 (library
   (name message_switch_unix)
-  (public_name message-switch-unix)
+  (package xen-api-client)
   (modules
     protocol_unix
     protocol_unix_scheduler
   )
   (libraries
     cohttp
-    message-switch-core
+    message_switch_core
     rpclib.core
     rpclib.json
     threads.posix
