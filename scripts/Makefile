@@ -123,7 +123,7 @@ install:
 	$(IPROG) certificate-check $(DESTDIR)/etc/cron.daily/
 	$(IPROG) certificate-refresh $(DESTDIR)/etc/cron.hourly/
 	mkdir -p $(DESTDIR)/etc/cron.d
-	$(IDATA) xapi-tracing-log-trim.cron $(DESTDIR)/etc/cron.d/xapi_tracing-log-trim.cron
+	$(IDATA) xapi-tracing-log-trim.cron $(DESTDIR)/etc/cron.d/xapi-tracing-log-trim.cron
 	mkdir -p $(DESTDIR)/opt/xensource/gpg
 # host-backup-restore
 	$(IPROG) host-backup-restore/host-backup $(DESTDIR)$(LIBEXECDIR)
