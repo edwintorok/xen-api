@@ -25,10 +25,6 @@
 
 
 (package
-  (name xen-api-client-async)
-)
-
-(package
   (name xen-api-client)
   (synopsis "Xen-API client library for remotely-controlling a xapi host")
   (authors "David Scott" "Anil Madhavapeddy" "Jerome Maloberti" "John Else" "Jon Ludlam" "Thomas Sanders" "Mike McClurg")
