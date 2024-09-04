@@ -2,7 +2,7 @@
  (modes exe)
  (name squeezed)
  (public_name squeezed)
- (package xapi-squeezed)
+ (package xapi)
   (flags (:standard -bin-annot))
   (libraries
     xapi-stdext-threads

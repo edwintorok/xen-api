@@ -1,6 +1,6 @@
 (test
  (name squeeze_test_main)
- (package xapi-squeezed)
+ (package xapi)
   (flags (:standard -bin-annot))
   (libraries
     alcotest
