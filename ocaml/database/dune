@@ -28,7 +28,7 @@
     gzip
     rpclib.core
     rpclib.json
-    safe-resources
+    safe_resources
     stunnel
     threads.posix
     http_lib

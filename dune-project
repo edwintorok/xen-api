@@ -369,10 +369,6 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name safe-resources)
-)
-
-(package
   (name rrddump)
 )
 

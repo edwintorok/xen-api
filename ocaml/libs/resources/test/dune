@@ -1,9 +1,9 @@
 (tests
-  (package safe-resources)
+  (package xen-api-client)
   (names test)
   (action (run %{test} -e))
   (libraries
-    safe-resources
+    safe_resources
     logs.fmt
     alcotest
   )

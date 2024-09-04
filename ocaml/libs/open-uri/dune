@@ -3,7 +3,7 @@
  (package xen-api-client)
  (libraries
    cohttp
-   safe-resources
+   safe_resources
    stunnel
    uri
    xapi-backtrace

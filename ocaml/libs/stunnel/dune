@@ -5,7 +5,7 @@
   (libraries
     astring
     forkexec
-    safe-resources
+    safe_resources
     threads.posix
     uuid
     xapi-consts

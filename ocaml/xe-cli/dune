@@ -7,7 +7,7 @@
     astring
     
     fpath
-    safe-resources
+    safe_resources
     stunnel
     threads
     xapi_tracing

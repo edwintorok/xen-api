@@ -109,7 +109,7 @@
   (libraries
 
     http_lib
-    safe-resources
+    safe_resources
     stunnel
     threads.posix
     xapi-stdext-pervasives
@@ -125,7 +125,7 @@
 
     http_lib
     httpsvr
-    safe-resources
+    safe_resources
     threads.posix
     xapi-stdext-threads
     xapi-stdext-unix

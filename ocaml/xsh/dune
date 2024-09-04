@@ -6,7 +6,7 @@
   (libraries
     
     stunnel
-    safe-resources
+    safe_resources
     xapi-consts
     xapi-log
   )

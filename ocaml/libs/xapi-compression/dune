@@ -5,7 +5,7 @@
   (libraries
     forkexec
     threads
-    safe-resources
+    safe_resources
     xapi-log
     xapi-stdext-pervasives
     xapi-stdext-unix
