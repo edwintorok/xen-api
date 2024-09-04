@@ -17,7 +17,7 @@
    xapi_guard
    xapi_guard_server
    xapi-idl
-   xapi-idl.guard.privileged
+   xapi_idl_guard_privileged
    xapi-log
    xapi-types
    xapi_version
@@ -25,6 +25,6 @@
  (preprocess (pps ppx_deriving_rpc)))
 
 (install
- (package varstored-guard)
+ (package xapi)
  (section sbin)
  (files (main.exe as varstored-guard)))

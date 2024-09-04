@@ -49,7 +49,7 @@
   xapi-backtrace
   xapi-consts
   xapi-idl
-  xapi-idl.guard.privileged
+  xapi_idl_guard_privileged
   xapi_idl_guard_varstored
  )
  (preprocess (per_module ((pps ppx_deriving_rpc) Types Varstored_interface))))

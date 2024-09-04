@@ -1,6 +1,5 @@
 (library
  (name xapi_idl_guard_privileged)
- (public_name xapi-idl.guard.privileged)
  (modules (:standard \ xapiguard_cli))
  (libraries
    result
@@ -15,7 +14,7 @@
  (public_name xapiguard_cli)
  (modes exe)
  (modules xapiguard_cli)
- (package varstored-guard)
+ (package xapi)
  (libraries
    cmdliner
    
@@ -23,11 +22,11 @@
    rpclib.core
    rpclib.markdown
    xapi-idl
-   xapi-idl.guard.privileged
+   xapi_idl_guard_privileged
  ))
 
 (rule
  (alias runtest)
  (deps xapiguard_cli.exe)
- (package varstored-guard)
+ (package xapi)
  (action (run %{deps} --help=plain)))

@@ -31,7 +31,7 @@
    xapi-idl.storage
    xapi-idl.storage.interface
    xapi-idl.updates
-   xapi-idl.guard.privileged
+   xapi_idl_guard_privileged
    xapi_idl_xen
    xapi_idl_xen_interface
    xapi_idl_xen_interface_types

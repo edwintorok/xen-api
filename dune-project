@@ -314,10 +314,6 @@ This package provides an Lwt compatible interface to the library.")
 )
 
 (package
-  (name varstored-guard)
-)
-
-(package
   (name message-switch-lwt)
 )
 
