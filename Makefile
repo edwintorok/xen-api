@@ -257,7 +257,7 @@ install: build doc sdk doc-json
 		xapi-client xapi-consts xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin \
 		xml-light2  \
-		message-switch-lwt xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-storage-cli \
+		message-switch-lwt xapi-idl xapi-storage xapi-storage-script xapi-storage-cli \
 		xapi-nbd xapi-log xapi-tracing-export xapi-expiry-alerts cohttp-posix \
 		xapi-inventory \
 		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
@@ -278,7 +278,7 @@ uninstall:
 		xapi-client xapi-consts xapi-types \
 		xen-api-client xen-api-client-lwt xen-api-client-async rrdd-plugin \
 		uuid xml-light2 \
-		message-switch-lwt \ xapi-idl xapi-forkexecd xapi-storage xapi-storage-script xapi-log \
+		message-switch-lwt \ xapi-idl xapi-storage xapi-storage-script xapi-log \
 		xapi-tracing-export xapi-expiry-alerts cohttp-posix \
 		xapi-inventory clock \
 		xapi-stdext-date xapi-stdext-pervasives xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck

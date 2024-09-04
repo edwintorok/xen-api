@@ -13,7 +13,6 @@ depends: [
   "ocaml"
   "astring"
   "rpclib"
-  "xapi-forkexecd" {= version}
   "xapi-stdext-pervasives" {= version}
   "xapi-stdext-threads" {= version}
   "xapi-stdext-unix" {= version}

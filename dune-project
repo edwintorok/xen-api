@@ -111,7 +111,6 @@
    ocaml
    astring
    rpclib
-   (xapi-forkexecd (= :version))
    (xapi-stdext-pervasives (= :version))
    (xapi-stdext-threads (= :version))
    (xapi-stdext-unix (= :version))
@@ -152,16 +151,6 @@
 
 (package
   (name xapi-idl)
-)
-
-(package
-  (name xapi-forkexecd)
-  (synopsis "Sub-process control service for xapi")
-  (description "This daemon creates and manages sub-processes on behalf of xapi.")
-  (depends
-   astring
-   (xapi-stdext-unix (= :version))
-  )
 )
 
 (package
