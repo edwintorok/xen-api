@@ -26,8 +26,9 @@ let rec levels sum caches n =
     levels (sum + cache.sum) (cache :: caches) (n+1)
 
 let caches () =
-  match get_cache_conf 0 "LEVEL1_DCACHE" with
+  [128000; 1048576]
+  (*match get_cache_conf 0 "LEVEL1_DCACHE" with
   | None -> []
   | Some l1 ->
-    levels l1.sum [l1] 2
+    levels l1.sum [l1] 2*)
 

@@ -208,14 +208,14 @@ let rec make_tests f ~timeslice ~linesize ~lo ~hi tests =
   end
   
 let caches = Cachesize.caches ()
-let linesize = List.fold_left Int.max 0 (List.map (fun c -> c.Cachesize.linesize) caches)
+let linesize = 128
 
 let tests timeslice f =
   let tests =
-    let lo = (caches |> List.rev |> List.hd).Cachesize.size / 2 in
+let lo  = 128000 in
     if !short then
       (* TODO: this could be factored out if we constructed the list of sizes first in both cases *)
-      let hi = (List.hd caches).Cachesize.size * 3/4 in
+      let hi = 1048576 in
       (* TODO: for larger stride size we may want to allocate a larger array, to ensure these properties *)
       (* fits L1: L1*0.75,
          fits L2: L2*0.75,
@@ -224,10 +224,10 @@ let tests timeslice f =
          we use 0.75*L to avoid the last few dropping out due to extra code/overhead,
             e.g. when handling the socket
       *)
-      lo :: List.rev_map (fun c -> c.Cachesize.size * 3/4) caches
+      lo :: [hi]
       |> List.map (fun n -> f ~linesize ~hi ~n ~timeslice)
     else
-      let hi = (List.hd caches).Cachesize.size in
+      let hi = (List.hd caches) in
       make_tests f ~timeslice ~lo ~hi ~linesize []
   in
   Bechamel.Test.make_grouped ~name:"strided_read" tests
