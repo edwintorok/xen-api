@@ -383,9 +383,32 @@ let print_raw_results ?(print_header=false) raw_results timeslice =
     Printf.printf "\n"
   done
 
+let last_rdtsc = Atomic.make (Ocaml_intrinsics.Perfmon.rdtsc () |> Int64.to_int)
+
+(* TODO: measure overhead for yield in TSC cycles, and use that here *)
+let limits_threshold = 10000
+
+let limits_callback _alloc =
+  let now = Ocaml_intrinsics.Perfmon.rdtsc() |> Int64.to_int in
+  let prev = Atomic.exchange last_rdtsc now in
+  (* TODO: also check mutex, or enter/exit hook that sets flag *)
+  if now - prev > limits_threshold then Thread.yield ();
+  None
+
+
+let tracker = Gc.Memprof.{null_tracker with alloc_minor = limits_callback; alloc_major = limits_callback}
+
+let set_limits_yield () =
+  (* suggested by memprof-limits, don't capture callstacks, just yield if needed *)
+  let (_:Gc.Memprof.t)=
+  Gc.Memprof.start ~sampling_rate:1e-4 ~callstack_size:0 tracker in ()
+  
+
 let run_tests ?print_header cfg random timeslice = 
   let f = if random then test_cycle_read else test_strided_read in
   if timeslice > 0. then set_timeslice timeslice;
+	(*  FIXME : variant *)
+  if timeslice == -10. then set_limits_yield ();
   let raw_results = tests timeslice f |> Bechamel.Benchmark.all cfg instances in
   if !raw then
     print_raw_results ?print_header raw_results timeslice
