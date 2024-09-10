@@ -49,6 +49,11 @@
 )
 
 (install
+ (section libexec_root)
+ (files xapi)
+)
+
+(install
   (section share)
   (files rbac_static.csv)
   (package xapi)
