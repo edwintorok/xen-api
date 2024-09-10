@@ -31,8 +31,9 @@
   (preprocess (per_module ((pps ppx_sexp_conv) Logging Q Switch_main)))
 )
 
+; should be xapi once we change its install rules to install into /opt
 (install
-  (package xapi)
+  (package message-switch-lwt)
   (section sbin)
   (files (switch_main.exe as message-switch))
 )

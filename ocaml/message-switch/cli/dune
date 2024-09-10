@@ -13,8 +13,10 @@
   (preprocess (pps ppx_deriving_rpc))
 )
 
+; should be xapi once we change its install rules to install into /opt,
+; and use dune instead of the Makefile
 (install
- (package xapi)
+ (package message-switch-lwt)
  (section sbin)
  (files (main.exe as message-cli))
 )
