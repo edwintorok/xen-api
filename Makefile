@@ -254,6 +254,7 @@ install: build doc sdk doc-json
 	install -m 755 _build/install/default/bin/wsproxy $(DESTDIR)$(LIBEXECDIR)/wsproxy
 # dune can install libraries and several other files into the right locations
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --mandir=$(MANDIR) \
+		--sharedir=$(SHAREDIR) --libexecdir=$(SHAREDIR)/bin \
 		xapi-client xapi-consts xapi-types \
 		xen-api-client xen-api-client-lwt rrdd-plugin \
 		xml-light2  \
