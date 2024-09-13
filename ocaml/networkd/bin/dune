@@ -55,3 +55,8 @@
  (section sbin)
  (files (networkd.exe as xcp-networkd))
 )
+
+(alias
+ (name xapi-doc)
+ (deps (alias man))
+)

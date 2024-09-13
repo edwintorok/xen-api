@@ -80,22 +80,7 @@ schema:
 	dune runtest ocaml/idl
 
 doc:
-#html
-	dune build --profile=$(PROFILE) -f @ocaml/doc/jsapigen
-	mkdir -p $(XAPIDOC)/html
-	cp -r _build/default/ocaml/doc/api $(XAPIDOC)/html
-	cp _build/default/ocaml/doc/branding.js $(XAPIDOC)/html
-	cp ocaml/doc/*.js ocaml/doc/*.html ocaml/doc/*.css $(XAPIDOC)/html
-#markdown
-	dune build --profile=$(PROFILE) -f @ocaml/idl/markdowngen
-	mkdir -p $(XAPIDOC)/markdown
-	cp -r _build/default/ocaml/idl/autogen/*.md $(XAPIDOC)/markdown
-	cp -r _build/default/ocaml/idl/autogen/*.yml $(XAPIDOC)/markdown
-	find ocaml/doc -name "*.md" -not -name "README.md" -exec cp {} $(XAPIDOC)/markdown/ \;
-#other
-	cp ocaml/doc/*.dot ocaml/doc/doc-convert.sh $(XAPIDOC)
-# Build manpages, networkd generated these
-	dune build --profile=$(PROFILE) -f @man
+	dune build --profile=$(PROFILE) @xapi-doc
 
 sdk:
 	dune build --profile=$(PROFILE)  @sdkgen xapi-sdk.install @ocaml/sdk-gen/install
@@ -113,8 +98,7 @@ sdk-build-java: sdk
 python:
 	$(MAKE) -C python3/examples build
 
-doc-json:
-	dune exec --profile=$(PROFILE) -- ocaml/idl/json_backend/gen_json.exe -destdir $(XAPIDOC)/jekyll
+doc-json: doc
 
 format:
 	dune build @fmt --auto-promote
@@ -166,13 +150,7 @@ install: build doc sdk doc-json
 		xapi-nbd varstored-guard xapi-log xapi-open-uri xapi-tracing xapi-tracing-export xapi-expiry-alerts cohttp-posix \
 		xapi-rrd xapi-inventory clock xapi-rrdd rrddump xapi-rrd-transport-utils wsproxy xapi-networkd xapi-squeezed xapi-xenopsd-simulator xapi-xenopsd-cli xapi-xenopsd-xc\
 		xapi-stdext-date xapi-stdext-encodings xapi-stdext-pervasives xapi-stdext-std xapi-stdext-threads xapi-stdext-unix xapi-stdext-zerocheck
-# docs
-	mkdir -p $(DESTDIR)$(DOCDIR)
-	cp -r $(XAPIDOC)/jekyll $(DESTDIR)$(DOCDIR)
-	cp -r $(XAPIDOC)/html $(DESTDIR)$(DOCDIR)
-	cp -r $(XAPIDOC)/markdown $(DESTDIR)$(DOCDIR)
-	cp $(XAPIDOC)/*.dot $(XAPIDOC)/doc-convert.sh $(DESTDIR)$(DOCDIR)
-	dune install --destdir=$(DESTDIR) --prefix=$(OPTDIR) --libdir=$(LIBDIR) --mandir=$(MANDIR) --libexecdir=$(OPTDIR)/libexec  xapi xe rrdd-plugins
+	dune install --destdir=$(DESTDIR) --prefix=$(OPTDIR) --libdir=$(LIBDIR) --mandir=$(MANDIR) --libexecdir=$(OPTDIR)/libexec --datadir=$(DOCDIR)  xapi xe rrdd-plugins
 	dune install --destdir=$(DESTDIR) --prefix=$(OPTDIR) --libdir=$(LIBDIR) --mandir=$(MANDIR) --libexecdir=$(OPTDIR)/libexec --bindir=$(OPTDIR)/debug --datadir=$(OPTDIR)/debug xapi-debug
 	dune install --destdir=$(DESTDIR) --prefix=$(PREFIX) --libdir=$(LIBDIR) --libexecdir=/usr/libexec --mandir=$(MANDIR) vhd-tool
 
@@ -181,9 +159,10 @@ install: build doc sdk doc-json
 	(cd $(DESTDIR)/$(XENOPSD_LIBEXECDIR) && ln -sf pvs-proxy-ovs-setup setup-pvs-proxy-rules)
 # sdk
 	dune install --destdir=$(DESTDIR) --datadir=$(SDKDIR) xapi-sdk
+	chmod +x $(DESTDIR)$(DOCDIR)/doc-convert.sh
 	# backward compat with existing specfile, to be removed after it is updated
 	find $(DESTDIR) -name '*.cmxs' -delete
-	for pkg in rrdd-plugins xapi-debug xapi xe xapi-networkd xapi-xenopsd-cli xapi-xenopsd-simulator xapi-xenopsd-xc xapi-squeezed xapi-rrdd xapi-rrd-transport-utils rrddump wsproxy vhd-tool; do for f in CHANGELOG LICENSE README.markdown; do rm $(DESTDIR)$(OPTDIR)/doc/$$pkg/$$f $(DESTDIR)$(PREFIX)/doc/$$pkg/$$f -f; done; for f in META dune-package opam; do rm $(DESTDIR)$(LIBDIR)/$$pkg/$$f; done; done
+	for pkg in rrdd-plugins xapi-debug xapi xe xapi-networkd xapi-xenopsd-cli xapi-xenopsd-simulator xapi-xenopsd-xc xapi-squeezed xapi-rrdd xapi-rrd-transport-utils rrddump wsproxy vhd-tool; do for f in CHANGELOG LICENSE README.markdown; do rm $(DESTDIR)$(OPTDIR)/doc/$$pkg/$$f $(DESTDIR)$(PREFIX)/doc/$$pkg/$$f -f; done; for f in META dune-package opam; do rm $(DESTDIR)$(LIBDIR)/$$pkg/$$f; done; done;
 
 uninstall:
 	# only removes what was installed with `dune install`
