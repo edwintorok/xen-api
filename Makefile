@@ -184,9 +184,6 @@ install:
 	mv $(DESTDIR)/usr/bin/wsproxy $(DESTDIR)$(LIBEXECDIR)/wsproxy
 	(cd $(DESTDIR)/$(XENOPSD_LIBEXECDIR) && ln -sf pvs-proxy-ovs-setup setup-pvs-proxy-rules)
 	chmod +x $(DESTDIR)$(DOCDIR)/doc-convert.sh
-	# backward compat with existing specfile, to be removed after it is updated
-	find $(DESTDIR) -name '*.cmxs' -delete
-	for pkg in xapi-debug xapi xe xapi-tools xapi-sdk vhd-tool; do for f in CHANGELOG LICENSE README.markdown; do rm $(DESTDIR)$(OPTDIR)/doc/$$pkg/$$f $(DESTDIR)$(PREFIX)/doc/$$pkg/$$f -f; done; for f in META dune-package opam; do rm $(DESTDIR)$(LIBDIR)/$$pkg/$$f -f; done; done;
 
 
 uninstall:
