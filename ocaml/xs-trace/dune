@@ -19,9 +19,8 @@
   (action (with-stdout-to %{targets} (run %{exe} --help=groff)))
 )
 
-; not expected by the specfile
-;(install
-;  (section man)
-;  (package xapi)
-;  (files (xs-trace.1 as man1/xs-trace.1))
-;)
+(install
+  (section man)
+  (package xapi)
+  (files (xs-trace.1 as man1/xs-trace.1))
+)

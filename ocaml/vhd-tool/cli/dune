@@ -38,11 +38,10 @@
   (action (with-stdout-to %{targets} (run %{x} --help)))
 )
 
-; specfile doesn't expect these
-;(install
-;  (package vhd-tool)
-;  (section man)
-;  (files vhd-tool.1 sparse_dd.1))
+(install
+  (package vhd-tool)
+  (section man)
+  (files vhd-tool.1 sparse_dd.1))
 
 (install
   (package vhd-tool)
