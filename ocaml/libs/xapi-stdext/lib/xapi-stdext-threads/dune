@@ -7,7 +7,12 @@
     unix
     xapi-stdext-unix
     xapi-stdext-pervasives)
+  (foreign_stubs
+    (language c)
+    (names runtime_lock_waiters)
+  )
 )
+
 (test
   (name threadext_test)
   (package xapi-stdext-threads)

@@ -12,13 +12,35 @@
  * GNU Lesser General Public License for more details.
  *)
 
+
+external init : unit -> unit = "caml_runtime_lock_waiters_init"
+external runtime_lock_waiters_get: unit -> int = "caml_runtime_lock_waiters_get"
+
+let () =
+  let _force_linking = Sys.opaque_identity (Thread.self ()) in
+  init ()
+
+let holding_lock = Atomic.make 0
+
+let periodic_hook _ =
+  if Atomic.get holding_lock = 0 && runtime_lock_waiters_get () > 0 then
+    (* TODO: also ratelimit *)
+    Thread.yield ();
+  None
+
+let periodic = Gc.Memprof.{null_tracker with alloc_minor = periodic_hook; alloc_major = periodic_hook}
+
+let init_lowlatency ?(sampling_rate=1e-4) () =
+  Gc.Memprof.start ~sampling_rate ~callstack_size:0 periodic
+
 module M = Mutex
 
 module Mutex = struct
   (** execute the function f with the mutex hold *)
   let execute lock f =
     Mutex.lock lock ;
-    Xapi_stdext_pervasives.Pervasiveext.finally f (fun () -> Mutex.unlock lock)
+    Atomic.incr holding_lock;
+    Xapi_stdext_pervasives.Pervasiveext.finally f (fun () -> Atomic.decr holding_lock; Mutex.unlock lock)
 end
 
 (** Parallel List.iter. Remembers all exceptions and returns an association list mapping input x to an exception.

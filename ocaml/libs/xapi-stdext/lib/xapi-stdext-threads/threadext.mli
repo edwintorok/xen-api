@@ -15,6 +15,10 @@ module Mutex : sig
   val execute : Mutex.t -> (unit -> 'a) -> 'a
 end
 
+val runtime_lock_waiters_get : unit -> int
+
+val init_lowlatency: ?sampling_rate:float -> unit -> unit
+
 val thread_iter_all_exns : ('a -> unit) -> 'a list -> ('a * exn) list
 
 val thread_iter : ('a -> unit) -> 'a list -> unit

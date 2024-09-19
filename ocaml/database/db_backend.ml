@@ -13,6 +13,8 @@
  *)
 open Db_cache_types
 
+let () = Xapi_stdext_threads.Threadext.init_lowlatency ()
+
 (* --------------------- Constants/data-structures for storing db contents *)
 
 let db_FLUSH_TIMER = 2.0
