@@ -619,7 +619,7 @@ let login_no_password_common ~__context ~uname ~originator ~host ~pool
     ~is_local_superuser ~subject ~auth_user_sid ~auth_user_name
     ~rbac_permissions ~db_ref ~client_certificate =
   let create_session () =
-    let session_id = Ref.make () in
+    let session_id = Ref.make_secret () in
     let uuid = Uuidx.to_string (Uuidx.make_uuid_urnd ()) in
     let user = Ref.null in
     (* always return a null reference to the deprecated user object *)

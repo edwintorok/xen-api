@@ -37,6 +37,10 @@ let make () =
   let uuid = Uuidx.(to_string (make ())) in
   Real uuid
 
+let make_secret () =
+  let uuid = Uuidx.(to_string (make_uuid_urnd ())) in
+  Real uuid
+
 let null = Null
 
 (* a dummy reference is a reference of an object which is not in database *)

@@ -18,6 +18,8 @@ val ref_prefix : string
 
 val make : unit -> 'a t
 
+val make_secret: unit -> 'a t
+
 val null : 'a t
 
 val compare : 'a t -> 'a t -> int
