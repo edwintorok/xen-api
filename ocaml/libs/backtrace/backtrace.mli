@@ -37,6 +37,25 @@ val to_string_hum : t -> string
     stash away a copy of the backtrace buffer if there is any risk
     of us raising another (or even the same) exception) *)
 
+val try_with : (unit -> 'a) -> (exn -> Printexc.raw_backtrace -> 'a) -> 'a
+(** [try_with f arg handler] runs [f arg], passing any exceptions together with its backtrace to [handler].
+    This ensures that backtraces do not get overwritten before having a chance to retrieve them.
+
+    It is equivalent to:
+    {[
+        try f ()
+        with e -> handler e (Printexc.get_raw_backtrace ())
+    ]}
+
+    And prevents common mistakes like this where the exception would be overwritten:
+    {[
+        try f ()
+        with e ->
+         error "Foo: %..." ...;
+         Backtrace.reraise e ...
+    ]}
+ *)
+
 val with_backtraces : (unit -> 'a) -> [`Ok of 'a | `Error of exn * t]
 (** Allow backtraces to be recorded for this thread. All new threads
     must be wrapped in this for the backtrace tracking to work.

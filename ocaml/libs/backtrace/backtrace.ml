@@ -50,6 +50,12 @@ type t = frame list [@@deriving sexp]
 
 let empty = []
 
+let[@inline always] try_with f handler =
+  try f ()
+  with e ->
+    let bt = Printexc.get_raw_backtrace () in
+    handler e bt
+
 let to_string_hum xs =
   let xs' = List.length xs in
   let results = Buffer.create 10 in
