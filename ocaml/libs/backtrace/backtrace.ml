@@ -34,7 +34,17 @@ let rec split_c c str =
     :: split_c c (String.sub str (i + 1) (String.length str - i - 1))
   with Not_found -> [str]
 
-type frame = {process: string; filename: string; line: int} [@@deriving sexp]
+type frame = {
+    process: string
+  ; filename: string
+  ; line: int
+  ; characters: (int * int) option [@sexp.option]
+  ; line_end: int option [@sexp.option]
+  ; name: string option [@sexp.option]
+  ; is_inline: bool option [@sexp.option]
+  ; is_raise: bool option [@sexp.option]
+}
+[@@deriving sexp]
 
 type t = frame list [@@deriving sexp]
 
@@ -47,11 +57,20 @@ let to_string_hum xs =
     | [] ->
         Buffer.contents results
     | x :: xs ->
-        Buffer.add_string results
-          (Printf.sprintf "%d/%d %s %s file %s, line %d" i xs' x.process
-             (if first_line then "Raised at" else "Called from")
-             x.filename x.line
-          ) ;
+        let raise_or_call =
+          if first_line then
+            "Raised at"
+          else if x.is_raise = Some true then
+            "Re-raised at"
+          else
+            "Called from"
+        and inlined = if x.is_inline = Some true then " (inlined)" else "" in
+        Printf.bprintf results "%d/%d %s %s file \"%s\"%s, line %d" i xs'
+          x.process raise_or_call x.filename inlined x.line ;
+        x.characters
+        |> Option.iter (fun (s, e) ->
+               Printf.bprintf results ", characters %d-%d" s e
+           ) ;
         Buffer.add_string results "\n" ;
         loop false (i + 1) xs
   in
@@ -75,7 +94,17 @@ let frame_of_slot process slot =
   | None ->
       None
   | Some loc ->
-      Some {process; filename= loc.filename; line= loc.line_number}
+      Some
+        {
+          process
+        ; filename= loc.filename
+        ; line= loc.line_number
+        ; characters= Some (loc.start_char, loc.end_char)
+        ; line_end= None
+        ; name= Slot.name slot
+        ; is_inline= Some (Slot.is_inline slot)
+        ; is_raise= Some (Slot.is_raise slot)
+        }
 
 let fold_dedup_frames revlst item =
   match revlst with last :: _ when last = item -> revlst | _ -> item :: revlst
@@ -90,7 +119,7 @@ let frames_of_slots slots =
 let of_raw bt =
   bt |> Printexc.backtrace_slots |> Option.fold ~none:[] ~some:frames_of_slots
 
-let get_backtrace_402 () = Printexc.get_raw_backtrace () |> of_raw
+let get_backtrace_411 () = Printexc.get_raw_backtrace () |> of_raw
 
 let make () =
   let backtraces = Array.make max_backtraces [] in
@@ -109,7 +138,7 @@ let add t exn bt =
   )
 
 let is_important t exn =
-  let bt = get_backtrace_402 () in
+  let bt = get_backtrace_411 () in
   (* Deliberately clear the backtrace buffer *)
   (try raise Not_found with Not_found -> ()) ;
   add t exn bt
@@ -218,16 +247,26 @@ let is_important exn =
 
 let add exn bt = with_table (fun tbl -> add tbl exn bt) (fun () -> ())
 
+let make process filename line =
+  {
+    process
+  ; filename
+  ; line
+  ; characters= None
+  ; line_end= None
+  ; name= None
+  ; is_inline= None
+  ; is_raise= None
+  }
+
 let warning () =
   [
-    {
-      process= !my_name
-    ; filename=
-        Printf.sprintf
-          "(Thread %d has no backtrace table. Was with_backtraces called?"
-          Thread.(id (self ()))
-    ; line= 0
-    }
+    make !my_name
+      (Printf.sprintf
+         "(Thread %d has no backtrace table. Was with_backtraces called?"
+         Thread.(id (self ()))
+      )
+      0
   ]
 
 let remove exn = with_table (fun tbl -> remove tbl exn) warning
@@ -251,5 +290,5 @@ module Interop = struct
   let of_json source_name txt =
     txt |> Jsonrpc.of_string |> error_of_rpc |> fun e ->
     List.combine e.files e.lines
-    |> List.map (fun (filename, line) -> {process= source_name; filename; line})
+    |> List.map (fun (filename, line) -> make source_name filename line)
 end
