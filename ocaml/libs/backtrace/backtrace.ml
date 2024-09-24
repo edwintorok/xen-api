@@ -23,10 +23,7 @@ module Mutex = struct
   (** execute the function f with the mutex hold *)
   let execute lock f =
     Mutex.lock lock ;
-    let r =
-      begin try f () with exn -> Mutex.unlock lock ; raise exn
-      end
-    in
+    let r = try f () with exn -> Mutex.unlock lock ; raise exn in
     Mutex.unlock lock ; r
 end
 
@@ -78,22 +75,21 @@ let max_backtraces = 100
 
 let frame_of_string process x =
   try
-    begin match split_c '"' x with
-    | [_; filename; rest] -> begin
+    match split_c '"' x with
+    | [_; filename; rest] -> (
       match split_c ',' rest with
-      | [_; line_n; _] -> begin
+      | [_; line_n; _] -> (
         match split_c ' ' line_n with
         | _ :: _ :: n :: _ ->
             {process; filename; line= int_of_string n}
         | _ ->
             failwith (Printf.sprintf "Failed to parse line: [%s]" line_n)
-        end
+      )
       | _ ->
           failwith (Printf.sprintf "Failed to parse fragment: [%s]" filename)
-      end
+    )
     | _ ->
         failwith (Printf.sprintf "Failed to parse fragment: [%s]" x)
-    end
   with e -> {process; filename= "(" ^ Printexc.to_string e ^ ")"; line= 0}
 
 let get_backtrace_401 () =
@@ -198,7 +194,7 @@ let with_backtraces f =
             make ()
         in
         (* If we nest these functions we add multiple bindings
-         to the same mutable table which is ok *)
+           to the same mutable table which is ok *)
         Hashtbl.add per_thread_backtraces id tbl ;
         tbl
       )
