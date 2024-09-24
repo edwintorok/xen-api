@@ -18,6 +18,10 @@ type t [@@deriving sexp]
 val empty : t
 (** An empty backtrace *)
 
+val of_raw : Printexc.raw_backtrace -> t
+(** [of_raw bt] convert a {!type:Printexc.raw_backtrace} to {!type:t}.
+    This can be useful if you want to serialize it / deserialize it. *)
+
 val to_string_hum : t -> string
 (** Produce a human-readable printable/loggable version of the
     backtrace. *)

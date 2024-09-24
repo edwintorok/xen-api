@@ -69,30 +69,28 @@ type table = {
    be enough. *)
 let max_backtraces = 100
 
-let frame_of_string process x =
-  try
-    match split_c '"' x with
-    | [_; filename; rest] -> (
-      match split_c ',' rest with
-      | [_; line_n; _] -> (
-        match split_c ' ' line_n with
-        | _ :: _ :: n :: _ ->
-            {process; filename; line= int_of_string n}
-        | _ ->
-            failwith (Printf.sprintf "Failed to parse line: [%s]" line_n)
-      )
-      | _ ->
-          failwith (Printf.sprintf "Failed to parse fragment: [%s]" filename)
-    )
-    | _ ->
-        failwith (Printf.sprintf "Failed to parse fragment: [%s]" x)
-  with e -> {process; filename= "(" ^ Printexc.to_string e ^ ")"; line= 0}
+let frame_of_slot process slot =
+  let open Printexc in
+  match Slot.location slot with
+  | None ->
+      None
+  | Some loc ->
+      Some {process; filename= loc.filename; line= loc.line_number}
 
-let get_backtrace_401 () =
-  Printexc.get_backtrace ()
-  |> split_c '\n'
-  |> List.filter (fun x -> x <> "")
-  |> List.map (frame_of_string !my_name)
+let fold_dedup_frames revlst item =
+  match revlst with last :: _ when last = item -> revlst | _ -> item :: revlst
+
+let frames_of_slots slots =
+  slots
+  |> Array.to_seq
+  |> Seq.filter_map (frame_of_slot !my_name)
+  |> Seq.fold_left fold_dedup_frames []
+  |> List.rev
+
+let of_raw bt =
+  bt |> Printexc.backtrace_slots |> Option.fold ~none:[] ~some:frames_of_slots
+
+let get_backtrace_402 () = Printexc.get_raw_backtrace () |> of_raw
 
 let make () =
   let backtraces = Array.make max_backtraces [] in
@@ -111,7 +109,7 @@ let add t exn bt =
   )
 
 let is_important t exn =
-  let bt = get_backtrace_401 () in
+  let bt = get_backtrace_402 () in
   (* Deliberately clear the backtrace buffer *)
   (try raise Not_found with Not_found -> ()) ;
   add t exn bt
