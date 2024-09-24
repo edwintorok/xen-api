@@ -22,6 +22,11 @@ val of_raw : Printexc.raw_backtrace -> t
 (** [of_raw bt] convert a {!type:Printexc.raw_backtrace} to {!type:t}.
     This can be useful if you want to serialize it / deserialize it. *)
 
+val of_raw_and_interop : Printexc.raw_backtrace -> t -> t
+(** [of_raw_and_interop raw interop] concatenates the [interop] backtrace with the [raw] OCaml one.
+    This can be used before a call to [log_backtrace].
+ *)
+
 val to_string_hum : t -> string
 (** Produce a human-readable printable/loggable version of the
     backtrace. *)

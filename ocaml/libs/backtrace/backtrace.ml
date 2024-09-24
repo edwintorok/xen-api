@@ -109,15 +109,19 @@ let frame_of_slot process slot =
 let fold_dedup_frames revlst item =
   match revlst with last :: _ when last = item -> revlst | _ -> item :: revlst
 
-let frames_of_slots slots =
+let frames_of_slots interop slots =
   slots
   |> Array.to_seq
   |> Seq.filter_map (frame_of_slot !my_name)
-  |> Seq.fold_left fold_dedup_frames []
+  |> Seq.fold_left fold_dedup_frames (List.rev interop)
   |> List.rev
 
-let of_raw bt =
-  bt |> Printexc.backtrace_slots |> Option.fold ~none:[] ~some:frames_of_slots
+let of_raw_and_interop bt interop =
+  bt
+  |> Printexc.backtrace_slots
+  |> Option.fold ~none:[] ~some:(frames_of_slots interop)
+
+let of_raw bt = of_raw_and_interop bt empty
 
 let get_backtrace_411 () = Printexc.get_raw_backtrace () |> of_raw
 
