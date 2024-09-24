@@ -22,8 +22,9 @@ val of_raw : Printexc.raw_backtrace -> t
 (** [of_raw bt] convert a {!type:Printexc.raw_backtrace} to {!type:t}.
     This can be useful if you want to serialize it / deserialize it. *)
 
-val of_raw_and_interop : Printexc.raw_backtrace -> t -> t
-(** [of_raw_and_interop raw interop] concatenates the [interop] backtrace with the [raw] OCaml one.
+val of_raw_extract : exn -> Printexc.raw_backtrace -> t
+(** [of_raw_extract exn raw] concatenates the [interop] backtrace with the [raw] OCaml one.
+    The [interop] backtrace can be a parameter to an exception constructor, which can be extracted by an {!val:InterOp.register}ed extractor.
     This can be used before a call to [log_backtrace].
  *)
 
@@ -64,4 +65,9 @@ module Interop : sig
   val of_json : string -> string -> t
   (** [of_json source_name json]: unmarshals a json-format backtrace from
       [source_name] *)
+
+  val register : (exn -> t option) -> unit
+  (** [register extractor] registers a function that can extract the [interop] exception from an exception constructor.
+      It should return [None] if it doesn't recognize the exception.
+    *)
 end

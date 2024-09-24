@@ -126,4 +126,22 @@ module Interop = struct
     txt |> Jsonrpc.of_string |> error_of_rpc |> fun e ->
     List.combine e.files e.lines
     |> List.map (fun (filename, line) -> make source_name filename line)
+
+  let extractors = Atomic.make []
+
+  let rec register f =
+    let old = Atomic.get extractors in
+    let next = f :: old in
+    if not (Atomic.compare_and_set extractors old next) then (
+      Thread.yield () ; register f
+    )
 end
+
+let of_raw_extract exn bt =
+  let interop =
+    Interop.extractors
+    |> Atomic.get
+    |> List.find_map (fun f -> f exn)
+    |> Option.value ~default:empty
+  in
+  of_raw_and_interop bt interop
