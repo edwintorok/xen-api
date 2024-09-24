@@ -695,7 +695,9 @@ let check_domain_type : API.domain_type -> [`hvm | `pv_in_pvh | `pv | `pvh] =
       `pvh
   | `unspecified ->
       raise
-        Api_errors.(Server_error (internal_error, ["unspecified domain type"]))
+        Api_errors.(
+          Server_error (internal_error, ["unspecified domain type"], None)
+        )
 
 let domain_type ~__context ~self : [`hvm | `pv_in_pvh | `pv | `pvh] =
   let vm = Db.VM.get_record ~__context ~self in
@@ -826,7 +828,7 @@ let assert_we_are_master ~__context =
   if not (is_pool_master ~__context ~host:(get_localhost ~__context)) then
     raise
       Api_errors.(
-        Server_error (host_is_slave, [Pool_role.get_master_address ()])
+        Server_error (host_is_slave, [Pool_role.get_master_address ()], None)
       )
 
 (* Host version compare helpers *)
@@ -937,7 +939,7 @@ let is_platform_version_same_on_master ~__context ~host =
 let maybe_raise_vtpm_unimplemented func message =
   if not !ignore_vtpm_unimplemented then (
     error {|%s: Functionality not implemented yet. "%s"|} func message ;
-    raise Api_errors.(Server_error (not_implemented, [message]))
+    raise Api_errors.(Server_error (not_implemented, [message], None))
   )
 
 let assert_platform_version_is_same_on_master ~__context ~host ~self =
@@ -946,6 +948,7 @@ let assert_platform_version_is_same_on_master ~__context ~host ~self =
       (Api_errors.Server_error
          ( Api_errors.vm_host_incompatible_version
          , [Ref.string_of host; Ref.string_of self]
+         , None
          )
       )
 
@@ -956,14 +959,20 @@ let assert_platform_version_is_same_on_master ~__context ~host ~self =
 let assert_rolling_upgrade_not_in_progress : __context:Context.t -> unit =
  fun ~__context ->
   if rolling_upgrade_in_progress ~__context then
-    raise (Api_errors.Server_error (Api_errors.not_supported_during_upgrade, []))
+    raise
+      (Api_errors.Server_error
+         (Api_errors.not_supported_during_upgrade, [], None)
+      )
 
 let assert_host_has_highest_version_in_pool :
     __context:Context.t -> host:API.ref_host -> unit =
  fun ~__context ~host ->
   if not (host_has_highest_version_in_pool ~__context ~host:(LocalObject host))
   then
-    raise (Api_errors.Server_error (Api_errors.not_supported_during_upgrade, []))
+    raise
+      (Api_errors.Server_error
+         (Api_errors.not_supported_during_upgrade, [], None)
+      )
 
 let pool_has_different_host_platform_versions ~__context =
   let all_hosts = Db.Host.get_all ~__context in
@@ -1029,7 +1038,7 @@ let choose_suspend_sr ~__context ~vm =
   | None, None, None ->
       raise
         (Api_errors.Server_error
-           (Api_errors.vm_no_suspend_sr, [Ref.string_of vm])
+           (Api_errors.vm_no_suspend_sr, [Ref.string_of vm], None)
         )
 
 (* return the operations filtered for cancels functions *)
@@ -1072,7 +1081,10 @@ let assert_is_valid_tcp_udp_port ~port ~name =
     raise
       Api_errors.(
         Server_error
-          (value_not_supported, [name; string_of_int port; "Port out of range"])
+          ( value_not_supported
+          , [name; string_of_int port; "Port out of range"]
+          , None
+          )
       )
 
 let assert_is_valid_tcp_udp_port_range ~first_port ~first_name ~last_port
@@ -1089,6 +1101,7 @@ let assert_is_valid_tcp_udp_port_range ~first_port ~first_name ~last_port
             ; string_of_int last_port
             ; Printf.sprintf "%s smaller than %s" last_name first_name
             ]
+          , None
           )
       )
 
@@ -1107,7 +1120,7 @@ let is_valid_ip kind address =
 
 let assert_is_valid_ip kind field address =
   if not (is_valid_ip kind address) then
-    raise Api_errors.(Server_error (invalid_ip_address_specified, [field]))
+    raise Api_errors.(Server_error (invalid_ip_address_specified, [field], None))
 
 module type AbstractIpaddr = sig
   type t
@@ -1154,11 +1167,12 @@ let valid_cidr_aux kind cidr =
 
 let assert_is_valid_cidr kind field cidr =
   if valid_cidr_aux kind cidr then
-    raise Api_errors.(Server_error (invalid_cidr_address_specified, [field]))
+    raise
+      Api_errors.(Server_error (invalid_cidr_address_specified, [field], None))
 
 let assert_is_valid_ip_addr kind field address =
   if (not (is_valid_ip kind address)) && valid_cidr_aux kind address then
-    raise Api_errors.(Server_error (invalid_ip_address_specified, [field]))
+    raise Api_errors.(Server_error (invalid_ip_address_specified, [field], None))
 
 (** Return true if the MAC is in the right format XX:XX:XX:XX:XX:XX *)
 let is_valid_MAC mac =
@@ -1313,7 +1327,7 @@ let touch_file cmd_arg =
 let vm_to_string __context vm =
   let str = Ref.string_of vm in
   if not (Db.is_valid_ref __context vm) then
-    raise (Api_errors.Server_error (Api_errors.invalid_value, [str])) ;
+    raise (Api_errors.Server_error (Api_errors.invalid_value, [str], None)) ;
   let t = Context.database_of __context in
   let module DB =
     (val Xapi_database.Db_cache.get t : Xapi_database.Db_interface.DB_ACCESS)
@@ -1335,7 +1349,7 @@ let vm_string_to_assoc vm_string =
     | _ ->
         raise
           (Api_errors.Server_error
-             (Api_errors.invalid_value, ["Invalid vm_string"])
+             (Api_errors.invalid_value, ["Invalid vm_string"], None)
           )
   in
   match SExpr_TS.of_string vm_string with
@@ -1344,7 +1358,7 @@ let vm_string_to_assoc vm_string =
   | _ ->
       raise
         (Api_errors.Server_error
-           (Api_errors.invalid_value, ["Invalid vm_string"])
+           (Api_errors.invalid_value, ["Invalid vm_string"], None)
         )
 
 let get_srmaster ~__context ~sr =
@@ -1355,7 +1369,7 @@ let get_srmaster ~__context ~sr =
   else
     match List.length pbds with
     | 0 ->
-        raise (Api_errors.Server_error (Api_errors.sr_no_pbds, []))
+        raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [], None))
     | 1 ->
         Db.PBD.get_host ~__context ~self:(List.hd pbds)
     | _ ->
@@ -1363,6 +1377,7 @@ let get_srmaster ~__context ~sr =
           (Api_errors.Server_error
              ( Api_errors.sr_has_multiple_pbds
              , List.map (fun pbd -> Db.PBD.get_uuid ~__context ~self:pbd) pbds
+             , None
              )
           )
 
@@ -1425,7 +1440,10 @@ let assert_vswitch_controller_not_active ~__context =
   if sdn_controllers <> [] && backend = Network_interface.Openvswitch then
     raise
       (Api_errors.Server_error
-         (Api_errors.operation_not_allowed, ["A vswitch controller is active"])
+         ( Api_errors.operation_not_allowed
+         , ["A vswitch controller is active"]
+         , None
+         )
       )
 
 (* use the database rather than networkd so we can unit test the PVS functions that use this *)
@@ -1439,7 +1457,7 @@ let assert_using_vswitch ~__context =
     with Not_found -> false
   in
   if not using_vswitch then
-    raise Api_errors.(Server_error (openvswitch_not_active, []))
+    raise Api_errors.(Server_error (openvswitch_not_active, [], None))
 
 exception No_pvs_server_available
 
@@ -1449,7 +1467,8 @@ let assert_pvs_servers_available ~__context ~pvs_site =
 
 let assert_is_valid_ref ~__context ~name ~ref =
   if not (Db.is_valid_ref __context ref) then
-    raise Api_errors.(Server_error (invalid_value, [name; Ref.string_of ref]))
+    raise
+      Api_errors.(Server_error (invalid_value, [name; Ref.string_of ref], None))
 
 let force_loopback_vbd ~__context =
   (* Workaround assumption in SMRT: if a global flag is set, force use
@@ -1477,7 +1496,7 @@ let resolve_uri_path ~root ~uri_path =
         Printf.sprintf "Failed to resolve uri path '%s' under '%s': %s" uri_path
           root x
       in
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let run_in_parallel ~funs ~capacity =
   let rec run_in_parallel' acc funs capacity =
@@ -1535,7 +1554,8 @@ let with_global_lock x = with_lock __internal_mutex x
 let queue_thread f =
   with_global_lock (fun () ->
       if !__number_of_queueing_threads > max_number_of_queueing_threads then
-        raise (Api_errors.Server_error (Api_errors.too_many_pending_tasks, []))
+        raise
+          (Api_errors.Server_error (Api_errors.too_many_pending_tasks, [], None))
       else
         incr __number_of_queueing_threads
   ) ;
@@ -1645,7 +1665,7 @@ module Repeat_with_uniform_backoff : POLICY = struct
     debug "Waiting for up to %f seconds before retrying..." this_timeout ;
     let start = Unix.gettimeofday () in
     ( match e with
-    | Api_errors.Server_error (code, [cls; objref])
+    | Api_errors.Server_error (code, [cls; objref], None)
       when code = Api_errors.other_operation_in_progress ->
         Early_wakeup.wait (cls, objref) this_timeout
     | _ ->
@@ -1675,12 +1695,13 @@ let retry ~__context ~doc ?(policy = Policy.standard) f =
           (Api_errors.Server_error
              ( Api_errors.task_cancelled
              , [Ref.string_of (Context.get_task_id __context)]
+             , None
              )
           )
       ) ;
       f ()
     with
-    | Api_errors.Server_error (code, _ :: _) as e
+    | Api_errors.Server_error (code, _ :: _, None) as e
     when code = Api_errors.other_operation_in_progress
     ->
       debug "%s locking failed: caught transient failure %s" doc
@@ -1704,40 +1725,49 @@ let rec retry_until_timeout ?(interval = 0.1) ?(timeout = 5.) doc f =
       if next_timeout < 0. then
         raise
           Api_errors.(
-            Server_error (internal_error, [Printf.sprintf "retry %s failed" doc])
+            Server_error
+              (internal_error, [Printf.sprintf "retry %s failed" doc], None)
           ) ;
       Thread.delay interval ;
       retry_until_timeout ~interval:next_interval ~timeout:next_timeout doc f
 
 let get_first_pusb ~__context usb_group =
-  try List.hd (Db.USB_group.get_PUSBs ~__context ~self:usb_group)
-  with _ ->
-    raise
-      Api_errors.(
-        Server_error
-          ( internal_error
-          , [
-              Printf.sprintf
-                "there is no PUSB associated with the USB_group: %s"
-                (Ref.string_of usb_group)
-            ]
-          )
-      )
+  Backtrace.try_with
+    (fun () -> List.hd (Db.USB_group.get_PUSBs ~__context ~self:usb_group))
+    (fun _ bt ->
+      Printexc.raise_with_backtrace
+        Api_errors.(
+          Server_error
+            ( internal_error
+            , [
+                Printf.sprintf
+                  "there is no PUSB associated with the USB_group: %s"
+                  (Ref.string_of usb_group)
+              ]
+            , None
+            )
+        )
+        bt
+    )
 
 let get_first_vusb ~__context usb_group =
-  try List.hd (Db.USB_group.get_VUSBs ~__context ~self:usb_group)
-  with _ ->
-    raise
-      Api_errors.(
-        Server_error
-          ( internal_error
-          , [
-              Printf.sprintf
-                "there is no VUSB associated with the USB_group: %s"
-                (Ref.string_of usb_group)
-            ]
-          )
-      )
+  Backtrace.try_with
+    (fun () -> List.hd (Db.USB_group.get_VUSBs ~__context ~self:usb_group))
+    (fun _ bt ->
+      Printexc.raise_with_backtrace
+        Api_errors.(
+          Server_error
+            ( internal_error
+            , [
+                Printf.sprintf
+                  "there is no VUSB associated with the USB_group: %s"
+                  (Ref.string_of usb_group)
+              ]
+            , None
+            )
+        )
+        bt
+    )
 
 let host_supports_hvm ~__context host =
   (* We say that a host supports HVM if any of
@@ -1852,7 +1882,10 @@ end = struct
       raise
         Api_errors.(
           Server_error
-            (internal_error, [Printf.sprintf "%s, %s" (Ref.string_of t) msg])
+            ( internal_error
+            , [Printf.sprintf "%s, %s" (Ref.string_of t) msg]
+            , None
+            )
         )
     in
     let res =
@@ -1860,13 +1893,19 @@ end = struct
       | `pending ->
           fail "task shouldn't be pending - we just waited on it"
       | `cancelled | `cancelling ->
-          raise Api_errors.(Server_error (task_cancelled, [Ref.string_of t]))
+          raise
+            Api_errors.(Server_error (task_cancelled, [Ref.string_of t], None))
       | `failure -> (
         match Db.Task.get_error_info ~__context ~self:t with
         | [] | [_] ->
             fail "couldn't extract error info from task"
         | code :: params ->
-            raise (Api_errors.Server_error (code, params))
+            let backtrace =
+              Db.Task.get_backtrace ~__context ~self:t
+              |> Sexplib.Sexp.of_string
+              |> Backtrace.t_of_sexp
+            in
+            raise (Api_errors.Server_error (code, params, Some backtrace))
       )
       | `success -> (
         match Db.Task.get_result ~__context ~self:t with
@@ -1892,7 +1931,7 @@ let try_internal_async ~__context (marshaller : Rpc.t -> 'b)
   let res =
     try `internal_async_task (internal_async_fn ())
     with
-    | Api_errors.Server_error (code, _)
+    | Api_errors.Server_error (code, _, _)
     when code = Api_errors.message_method_unknown
     ->
       `use_old_api
@@ -1947,6 +1986,7 @@ end = struct
             , [
                 {|expected pool secret to match the following regex '^[0-9a-f\/\-]{37,}$'|}
               ]
+            , None
             )
         ) ;
     SecretString.of_string x

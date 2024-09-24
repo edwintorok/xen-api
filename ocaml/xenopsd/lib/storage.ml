@@ -22,16 +22,25 @@ open Storage_interface
 module Client = Storage_client.Client
 
 let transform_exception f x =
-  try f x with
-  | Storage_error (Backend_error_with_backtrace (code, backtrace :: params)) as
-    e ->
-      let backtrace = Backtrace.Interop.of_json "SM" backtrace in
-      let exn = Xenopsd_error (Storage_backend_error (code, params)) in
-      Backtrace.add exn backtrace ;
-      Backtrace.reraise e exn
-  | Storage_error (Backend_error (code, params)) as e ->
-      error "Re-raising exception %s: %s" code (String.concat "; " params) ;
-      Backtrace.reraise e (Xenopsd_error (Storage_backend_error (code, params)))
+  Backtrace.try_with
+    (fun () -> f x)
+    (fun e bt ->
+      match e with
+      | Storage_error (Backend_error_with_backtrace (code, backtrace :: params))
+        ->
+          let backtrace = Backtrace.Interop.of_json "SM" backtrace in
+          let exn =
+            Xenopsd_error (Storage_backend_error (code, params, Some backtrace))
+          in
+          Printexc.raise_with_backtrace exn bt
+      | Storage_error (Backend_error (code, params)) ->
+          error "Re-raising exception %s: %s" code (String.concat "; " params) ;
+          Printexc.raise_with_backtrace
+            (Xenopsd_error (Storage_backend_error (code, params, None)))
+            bt
+      | e ->
+          raise e
+    )
 
 (* Used to identify this VBD to the storage layer *)
 let id_of frontend vbd = Printf.sprintf "vbd/%s/%s" frontend (snd vbd)

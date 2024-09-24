@@ -33,7 +33,7 @@ let check_expiry ~__context ~host =
         Unix.time () > Xapi_stdext_date.Date.to_float date
   in
   if expired then
-    raise (Api_errors.Server_error (Api_errors.license_expired, []))
+    raise (Api_errors.Server_error (Api_errors.license_expired, [], None))
 
 let vm ~__context _vm =
   (* Here we check that the license is still valid - this should be the only place where this happens *)

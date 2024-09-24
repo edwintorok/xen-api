@@ -33,7 +33,9 @@ let all_ops = API.vdi_operations__all
 let assert_managed ~__context ~vdi =
   if not (Db.VDI.get_managed ~__context ~self:vdi) then
     raise
-      (Api_errors.Server_error (Api_errors.vdi_not_managed, [Ref.string_of vdi]))
+      (Api_errors.Server_error
+         (Api_errors.vdi_not_managed, [Ref.string_of vdi], None)
+      )
 
 (* Database replication to metadata VDIs. *)
 let redo_log_lifecycle_mutex = Mutex.create ()
@@ -57,7 +59,7 @@ let destroy_all_vbds ~__context ~vdi =
                 (* In the case of HA failover, attempting to unplug the previous master's VBD will timeout as the host is uncontactable. *)
                 Attach_helpers.safe_unplug rpc session_id vbd
               with
-              | Api_errors.Server_error (code, _)
+              | Api_errors.Server_error (code, _, _)
               when code = Api_errors.cannot_contact_host
               ->
                 debug
@@ -82,7 +84,9 @@ let enable_database_replication ~__context ~get_vdi_callback =
         Hashtbl.length metadata_replication >= Xapi_globs.redo_log_max_instances
       then
         raise
-          (Api_errors.Server_error (Api_errors.no_more_redo_logs_allowed, [])) ;
+          (Api_errors.Server_error
+             (Api_errors.no_more_redo_logs_allowed, [], None)
+          ) ;
       let vdi = get_vdi_callback () in
       let vdi_uuid = Db.VDI.get_uuid ~__context ~self:vdi in
       if Hashtbl.mem metadata_replication vdi then
@@ -124,24 +128,33 @@ let enable_database_replication ~__context ~get_vdi_callback =
         let log_name = Printf.sprintf "DR redo log for VDI %s" vdi_uuid in
         let log = Redo_log.create_rw ~name:log_name ~state_change_callback in
         let device = Db.VBD.get_device ~__context ~self:vbd in
-        try
-          Redo_log.enable_block_and_flush
-            (Context.database_of __context |> Xapi_database.Db_ref.get_database)
-            log ("/dev/" ^ device) ;
-          Hashtbl.add metadata_replication vdi (vbd, log) ;
-          let vbd_uuid = Db.VBD.get_uuid ~__context ~self:vbd in
-          Db.VDI.set_metadata_latest ~__context ~self:vdi ~value:true ;
-          debug "Redo log started on VBD %s" vbd_uuid
-        with e ->
-          Redo_log.shutdown log ;
-          Redo_log.delete log ;
-          Helpers.call_api_functions ~__context (fun rpc session_id ->
-              Client.VBD.unplug ~rpc ~session_id ~self:vbd
-          ) ;
-          raise
-            (Api_errors.Server_error
-               (Api_errors.cannot_enable_redo_log, [Printexc.to_string e])
-            )
+        Backtrace.try_with
+          (fun () ->
+            Redo_log.enable_block_and_flush
+              (Context.database_of __context
+              |> Xapi_database.Db_ref.get_database
+              )
+              log ("/dev/" ^ device) ;
+            Hashtbl.add metadata_replication vdi (vbd, log) ;
+            let vbd_uuid = Db.VBD.get_uuid ~__context ~self:vbd in
+            Db.VDI.set_metadata_latest ~__context ~self:vdi ~value:true ;
+            debug "Redo log started on VBD %s" vbd_uuid
+          )
+          (fun e bt ->
+            Redo_log.shutdown log ;
+            Redo_log.delete log ;
+            Helpers.call_api_functions ~__context (fun rpc session_id ->
+                Client.VBD.unplug ~rpc ~session_id ~self:vbd
+            ) ;
+            Printexc.raise_with_backtrace
+              (Api_errors.Server_error
+                 ( Api_errors.cannot_enable_redo_log
+                 , [Printexc.to_string e]
+                 , None
+                 )
+              )
+              bt
+          )
       )
   )
 

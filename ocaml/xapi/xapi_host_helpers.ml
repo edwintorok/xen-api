@@ -163,10 +163,11 @@ let throw_error table op =
                   %s"
                  (host_operation_to_string op)
              ]
+           , None
            )
         )
   | Some (Some (code, params)) ->
-      raise (Api_errors.Server_error (code, params))
+      raise (Api_errors.Server_error (code, params, None))
   | Some None ->
       ()
 
@@ -272,7 +273,7 @@ let mark_host_as_dead ~__context ~host ~reason =
 
 let assert_host_disabled ~__context ~host =
   if Db.Host.get_enabled ~__context ~self:host then
-    raise (Api_errors.Server_error (Api_errors.host_not_disabled, []))
+    raise (Api_errors.Server_error (Api_errors.host_not_disabled, [], None))
 
 (* Toggled by an explicit Host.disable call to prevent a master restart making us bounce back *)
 let user_requested_host_disable = ref false

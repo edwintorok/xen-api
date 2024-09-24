@@ -17,7 +17,7 @@ depends: [
   "dune" {>= "3.15"}
   "stunnel"
   "uri"
-  "xapi-backtrace"
+  "backtrace"
   "xapi-stdext-pervasives"
 ]
 synopsis: "Library required by xapi"

@@ -97,7 +97,7 @@ let assert_sr_compatible ~__context ~cluster_stack ~sr =
       if not (List.exists (fun x -> x = sr_type) srs) then
         raise
           (Api_errors.Server_error
-             (Api_errors.incompatible_statefile_sr, [sr_type])
+             (Api_errors.incompatible_statefile_sr, [sr_type], None)
           )
 
 (* Check whether we can attach the SR given the cluster stack that is currently in use *)
@@ -126,6 +126,7 @@ let assert_cluster_stack_compatible ~__context sr =
                   Server_error
                     ( incompatible_cluster_stack_active
                     , [String.concat "," alternatives]
+                    , None
                     )
                 )
       )

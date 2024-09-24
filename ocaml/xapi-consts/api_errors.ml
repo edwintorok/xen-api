@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-exception Server_error of string * string list
+exception Server_error of string * string list * Backtrace.t option
 
 let ( $ ) f x = f x
 
@@ -22,7 +22,7 @@ let add_error error =
   error
 
 let to_string = function
-  | Server_error (name, args) ->
+  | Server_error (name, args, _) ->
       Printf.sprintf "Server_error(%s, [ %a ])" name
         (fun () -> String.concat "; ")
         args
@@ -31,7 +31,7 @@ let to_string = function
 
 let _ =
   Printexc.register_printer (function
-    | Server_error (_, _) as e ->
+    | Server_error _ as e ->
         Some (to_string e)
     | _ ->
         None

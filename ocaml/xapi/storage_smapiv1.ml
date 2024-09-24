@@ -231,7 +231,7 @@ module SMAPIv1 : Server_impl = struct
                           )
                        )
                     )
-              | Api_errors.Server_error (code, params) ->
+              | Api_errors.Server_error (code, params, _) ->
                   raise (Storage_error (Backend_error (code, params)))
               | e ->
                   let e' = ExnHelper.string_of_exn e in

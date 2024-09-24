@@ -135,6 +135,7 @@ let sr_probe ~dbg dconf driver sr_sm_config =
       (Api_errors.Server_error
          ( Api_errors.sr_backend_failure
          , ["Operation 'sr_probe' not supported by this SR type"; ""; ""]
+         , None
          )
       )
 
@@ -400,7 +401,7 @@ let session_has_internal_sr_access ~__context ~sr =
 
 let assert_session_has_internal_sr_access ~__context ~sr =
   if not (session_has_internal_sr_access ~__context ~sr) then
-    raise (Api_errors.Server_error (Api_errors.permission_denied, [""]))
+    raise (Api_errors.Server_error (Api_errors.permission_denied, [""], None))
 
 (*****************************************************************************)
 (* Higher-level functions                                                    *)
@@ -420,14 +421,14 @@ let get_my_pbd_for_sr __context sr_id =
   match pbd_ref_and_record with
   | [] ->
       raise
-        (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr_id]))
+        (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr_id], None))
   | x :: _ ->
       x
 
 let assert_pbd_is_plugged ~__context ~sr =
   let _, pbd_r = get_my_pbd_for_sr __context sr in
   if not pbd_r.API.pBD_currently_attached then
-    raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr]))
+    raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr], None))
 
 let sm_master x = ("SRmaster", string_of_bool x)
 

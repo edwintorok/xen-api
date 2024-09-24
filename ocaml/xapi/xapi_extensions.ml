@@ -28,60 +28,76 @@ let find_extension name =
   if List.mem name all then
     Filename.concat !Xapi_globs.xapi_extensions_root name
   else
-    raise (Api_errors.Server_error (Api_errors.message_method_unknown, [name]))
+    raise
+      (Api_errors.Server_error (Api_errors.message_method_unknown, [name], None))
 
 (* Execute the extension with XMLRPC-over-cmdline/stdout convention. *)
 let call_extension rpc =
-  try
-    let path = find_extension rpc.Rpc.name in
-    let output, _ =
-      try
-        Forkhelpers.execute_command_get_output_send_stdin path ["--xmlrpc"]
-          (Xmlrpc.string_of_call rpc)
-      with
-      | Forkhelpers.Spawn_internal_error (log, output, Unix.WSTOPPED _) ->
-          raise
-            (Api_errors.Server_error
-               (Api_errors.internal_error, [path; "task stopped"; output; log])
-            )
-      | Forkhelpers.Spawn_internal_error (log, output, Unix.WSIGNALED i) ->
-          raise
+  Backtrace.try_with
+    (fun () ->
+      let path = find_extension rpc.Rpc.name in
+      let output, _ =
+        try
+          Forkhelpers.execute_command_get_output_send_stdin path ["--xmlrpc"]
+            (Xmlrpc.string_of_call rpc)
+        with
+        | Forkhelpers.Spawn_internal_error (log, output, Unix.WSTOPPED _) ->
+            raise
+              (Api_errors.Server_error
+                 ( Api_errors.internal_error
+                 , [path; "task stopped"; output; log]
+                 , None
+                 )
+              )
+        | Forkhelpers.Spawn_internal_error (log, output, Unix.WSIGNALED i) ->
+            raise
+              (Api_errors.Server_error
+                 ( Api_errors.internal_error
+                 , [
+                     path
+                   ; Printf.sprintf "signal: %s"
+                       (Xapi_stdext_unix.Unixext.string_of_signal i)
+                   ; output
+                   ; log
+                   ]
+                 , None
+                 )
+              )
+        | Forkhelpers.Spawn_internal_error (log, output, Unix.WEXITED _) ->
+            raise
+              (Api_errors.Server_error
+                 ( Api_errors.internal_error
+                 , [path; "non-zero exit"; output; log]
+                 , None
+                 )
+              )
+      in
+      Backtrace.try_with
+        (fun () -> Xmlrpc.response_of_string output)
+        (fun e bt ->
+          Printexc.raise_with_backtrace
             (Api_errors.Server_error
                ( Api_errors.internal_error
                , [
                    path
-                 ; Printf.sprintf "signal: %s"
-                     (Xapi_stdext_unix.Unixext.string_of_signal i)
+                 ; "failed to parse extension output"
                  ; output
-                 ; log
+                 ; Printexc.to_string e
                  ]
+               , None
                )
             )
-      | Forkhelpers.Spawn_internal_error (log, output, Unix.WEXITED _) ->
-          raise
-            (Api_errors.Server_error
-               (Api_errors.internal_error, [path; "non-zero exit"; output; log])
-            )
-    in
-    try Xmlrpc.response_of_string output
-    with e ->
-      raise
-        (Api_errors.Server_error
-           ( Api_errors.internal_error
-           , [
-               path
-             ; "failed to parse extension output"
-             ; output
-             ; Printexc.to_string e
-             ]
-           )
+            bt
         )
-  with
-  | Api_errors.Server_error (code, params) ->
-      API.response_of_failure code params
-  | e ->
-      error "Unexpected exception calling extension %s: %s" rpc.Rpc.name
-        (Printexc.to_string e) ;
-      Debug.log_backtrace e (Backtrace.get e) ;
-      API.response_of_failure Api_errors.internal_error
-        [rpc.Rpc.name; Printexc.to_string e]
+    )
+    (fun e bt ->
+      match e with
+      | Api_errors.Server_error (code, params, _) ->
+          API.response_of_failure code params
+      | e ->
+          error "Unexpected exception calling extension %s: %s" rpc.Rpc.name
+            (Printexc.to_string e) ;
+          Debug.log_backtrace e bt ;
+          API.response_of_failure Api_errors.internal_error
+            [rpc.Rpc.name; Printexc.to_string e]
+    )

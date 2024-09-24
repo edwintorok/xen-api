@@ -4,6 +4,7 @@
  (modules xenops_types device_number)
  (libraries
    astring
+   backtrace
    result
    rpclib.core
    rresult
@@ -21,6 +22,7 @@
  (public_name xapi-idl.xen.interface)
  (modules xenops_interface)
  (libraries
+   backtrace
    result
    rpclib.core
    rresult

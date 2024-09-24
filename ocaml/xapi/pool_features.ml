@@ -33,5 +33,5 @@ let assert_enabled ~__context ~f =
   if not (is_enabled ~__context f) then
     raise
       (Api_errors.Server_error
-         (Api_errors.license_restriction, [name_of_feature f])
+         (Api_errors.license_restriction, [name_of_feature f], None)
       )

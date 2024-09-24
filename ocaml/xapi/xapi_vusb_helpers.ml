@@ -103,10 +103,11 @@ let throw_error (table : table) op =
                   %s"
                  (vusb_operations_to_string op)
              ]
+           , None
            )
         )
   | Some (Some (code, params)) ->
-      raise (Api_errors.Server_error (code, params))
+      raise (Api_errors.Server_error (code, params, None))
   | Some None ->
       ()
 

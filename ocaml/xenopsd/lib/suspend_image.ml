@@ -24,7 +24,7 @@ end
 
 open M
 
-let wrap_exn f = try f () with e -> Backtrace.is_important e ; Error e
+let wrap_exn f = Backtrace.try_with f (fun e bt -> Error (e, bt))
 
 let wrap f = wrap_exn (fun () -> return (f ()))
 
@@ -92,7 +92,7 @@ let header_type_of_int64 = function
   | 0xffffL ->
       Ok End_of_image
   | _ ->
-      Error Invalid_header_type
+      Error (Invalid_header_type, Printexc.get_callstack 100)
 
 let int64_of_header_type = function
   | Xenops ->
@@ -175,8 +175,11 @@ let read_legacy_qemu_header fd =
     | x when x = legacy_qemu_save_signature ->
         Ok (Int64.of_int (Io.read_int ~endianness:`big fd))
     | _ ->
-        Error "Read invalid legacy qemu save signature"
-  with e -> Error ("Failed to read signature: " ^ Printexc.to_string e)
+        Error
+          ("Read invalid legacy qemu save signature", Printexc.get_callstack 100)
+  with e ->
+    let bt = Printexc.get_raw_backtrace () in
+    Error ("Failed to read signature: " ^ Printexc.to_string e, bt)
 
 let write_qemu_header_for_legacy_libxc fd size =
   wrap (fun () -> Io.write fd qemu_save_signature_legacy_libxc) >>= fun () ->

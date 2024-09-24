@@ -65,7 +65,7 @@ let rpc_type_error x structname expected =
   in
   raise
     (Api_errors.Server_error
-       (Api_errors.xenapi_plugin_failure, ["unexpected XMLRPC result"; msg])
+       (Api_errors.xenapi_plugin_failure, ["unexpected XMLRPC result"; msg], None)
     )
 
 let get_dict dict key structname =
@@ -77,7 +77,7 @@ let get_dict dict key structname =
     in
     raise
       (Api_errors.Server_error
-         (Api_errors.xenapi_plugin_failure, ["unexpected XMLRPC result"; msg])
+         (Api_errors.xenapi_plugin_failure, ["unexpected XMLRPC result"; msg], None)
       )
   in
   match dict with

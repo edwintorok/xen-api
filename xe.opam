@@ -18,7 +18,7 @@ depends: [
   "fpath"
   "stunnel"
   "uri"
-  "xapi-backtrace"
+  "backtrace"
   "xapi-cli-protocol"
   "xapi-consts"
   "xapi-datamodel"

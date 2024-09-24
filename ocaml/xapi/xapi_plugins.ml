@@ -24,7 +24,7 @@ let find_plugin name =
   if List.mem name all then
     Filename.concat !Xapi_globs.xapi_plugins_root name
   else
-    raise (Api_errors.Server_error (Api_errors.xenapi_missing_plugin, [name]))
+    raise (Api_errors.Server_error (Api_errors.xenapi_missing_plugin, [name], None))
 
 (* Execute the plugin with XMLRPC-over-cmdline/stdout convention, like the SM plugins.
    The args provided are a Map(String, String) and these will be passed as an XMLRPC struct *)
@@ -43,7 +43,7 @@ let call_plugin session_id plugin_name fn_name args =
     | Forkhelpers.Spawn_internal_error (log, output, Unix.WSTOPPED _) ->
         raise
           (Api_errors.Server_error
-             (Api_errors.xenapi_plugin_failure, ["task stopped"; output; log])
+             (Api_errors.xenapi_plugin_failure, ["task stopped"; output; log], None)
           )
     | Forkhelpers.Spawn_internal_error (log, output, Unix.WSIGNALED i) ->
         raise
@@ -55,12 +55,13 @@ let call_plugin session_id plugin_name fn_name args =
                ; output
                ; log
                ]
+              , None
              )
           )
     | Forkhelpers.Spawn_internal_error (log, output, Unix.WEXITED _) ->
         raise
           (Api_errors.Server_error
-             (Api_errors.xenapi_plugin_failure, ["non-zero exit"; output; log])
+             (Api_errors.xenapi_plugin_failure, ["non-zero exit"; output; log], None)
           )
   in
   try
@@ -70,17 +71,19 @@ let call_plugin session_id plugin_name fn_name args =
           (Api_errors.Server_error
              ( Api_errors.xenapi_plugin_failure
              , ["fault"; Int32.to_string code; reason]
+             , None
              )
           )
     | XMLRPC.Success [result] ->
         XMLRPC.From.string result
     | XMLRPC.Failure (code, params) ->
-        raise (Api_errors.Server_error (code, params))
+        raise (Api_errors.Server_error (code, params, None))
     | _ ->
         raise
           (Api_errors.Server_error
              ( Api_errors.xenapi_plugin_failure
              , ["unexpected XMLRPC result"; output]
+             , None
              )
           )
   with Xml.Error e ->
@@ -88,5 +91,6 @@ let call_plugin session_id plugin_name fn_name args =
       (Api_errors.Server_error
          ( Api_errors.xenapi_plugin_failure
          , ["failed to parse plugin output"; output; Xml.error e]
+         , None
          )
       )

@@ -16,7 +16,7 @@
 
 module E = Api_errors
 
-let api_error msg xs = raise (E.Server_error (msg, xs))
+let api_error msg xs = raise (E.Server_error (msg, xs, None))
 
 let introduce ~__context ~name_label ~name_description ~pVS_uuid =
   Pool_features.assert_enabled ~__context ~f:Features.PVS_proxy ;
@@ -46,6 +46,7 @@ let forget_internal ~__context ~self ~cleanup_storage =
         Server_error
           ( pvs_site_contains_running_proxies
           , List.map Ref.string_of running_proxies
+          , None
           )
       ) ;
   (* Check there are no servers. *)
@@ -53,7 +54,7 @@ let forget_internal ~__context ~self ~cleanup_storage =
   if servers <> [] then
     raise
       Api_errors.(
-        Server_error (pvs_site_contains_servers, List.map Ref.string_of servers)
+        Server_error (pvs_site_contains_servers, List.map Ref.string_of servers, None)
       ) ;
   cleanup_storage __context self ;
   Db.PVS_site.destroy ~__context ~self

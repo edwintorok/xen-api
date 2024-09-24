@@ -25,9 +25,9 @@ type frame = {
   ; is_inline: bool option [@sexp.option]
   ; is_raise: bool option [@sexp.option]
 }
-[@@deriving sexp]
+[@@deriving sexp, rpcty]
 
-type t = frame list [@@deriving sexp]
+type t = frame list [@@deriving sexp, rpcty]
 
 let empty = []
 

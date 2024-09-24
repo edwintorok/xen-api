@@ -30,7 +30,7 @@ let validate_kvpair field_name requirements (key, value) =
     raise
       Api_errors.(
         Server_error
-          (invalid_value, [field_name; Printf.sprintf "%s = %s" key value])
+          (invalid_value, [field_name; Printf.sprintf "%s = %s" key value], None)
       )
   in
   (* Try to find a required property requirement with this name. *)
@@ -66,11 +66,17 @@ let field : string -> 'a pickler -> 'a field =
 
 let getf : ?default:'a -> 'a field -> assoc_list -> 'a =
  fun ?default (of_string, _) record ->
-  try of_string record
-  with Not_found as e -> (
-    Backtrace.is_important e ;
-    match default with None -> raise e | Some d -> d
-  )
+  Backtrace.try_with
+    (fun () -> of_string record)
+    (fun e bt ->
+      match (e, default) with
+      | (Not_found as e), None ->
+          Printexc.raise_with_backtrace e bt
+      | Not_found, Some d ->
+          d
+      | e, _ ->
+          Printexc.raise_with_backtrace e bt
+    )
 
 let setf : 'a field -> 'a -> assoc_list -> assoc_list =
  fun (_, to_string) value record -> to_string value record
@@ -84,7 +90,7 @@ type key_type =
 
 let err field key value =
   let msg = if key = "" then field else field ^ ":" ^ key in
-  raise (Api_errors.Server_error (Api_errors.invalid_value, [msg; value]))
+  raise (Api_errors.Server_error (Api_errors.invalid_value, [msg; value], None))
 
 let mem value range =
   try

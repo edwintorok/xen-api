@@ -2805,7 +2805,7 @@ and perform_exn ?subtask ?result (op : operation) (t : Xenops_task.task_handle)
       ; vmr_socket= s
       ; vmr_handshake= handshake
       ; vmr_compressed
-      } -> (
+      } ->
       let decompress =
         match vmr_compressed with
         | true ->
@@ -2859,7 +2859,8 @@ and perform_exn ?subtask ?result (op : operation) (t : Xenops_task.task_handle)
                  corresponding receive_vgpu thread and therefore can be used
                  by this VM_receive_memory thread *)
           ) ;
-          ( try
+          Backtrace.try_with
+            (fun () ->
               let no_sharept = VGPU_DB.vgpus id |> List.exists is_no_sharept in
               debug "VM %s no_sharept=%b (%s)" id no_sharept __LOC__ ;
               perform_atomics
@@ -2870,8 +2871,8 @@ and perform_exn ?subtask ?result (op : operation) (t : Xenops_task.task_handle)
                 )
                 t ;
               Handshake.send s Handshake.Success
-            with e ->
-              Backtrace.is_important e ;
+            )
+            (fun e bt ->
               let msg =
                 match e with
                 | Xenopsd_error error ->
@@ -2881,76 +2882,80 @@ and perform_exn ?subtask ?result (op : operation) (t : Xenops_task.task_handle)
                     Printexc.to_string e
               in
               Handshake.send s (Handshake.Error msg) ;
-              raise e
-          ) ;
+              Printexc.raise_with_backtrace e bt
+            ) ;
           debug "VM.receive_memory: Synchronisation point 1" ;
           debug "VM.receive_memory: restoring VM" ;
-          try
-            (* Check if there is a separate vGPU data channel *)
-            let vgpu_info =
-              with_lock vgpu_receiver_sync_m (fun () ->
-                  Hashtbl.find_opt vgpu_receiver_sync id
-              )
-            in
-            let pcis = PCI_DB.pcis id |> pci_plug_order in
-            let receive_mem_fd id s =
-              debug "VM.receive_memory: using new handshake protocol for VM %s"
-                id ;
-              Handshake.recv_success s ;
-              debug "VM.receive_memory: Synchronisation point 1-mem ACK" ;
-              with_lock mem_receiver_sync_m @@ fun () ->
-              match Hashtbl.find_opt mem_receiver_sync id with
-              | Some fd ->
-                  fd.mem_fd
-              | None ->
-                  error
-                    "VM.receive_memory: Failed to receive FD for VM memory \
-                     (id=%s)"
-                    id ;
-                  failwith __FUNCTION__
-            in
-            let vgpu_start_operations () =
-              match VGPU_DB.ids id with
-              | [] ->
-                  []
-              | vgpus ->
-                  let vgpus' = VGPU_DB.vgpus id in
-                  let pcis_sriov = List.filter (is_nvidia_sriov vgpus') pcis in
-                  List.concat
-                    [
-                      dequarantine_ops vgpus'
-                    ; List.map
-                        (fun pci -> PCI_plug (pci.Pci.id, false))
-                        pcis_sriov
-                    ; [VGPU_start (vgpus, true)]
-                    ]
-            in
-            let mem_fd =
-              match handshake with
-              | Some _ ->
-                  receive_mem_fd id s (* new handshake protocol *)
-              | None ->
-                  s
-              (* receiving memory on this connection *)
-            in
-            Sockopt.set_sock_keepalives mem_fd ;
-            decompress mem_fd @@ fun mem_fd ->
-            decompress_vgpu vgpu_info @@ fun vgpu_info ->
-            perform_atomics
-              (List.concat
-                 [
-                   vgpu_start_operations ()
-                 ; [VM_restore (id, FD mem_fd, vgpu_info)]
-                 ]
-              )
-              t ;
-            debug "VM.receive_memory: restore complete"
-          with e ->
-            Backtrace.is_important e ;
-            Debug.log_backtrace e (Backtrace.get e) ;
-            debug "Caught %s during VM_restore: cleaning up VM state"
-              (Printexc.to_string e) ;
-            perform_atomics [VM_destroy id; VM_remove id] t
+          Backtrace.try_with
+            (fun () ->
+              (* Check if there is a separate vGPU data channel *)
+              let vgpu_info =
+                with_lock vgpu_receiver_sync_m (fun () ->
+                    Hashtbl.find_opt vgpu_receiver_sync id
+                )
+              in
+              let pcis = PCI_DB.pcis id |> pci_plug_order in
+              let receive_mem_fd id s =
+                debug
+                  "VM.receive_memory: using new handshake protocol for VM %s" id ;
+                Handshake.recv_success s ;
+                debug "VM.receive_memory: Synchronisation point 1-mem ACK" ;
+                with_lock mem_receiver_sync_m @@ fun () ->
+                match Hashtbl.find_opt mem_receiver_sync id with
+                | Some fd ->
+                    fd.mem_fd
+                | None ->
+                    error
+                      "VM.receive_memory: Failed to receive FD for VM memory \
+                       (id=%s)"
+                      id ;
+                    failwith __FUNCTION__
+              in
+              let vgpu_start_operations () =
+                match VGPU_DB.ids id with
+                | [] ->
+                    []
+                | vgpus ->
+                    let vgpus' = VGPU_DB.vgpus id in
+                    let pcis_sriov =
+                      List.filter (is_nvidia_sriov vgpus') pcis
+                    in
+                    List.concat
+                      [
+                        dequarantine_ops vgpus'
+                      ; List.map
+                          (fun pci -> PCI_plug (pci.Pci.id, false))
+                          pcis_sriov
+                      ; [VGPU_start (vgpus, true)]
+                      ]
+              in
+              let mem_fd =
+                match handshake with
+                | Some _ ->
+                    receive_mem_fd id s (* new handshake protocol *)
+                | None ->
+                    s
+                (* receiving memory on this connection *)
+              in
+              Sockopt.set_sock_keepalives mem_fd ;
+              decompress mem_fd @@ fun mem_fd ->
+              decompress_vgpu vgpu_info @@ fun vgpu_info ->
+              perform_atomics
+                (List.concat
+                   [
+                     vgpu_start_operations ()
+                   ; [VM_restore (id, FD mem_fd, vgpu_info)]
+                   ]
+                )
+                t ;
+              debug "VM.receive_memory: restore complete"
+            )
+            (fun e bt ->
+              Debug.log_backtrace e bt ;
+              debug "Caught %s during VM_restore: cleaning up VM state"
+                (Printexc.to_string e) ;
+              perform_atomics [VM_destroy id; VM_remove id] t
+            )
         )
         (fun () ->
           (* Inform the vgpu and mem handler threads we are done *)
@@ -2972,42 +2977,43 @@ and perform_exn ?subtask ?result (op : operation) (t : Xenops_task.task_handle)
             mem_info
         ) ;
       debug "VM.receive_memory: Synchronisation point 2" ;
-      try
-        (* Receive the all-clear to unpause *)
-        Handshake.recv_success s ;
-        debug "VM.receive_memory: Synchronisation point 3" ;
-        if final_id <> id then (
-          debug "VM.receive_memory: Renaming domain" ;
-          perform_atomics [VM_rename (id, final_id, Post_migration)] t
-        ) ;
-        debug "VM.receive_memory: restoring remaining devices and unpausing" ;
-        perform_atomics
-          (atomics_of_operation (VM_restore_devices (final_id, false))
-          @ [
-              VM_unpause final_id
-            ; VM_set_domain_action_request (final_id, None)
-            ; VM_hook_script
-                ( final_id
-                , Xenops_hooks.VM_post_migrate
-                , Xenops_hooks.reason__migrate_dest
-                )
-            ]
-          )
-          t ;
-        Handshake.send s Handshake.Success ;
-        debug "VM.receive_memory: Synchronisation point 4"
-      with e ->
-        finally
-          (fun () ->
-            Backtrace.is_important e ;
-            Debug.log_backtrace e (Backtrace.get e) ;
-            debug "Caught %s: cleaning up VM state" (Printexc.to_string e) ;
-            perform_atomics
-              (atomics_of_operation (VM_shutdown (id, None)) @ [VM_remove id])
-              t
-          )
-          (fun () -> Handshake.send s (Handshake.Error (Printexc.to_string e)))
-    )
+      Backtrace.try_with
+        (fun () ->
+          (* Receive the all-clear to unpause *)
+          Handshake.recv_success s ;
+          debug "VM.receive_memory: Synchronisation point 3" ;
+          if final_id <> id then (
+            debug "VM.receive_memory: Renaming domain" ;
+            perform_atomics [VM_rename (id, final_id, Post_migration)] t
+          ) ;
+          debug "VM.receive_memory: restoring remaining devices and unpausing" ;
+          perform_atomics
+            (atomics_of_operation (VM_restore_devices (final_id, false))
+            @ [
+                VM_unpause final_id
+              ; VM_set_domain_action_request (final_id, None)
+              ; VM_hook_script
+                  ( final_id
+                  , Xenops_hooks.VM_post_migrate
+                  , Xenops_hooks.reason__migrate_dest
+                  )
+              ]
+            )
+            t ;
+          Handshake.send s Handshake.Success ;
+          debug "VM.receive_memory: Synchronisation point 4"
+        )
+        (fun e bt ->
+          finally
+            (fun () ->
+              Debug.log_backtrace e bt ;
+              debug "Caught %s: cleaning up VM state" (Printexc.to_string e) ;
+              perform_atomics
+                (atomics_of_operation (VM_shutdown (id, None)) @ [VM_remove id])
+                t
+            )
+            (fun () -> Handshake.send s (Handshake.Error (Printexc.to_string e)))
+        )
   | VM_check_state id ->
       let vm = VM_DB.read_exn id in
       let state = B.VM.get_state vm in
@@ -3182,17 +3188,19 @@ and perform ?subtask ?result (op : operation) (t : Xenops_task.task_handle) :
     unit =
   let one op =
     verify_power_state op ;
-    try perform_exn ?subtask ?result op t
-    with e ->
-      Backtrace.is_important e ;
-      info "Caught %s executing %s: triggering cleanup actions"
-        (Printexc.to_string e) (string_of_operation op) ;
-      ( try trigger_cleanup_after_failure op t
-        with e ->
-          Backtrace.is_important e ;
-          error "Triggering cleanup actions failed: %s" (Printexc.to_string e)
-      ) ;
-      raise e
+    Backtrace.try_with
+      (fun () -> perform_exn ?subtask ?result op t)
+      (fun e bt ->
+        info "Caught %s executing %s: triggering cleanup actions"
+          (Printexc.to_string e) (string_of_operation op) ;
+        Backtrace.try_with
+          (fun () -> trigger_cleanup_after_failure op t)
+          (fun e bt ->
+            error "Triggering cleanup actions failed: %s" (Printexc.to_string e) ;
+            Debug.log_backtrace e bt
+          ) ;
+        Printexc.raise_with_backtrace e bt
+      )
   in
   match subtask with
   | None ->

@@ -123,7 +123,7 @@ end
 module M = Make (Lwt_unix_IO)
 
 let exn_to_string = function
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       Printf.sprintf "%s %s" code (String.concat " " params)
   | e ->
       Printexc.to_string e
@@ -193,7 +193,7 @@ module SessionCache = struct
         Lwt.catch
           (fun () -> Session.logout ~rpc ~session_id:t.session_id)
           (function
-            | Api_errors.Server_error (code, _)
+            | Api_errors.Server_error (code, _, _)
               when code = Api_errors.session_invalid ->
                 (* ignore logout failures on invalid sessions: these may have been GCed *)
                 Lwt.return_unit
@@ -225,7 +225,7 @@ module SessionCache = struct
       Lwt.catch
         (fun () -> f ~rpc:t.rpc ~session_id:session.session_id)
         (function
-          | Api_errors.Server_error (code, _) as e
+          | Api_errors.Server_error (code, _, _) as e
             when code = Api_errors.session_invalid ->
               session.valid <- false ;
               (* the [check] function above will cause Lwt_pool to dispose of this *)
@@ -233,7 +233,7 @@ module SessionCache = struct
                 retry (n - 1)
               else
                 Lwt.fail e
-          | Api_errors.Server_error (code, [master]) as e
+          | Api_errors.Server_error (code, [master], _) as e
             when code = Api_errors.host_is_slave ->
               (* can happen with HA *)
               t.rpc <- make_rpc ?timeout:t.timeout @@ uri_ip_json master ;

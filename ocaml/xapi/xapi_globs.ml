@@ -95,7 +95,7 @@ let slave_emergency_mode = ref false
 (** Whenever in emergency mode we stash an error here so the user can determine what's wrong
     without trawling through logfiles *)
 let emergency_mode_error =
-  ref (Api_errors.Server_error (Api_errors.host_still_booting, []))
+  ref (Api_errors.Server_error (Api_errors.host_still_booting, [], None))
 
 let log_config_file = ref (Filename.concat "/etc/xensource" "log.conf")
 

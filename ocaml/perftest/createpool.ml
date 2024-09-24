@@ -515,7 +515,7 @@ let create_sdk_pool session_id sdkname pool_name key ipbase =
       Client.SR.probe ~rpc:poolrpc ~session_id:poolses ~host:master
         ~device_config:[("target", iscsi_vm_ip)]
         ~sm_config:[] ~_type:"lvmoiscsi"
-    with Api_errors.Server_error ("SR_BACKEND_FAILURE_96", [xml; _]) -> xml
+    with Api_errors.Server_error ("SR_BACKEND_FAILURE_96", [xml; _], _) -> xml
   in
   let iqns = parse_sr_probe_for_iqn xml in
   if iqns = [] then
@@ -526,7 +526,8 @@ let create_sdk_pool session_id sdkname pool_name key ipbase =
       Client.SR.probe ~rpc:poolrpc ~session_id:poolses ~host:master
         ~device_config:[("target", iscsi_vm_ip); ("targetIQN", iqn)]
         ~sm_config:[] ~_type:"lvmoiscsi"
-    with Api_errors.Server_error ("SR_BACKEND_FAILURE_107", [xml; _]) -> xml
+    with Api_errors.Server_error ("SR_BACKEND_FAILURE_107", [xml; _], _) ->
+      xml
   in
   (* Create an SR for each LUN found *)
   Printf.printf "Creating LVMoISCSI SRs (one for each of %d LUNs)\n%!"

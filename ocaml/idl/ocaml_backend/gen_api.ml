@@ -273,7 +273,7 @@ let gen_client highapi =
          ; "module type AsyncQualifier = sig val async_qualifier : string end"
          ; ""
          ; "let server_failure code args = raise (Api_errors.Server_error \
-            (code, args))"
+            (code, args, None))"
          ]
        ; O.Module.strings_of (Gen_client.gen_module highapi)
        ; [

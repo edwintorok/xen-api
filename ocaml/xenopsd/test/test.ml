@@ -965,9 +965,12 @@ let test_ca351823 () =
   match of_string s with
   | Ok _ ->
       ()
-  | Error e ->
-      Printf.sprintf "test_ca351823 failed: %s" (Printexc.to_string e)
-      |> failwith
+  | Error (e, bt) ->
+      Printexc.raise_with_backtrace
+        (Failure
+           (Printf.sprintf "test_ca351823 failed: %s" (Printexc.to_string e))
+        )
+        bt
 
 let _ =
   Xenops_utils.set_fs_backend

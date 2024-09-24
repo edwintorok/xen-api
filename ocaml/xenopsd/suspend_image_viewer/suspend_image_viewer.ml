@@ -81,9 +81,12 @@ let parse_layout fd =
       match aux [] with
       | Ok hs ->
           List.rev hs
-      | Error e ->
-          failwith
-            (Printf.sprintf "Error parsing image: %s" (Printexc.to_string e))
+      | Error (e, bt) ->
+          Printexc.raise_with_backtrace
+            (Failure
+               (Printf.sprintf "Error parsing image: %s" (Printexc.to_string e))
+            )
+            bt
     )
 
 let print_layout headers =

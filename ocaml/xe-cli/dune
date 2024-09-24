@@ -13,7 +13,6 @@
     tracing
     uri
     yojson
-    xapi-backtrace
     xapi-cli-protocol
     xapi-stdext-pervasives
     xapi-stdext-std

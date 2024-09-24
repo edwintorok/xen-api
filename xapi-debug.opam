@@ -52,7 +52,6 @@ depends: [
   "uuidm"
   "uutf"
   "x509"
-  "xapi-backtrace"
   "xenctrl"
   "xenstore_transport"
   "xmlm"

@@ -82,7 +82,7 @@ module Errors = struct
     | Hook_failed of (string * string * string * string)
     | Not_enough_memory of int64
     | Cancelled of string
-    | Storage_backend_error of (string * string list)
+    | Storage_backend_error of (string * string list * Backtrace.t option)
     | PCIBack_not_loaded
     | Failed_to_run_script of string
     | Failed_to_start_emulator of (string * string * string)

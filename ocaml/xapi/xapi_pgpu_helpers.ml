@@ -25,6 +25,7 @@ let assert_VGPU_type_supported ~__context ~self ~vgpu_type =
       (Api_errors.Server_error
          ( Api_errors.vgpu_type_not_supported
          , List.map Ref.string_of (vgpu_type :: supported_VGPU_types)
+         , None
          )
       )
 
@@ -36,6 +37,7 @@ let assert_VGPU_type_enabled ~__context ~self ~vgpu_type =
       (Api_errors.Server_error
          ( Api_errors.vgpu_type_not_enabled
          , List.map Ref.string_of (vgpu_type :: enabled_VGPU_types)
+         , None
          )
       )
 
@@ -81,6 +83,7 @@ let assert_VGPU_type_allowed ~__context ~self ~vgpu_type =
              |> List.map (fun vgpu_type_ref -> Ref.string_of vgpu_type_ref)
              |> String.concat sep
            ]
+         , None
          )
       )
 
@@ -105,7 +108,7 @@ let assert_no_resident_VGPUs_of_type ~__context ~self ~vgpu_type =
       in
       raise
         (Api_errors.Server_error
-           (Api_errors.pgpu_in_use_by_vm, List.map Ref.string_of vms)
+           (Api_errors.pgpu_in_use_by_vm, List.map Ref.string_of vms, None)
         )
 
 let get_remaining_capacity_internal ~__context ~self ~vgpu_type
@@ -120,6 +123,7 @@ let get_remaining_capacity_internal ~__context ~self ~vgpu_type
           (Api_errors.Server_error
              ( Api_errors.pgpu_insufficient_capacity_for_vgpu
              , [Ref.string_of self; Ref.string_of vgpu_type]
+             , None
              )
           )
     in
@@ -204,7 +208,7 @@ let assert_destination_pgpu_is_compatible_with_vm ~__context ~vm ~vgpu ~pgpu
            the host %s."
           Xapi_gpumon.Nvidia.key (Ref.string_of pgpu) (Ref.string_of host) ;
         raise
-          Api_errors.(Server_error (nvidia_tools_error, [Ref.string_of host]))
+          Api_errors.(Server_error (nvidia_tools_error, [Ref.string_of host], None))
     in
     Xapi_gpumon.Nvidia.assert_pgpu_is_compatible_with_vm ~__context ~vm ~vgpu
       ~dest_host:host ~encoded_pgpu_metadata:pgpu_metadata
@@ -255,7 +259,7 @@ let assert_destination_has_pgpu_compatible_with_vm ~__context ~vm ~vgpu_map
         raise
           Api_errors.(
             Server_error
-              (vm_requires_gpu, [Ref.string_of vm; Ref.string_of pgpu_group])
+              (vm_requires_gpu, [Ref.string_of vm; Ref.string_of pgpu_group], None)
           )
     | pgpu :: rest ->
         let types = get_gpu_group_of_pgpu pgpu |> get_gpu_types_of_gpu_group in
@@ -298,6 +302,7 @@ let assert_destination_has_pgpu_compatible_with_vm ~__context ~vm ~vgpu_map
                   Server_error
                     ( vm_requires_gpu
                     , [Ref.string_of vm; Ref.string_of gpu_group]
+                    , None
                     )
                 )
           | pgpu :: _ ->

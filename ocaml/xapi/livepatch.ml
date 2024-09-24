@@ -54,21 +54,26 @@ let to_json lp =
     ]
 
 let of_json js =
-  try
-    let open Yojson.Basic.Util in
-    {
-      component= member "component" js |> to_string |> component_of_string
-    ; base_build_id= member "base_build_id" js |> to_string
-    ; to_version= member "to_version" js |> to_string_option
-    ; to_release= member "to_release" js |> to_string_option
-    }
-  with e ->
-    let msg = "Can't construct a livepatch from json" in
-    error "%s - %s: %s"
-      (ExnHelper.string_of_exn e)
-      msg
-      (Yojson.Basic.pretty_to_string js) ;
-    raise Api_errors.(Server_error (internal_error, [msg]))
+  Backtrace.try_with
+    (fun () ->
+      let open Yojson.Basic.Util in
+      {
+        component= member "component" js |> to_string |> component_of_string
+      ; base_build_id= member "base_build_id" js |> to_string
+      ; to_version= member "to_version" js |> to_string_option
+      ; to_release= member "to_release" js |> to_string_option
+      }
+    )
+    (fun e bt ->
+      let msg = "Can't construct a livepatch from json" in
+      error "%s - %s: %s"
+        (ExnHelper.string_of_exn e)
+        msg
+        (Yojson.Basic.pretty_to_string js) ;
+      Printexc.raise_with_backtrace
+        Api_errors.(Server_error (internal_error, [msg], None))
+        bt
+    )
 
 let get_latest_livepatch lps =
   List.map (fun (_, _, t_v, t_r) -> (t_v, t_r)) lps
@@ -351,7 +356,7 @@ let apply ~component ~livepatch_file ~base_build_id ~base_version ~base_release
             expected component_str
             (Option.value real ~default:"None")
         in
-        raise Api_errors.(Server_error (internal_error, [msg]))
+        raise Api_errors.(Server_error (internal_error, [msg], None))
   in
   match component with
   | Xen ->

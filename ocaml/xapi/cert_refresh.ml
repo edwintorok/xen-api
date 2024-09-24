@@ -77,7 +77,7 @@ let host ~__context ~type' =
     raise
       Api_errors.(
         Server_error
-          (cannot_contact_host, [Ref.string_of (HostSet.choose unreachable)])
+          (cannot_contact_host, [Ref.string_of (HostSet.choose unreachable)], None)
       ) ;
   let content = X509.Certificate.encode_pem cert |> Cstruct.to_string in
   (* distribute public part of new cert in pool *)

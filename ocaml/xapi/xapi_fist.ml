@@ -141,7 +141,7 @@ let hang_psr psr_checkpoint =
 (* extract integer seed from fist file, if it exists.
  * raises if fist file exists but does not contain an integer *)
 let int_seed name : int option =
-  let ex msg = Api_errors.(Server_error (internal_error, [msg])) in
+  let ex msg = Api_errors.(Server_error (internal_error, [msg], None)) in
   match fistpoint name with
   | false ->
       D.debug "fistpoint=%s is not being used" name ;

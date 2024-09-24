@@ -98,13 +98,16 @@ let get_script_stdout () =
     let stdout, _ = Forkhelpers.execute_command_get_output usb_scan_script [] in
     stdout
   with Forkhelpers.Spawn_internal_error (_, _, Unix.WEXITED n) ->
-    raise
+    let bt = Printexc.get_raw_backtrace () in
+    Printexc.raise_with_backtrace
       Api_errors.(
         Server_error
           ( internal_error
           , [Printf.sprintf "%s exitted with %d" usb_scan_script n]
+          , None
           )
       )
+      bt
 
 let get_usbs stdout =
   let extract_devices json = [json] |> flatten in

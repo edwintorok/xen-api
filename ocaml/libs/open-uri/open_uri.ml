@@ -21,7 +21,7 @@ module D = Debug.Make (struct let name = "open_uri" end)
 
 open D
 
-let handle_socket f s = try f s with e -> Backtrace.is_important e ; raise e
+let handle_socket f s = f s
 
 let open_tcp f host port =
   let host = Scanf.ksscanf host (fun _ _ -> host) "[%s@]" Fun.id in

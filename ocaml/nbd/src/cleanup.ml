@@ -112,7 +112,7 @@ module VBD = struct
                   cleanup_vbd vbd
                 )
                 (function
-                  | Api_errors.Server_error (e, _)
+                  | Api_errors.Server_error (e, _, _)
                     when e = Api_errors.uuid_invalid ->
                       (* This VBD has already been cleaned up, maybe by the signal handler *)
                       Lwt.return_unit

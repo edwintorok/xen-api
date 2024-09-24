@@ -19,7 +19,7 @@
     stunnel
     threads.posix
     uuid
-    xapi-backtrace
+    backtrace
     xapi-consts
     xapi-idl.network
     xapi-idl.rrd
@@ -55,7 +55,7 @@
     rrd-transport
     threads.posix
     uuid
-    xapi-backtrace
+    backtrace
     xapi-consts.xapi_version
     xapi-idl
     xapi-idl.network

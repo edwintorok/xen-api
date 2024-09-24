@@ -257,7 +257,7 @@ module RepoMetaData = struct
   let assert_valid = function
     | {checksum= ""; _} | {location= ""; _} ->
         error "Can't find valid 'checksum' or 'location'" ;
-        raise Api_errors.(Server_error (invalid_repomd_xml, []))
+        raise Api_errors.(Server_error (invalid_repomd_xml, [], None))
     | _ ->
         ()
 
@@ -287,7 +287,7 @@ module RepoMetaData = struct
                   try {md with location= List.assoc "href" attrs}
                   with _ ->
                     error "Failed to get 'href' in 'location' of '%s'" dt ;
-                    raise Api_errors.(Server_error (invalid_repomd_xml, []))
+                    raise Api_errors.(Server_error (invalid_repomd_xml, [], None))
                 )
                 | _ ->
                     md
@@ -297,24 +297,24 @@ module RepoMetaData = struct
             |> fun md -> assert_valid md ; md
         | _ ->
             error "Missing or multiple '%s' node(s)" dt ;
-            raise Api_errors.(Server_error (invalid_repomd_xml, []))
+            raise Api_errors.(Server_error (invalid_repomd_xml, [], None))
       )
     | _ ->
         error "Missing 'repomd' node" ;
-        raise Api_errors.(Server_error (invalid_repomd_xml, []))
+        raise Api_errors.(Server_error (invalid_repomd_xml, [], None))
 
   let of_xml_file xml_path data_type =
     match Sys.file_exists xml_path with
     | false ->
         error "No repomd.xml found: %s" xml_path ;
-        raise Api_errors.(Server_error (invalid_repomd_xml, []))
+        raise Api_errors.(Server_error (invalid_repomd_xml, [], None))
     | true -> (
       match Xml.parse_file xml_path with
       | xml ->
           of_xml xml data_type
       | exception e ->
           error "Failed to parse repomd.xml: %s" (ExnHelper.string_of_exn e) ;
-          raise Api_errors.(Server_error (invalid_repomd_xml, []))
+          raise Api_errors.(Server_error (invalid_repomd_xml, [], None))
     )
 end
 
@@ -464,7 +464,7 @@ module Severity = struct
         High
     | _ ->
         error "Unknown severity in updateinfo" ;
-        raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+        raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
 end
 
 module GuidanceInUpdateInfo = struct
@@ -592,7 +592,7 @@ module UpdateInfo = struct
   let assert_valid_updateinfo = function
     | {id= ""; _} | {summary= ""; _} | {update_type= ""; _} ->
         error "One or more of 'id', 'summary', and 'type' is/are missing" ;
-        raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+        raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
     | ui ->
         ui
 
@@ -602,7 +602,7 @@ module UpdateInfo = struct
       l
     else (
       error "Found updates with same upadte ID" ;
-      raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+      raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
     )
 
   let get_guidances_of_kind ~kind updateinfo =
@@ -705,13 +705,13 @@ module UpdateInfo = struct
             error
               "Unexpected xapi-api-version: %s when there is no updates at all"
               v ;
-            raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+            raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
         | _, _ ->
             (api_ver, uis)
       )
     | _ ->
         error "Failed to parse updateinfo.xml: missing <updates>" ;
-        raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+        raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
 
   let of_xml_file xml_file_path =
     match Xml.parse_file xml_file_path with
@@ -719,7 +719,7 @@ module UpdateInfo = struct
         of_xml xml
     | exception e ->
         error "Failed to parse updateinfo.xml: %s" (ExnHelper.string_of_exn e) ;
-        raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+        raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
 end
 
 module HostUpdates = struct

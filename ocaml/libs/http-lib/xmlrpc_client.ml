@@ -228,7 +228,11 @@ let with_reusable_stunnel ?use_fork_exec_helper ?write_to_log ?verify_cert host
             if check_reusable x.Stunnel.fd (Stunnel.getpid x.Stunnel.pid) then
               result :=
                 Some
-                  (try Ok (f x) with e -> Backtrace.is_important e ; Error e)
+                  ( try Ok (f x)
+                    with e ->
+                      let bt = Printexc.get_raw_backtrace () in
+                      Error (e, bt)
+                  )
             else (
               assert_dest_is_ok host ;
               StunnelDebug.error
@@ -252,8 +256,8 @@ let with_reusable_stunnel ?use_fork_exec_helper ?write_to_log ?verify_cert host
         match !result with
         | Some (Ok r) ->
             r
-        | Some (Error e) ->
-            raise e
+        | Some (Error (e, bt)) ->
+            Printexc.raise_with_backtrace e bt
         | None ->
             StunnelDebug.error
               "get_reusable_stunnel: failed to acquire a working stunnel to \

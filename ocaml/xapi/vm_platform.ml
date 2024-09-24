@@ -173,6 +173,7 @@ let sanity_check ~platformdata ~firmware ~vcpu_max ~vcpu_at_startup:_
                "platform:device-model"
              ; "UEFI boot is not supported with qemu-trad"
              ]
+           , None
            )
         )
   | "qemu-upstream-uefi", Xenops_types.Vm.Bios ->
@@ -183,6 +184,7 @@ let sanity_check ~platformdata ~firmware ~vcpu_max ~vcpu_at_startup:_
                "platform:device-model"
              ; "BIOS boot is not supported with qemu-upstream-uefi"
              ]
+           , None
            )
         )
   | exception Not_found ->
@@ -202,12 +204,16 @@ let sanity_check ~platformdata ~firmware ~vcpu_max ~vcpu_at_startup:_
             (Api_errors.Server_error
                ( Api_errors.vcpu_max_not_cores_per_socket_multiple
                , [string_of_int vcpus; cps_str]
+               , None
                )
             )
       with Failure _ ->
         raise
           (Api_errors.Server_error
-             (Api_errors.invalid_value, ["platform:cores-per-socket"; cps_str])
+             ( Api_errors.invalid_value
+             , ["platform:cores-per-socket"; cps_str]
+             , None
+             )
           )
   ) ;
   (* Add usb emulation flags.
@@ -252,6 +258,7 @@ let check_restricted_flags ~__context platform =
              Printf.sprintf "platform:%s" nested_virt
            ; List.assoc nested_virt platform
            ]
+         , None
          )
       ) ;
   if is_true ~key:nested_virt ~platformdata:platform ~default:false then
@@ -266,5 +273,6 @@ let check_restricted_device_model ~__context platform =
              Printf.sprintf "platform:%s when vm has VUSBs" device_model
            ; (try List.assoc device_model platform with _ -> "undefined")
            ]
+         , None
          )
       )

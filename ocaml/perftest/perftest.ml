@@ -190,6 +190,6 @@ let _ =
                 failwith (Printf.sprintf "unknown mode: %s" !mode)
           )
           (fun () -> Client.Session.logout ~rpc ~session_id:session)
-  with Api_errors.Server_error (code, params) ->
+  with Api_errors.Server_error (code, params, _) ->
     debug ~out:stderr "Caught API error: %s [ %s ]" code
       (String.concat "; " params)

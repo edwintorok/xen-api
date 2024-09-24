@@ -15,6 +15,8 @@
 (** A backtrace from a particular thread. *)
 type t [@@deriving sexp]
 
+val typ_of : t Rpc.Types.typ
+
 val empty : t
 (** An empty backtrace *)
 

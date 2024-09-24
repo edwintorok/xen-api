@@ -1276,26 +1276,30 @@ module PCI = struct
 
   let add ~xc ~xs ~hvm pcidevs domid =
     let host_addr {host; guest= _; _} = host in
-    try
-      if !Xenopsd.use_old_pci_add || not hvm then (
-        List.iter (fun x -> ignore (quarantine (host_addr x))) pcidevs ;
-        add_xl (List.map host_addr pcidevs) domid
-      ) else
-        List.iter (_pci_add ~xc ~xs ~hvm domid) pcidevs ;
-      List.iter
-        (fun {host= pcidev; guest= dev, _; _} ->
-          xs.Xs.write
-            (Printf.sprintf "%s/dev-%d"
-               (device_model_pci_device_path xs 0 domid)
-               dev
-            )
-            (Pci.string_of_address pcidev)
-        )
-        pcidevs
-    with exn ->
-      Backtrace.is_important exn ;
-      Debug.log_backtrace exn (Backtrace.get exn) ;
-      Backtrace.reraise exn (Cannot_add (List.map host_addr pcidevs, exn))
+    Backtrace.try_with
+      (fun () ->
+        if !Xenopsd.use_old_pci_add || not hvm then (
+          List.iter (fun x -> ignore (quarantine (host_addr x))) pcidevs ;
+          add_xl (List.map host_addr pcidevs) domid
+        ) else
+          List.iter (_pci_add ~xc ~xs ~hvm domid) pcidevs ;
+        List.iter
+          (fun {host= pcidev; guest= dev, _; _} ->
+            xs.Xs.write
+              (Printf.sprintf "%s/dev-%d"
+                 (device_model_pci_device_path xs 0 domid)
+                 dev
+              )
+              (Pci.string_of_address pcidev)
+          )
+          pcidevs
+      )
+      (fun exn bt ->
+        Debug.log_backtrace exn bt ;
+        Printexc.raise_with_backtrace
+          (Cannot_add (List.map host_addr pcidevs, exn))
+          bt
+      )
 
   let release pcidevs domid = release_xl pcidevs domid
 

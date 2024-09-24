@@ -1339,10 +1339,10 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
           match read_legacy_qemu_header main_fd with
           | Ok length ->
               length
-          | Error e ->
+          | Error (e, bt) ->
               error "VM = %s; domid = %d; Error reading QEMU signature: %s"
                 (Uuidx.to_string uuid) domid e ;
-              raise Suspend_image_failure
+              Printexc.raise_with_backtrace Suspend_image_failure bt
         in
         debug "Consuming QEMU record into file" ;
         consume_qemu_record main_fd length domid uuid
@@ -1446,7 +1446,7 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
                 debug "Read suspend image footer" ;
                 res
             | (Libxl | Qemu_xen), _ ->
-                Error Suspend_image_failure
+                Error (Suspend_image_failure, Printexc.get_callstack 100)
           in
           let handle_results () =
             (* Wait for results coming in from emu-manager, and match them up
@@ -1471,7 +1471,7 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
                   List.iter
                     (fun (_emu, wakeup) -> Event.send wakeup () |> Event.sync)
                     !thread_requests ;
-                  Error Domain_restore_failed
+                  Error (Domain_restore_failed, Printexc.get_callstack 100)
                 )
               with End_of_file ->
                 debug "Finished emu-manager result processing" ;
@@ -1496,8 +1496,8 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
               match result with
               | Ok _ ->
                   ()
-              | Error e ->
-                  Debug.log_backtrace e (Backtrace.get e) ;
+              | Error (e, bt) ->
+                  Debug.log_backtrace e bt ;
                   warn "Canceling task %s, error during resume: %s"
                     (Xenops_task.get_dbg task) (Printexc.to_string e) ;
                   Xenops_task.cancel task |> ignore
@@ -1562,8 +1562,8 @@ let restore_common (task : Xenops_task.task_handle) ~xc ~xs
               (store_mfn, console_mfn)
           | Ok None ->
               failwith "Well formed, but useless stream"
-          | Error e ->
-              raise e
+          | Error (e, bt) ->
+              Printexc.raise_with_backtrace e bt
       )
   | Error e ->
       error "VM = %s; domid = %d; Error reading save signature: %s"
@@ -1735,9 +1735,10 @@ let suspend_emu_manager ~(task : Xenops_task.task_handle) ~xc:_ ~xs ~domain_type
               wait_for_message ()
           | None ->
               Error
-                (Emu_manager_failure
-                   "Received prepare:vgpu from emu-manager, but there is no \
-                    vGPU fd"
+                ( Emu_manager_failure
+                    "Received prepare:vgpu from emu-manager, but there is no \
+                     vGPU fd"
+                , Printexc.get_callstack 100
                 )
         )
         | Result _ ->
@@ -1748,13 +1749,14 @@ let suspend_emu_manager ~(task : Xenops_task.task_handle) ~xc:_ ~xs ~domain_type
             error "VM = %s; domid = %d; emu-manager failed: \"%s\""
               (Uuidx.to_string uuid) domid x ;
             Error
-              (Emu_manager_failure
-                 (Printf.sprintf "Received error from emu-manager: %s" x)
+              ( Emu_manager_failure
+                  (Printf.sprintf "Received error from emu-manager: %s" x)
+              , Printexc.get_callstack 100
               )
         | _ ->
             error "VM = %s; domid = %d; unexpected message from emu-manager"
               (Uuidx.to_string uuid) domid ;
-            Error Emu_manager_protocol_failure
+            Error (Emu_manager_protocol_failure, Printexc.get_callstack 100)
       in
       wait_for_message ()
   )
@@ -1872,8 +1874,8 @@ let suspend (task : Xenops_task.task_handle) ~xc ~xs ~domain_type ~is_uefi ~dm
     fold (fun fd () -> write_header fd (End_of_image, 0L)) fds ()
   in
   ( match res with
-  | Error e ->
-      raise e
+  | Error (e, bt) ->
+      Printexc.raise_with_backtrace e bt
   | Ok () ->
       debug "VM = %s; domid = %d; suspend complete" (Uuidx.to_string uuid) domid
   ) ;

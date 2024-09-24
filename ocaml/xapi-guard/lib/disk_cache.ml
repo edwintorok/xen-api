@@ -251,7 +251,7 @@ end = struct
     files_in dir ~otherwise:create_dir
 
   let fail exn =
-    Debug.log_backtrace exn (Backtrace.get exn) ;
+    Debug.log_backtrace exn (Printexc.get_raw_backtrace ()) ;
     Lwt_result.fail exn
 
   let read_contents ~direct root (uuid, now, key) =

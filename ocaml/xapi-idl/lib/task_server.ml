@@ -187,20 +187,21 @@ functor
 
     (* [run t] executes the task body, updating the fields of [t] *)
     let run item =
-      ( try
+      Backtrace.try_with
+        (fun () ->
           let start = Unix.gettimeofday () in
           let result = item.f item in
           let duration = Unix.gettimeofday () -. start in
           item.state <-
             Interface.Task.Completed {Interface.Task.duration; result} ;
           debug "Task %s completed; duration = %.0f" item.id duration
-        with e ->
-          Backtrace.is_important e ;
+        )
+        (fun e bt ->
           error "Task %s failed; %s" item.id (Printexc.to_string e) ;
-          item.backtrace <- Backtrace.remove e ;
+          item.backtrace <- Backtrace.of_raw_extract e bt ;
           let e = e |> Interface.marshal_exn in
           item.state <- Interface.Task.Failed e
-      ) ;
+        ) ;
       task_finished item
 
     let find_locked tasks id =
@@ -233,20 +234,22 @@ functor
 
     let with_subtask t name f =
       let start = Unix.gettimeofday () in
-      try
-        t.subtasks <- (name, Interface.Task.Pending 0.) :: t.subtasks ;
-        let result = f () in
-        let duration = Unix.gettimeofday () -. start in
-        t.subtasks <-
-          replace_assoc name
-            (Interface.Task.Completed {Interface.Task.duration; result= None})
-            t.subtasks ;
-        result
-      with e ->
-        Backtrace.is_important e ;
-        let e' = Interface.marshal_exn e in
-        t.subtasks <- replace_assoc name (Interface.Task.Failed e') t.subtasks ;
-        raise e
+      Backtrace.try_with
+        (fun () ->
+          t.subtasks <- (name, Interface.Task.Pending 0.) :: t.subtasks ;
+          let result = f () in
+          let duration = Unix.gettimeofday () -. start in
+          t.subtasks <-
+            replace_assoc name
+              (Interface.Task.Completed {Interface.Task.duration; result= None})
+              t.subtasks ;
+          result
+        )
+        (fun e bt ->
+          let e' = Interface.marshal_exn e in
+          t.subtasks <- replace_assoc name (Interface.Task.Failed e') t.subtasks ;
+          Printexc.raise_with_backtrace e bt
+        )
 
     let list tasks =
       with_lock tasks.m (fun () ->

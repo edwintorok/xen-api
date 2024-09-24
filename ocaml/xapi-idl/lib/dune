@@ -26,7 +26,7 @@
    unix
    uri
    uuidm
-   xapi-backtrace
+   backtrace
    xapi-consts
    xapi-log
    xapi-open-uri
@@ -54,7 +54,7 @@
    sexplib0
    tracing
    threads.posix
-   xapi-backtrace
+   backtrace
    xapi-idl
    xapi-log
    xapi-stdext-pervasives

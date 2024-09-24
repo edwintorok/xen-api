@@ -35,7 +35,6 @@
     http_lib
     httpsvr
     uuid
-    xapi-backtrace
     xapi-datamodel
     xapi-log
     (re_export xapi-schema)

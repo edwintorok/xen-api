@@ -14,7 +14,9 @@
 (* Hopefully, this handler will be able to look at the return codes of the cmds, and produce *)
 (* a reasonable error. For now, just return the error code! *)
 let generic_handler _ n =
-  raise (Api_errors.Server_error (Api_errors.internal_error, [string_of_int n]))
+  raise
+    (Api_errors.Server_error (Api_errors.internal_error, [string_of_int n], None)
+    )
 
 exception Process_output_error of string
 

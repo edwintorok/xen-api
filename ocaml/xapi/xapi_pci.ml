@@ -274,11 +274,12 @@ let update_pcis ~__context =
                      r
                  )
             with Not_found ->
+              let bt = Printexc.get_raw_backtrace () in
               let msg =
                 Printf.sprintf "failed to update PCI dependencies for %s (%s)"
                   (Ref.string_of pref) __LOC__
               in
-              raise Api_errors.(Server_error (internal_error, [msg]))
+              Printexc.raise_with_backtrace Api_errors.(Server_error (internal_error, [msg], None)) bt
           in
           Db.PCI.set_dependencies ~__context ~self:pref ~value:dependencies ;
           update remaining

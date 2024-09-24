@@ -245,7 +245,7 @@ let create_vbd_and_plug_with_other_config rpc session_id vm vdi device_name
       ~device:"" ~currently_attached:false
   in
   try Client.VBD.plug ~rpc ~session_id ~self:vbd
-  with Api_errors.Server_error (_, _) as e ->
+  with Api_errors.Server_error (_, _, _) as e ->
     debug "VBD created but not hotplugged: %s" (Api_errors.to_string e)
 
 let create_vbd_and_plug rpc session_id vm vdi device_name bootable rw cd
@@ -284,7 +284,7 @@ let alltrue l = List.fold_left ( && ) true l
 
 let safe_get_field x =
   try x.get () with
-  | Api_errors.Server_error (s, _) as e ->
+  | Api_errors.Server_error (s, _, _) as e ->
       if s = Api_errors.handle_invalid then "<invalid reference>" else raise e
   | e ->
       raise e
@@ -1553,7 +1553,7 @@ let pool_join printer rpc session_id params =
          ]
       )
   with
-  | Api_errors.Server_error (code, _)
+  | Api_errors.Server_error (code, _, _)
   when code = Api_errors.pool_joining_host_connection_failed
   ->
     printer
@@ -2206,39 +2206,40 @@ let print_assert_exception e =
         "<server did not provide reference>"
   in
   match e with
-  | Api_errors.Server_error (code, params) when code = Api_errors.vm_requires_sr
-    ->
+  | Api_errors.Server_error (code, params, _)
+    when code = Api_errors.vm_requires_sr ->
       "VM requires access to SR: " ^ Cli_util.ref_convert (get_arg 2 params)
-  | Api_errors.Server_error (code, _) when code = Api_errors.host_disabled ->
+  | Api_errors.Server_error (code, _, _) when code = Api_errors.host_disabled ->
       "Host disabled (use 'xe host-enable' to re-enable)"
-  | Api_errors.Server_error (code, _) when code = Api_errors.host_not_live ->
+  | Api_errors.Server_error (code, _, _) when code = Api_errors.host_not_live ->
       "Host down"
-  | Api_errors.Server_error (code, _)
+  | Api_errors.Server_error (code, _, _)
     when code = Api_errors.host_not_enough_free_memory ->
       Printf.sprintf "Not enough free memory"
-  | Api_errors.Server_error (code, [vcpus; pcpus])
+  | Api_errors.Server_error (code, [vcpus; pcpus], _)
     when code = Api_errors.host_not_enough_pcpus ->
       Printf.sprintf "Not enough CPUs (VM needs %s, but host has %s)" vcpus
         pcpus
-  | Api_errors.Server_error (code, params)
+  | Api_errors.Server_error (code, params, _)
     when code = Api_errors.vm_requires_net ->
       "VM requires access to network: " ^ Cli_util.ref_convert (get_arg 2 params)
-  | Api_errors.Server_error (code, params)
+  | Api_errors.Server_error (code, params, _)
     when code = Api_errors.host_cannot_attach_network ->
       "Host cannot attach to network: " ^ Cli_util.ref_convert (get_arg 2 params)
-  | Api_errors.Server_error (code, _) when code = Api_errors.vm_hvm_required ->
+  | Api_errors.Server_error (code, _, _) when code = Api_errors.vm_hvm_required
+    ->
       "HVM not supported"
-  | Api_errors.Server_error (code, [key; v])
+  | Api_errors.Server_error (code, [key; v], _)
     when code = Api_errors.invalid_value ->
       Printf.sprintf "Field has invalid value: %s = %s" key v
   (* Used by VM.assert_agile: *)
-  | Api_errors.Server_error (code, [sr])
+  | Api_errors.Server_error (code, [sr], _)
     when code = Api_errors.ha_constraint_violation_sr_not_shared ->
       Printf.sprintf
         "VM requires access to non-shared SR: %s. SR must both be marked as \
          shared and a properly configured PBD must be plugged-in on every host"
         (Cli_util.ref_convert sr)
-  | Api_errors.Server_error (code, [net])
+  | Api_errors.Server_error (code, [net], _)
     when code = Api_errors.ha_constraint_violation_network_not_shared ->
       Printf.sprintf
         "VM requires access to non-shared Network: %s. Network must either be \
@@ -2422,7 +2423,7 @@ let vbd_unplug _printer rpc session_id params =
     (if force then Client.VBD.unplug_force else Client.VBD.unplug)
       ~rpc ~session_id ~self:vbd
   with
-  | Api_errors.Server_error (code, _) as e
+  | Api_errors.Server_error (code, _, _) as e
   when code = Api_errors.device_detach_rejected
   ->
     (* enter polling mode *)
@@ -2845,6 +2846,7 @@ let vm_destroy _printer rpc session_id params =
       (Api_errors.Server_error
          ( Api_errors.operation_not_allowed
          , ["You cannot destroy a control domain via the CLI"]
+         , None
          )
       )
   else
@@ -3016,7 +3018,7 @@ let event_wait_gen rpc session_id classname record_matches =
               List.iter doevent
                 (List.filter (fun e -> e.Event_types.snapshot <> None) events)
             with
-            | Api_errors.Server_error (code, _)
+            | Api_errors.Server_error (code, _, _)
             when code = Api_errors.events_lost
             ->
               debug "Got EVENTS_LOST; reregistering" ;
@@ -3242,7 +3244,7 @@ let do_multiple op set =
     List.map
       (fun e ->
         try Some (op e) with
-        | Api_errors.Server_error (code, params) as exn ->
+        | Api_errors.Server_error (code, params, _) as exn ->
             ( match Cli_util.get_server_error code params with
             | None ->
                 append_fail e (Cli_util.string_of_exn exn)
@@ -3342,7 +3344,7 @@ let do_sr_op rpc session_id op params ?(multiple = true) ignore_params =
 (* Execute f; if we get a no_hosts_available error then print a vm diagnostic table and reraise exception *)
 let hook_no_hosts_available printer rpc session_id vm f =
   try f ()
-  with Api_errors.Server_error (code, _) as e ->
+  with Api_errors.Server_error (code, _, _) as e ->
     if code = Api_errors.no_hosts_available then (
       printer
         (Cli_printer.PList
@@ -3986,6 +3988,7 @@ let vm_install_real printer rpc session_id template name description params =
       Api_errors.Server_error
         ( Api_errors.license_restriction
         , [Features.name_of_feature Features.PCI_device_for_auto_update]
+        , None
         )
     in
     let pool = get_pool ~rpc ~session_id in
@@ -5120,7 +5123,10 @@ let vm_cd_insert printer rpc session_id params =
     | [] ->
         raise
           (Api_errors.Server_error
-             (Api_errors.vm_no_empty_cd_vbd, [Ref.string_of (vm.getref ())])
+             ( Api_errors.vm_no_empty_cd_vbd
+             , [Ref.string_of (vm.getref ())]
+             , None
+             )
           )
     | [cd] ->
         Client.VBD.insert ~rpc ~session_id ~vbd:cd ~vdi:(List.hd vdis)
@@ -5261,7 +5267,7 @@ let with_license_server_changes printer rpc session_id params hosts f =
   ) ;
   let now = Unix.gettimeofday () in
   try f rpc session_id with
-  | Api_errors.Server_error (name, _) as e
+  | Api_errors.Server_error (name, _, _) as e
     when name = Api_errors.license_checkout_error ->
       (* Put back original license_server_details *)
       List.iter
@@ -5292,7 +5298,7 @@ let with_license_server_changes printer rpc session_id params hosts f =
         List.iter print_if_checkout_error alerts ;
         raise (ExitWithError 1)
       )
-  | Api_errors.Server_error (name, _) as e
+  | Api_errors.Server_error (name, _, _) as e
     when name = Api_errors.invalid_edition ->
       let host = get_host_from_session rpc session_id in
       let editions =
@@ -5496,7 +5502,12 @@ let download_file rpc session_id task fd filename uri label =
              (PrintStderr (Printf.sprintf "%s failed, unknown error\n" label))
           )
       else
-        raise (Api_errors.Server_error (List.hd result, List.tl result))
+        let trace = Client.Task.get_backtrace ~rpc ~session_id ~self:task in
+        let backtrace = Backtrace.t_of_sexp (Sexplib.Sexp.of_string trace) in
+        raise
+          (Api_errors.Server_error
+             (List.hd result, List.tl result, Some backtrace)
+          )
   | `cancelled ->
       marshal fd (Command (PrintStderr (Printf.sprintf "%s cancelled\n" label))) ;
       raise (ExitWithError 1)
@@ -5710,7 +5721,16 @@ let blob_get fd _printer rpc session_id params =
           if result = [] then
             marshal fd (Command (PrintStderr "Blob get failed, unknown error\n"))
           else
-            raise (Api_errors.Server_error (List.hd result, List.tl result))
+            let trace =
+              Client.Task.get_backtrace ~rpc ~session_id ~self:blobtask
+            in
+            let backtrace =
+              Backtrace.t_of_sexp (Sexplib.Sexp.of_string trace)
+            in
+            raise
+              (Api_errors.Server_error
+                 (List.hd result, List.tl result, Some backtrace)
+              )
       | `cancelled ->
           marshal fd (Command (PrintStderr "Blob get cancelled\n")) ;
           raise (ExitWithError 1)
@@ -5774,7 +5794,16 @@ let blob_put fd _printer rpc session_id params =
           if result = [] then
             marshal fd (Command (PrintStderr "Blob put failed, unknown error\n"))
           else
-            raise (Api_errors.Server_error (List.hd result, List.tl result))
+            let trace =
+              Client.Task.get_backtrace ~rpc ~session_id ~self:blobtask
+            in
+            let backtrace =
+              Backtrace.t_of_sexp (Sexplib.Sexp.of_string trace)
+            in
+            raise
+              (Api_errors.Server_error
+                 (List.hd result, List.tl result, Some backtrace)
+              )
       | `cancelled ->
           marshal fd (Command (PrintStderr "Blob put cancelled\n")) ;
           raise (ExitWithError 1)
@@ -6131,7 +6160,7 @@ let vlan_destroy _printer rpc session_id params =
     let vlan = Client.VLAN.get_by_uuid ~rpc ~session_id ~uuid in
     Client.VLAN.destroy ~rpc ~session_id ~self:vlan
   with
-  | Api_errors.Server_error (s, _) as e
+  | Api_errors.Server_error (s, _, _) as e
     when s = Api_errors.handle_invalid || s = Api_errors.host_offline ->
       raise e
   | e -> (

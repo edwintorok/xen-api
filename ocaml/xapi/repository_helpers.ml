@@ -41,43 +41,52 @@ module Update = struct
   }
 
   let of_json j =
-    try
-      let open Yojson.Basic.Util in
-      {
-        name= member "name" j |> to_string
-      ; arch= member "arch" j |> to_string
-      ; new_epoch=
-          member "newEpochVerRel" j
-          |> member "epoch"
-          |> to_string
-          |> Epoch.of_string
-      ; new_version= member "newEpochVerRel" j |> member "version" |> to_string
-      ; new_release= member "newEpochVerRel" j |> member "release" |> to_string
-      ; old_epoch=
-          ( try
-              Some
-                (member "oldEpochVerRel" j
-                |> member "epoch"
-                |> to_string
-                |> Epoch.of_string
-                )
-            with _ -> None
-          )
-      ; old_version=
-          ( try Some (member "oldEpochVerRel" j |> member "version" |> to_string)
-            with _ -> None
-          )
-      ; old_release=
-          ( try Some (member "oldEpochVerRel" j |> member "release" |> to_string)
-            with _ -> None
-          )
-      ; update_id= member "updateId" j |> to_string_option
-      ; repository= member "repository" j |> to_string
-      }
-    with e ->
-      let msg = "Can't construct an update from json" in
-      error "%s: %s" msg (ExnHelper.string_of_exn e) ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+    Backtrace.try_with
+      (fun () ->
+        let open Yojson.Basic.Util in
+        {
+          name= member "name" j |> to_string
+        ; arch= member "arch" j |> to_string
+        ; new_epoch=
+            member "newEpochVerRel" j
+            |> member "epoch"
+            |> to_string
+            |> Epoch.of_string
+        ; new_version=
+            member "newEpochVerRel" j |> member "version" |> to_string
+        ; new_release=
+            member "newEpochVerRel" j |> member "release" |> to_string
+        ; old_epoch=
+            ( try
+                Some
+                  (member "oldEpochVerRel" j
+                  |> member "epoch"
+                  |> to_string
+                  |> Epoch.of_string
+                  )
+              with _ -> None
+            )
+        ; old_version=
+            ( try
+                Some (member "oldEpochVerRel" j |> member "version" |> to_string)
+              with _ -> None
+            )
+        ; old_release=
+            ( try
+                Some (member "oldEpochVerRel" j |> member "release" |> to_string)
+              with _ -> None
+            )
+        ; update_id= member "updateId" j |> to_string_option
+        ; repository= member "repository" j |> to_string
+        }
+      )
+      (fun e bt ->
+        let msg = "Can't construct an update from json" in
+        error "%s: %s" msg (ExnHelper.string_of_exn e) ;
+        Printexc.raise_with_backtrace
+          Api_errors.(Server_error (internal_error, [msg], None))
+          bt
+      )
 
   let to_string u =
     Printf.sprintf "%s.%s %s:%s-%s -> %s:%s-%s from %s:%s" u.name u.arch
@@ -187,7 +196,7 @@ let assert_url_is_valid ~url =
             ()
         | valids, [] when not (hostname_allowed valids) ->
             let msg = "host is not in allowlist" in
-            raise Api_errors.(Server_error (internal_error, [msg]))
+            raise Api_errors.(Server_error (internal_error, [msg], None))
         | _, [] ->
             ()
         | _ ->
@@ -195,16 +204,16 @@ let assert_url_is_valid ~url =
               (String.concat "," invalids) ;
             raise
               Api_errors.(
-                Server_error (invalid_repository_domain_allowlist, invalids)
+                Server_error (invalid_repository_domain_allowlist, invalids, None)
               )
       )
     | _, None ->
-        raise Api_errors.(Server_error (internal_error, ["invalid host in url"]))
+        raise Api_errors.(Server_error (internal_error, ["invalid host in url"], None))
     | _ ->
         raise
-          Api_errors.(Server_error (internal_error, ["invalid scheme in url"]))
+          Api_errors.(Server_error (internal_error, ["invalid scheme in url"], None))
   with
-  | Api_errors.Server_error (err, _) as e
+  | Api_errors.Server_error (err, _, _) as e
     when err = Api_errors.invalid_repository_domain_allowlist ->
       raise e
   | e ->

@@ -184,21 +184,23 @@ let nofn () = ()
 let check ?(extra_dmsg = "") ?(extra_msg = "") ?args ?(keys = []) ~__context ~fn
     session_id action =
   let permission = permission_of_action action ?args ~keys in
-  if is_access_allowed ~__context ~session_id ~permission then (
+  if is_access_allowed ~__context ~session_id ~permission then
     (* allow access to action *)
     let sexpr_of_args = Rbac_audit.allowed_pre_fn ~__context ~action ?args () in
-    try
-      let result = fn () (* call rbac-protected function *) in
-      Rbac_audit.allowed_post_fn_ok ~__context ~session_id ~action ~permission
-        ?sexpr_of_args ?args ~result () ;
-      result
-    with error ->
-      Backtrace.is_important error ;
-      (* catch all exceptions *)
-      Rbac_audit.allowed_post_fn_error ~__context ~session_id ~action
-        ~permission ?sexpr_of_args ?args ~error () ;
-      raise error
-  ) else (* deny access to action *)
+    Backtrace.try_with
+      (fun () ->
+        let result = fn () (* call rbac-protected function *) in
+        Rbac_audit.allowed_post_fn_ok ~__context ~session_id ~action ~permission
+          ?sexpr_of_args ?args ~result () ;
+        result
+      )
+      (fun error bt ->
+        (* catch all exceptions *)
+        Rbac_audit.allowed_post_fn_error ~__context ~session_id ~action
+          ~permission ?sexpr_of_args ?args ~error () ;
+        Printexc.raise_with_backtrace error bt
+      )
+  else (* deny access to action *)
     let allowed_roles_string =
       try
         let allowed_roles =
@@ -226,7 +228,7 @@ let check ?(extra_dmsg = "") ?(extra_msg = "") ?args ?(keys = []) ~__context ~fn
     Rbac_audit.denied ~__context ~session_id ~action ~permission ?args () ;
     raise
       (Api_errors.Server_error
-         (Api_errors.rbac_permission_denied, [permission; msg])
+         (Api_errors.rbac_permission_denied, [permission; msg], None)
       )
 
 let get_session_of_context ~__context ~permission =
@@ -236,6 +238,7 @@ let get_session_of_context ~__context ~permission =
       (Api_errors.Server_error
          ( Api_errors.rbac_permission_denied
          , [permission; "no session in context"]
+         , None
          )
       )
 

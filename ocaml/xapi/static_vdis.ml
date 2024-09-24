@@ -33,6 +33,7 @@ let permanent_vdi_attach ~__context ~vdi ~reason =
       (Api_errors.Server_error
          ( Api_errors.vdi_incompatible_type
          , [Ref.string_of vdi; Record_util.vdi_type_to_string `cbt_metadata]
+         , None
          )
       )
   ) ;

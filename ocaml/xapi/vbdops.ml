@@ -34,5 +34,5 @@ let translate_vbd_device vbd_ref name hvm =
   | None ->
       raise
         (Api_errors.Server_error
-           (Api_errors.illegal_vbd_device, [Ref.string_of vbd_ref; name])
+           (Api_errors.illegal_vbd_device, [Ref.string_of vbd_ref; name], None)
         )

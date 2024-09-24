@@ -47,6 +47,7 @@ let fail_creation vm vgpu =
              ; Ref.string_of vgpu.gpu_group_ref
              ; Ref.string_of vgpu.type_ref
              ]
+            , None
            )
         )
   | Some `PF ->
@@ -54,6 +55,7 @@ let fail_creation vm vgpu =
         (Api_errors.Server_error
            ( Api_errors.vm_requires_gpu
            , [Ref.string_of vm; Ref.string_of vgpu.gpu_group_ref]
+           , None
            )
         )
 
@@ -141,14 +143,14 @@ let reserve_free_virtual_function ~__context vm impl pf =
               Printf.sprintf "Unexpected GPU implementation vm=%s pf=%s (%s)"
                 vm_ref pf_ref __LOC__
             in
-            raise Api_errors.(Server_error (internal_error, [msg]))
+            raise Api_errors.(Server_error (internal_error, [msg], None))
         ) ;
         get false
     | None ->
         (* This probably means that our capacity checking went wrong! *)
         raise
           Api_errors.(
-            Server_error (internal_error, ["No free virtual function found"])
+            Server_error (internal_error, ["No free virtual function found"], None)
           )
   in
   match impl with
@@ -213,6 +215,7 @@ let create_vgpus ~__context host (vm, vm_r) hvm =
       (Api_errors.Server_error
          ( Api_errors.feature_requires_hvm
          , ["vGPU- and GPU-passthrough needs HVM"]
+         , None
          )
       ) ;
   add_vgpus_to_vm ~__context host vm vgpus

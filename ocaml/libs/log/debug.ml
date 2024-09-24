@@ -213,13 +213,6 @@ let init_logs () =
      calling [output_log] too often. *)
   Logs.set_level (Some Logs.Warning)
 
-let rec split_c c str =
-  try
-    let i = String.index str c in
-    String.sub str 0 i
-    :: split_c c (String.sub str (i + 1) (String.length str - i - 1))
-  with Not_found -> [str]
-
 let log_backtrace_exn ?(level = Syslog.Err) ?(msg = "error") exn bt =
   (* We already got the backtrace in the `bt` argument when called from with_thread_associated.
      Log that, and remove `exn` from the backtraces table.
@@ -228,33 +221,23 @@ let log_backtrace_exn ?(level = Syslog.Err) ?(msg = "error") exn bt =
      from the thread-local backtraces table, and we'd always just log a message complaining about
      with_backtraces not being called, which is not true because it was.
   *)
-  let bt' = Backtrace.remove exn in
-  (* bt could be empty, but bt' would contain a non-empty warning, so compare 'bt' here *)
-  let bt = if bt = Backtrace.empty then bt' else bt in
-  let all = split_c '\n' Backtrace.(to_string_hum bt) in
+  let bt = Backtrace.of_raw_extract exn bt in
+  let all = String.split_on_char '\n' Backtrace.(to_string_hum bt) in
   (* Write to the log line at a time *)
   output_log "backtrace" level msg
     (Printf.sprintf "Raised %s" (Printexc.to_string exn)) ;
   List.iter (output_log "backtrace" level msg) all
 
-let log_backtrace_internal ?level ?msg e _bt =
-  Backtrace.is_important e ;
-  log_backtrace_exn ?level ?msg e (Backtrace.remove e)
+let log_backtrace_internal ?level ?msg e bt = log_backtrace_exn ?level ?msg e bt
 
 let log_backtrace e bt = log_backtrace_internal e bt
 
 let with_thread_associated ?client ?(quiet = false) desc f x =
   ThreadLocalTable.add tasks {desc; client} ;
-  let result =
-    Backtrace.with_backtraces (fun () ->
-        try f x with e -> Backtrace.is_important e ; raise e
-    )
-  in
-  ThreadLocalTable.remove tasks ;
-  match result with
-  | `Ok result ->
-      result
-  | `Error (exn, bt) ->
+  let finally () = ThreadLocalTable.remove tasks in
+  Backtrace.try_with
+    (fun () -> Fun.protect ~finally (fun () -> f x))
+    (fun exn bt ->
       (* This function is a top-level exception handler typically used on fresh
          threads. This is the last chance to do something with the backtrace *)
       if not quiet then (
@@ -264,18 +247,21 @@ let with_thread_associated ?client ?(quiet = false) desc f x =
           ) ;
         log_backtrace_exn exn bt
       ) ;
-      raise exn
+      Printexc.raise_with_backtrace exn bt
+    )
 
 let with_thread_named name f x =
   ThreadLocalTable.add names name ;
-  try
-    let result = f x in
-    ThreadLocalTable.remove names ;
-    result
-  with e ->
-    Backtrace.is_important e ;
-    ThreadLocalTable.remove names ;
-    raise e
+  Backtrace.try_with
+    (fun () ->
+      let result = f x in
+      ThreadLocalTable.remove names ;
+      result
+    )
+    (fun e bt ->
+      ThreadLocalTable.remove names ;
+      Printexc.raise_with_backtrace e bt
+    )
 
 module type BRAND = sig
   val name : string
@@ -349,8 +335,8 @@ functor
       debug "%s" (String.escaped backtrace)
 
     let log_and_ignore_exn f =
-      try f ()
-      with e -> log_backtrace_internal ~level:Syslog.Debug ~msg:"debug" e ()
+      Backtrace.try_with f
+        (log_backtrace_internal ~level:Syslog.Debug ~msg:"debug")
   end
 
 module Pp = struct let mtime_span () = Fmt.str "%a" Mtime.Span.pp end

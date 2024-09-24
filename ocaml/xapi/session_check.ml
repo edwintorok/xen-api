@@ -46,7 +46,7 @@ let check ~intra_pool_only ~session_id ~action =
                   {|Internal API "%s" call attempted with non-pool (external) session|}
                   action
               in
-              raise Api_errors.(Server_error (internal_error, [msg]))
+              raise Api_errors.(Server_error (internal_error, [msg], None))
           ) ;
 
           (* If the session isn't a pool login, and we're a supporter, fail *)
@@ -74,7 +74,8 @@ let check ~intra_pool_only ~session_id ~action =
                     "Can't add the configurable threshold of last active to \
                      the current time."
                   in
-                  raise Api_errors.(Server_error (internal_error, [err_msg]))
+                  raise
+                    Api_errors.(Server_error (internal_error, [err_msg], None))
               | Some ptime ->
                   ptime
             in
@@ -88,7 +89,9 @@ let check ~intra_pool_only ~session_id ~action =
                session ref '%s'"
               reference ;
             raise
-              (Api_errors.Server_error (Api_errors.session_invalid, [reference]))
+              (Api_errors.Server_error
+                 (Api_errors.session_invalid, [reference], None)
+              )
         | Non_master_login_on_slave ->
             let master =
               Db_actions.DB_Action.Pool.get_master ~__context
@@ -97,16 +100,22 @@ let check ~intra_pool_only ~session_id ~action =
             let address =
               Db_actions.DB_Action.Host.get_address ~__context ~self:master
             in
-            raise (Api_errors.Server_error (Api_errors.host_is_slave, [address]))
-        | Api_errors.Server_error (code, params) as e ->
-            debug "Session check failed: unexpected exception %s %s" code
-              (String.concat " " params) ;
-            raise e
-        | exn ->
-            debug "Session check failed: unexpected exception '%s'"
-              (Printexc.to_string exn) ;
             raise
               (Api_errors.Server_error
-                 (Api_errors.session_invalid, [Ref.string_of session_id])
+                 (Api_errors.host_is_slave, [address], None)
               )
+        | Api_errors.Server_error (code, params, _) as e ->
+            let bt = Printexc.get_raw_backtrace () in
+            debug "Session check failed: unexpected exception %s %s" code
+              (String.concat " " params) ;
+            Printexc.raise_with_backtrace e bt
+        | exn ->
+            let bt = Printexc.get_raw_backtrace () in
+            debug "Session check failed: unexpected exception '%s'"
+              (Printexc.to_string exn) ;
+            Printexc.raise_with_backtrace
+              (Api_errors.Server_error
+                 (Api_errors.session_invalid, [Ref.string_of session_id], None)
+              )
+              bt
   )

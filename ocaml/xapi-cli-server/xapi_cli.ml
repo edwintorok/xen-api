@@ -56,7 +56,7 @@ let forward args s session =
   if not (is_unix_socket s) then
     raise
       (Api_errors.Server_error
-         (Api_errors.host_is_slave, [Pool_role.get_master_address ()])
+         (Api_errors.host_is_slave, [Pool_role.get_master_address ()], None)
       ) ;
   let open Xmlrpc_client in
   let transport =
@@ -125,9 +125,10 @@ let do_rpcs _req s username password minimal cmd session args tracing =
   let cmdname = get_cmdname cmd in
   let cspec =
     try Hashtbl.find cmdtable cmdname
-    with Not_found as e ->
+    with Not_found ->
+      let bt = Printexc.get_raw_backtrace () in
       error "Rethrowing Not_found as Unknown_command %s" cmdname ;
-      Backtrace.reraise e (Unknown_command cmdname)
+      Printexc.raise_with_backtrace (Unknown_command cmdname) bt
   in
   (* Forward if we're not the master, and if the cspec doesn't contain the key 'neverforward' *)
   let do_forward =
@@ -317,7 +318,7 @@ let exception_handler s e =
       multiple_error errs s
   | Cli_util.Cli_failure str ->
       other_error ("Error: " ^ str) s
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       if code = Api_errors.session_authentication_failed then
         let uname = List.hd params in
         if uname = "" (* default when not specified *) then
@@ -362,12 +363,9 @@ let handler (req : Http.Request.t) (bio : Buf_io.t) _ =
   try
     (* Unfortunately parse errors can happen preventing the '--trace' option from working *)
     let cmd = parse_commandline ("xe" :: args) in
-    match
-      Backtrace.with_backtraces (fun () -> exec_command req cmd s session args)
-    with
-    | `Ok _ ->
-        ()
-    | `Error (e, bt) ->
+    Backtrace.try_with
+      (fun () -> exec_command req cmd s session args)
+      (fun e bt ->
         exception_handler s e ;
         (* Command execution errors can use --trace *)
         if Cli_operations.get_bool_param cmd.params "trace" then (
@@ -377,10 +375,12 @@ let handler (req : Http.Request.t) (bio : Buf_io.t) _ =
                )
             ) ;
           marshal s (Command (PrintStderr "Backtrace:\n")) ;
-          marshal s (Command (PrintStderr Backtrace.(to_string_hum bt)))
+          let bt' = Backtrace.of_raw_extract e bt in
+          marshal s (Command (PrintStderr Backtrace.(to_string_hum bt')))
         ) ;
         Debug.log_backtrace e bt ;
         marshal s (Command (Exit 1))
+      )
   with e ->
     exception_handler s e ;
     marshal s (Command (Exit 1))

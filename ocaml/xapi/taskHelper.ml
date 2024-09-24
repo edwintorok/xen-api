@@ -238,7 +238,7 @@ let is_cancelling ~__context =
 let raise_cancelled ~__context =
   let@ __context = Context.with_tracing ~__context __FUNCTION__ in
   let task_id = Context.get_task_id __context in
-  raise Api_errors.(Server_error (task_cancelled, [Ref.string_of task_id]))
+  raise Api_errors.(Server_error (task_cancelled, [Ref.string_of task_id], None))
 
 let exn_if_cancelling ~__context =
   let@ __context = Context.with_tracing ~__context __FUNCTION__ in
@@ -265,8 +265,13 @@ let cancel ~__context =
   cancel_this ~__context ~self
 
 let failed ~__context exn =
-  let backtrace = Printexc.get_backtrace () in
-  let@ () = finally_complete_tracing ~error:(exn, backtrace) __context in
+  let bt = Printexc.get_raw_backtrace () in
+  let backtrace = Backtrace.of_raw_extract exn bt in
+  let@ () =
+    finally_complete_tracing
+      ~error:(exn, Backtrace.to_string_hum backtrace)
+      __context
+  in
   let code, params = ExnHelper.error_of_exn exn in
   let@ self = operate_on_db_task ~__context in
   let status = Db_actions.DB_Action.Task.get_status ~__context ~self in
@@ -276,7 +281,7 @@ let failed ~__context exn =
       Db_actions.DB_Action.Task.set_error_info ~__context ~self
         ~value:(code :: params) ;
       Db_actions.DB_Action.Task.set_backtrace ~__context ~self
-        ~value:(Sexplib.Sexp.to_string Backtrace.(sexp_of_t (get exn))) ;
+        ~value:(Sexplib.Sexp.to_string Backtrace.(sexp_of_t backtrace)) ;
       Db_actions.DB_Action.Task.set_finished ~__context ~self
         ~value:(Date.now ()) ;
       Db_actions.DB_Action.Task.set_allowed_operations ~__context ~self

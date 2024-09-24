@@ -46,7 +46,6 @@
   mtime.clock.os
   uuidm
   uri
-  xapi-backtrace
   xapi-consts
   xapi-idl
   xapi-idl.guard.privileged

@@ -105,14 +105,17 @@ let call_openssl args =
 let generate_pub_priv_key length =
   let args = ["genrsa"; string_of_int length] in
   let* rsa_string =
-    try
-      let stdout, _stderr = call_openssl args in
-      Ok stdout
-    with e ->
-      let msg = "generating RSA key failed" in
-      D.error "selfcert.ml: %s" msg ;
-      Debug.log_backtrace e (Backtrace.get e) ;
-      R.error_msg msg
+    Backtrace.try_with
+      (fun () ->
+        let stdout, _stderr = call_openssl args in
+        Ok stdout
+      )
+      (fun e bt ->
+        let msg = "generating RSA key failed" in
+        D.error "selfcert.ml: %s" msg ;
+        Debug.log_backtrace e bt ;
+        R.error_msg msg
+      )
   in
   let* privkey =
     rsa_string

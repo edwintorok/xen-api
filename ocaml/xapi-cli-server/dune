@@ -14,6 +14,7 @@
   (libraries
     astring
     base64
+    backtrace
     http_lib
     httpsvr
     rpclib.core
@@ -26,7 +27,6 @@
     uri
     tar
     threads.posix
-    xapi-backtrace
     xapi-consts
     xapi_version
     xapi_database

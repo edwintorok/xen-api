@@ -32,14 +32,14 @@ let assert_network_compatible_with_tunnel ~__context ~network =
   if is_sriov_based_network ~__context ~network then
     raise
       Api_errors.(
-        Server_error (network_incompatible_with_tunnel, [Ref.string_of network])
+        Server_error (network_incompatible_with_tunnel, [Ref.string_of network], None)
       )
 
 let assert_network_compatible_with_bond ~__context ~network =
   if is_sriov_based_network ~__context ~network then
     raise
       Api_errors.(
-        Server_error (network_incompatible_with_bond, [Ref.string_of network])
+        Server_error (network_incompatible_with_bond, [Ref.string_of network], None)
       )
 
 let assert_network_compatible_with_vlan_on_bridge ~__context ~network =
@@ -47,7 +47,7 @@ let assert_network_compatible_with_vlan_on_bridge ~__context ~network =
     raise
       Api_errors.(
         Server_error
-          (network_incompatible_with_vlan_on_bridge, [Ref.string_of network])
+          (network_incompatible_with_vlan_on_bridge, [Ref.string_of network], None)
       )
 
 let assert_network_compatible_with_vlan_on_sriov ~__context ~network ~sriov
@@ -76,6 +76,7 @@ let assert_network_compatible_with_vlan_on_sriov ~__context ~network ~sriov
                 Server_error
                   ( network_has_incompatible_vlan_on_sriov_pifs
                   , [Ref.string_of tagged_PIF; Ref.string_of network]
+                  , None
                   )
               )
       | _ ->
@@ -84,6 +85,7 @@ let assert_network_compatible_with_vlan_on_sriov ~__context ~network ~sriov
               Server_error
                 ( network_incompatible_with_vlan_on_sriov
                 , [Ref.string_of network]
+                , None
                 )
             )
     )
@@ -108,7 +110,7 @@ let assert_network_compatible_with_sriov ~__context ~pif ~network =
         raise
           Api_errors.(
             Server_error
-              (network_incompatible_with_sriov, [Ref.string_of network])
+              (network_incompatible_with_sriov, [Ref.string_of network], None)
           )
     | sriov :: _ ->
         let existing_pif =
@@ -120,6 +122,7 @@ let assert_network_compatible_with_sriov ~__context ~pif ~network =
               Server_error
                 ( network_has_incompatible_sriov_pifs
                 , [Ref.string_of pif; Ref.string_of network]
+                , None
                 )
             )
   )

@@ -142,7 +142,7 @@ let start_transient ?env ?properties ?(exec_ty = Type.Simple) ~service cmd args
     invalid_arg (Printf.sprintf "Tried to start %s twice" service) ;
   try start_transient ?env ?properties ~exec_ty ~service cmd args
   with e ->
-    Backtrace.is_important e ;
+    let bt = Printexc.get_raw_backtrace () in
     (* If start failed we do not know what state the service is in:
      * try to stop it and clean up.
      * Stopping could fail as well, in which case report the original exception.
@@ -152,4 +152,4 @@ let start_transient ?env ?properties ?(exec_ty = Type.Simple) ~service cmd args
         ()
       with _ -> ()
     ) ;
-    raise e
+    Printexc.raise_with_backtrace e bt

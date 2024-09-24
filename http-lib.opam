@@ -24,7 +24,6 @@ depends: [
   "stunnel" {= version}
   "uri"
   "uuid" {= version}
-  "xapi-backtrace"
   "xapi-idl" {= version}
   "xapi-log" {= version}
   "xapi-stdext-date" {= version}

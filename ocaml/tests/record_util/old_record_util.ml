@@ -149,7 +149,7 @@ let string_to_vm_operation x =
   if not (List.mem_assoc x table) then
     raise
       (Api_errors.Server_error
-         (Api_errors.invalid_value, ["blocked_operation"; x])
+         (Api_errors.invalid_value, ["blocked_operation"; x], None)
       )
   else
     List.assoc x table

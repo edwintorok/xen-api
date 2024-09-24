@@ -64,7 +64,7 @@ module Subscription = struct
       | _ ->
           raise
             (Api_errors.Server_error
-               (Api_errors.event_subscription_parse_failure, [x])
+               (Api_errors.event_subscription_parse_failure, [x], None)
             )
 
   let any = List.fold_left (fun acc x -> acc || x) false
@@ -211,6 +211,7 @@ module Next = struct
             (Api_errors.Server_error
                ( Api_errors.session_not_registered
                , [Context.trackid_of_session (Some session)]
+               , None
                )
             )
     )
@@ -267,7 +268,10 @@ module Next = struct
     if session_is_invalid subscription then
       raise
         (Api_errors.Server_error
-           (Api_errors.session_invalid, [Ref.string_of subscription.session])
+           ( Api_errors.session_invalid
+           , [Ref.string_of subscription.session]
+           , None
+           )
         )
     else
       !result
@@ -278,7 +282,7 @@ module Next = struct
      	   manually before calling Event.next () again.
   *)
   let events_lost () =
-    raise (Api_errors.Server_error (Api_errors.events_lost, []))
+    raise (Api_errors.Server_error (Api_errors.events_lost, [], None))
 
   (* Return events from the queue between a start and an end ID. Throws
      	   an API error if some events have been lost, signalling the client to
@@ -438,7 +442,7 @@ module From = struct
         (Context.trackid_of_session (Some call.session)) ;
       raise
         (Api_errors.Server_error
-           (Api_errors.session_invalid, [Ref.string_of call.session])
+           (Api_errors.session_invalid, [Ref.string_of call.session], None)
         )
     )
 end
@@ -701,14 +705,17 @@ let from_inner __context session subs from from_t deadline =
 let from ~__context ~classes ~token ~timeout =
   let session = Context.get_session_id __context in
   let from, from_t =
-    try Token.of_string token
-    with e ->
-      warn "Failed to parse event.from token: %s (%s)" token
-        (Printexc.to_string e) ;
-      raise
-        (Api_errors.Server_error
-           (Api_errors.event_from_token_parse_failure, [token])
-        )
+    Backtrace.try_with
+      (fun () -> Token.of_string token)
+      (fun e bt ->
+        warn "Failed to parse event.from token: %s (%s)" token
+          (Printexc.to_string e) ;
+        Printexc.raise_with_backtrace
+          (Api_errors.Server_error
+             (Api_errors.event_from_token_parse_failure, [token], None)
+          )
+          bt
+      )
   in
   let subs = List.map Subscription.of_string classes in
   let deadline = Unix.gettimeofday () +. timeout in
@@ -746,7 +753,7 @@ let inject ~__context ~_class ~_ref =
         in
         if not ok then
           raise
-            (Api_errors.Server_error (Api_errors.handle_invalid, [_class; _ref])) ;
+            (Api_errors.Server_error (Api_errors.handle_invalid, [_class; _ref], None)) ;
         Db_cache_impl.touch_row db_ref _class _ref ;
         (* consumes this generation *)
         g

@@ -96,7 +96,7 @@ let create_session_for_client_cert req s =
 
 let assert_credentials_ok realm ?(http_action = realm) ?(fn = Rbac.nofn)
     (req : Request.t) ic =
-  let rbac_raise permission msg exc =
+  let rbac_raise permission msg exc bt =
     let task_id = ref_param_of_req req "task_id" in
     ( match task_id with
     | None ->
@@ -105,23 +105,27 @@ let assert_credentials_ok realm ?(http_action = realm) ?(fn = Rbac.nofn)
         TaskHelper.failed
           ~__context:(Context.from_forwarded_task task_id)
           (Api_errors.Server_error
-             (Api_errors.rbac_permission_denied, [permission; msg])
+             (Api_errors.rbac_permission_denied, [permission; msg], None)
           )
     ) ;
-    raise exc
+    Printexc.raise_with_backtrace exc bt
   in
   let rbac_check session_id =
     let rbac_task_desc = "handler" in
     let http_permission = Datamodel.rbac_http_permission_prefix ^ http_action in
-    try
-      Rbac.check_with_new_task session_id http_permission ~fn
-        ~args:(rbac_audit_params_of req) ~task_desc:rbac_task_desc
-    with
-    | Api_errors.Server_error (err, [perm; msg])
-      when err = Api_errors.rbac_permission_denied ->
-        rbac_raise perm msg Http.Forbidden
-    | e ->
-        rbac_raise http_permission (ExnHelper.string_of_exn e) e
+    Backtrace.try_with
+      (fun () ->
+        Rbac.check_with_new_task session_id http_permission ~fn
+          ~args:(rbac_audit_params_of req) ~task_desc:rbac_task_desc
+      )
+      (fun e bt ->
+        match e with
+        | Api_errors.Server_error (err, [perm; msg], _)
+          when err = Api_errors.rbac_permission_denied ->
+            rbac_raise perm msg Http.Forbidden bt
+        | e ->
+            rbac_raise http_permission (ExnHelper.string_of_exn e) e bt
+      )
   in
   let rbac_check_with_tmp_session sess_creator =
     let session_id =
@@ -231,7 +235,7 @@ let with_context ?(dummy = false) label (req : Request.t) (s : Unix.file_descr)
               , true
               )
             with
-            | Api_errors.Server_error (code, _)
+            | Api_errors.Server_error (code, _, _)
             when code = Api_errors.session_authentication_failed
             ->
               raise (Http.Unauthorised label)
@@ -279,7 +283,9 @@ let with_context ?(dummy = false) label (req : Request.t) (s : Unix.file_descr)
   with Http.Unauthorised _ as e ->
     let fail __context =
       TaskHelper.failed ~__context
-        (Api_errors.Server_error (Api_errors.session_authentication_failed, []))
+        (Api_errors.Server_error
+           (Api_errors.session_authentication_failed, [], None)
+        )
     in
     debug
       "No authentication provided to http handler: returning 401 unauthorised" ;
@@ -361,23 +367,33 @@ let add_handler (name, handler) =
             in
             Debug.with_thread_associated ?client name
               (fun () ->
-                try
-                  if check_rbac then (
-                    try
-                      (* rbac checks *)
-                      assert_credentials_ok name req
-                        ~fn:(fun () -> callback req ic context)
-                        (Buf_io.fd_of ic)
-                    with e ->
-                      debug "Leaving RBAC-handler in xapi_http after: %s"
-                        (ExnHelper.string_of_exn e) ;
-                      raise e
-                  ) else (* no rbac checks *)
-                    callback req ic context
-                with Api_errors.Server_error (name, params) as e ->
-                  error "Unhandled Api_errors.Server_error(%s, [ %s ])" name
-                    (String.concat "; " params) ;
-                  raise (Http_svr.Generic_error (ExnHelper.string_of_exn e))
+                Backtrace.try_with
+                  (fun () ->
+                    if check_rbac then (
+                      try
+                        (* rbac checks *)
+                        assert_credentials_ok name req
+                          ~fn:(fun () -> callback req ic context)
+                          (Buf_io.fd_of ic)
+                      with e ->
+                        debug "Leaving RBAC-handler in xapi_http after: %s"
+                          (ExnHelper.string_of_exn e) ;
+                        raise e
+                    ) else (* no rbac checks *)
+                      callback req ic context
+                  )
+                  (fun e bt ->
+                    match e with
+                    | Api_errors.Server_error (name, params, _) as e ->
+                        error "Unhandled Api_errors.Server_error(%s, [ %s ])"
+                          name
+                          (String.concat "; " params) ;
+                        Printexc.raise_with_backtrace
+                          (Http_svr.Generic_error (ExnHelper.string_of_exn e))
+                          bt
+                    | e ->
+                        Printexc.raise_with_backtrace e bt
+                  )
               )
               ()
           )

@@ -30,7 +30,7 @@ let introduce ~__context ~addresses ~first_port ~last_port ~site =
   in
   let in_use = Listext.intersect addresses current_addresses in
   if in_use <> [] then
-    raise Api_errors.(Server_error (pvs_server_address_in_use, in_use)) ;
+    raise Api_errors.(Server_error (pvs_server_address_in_use, in_use, None)) ;
   Helpers.assert_is_valid_tcp_udp_port_range
     ~first_port:(Int64.to_int first_port) ~first_name:"first_port"
     ~last_port:(Int64.to_int last_port) ~last_name:"last_port" ;

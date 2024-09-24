@@ -6,7 +6,6 @@
    safe-resources
    stunnel
    uri
-   xapi-backtrace
    xapi-consts
    xapi-log
    xapi-stdext-pervasives

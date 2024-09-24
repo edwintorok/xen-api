@@ -61,6 +61,7 @@ let string2vdi_type s =
           Server_error
             ( internal_error
             , [Printf.sprintf "string2vdi_type: Unknown VDI type \"%s\"" vdi_st]
+            , None
             )
         )
 
@@ -131,10 +132,10 @@ let needs_to_be_installed rpc session_id vm =
     library. Hopefully we can link this code directly into the in-guest installer. *)
 let create_disk rpc session_id vm sm_config disk =
   let sr =
-    try Client.SR.get_by_uuid ~rpc ~session_id ~uuid:disk.sr
-    with _ ->
+    Backtrace.try_with (fun () -> Client.SR.get_by_uuid ~rpc ~session_id ~uuid:disk.sr)
+    (fun _ bt ->
       D.error "Unable to find SR (uuid: %s) to provision the disk" disk.sr ;
-      raise (Api_errors.Server_error (Api_errors.uuid_invalid, ["sr"; disk.sr]))
+      Printexc.raise_with_backtrace (Api_errors.Server_error (Api_errors.uuid_invalid, ["sr"; disk.sr], None)) bt)
   in
   debug "Provisioning VDI for new VM" ;
   let vdi =

@@ -56,7 +56,8 @@ let startup_components () =
 let assert_valid_components components =
   try List.iter (fun c -> ignore @@ of_string c) components
   with Unsupported_Component component ->
-    raise Api_errors.(Server_error (invalid_value, ["component"; component]))
+    let bt = Printexc.get_raw_backtrace () in
+    Printexc.raise_with_backtrace Api_errors.(Server_error (invalid_value, ["component"; component], None)) bt
 
 let filter_out_exp_components components =
   let open Xapi_globs in

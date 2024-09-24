@@ -23,26 +23,33 @@ let timeout = 300. (* 5 minutes, should never take this long *)
 (** Attempt an unplug, and if it fails because the device is in use, wait for it to
     detach by polling the currently-attached field. *)
 let safe_unplug rpc session_id self =
-  try Client.VBD.unplug ~rpc ~session_id ~self with
-  | Api_errors.Server_error (error, _)
-    when error = Api_errors.device_already_detached ->
-      debug "safe_unplug caught DEVICE_ALREADY_DETACHED: this is safe to ignore"
-  | Api_errors.Server_error (error, _) as e
-    when error = Api_errors.device_detach_rejected ->
-      debug
-        "safe_unplug caught DEVICE_DETACH_REJECTED: polling the \
-         currently_attached flag of the VBD" ;
-      let start = Unix.gettimeofday () in
-      let unplugged = ref false in
-      while (not !unplugged) && Unix.gettimeofday () -. start < timeout do
-        Thread.delay 5. ;
-        unplugged :=
-          not (Client.VBD.get_currently_attached ~rpc ~session_id ~self)
-      done ;
-      if not !unplugged then (
-        debug "Timeout waiting for dom0 device to be unplugged" ;
-        raise e
-      )
+  Backtrace.try_with
+    (fun () -> Client.VBD.unplug ~rpc ~session_id ~self)
+    (fun e bt ->
+      match e with
+      | Api_errors.Server_error (error, _, _)
+        when error = Api_errors.device_already_detached ->
+          debug
+            "safe_unplug caught DEVICE_ALREADY_DETACHED: this is safe to ignore"
+      | Api_errors.Server_error (error, _, _) as e
+        when error = Api_errors.device_detach_rejected ->
+          debug
+            "safe_unplug caught DEVICE_DETACH_REJECTED: polling the \
+             currently_attached flag of the VBD" ;
+          let start = Unix.gettimeofday () in
+          let unplugged = ref false in
+          while (not !unplugged) && Unix.gettimeofday () -. start < timeout do
+            Thread.delay 5. ;
+            unplugged :=
+              not (Client.VBD.get_currently_attached ~rpc ~session_id ~self)
+          done ;
+          if not !unplugged then (
+            debug "Timeout waiting for dom0 device to be unplugged" ;
+            Printexc.raise_with_backtrace e bt
+          )
+      | e ->
+          Printexc.raise_with_backtrace e bt
+    )
 
 (** For a VBD attached to a control domain, it may correspond to a running task
     	(if so the task will be linked via an other_config key) or it may be a qemu

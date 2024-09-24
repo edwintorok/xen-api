@@ -94,6 +94,7 @@ let execute_hook ~__context ~script_name ~args ~reason =
             (Api_errors.Server_error
                ( Api_errors.xapi_hook_failed
                , [script_name ^ "/" ^ script; reason; stdout; string_of_int i]
+               , None
                )
             )
     )

@@ -12,7 +12,7 @@
     sexplib0
     sexpr
     threads
-    xapi-backtrace
+    backtrace
     xapi-consts
     xapi-schema
     xapi-stdext-date

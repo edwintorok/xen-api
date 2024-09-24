@@ -98,6 +98,7 @@ let refresh ~__context ~host ~self =
               Printf.sprintf "refresh: Host mismatch, expected %s but got %s"
                 (Ref.string_of host) (Ref.string_of localhost)
             ]
+          , None
           )
       ) ;
   refresh_internal ~__context ~self
@@ -114,6 +115,7 @@ let refresh_all ~__context ~host =
                 "refresh_all: Host mismatch, expected %s but got %s"
                 (Ref.string_of host) (Ref.string_of localhost)
             ]
+          , None
           )
       ) ;
   (* Only refresh physical or attached PIFs *)
@@ -146,7 +148,7 @@ let assert_not_bond_slave_of ~__context ~self =
   if Db.PIF.get_bond_slave_of ~__context ~self <> Ref.null then
     raise
       (Api_errors.Server_error
-         (Api_errors.cannot_plug_bond_slave, [Ref.string_of self])
+         (Api_errors.cannot_plug_bond_slave, [Ref.string_of self], None)
       )
 
 (* Ensure the PIF has valid IPv4 configuration mode. *)
@@ -154,7 +156,7 @@ let assert_valid_ip_configuration ~__context ~self =
   if Db.PIF.get_ip_configuration_mode ~__context ~self = `None then
     raise
       (Api_errors.Server_error
-         (Api_errors.pif_has_no_network_configuration, [Ref.string_of self])
+         (Api_errors.pif_has_no_network_configuration, [Ref.string_of self], None)
       )
 
 (* Ensure the PIF has valid IPv6 configuration mode. *)
@@ -619,6 +621,7 @@ let introduce ~__context ~host ~mAC ~device ~managed =
          ( Api_errors
            .could_not_find_network_interface_with_specified_device_name_and_mac_address
          , [device; mAC]
+         , None
          )
       ) ;
   info "Introducing PIF: device = %s; MAC = %s" device mAC ;

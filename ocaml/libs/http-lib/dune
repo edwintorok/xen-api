@@ -21,7 +21,6 @@
     threads.posix
     uuid
     uri
-    xapi-backtrace
     xapi-consts.xapi_version
     xapi-idl.updates
     xapi-log

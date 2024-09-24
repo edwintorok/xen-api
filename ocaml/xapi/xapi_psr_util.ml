@@ -10,20 +10,27 @@ let old_pool_secret_backup_path = "/var/lib/xcp/ptoken.old"
 let new_pool_secret_backup_path = "/var/lib/xcp/ptoken.new"
 
 let read_backups () =
-  try
-    ( old_pool_secret_backup_path
-      |> Unixext.string_of_file
-      |> SecretString.of_string
-    , new_pool_secret_backup_path
-      |> Unixext.string_of_file
-      |> SecretString.of_string
+  Backtrace.try_with
+    (fun () ->
+      ( old_pool_secret_backup_path
+        |> Unixext.string_of_file
+        |> SecretString.of_string
+      , new_pool_secret_backup_path
+        |> Unixext.string_of_file
+        |> SecretString.of_string
+      )
     )
-  with e ->
-    D.error
-      "xapi_psr_util.ml:read_backups failed (paths='%s', '%s'). reason: %s"
-      old_pool_secret_backup_path new_pool_secret_backup_path
-      (Printexc.to_string e) ;
-    raise Api_errors.(Server_error (internal_error, ["failed to read backups"]))
+    (fun e bt ->
+      D.error
+        "xapi_psr_util.ml:read_backups failed (paths='%s', '%s'). reason: %s"
+        old_pool_secret_backup_path new_pool_secret_backup_path
+        (Printexc.to_string e) ;
+      Printexc.raise_with_backtrace
+        Api_errors.(
+          Server_error (internal_error, ["failed to read backups"], None)
+        )
+        bt
+    )
 
 let load_psr_pool_secrets () =
   match
@@ -39,7 +46,7 @@ let load_psr_pool_secrets () =
       raise
         Api_errors.(
           Server_error
-            (internal_error, ["inconsistent pool secret backup files"])
+            (internal_error, ["inconsistent pool secret backup files"], None)
         )
   | true, true ->
       D.info "loading backup pool secrets from psr" ;

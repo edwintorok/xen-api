@@ -30,7 +30,7 @@ let internal_error fmt =
   Printf.ksprintf
     (fun str ->
       error "%s" str ;
-      raise Api_errors.(Server_error (internal_error, [str]))
+      raise Api_errors.(Server_error (internal_error, [str], None))
     )
     fmt
 
@@ -74,7 +74,7 @@ let track callback rpc (session_id : API.ref_session) task =
             finished := List.fold_left ( || ) false (List.map matches events)
           done
         with
-        | Api_errors.Server_error (code, _)
+        | Api_errors.Server_error (code, _, _)
         when code = Api_errors.events_lost
         ->
           debug "Caught EVENTS_LOST; reregistering" ;
@@ -88,7 +88,7 @@ let result_from_task rpc session_id remote_task =
   | `cancelling | `cancelled ->
       raise
         (Api_errors.Server_error
-           (Api_errors.task_cancelled, [Ref.string_of remote_task])
+           (Api_errors.task_cancelled, [Ref.string_of remote_task], None)
         )
   | `pending ->
       failwith "wait_for_task_completion failed; task is still pending"
@@ -101,17 +101,17 @@ let result_from_task rpc session_id remote_task =
       let trace =
         Client.Task.get_backtrace ~rpc ~session_id ~self:remote_task
       in
+      let backtrace = Backtrace.t_of_sexp (Sexplib.Sexp.of_string trace) in
       let exn =
         match error_info with
         | code :: params ->
-            Api_errors.Server_error (code, params)
+            Api_errors.Server_error (code, params, Some backtrace)
         | [] ->
             Failure
               (Printf.sprintf "Task failed but no error recorded: %s"
                  (Ref.string_of remote_task)
               )
       in
-      Backtrace.(add exn (t_of_sexp (Sexplib.Sexp.of_string trace))) ;
       raise exn
 
 (** Use the event system to wait for a specific task to complete (succeed, failed or be cancelled) *)
@@ -175,9 +175,15 @@ let track_http_operation ?use_existing_task ?(progress_bar = false) fd rpc
         ) else
           match Client.Task.get_error_info ~rpc ~session_id ~self:task_id with
           | [] ->
-              raise Api_errors.(Server_error (internal_error, []))
+              raise Api_errors.(Server_error (internal_error, [], None))
           | err :: params ->
-              raise Api_errors.(Server_error (err, params))
+              let trace =
+                Client.Task.get_backtrace ~rpc ~session_id ~self:task_id
+              in
+              let backtrace =
+                Backtrace.t_of_sexp (Sexplib.Sexp.of_string trace)
+              in
+              raise Api_errors.(Server_error (err, params, Some backtrace))
       else (
         debug "client-side reports failure" ;
         (* Debug info might have been written into the task, let's see if there is some *)
@@ -191,9 +197,15 @@ let track_http_operation ?use_existing_task ?(progress_bar = false) fd rpc
         (* delay of 1 will do... *)
         match Client.Task.get_error_info ~rpc ~session_id ~self:task_id with
         | [] ->
-            raise Api_errors.(Server_error (client_error, []))
+            raise Api_errors.(Server_error (client_error, [], None))
         | err :: params ->
-            raise Api_errors.(Server_error (err, params))
+            let trace =
+              Client.Task.get_backtrace ~rpc ~session_id ~self:task_id
+            in
+            let backtrace =
+              Backtrace.t_of_sexp (Sexplib.Sexp.of_string trace)
+            in
+            raise Api_errors.(Server_error (err, params, Some backtrace))
       )
     )
     (fun () ->
@@ -334,7 +346,7 @@ let rec uri_of_someone rpc session_id = function
 
 let error_of_exn e =
   match e with
-  | Api_errors.Server_error (e, l) ->
+  | Api_errors.Server_error (e, l, _) ->
       (e, l)
   | e ->
       (Api_errors.internal_error, [Printexc.to_string e])

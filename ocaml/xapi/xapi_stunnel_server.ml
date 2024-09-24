@@ -186,7 +186,8 @@ let update_certificates ~__context () =
       error "Failed to update host certificates: %s" (Printexc.to_string e)
 
 let sync ~__context ipv6_enabled =
-  try
+  Backtrace.try_with
+  (fun () ->
     let accept =
       let management_enabled =
         Xapi_inventory.lookup Xapi_inventory._management_interface <> ""
@@ -222,7 +223,8 @@ let sync ~__context ipv6_enabled =
       update_certificates ~__context ()
     ) else
       debug "No configuration changes: not restarting stunnel"
-  with e ->
-    Backtrace.is_important e ;
+  )
+  (fun e bt ->
     D.error "Xapi_stunnel_server.restart: failed to restart stunnel" ;
-    raise e
+    Printexc.raise_with_backtrace e bt
+  )

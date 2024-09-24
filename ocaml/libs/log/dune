@@ -10,7 +10,7 @@
    mtime
    logs
    threads.posix
-   xapi-backtrace
+   backtrace
  )
  (wrapped false)
 )

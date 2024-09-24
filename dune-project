@@ -268,7 +268,6 @@
     uuidm
     uutf
     x509
-    xapi-backtrace
     xenctrl
     xenstore_transport
     xmlm
@@ -369,7 +368,6 @@
     uutf
     uuidm
     x509
-    xapi-backtrace
     (xapi-client (= :version))
     (xapi-cli-protocol (= :version))
     (xapi-consts (= :version))
@@ -582,7 +580,6 @@ This package provides an Lwt compatible interface to the library.")
     (stunnel (= :version))
     uri
     (uuid (= :version))
-    xapi-backtrace
     (xapi-idl (= :version))
     (xapi-log (= :version))
     (xapi-stdext-date (= :version))
@@ -609,7 +606,6 @@ This package provides an Lwt compatible interface to the library.")
     ppx_deriving_rpc
     rpclib
     (uuid (= :version))
-    xapi-backtrace
     (xapi-log (= :version))
     (xapi-stdext-pervasives (= :version))
     (xapi-stdext-unix (= :version))
@@ -665,7 +661,6 @@ This package provides an Lwt compatible interface to the library.")
     (ocaml (>= 4.08))
     logs
     (odoc :with-doc)
-    xapi-backtrace
   )
 )
 
@@ -712,7 +707,6 @@ This package provides an Lwt compatible interface to the library.")
     (logs :with-test)
     (qcheck-core (and (>= 0.21.2) :with-test))
     (odoc :with-doc)
-    xapi-backtrace
     unix-errno
     (xapi-stdext-pervasives (= :version))
     polly

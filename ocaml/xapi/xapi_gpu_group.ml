@@ -29,13 +29,13 @@ let destroy ~__context ~self =
   if connected <> [] then
     raise
       (Api_errors.Server_error
-         (Api_errors.gpu_group_contains_vgpu, List.map Ref.string_of connected)
+         (Api_errors.gpu_group_contains_vgpu, List.map Ref.string_of connected, None)
       ) ;
   let pgpus = Db.GPU_group.get_PGPUs ~__context ~self in
   if pgpus <> [] then
     raise
       (Api_errors.Server_error
-         (Api_errors.gpu_group_contains_pgpu, List.map Ref.string_of pgpus)
+         (Api_errors.gpu_group_contains_pgpu, List.map Ref.string_of pgpus, None)
       ) ;
   (* Destroy all vGPUs *)
   List.iter
@@ -124,7 +124,7 @@ let get_remaining_capacity_internal ~__context ~self ~vgpu_type =
     | [] ->
         (* Should only ever get here if there are no PGPUs in the GPU group. *)
         Api_errors.Server_error
-          (Api_errors.gpu_group_contains_no_pgpus, [Ref.string_of self])
+          (Api_errors.gpu_group_contains_no_pgpus, [Ref.string_of self], None)
     | exceptions ->
         let error_code_scores =
           [
@@ -135,7 +135,7 @@ let get_remaining_capacity_internal ~__context ~self ~vgpu_type =
           ]
         in
         let score_exception = function
-          | Api_errors.Server_error (code, _) ->
+          | Api_errors.Server_error (code, _, _) ->
               if List.mem_assoc code error_code_scores then
                 List.assoc code error_code_scores
               else

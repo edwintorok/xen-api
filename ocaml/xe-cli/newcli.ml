@@ -359,7 +359,7 @@ let with_open_tcp server f =
 
 let with_open_channels f =
   let wrap chs =
-    try Ok (f chs) with e -> Backtrace.is_important e ; Error e
+    try Ok (f chs) with e -> Error (e, Printexc.get_raw_backtrace ())
   in
   let result =
     if is_localhost !xapiserver then
@@ -373,7 +373,11 @@ let with_open_channels f =
     else
       with_open_tcp !xapiserver wrap
   in
-  match result with Ok r -> r | Error e -> raise e
+  match result with
+  | Ok r ->
+      r
+  | Error (e, bt) ->
+      Printexc.raise_with_backtrace e bt
 
 let http_response_code x =
   match String.split ' ' x with

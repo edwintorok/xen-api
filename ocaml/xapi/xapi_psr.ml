@@ -171,22 +171,27 @@ functor
         )
 
     let start pool_secrets ~master ~members =
-      try
-        match
-          Impl.retrieve_checkpoint () |> Option.map checkpoint_of_string
-        with
-        | None | Some No_checkpoint ->
-            go pool_secrets master members No_checkpoint
-        | Some checkpoint ->
-            go (Impl.retrieve ()) master members checkpoint
-      with e ->
-        (* _in theory_ save_checkpoint or backup could fail, so
-           catch that here. however we don't expect this to happen *)
-        D.error "PSR.start: unexpected error: %s" (Printexc.to_string e) ;
-        raise
-          Api_errors.(
-            Server_error (internal_error, ["PSR.start: unexpected error"])
-          )
+      Backtrace.try_with
+        (fun () ->
+          match
+            Impl.retrieve_checkpoint () |> Option.map checkpoint_of_string
+          with
+          | None | Some No_checkpoint ->
+              go pool_secrets master members No_checkpoint
+          | Some checkpoint ->
+              go (Impl.retrieve ()) master members checkpoint
+        )
+        (fun e bt ->
+          (* _in theory_ save_checkpoint or backup could fail, so
+             catch that here. however we don't expect this to happen *)
+          D.error "PSR.start: unexpected error: %s" (Printexc.to_string e) ;
+          Printexc.raise_with_backtrace
+            Api_errors.(
+              Server_error
+                (internal_error, ["PSR.start: unexpected error"], None)
+            )
+            bt
+        )
   end
 
 let perm = 0o640
@@ -223,7 +228,7 @@ end = struct
         raise
           Api_errors.(
             Server_error
-              (internal_error, ["do_backups_exist: invalid backup state"])
+              (internal_error, ["do_backups_exist: invalid backup state"], None)
           )
 
   let does_checkpoint_exist () = Sys.file_exists checkpoint_path
@@ -235,13 +240,15 @@ end = struct
       SecretString.(equal old_backup old_ps && equal new_backup new_ps)
     in
     if not do_backups_match then
-      raise Api_errors.(Server_error (internal_error, ["backups don't match"]))
+      raise
+        Api_errors.(Server_error (internal_error, ["backups don't match"], None))
 
   let no_backups () =
     if do_backups_exist () then
       raise
         Api_errors.(
-          Server_error (internal_error, ["pool member should have no backups"])
+          Server_error
+            (internal_error, ["pool member should have no backups"], None)
         )
 
   let no_checkpoint () =
@@ -250,7 +257,7 @@ end = struct
       raise
         Api_errors.(
           Server_error
-            (internal_error, ["pool member should not have a checkpoint"])
+            (internal_error, ["pool member should not have a checkpoint"], None)
         )
 
   let master_state_valid () =
@@ -261,7 +268,10 @@ end = struct
         raise
           Api_errors.(
             Server_error
-              (internal_error, ["master pool secret rotation state is invalid"])
+              ( internal_error
+              , ["master pool secret rotation state is invalid"]
+              , None
+              )
           )
 end
 
@@ -279,6 +289,7 @@ let cleanup_internal ~additional_files_to_remove ~old_ps ~new_ps =
                 "cleanup_internal: host has been cleaned up, but pool secret \
                  doesn't match"
               ]
+            , None
             )
         )
   | [priority_1_ps; priority_2_ps]
@@ -304,7 +315,10 @@ let cleanup_internal ~additional_files_to_remove ~old_ps ~new_ps =
       raise
         Api_errors.(
           Server_error
-            (internal_error, ["cleanup_internal: runtime secrets don't match"])
+            ( internal_error
+            , ["cleanup_internal: runtime secrets don't match"]
+            , None
+            )
         )
   | l ->
       raise
@@ -316,6 +330,7 @@ let cleanup_internal ~additional_files_to_remove ~old_ps ~new_ps =
                   "cleanup_internal: expected 1 or 2 pool secrets, got: %i"
                   (List.length l)
               ]
+            , None
             )
         )
 
@@ -351,7 +366,7 @@ functor
           raise
             Api_errors.(
               Server_error
-                (internal_error, ["unexpected checkpoint file format"])
+                (internal_error, ["unexpected checkpoint file format"], None)
             )
       | exception e ->
           D.info
@@ -407,6 +422,7 @@ let notify_new ~__context ~old_ps ~new_ps =
             Server_error
               ( internal_error
               , ["notify_new: existing pool secrets are inconsistent"]
+              , None
               )
           )
   | [priority_1_ps] when SecretString.equal priority_1_ps old_ps ->
@@ -418,7 +434,7 @@ let notify_new ~__context ~old_ps ~new_ps =
       raise
         Api_errors.(
           Server_error
-            (internal_error, ["notify_new: old pool secret doesn't match"])
+            (internal_error, ["notify_new: old pool secret doesn't match"], None)
         )
   | l ->
       raise
@@ -430,6 +446,7 @@ let notify_new ~__context ~old_ps ~new_ps =
                   "notify_new: expected 1 or 2 pool secrets, got: %i"
                   (List.length l)
               ]
+            , None
             )
         )
 
@@ -473,7 +490,7 @@ let notify_send ~__context ~old_ps ~new_ps =
       raise
         Api_errors.(
           Server_error
-            (internal_error, ["notify_send: runtime secrets don't match"])
+            (internal_error, ["notify_send: runtime secrets don't match"], None)
         )
   | l ->
       raise
@@ -484,6 +501,7 @@ let notify_send ~__context ~old_ps ~new_ps =
                 Printf.sprintf "notify_send: expected 2 pool secrets, got: %i"
                   (List.length l)
               ]
+            , None
             )
         )
 
@@ -507,7 +525,7 @@ let start =
     ) else
       raise
         Api_errors.(
-          Server_error (internal_error, ["pool secret rotation already running"])
+          Server_error (internal_error, ["pool secret rotation already running"], None)
         )
   in
   fun ~__context ->
@@ -527,7 +545,7 @@ let start =
     let assert_no_ha () =
       let is_ha_enabled = Db.Pool.get_ha_enabled ~__context ~self in
       if is_ha_enabled then
-        raise Api_errors.(Server_error (ha_is_enabled, []))
+        raise Api_errors.(Server_error (ha_is_enabled, [], None))
     in
     let assert_all_hosts_alive () =
       let live_hosts = Helpers.get_live_hosts ~__context |> HostSet.of_list in
@@ -540,14 +558,14 @@ let start =
           let offline_host = HostSet.min_elt offline_hosts in
           raise
             Api_errors.(
-              Server_error (cannot_contact_host, [Ref.string_of offline_host])
+              Server_error (cannot_contact_host, [Ref.string_of offline_host], None)
             )
       ) ;
       all_hosts_list
     in
     let assert_no_rpu () =
       if Helpers.rolling_upgrade_in_progress ~__context then
-        raise Api_errors.(Server_error (not_supported_during_upgrade, []))
+        raise Api_errors.(Server_error (not_supported_during_upgrade, [], None))
     in
     with_lock (fun () ->
         let master, members =
@@ -580,5 +598,5 @@ let start =
         | Error e ->
             let err_msg = user_facing_error_message ~__context e in
             D.error "PSR failed: %s" err_msg ;
-            raise Api_errors.(Server_error (internal_error, [err_msg]))
+            raise Api_errors.(Server_error (internal_error, [err_msg], None))
     )

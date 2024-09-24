@@ -18,7 +18,6 @@ depends: [
   "fmt"
   "logs"
   "mtime"
-  "xapi-backtrace"
   "xapi-stdext-pervasives"
 ]
 synopsis: "Library required by xapi"

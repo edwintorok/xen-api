@@ -63,37 +63,40 @@ let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
        already been taken by the master
        2. If we are the master, locks are only necessary for the potentially-forwarded
        (ie side-effecting) operations and not things like the database layer *)
-    try
-      let result =
-        if not (Pool_role.is_master ()) then
-          f ~__context (* slaves process everything locally *)
-        else
-          match f_forward with
+    Backtrace.try_with
+      (fun () ->
+        let result =
+          if not (Pool_role.is_master ()) then
+            f ~__context (* slaves process everything locally *)
+          else
+            match f_forward with
+            | None ->
+                (* this operation cannot be forwarded (eg database lookup); do it now *)
+                f ~__context
+            | Some forward ->
+                (* use the forwarding layer (NB this might make a local call ultimately) *)
+                forward ~local_fn:f ~__context
+        in
+        if need_complete then
+          match marshaller with
           | None ->
-              (* this operation cannot be forwarded (eg database lookup); do it now *)
-              f ~__context
-          | Some forward ->
-              (* use the forwarding layer (NB this might make a local call ultimately) *)
-              forward ~local_fn:f ~__context
-      in
-      if need_complete then
-        match marshaller with
-        | None ->
-            TaskHelper.complete ~__context None
-        | Some fn ->
-            TaskHelper.complete ~__context (Some (fn result))
-      else
-        Context.complete_tracing __context ;
-      result
-    with
-    | Api_errors.Server_error (a, _) as e when a = Api_errors.task_cancelled ->
-        Backtrace.is_important e ;
-        if need_complete then TaskHelper.cancel ~__context ;
-        raise e
-    | e ->
-        Backtrace.is_important e ;
-        if need_complete then TaskHelper.failed ~__context e ;
-        raise e
+              TaskHelper.complete ~__context None
+          | Some fn ->
+              TaskHelper.complete ~__context (Some (fn result))
+        else
+          Context.complete_tracing __context ;
+        result
+      )
+      (fun e bt ->
+        match e with
+        | Api_errors.Server_error (a, _, _) as e
+          when a = Api_errors.task_cancelled ->
+            if need_complete then TaskHelper.cancel ~__context ;
+            Printexc.raise_with_backtrace e bt
+        | e ->
+            if need_complete then TaskHelper.failed ~__context e ;
+            Printexc.raise_with_backtrace e bt
+      )
   in
   Locking_helpers.Thread_state.with_named_thread
     (TaskHelper.get_name ~__context) (Context.get_task_id __context) (fun () ->

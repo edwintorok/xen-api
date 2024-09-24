@@ -9,7 +9,6 @@
    rpclib.json
    rpclib.xml
    uuid
-   xapi-backtrace
    xapi-log
    xapi-stdext-pervasives
    xapi-stdext-unix

@@ -704,7 +704,8 @@ let start' ~task ~dbg:_ ~sr ~vdi ~dp ~url ~dest ~verify_dest =
   debug "Added" ;
   (* A list of cleanup actions to perform if the operation should fail. *)
   let on_fail : (unit -> unit) list ref = ref [] in
-  try
+  Backtrace.try_with
+  (fun () ->
     let similar_vdis = Local.VDI.similar_content dbg sr vdi in
     let similars =
       List.filter
@@ -800,17 +801,23 @@ let start' ~task ~dbg:_ ~sr ~vdi ~dp ~url ~dest ~verify_dest =
     let local_vdi = add_to_sm_config local_vdi "mirror" ("nbd:" ^ dp) in
     let local_vdi = add_to_sm_config local_vdi "base_mirror" id in
     let snapshot =
-      try Local.VDI.snapshot dbg sr local_vdi with
+      Backtrace.try_with
+      (fun () -> Local.VDI.snapshot dbg sr local_vdi)
+      (fun e bt ->
+      match e with
       | Storage_interface.Storage_error (Backend_error (code, _))
         when code = "SR_BACKEND_FAILURE_44" ->
-          raise
+          Printexc.raise_with_backtrace
             (Api_errors.Server_error
                ( Api_errors.sr_source_space_insufficient
                , [Storage_interface.Sr.string_of sr]
+               , None
                )
             )
+            bt
       | e ->
-          raise e
+          Printexc.raise_with_backtrace e bt
+      )
     in
     SMPERF.debug
       "mirror.start: snapshot created, mirror initiated vdi:%s snapshot_of:%s"
@@ -860,22 +867,25 @@ let start' ~task ~dbg:_ ~sr ~vdi ~dp ~url ~dest ~verify_dest =
     debug "Destroying snapshot on src" ;
     Local.VDI.destroy dbg sr snapshot.vdi ;
     Some (Mirror_id id)
-  with
+  )
+  (fun e bt ->
+  match e with
   | Storage_error (Sr_not_attached sr_uuid) ->
       error " Caught exception %s:%s. Performing cleanup."
         Api_errors.sr_not_attached sr_uuid ;
       perform_cleanup_actions !on_fail ;
-      raise (Api_errors.Server_error (Api_errors.sr_not_attached, [sr_uuid]))
+      Printexc.raise_with_backtrace (Api_errors.Server_error (Api_errors.sr_not_attached, [sr_uuid], None)) bt
   | e ->
       error "Caught %s: performing cleanup actions" (Api_errors.to_string e) ;
       perform_cleanup_actions !on_fail ;
-      raise e
+      Printexc.raise_with_backtrace e bt
+  )
 
 (* XXX: PR-1255: copy the xenopsd 'raise Exception' pattern *)
 let stop ~dbg ~id =
   try stop ~dbg ~id with
   | Storage_error (Backend_error (code, params))
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       raise (Storage_error (Backend_error (code, params)))
   | e ->
       raise e
@@ -1329,7 +1339,7 @@ let copy ~task ~dbg ~sr ~vdi ~dp:_ ~url ~dest ~verify_dest =
       raise (Storage_error (Internal_error (Printexc.to_string e)))
   with
   | Storage_error (Backend_error (code, params))
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       raise (Storage_error (Backend_error (code, params)))
   | e ->
       raise (Storage_error (Internal_error (Printexc.to_string e)))
@@ -1340,7 +1350,7 @@ let with_task_and_thread ~dbg f =
         Storage_task.set_tracing task dbg.Debug_info.tracing ;
         try f task with
         | Storage_error (Backend_error (code, params))
-        | Api_errors.Server_error (code, params) ->
+        | Api_errors.Server_error (code, params, _) ->
             raise (Storage_error (Backend_error (code, params)))
         | Storage_error (Unimplemented msg) ->
             raise (Storage_error (Unimplemented msg))

@@ -17,7 +17,8 @@ module D = Debug.Make (struct let name = "xapi-guard rpc" end)
 
 let wrap_rpc error f =
   let on_error e =
-    Debug.log_backtrace e Backtrace.empty ;
+    (* backtrace may be meaningless for Lwt, but nevertheless try *)
+    Debug.log_backtrace e (Printexc.get_raw_backtrace ()) ;
     D.warn "Got RPC exception %s" (Printexc.to_string e) ;
     Lwt.return
     @@

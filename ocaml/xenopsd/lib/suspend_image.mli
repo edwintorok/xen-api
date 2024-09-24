@@ -26,9 +26,9 @@ module Xenops_record : sig
 
   val make : ?vm_str:string -> ?xs_subtree:(string * string) list -> unit -> t
 
-  val to_string : t -> (string, exn) Result.t
+  val to_string : t -> (string, exn * Printexc.raw_backtrace) Result.t
 
-  val of_string : string -> (t, exn) Result.t
+  val of_string : string -> (t, exn * Printexc.raw_backtrace) Result.t
 end
 
 type header_type =
@@ -54,14 +54,17 @@ val save_signature : string
 
 val read_save_signature : Unix.file_descr -> (format, string) Result.t
 
-val read_legacy_qemu_header : Unix.file_descr -> (int64, string) Result.t
+val read_legacy_qemu_header :
+  Unix.file_descr -> (int64, string * Printexc.raw_backtrace) Result.t
 
 val write_qemu_header_for_legacy_libxc :
-  Unix.file_descr -> int64 -> (unit, exn) Result.t
+  Unix.file_descr -> int64 -> (unit, exn * Printexc.raw_backtrace) Result.t
 
-val write_header : Unix.file_descr -> header -> (unit, exn) Result.t
+val write_header :
+  Unix.file_descr -> header -> (unit, exn * Printexc.raw_backtrace) Result.t
 
-val read_header : Unix.file_descr -> (header, exn) Result.t
+val read_header :
+  Unix.file_descr -> (header, exn * Printexc.raw_backtrace) Result.t
 
 val with_conversion_script :
      Xenops_task.Xenops_task.task_handle
@@ -71,6 +74,8 @@ val with_conversion_script :
   -> (Unix.file_descr -> 'a)
   -> ('a, exn) Result.t
 
-val wrap : (unit -> 'a) -> ('a, exn) Result.t
+val wrap : (unit -> 'a) -> ('a, exn * Printexc.raw_backtrace) Result.t
 
-val wrap_exn : (unit -> ('a, exn) Result.t) -> ('a, exn) Result.t
+val wrap_exn :
+     (unit -> ('a, exn * Printexc.raw_backtrace) Result.t)
+  -> ('a, exn * Printexc.raw_backtrace) Result.t
