@@ -238,7 +238,7 @@ let is_cancelling ~__context =
 let raise_cancelled ~__context =
   let@ __context = Context.with_tracing ~__context __FUNCTION__ in
   let task_id = Context.get_task_id __context in
-  raise Api_errors.(Server_error (task_cancelled, [Ref.string_of task_id]))
+  raise Api_errors.(Server_error (task_cancelled, [Ref.string_of task_id], None))
 
 let exn_if_cancelling ~__context =
   let@ __context = Context.with_tracing ~__context __FUNCTION__ in

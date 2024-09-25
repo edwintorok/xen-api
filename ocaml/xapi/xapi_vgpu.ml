@@ -48,20 +48,20 @@ let get_valid_device ~__context ~device ~vM ~vGPUs =
       List.find (fun d -> not (device_in_use d)) all_valid_devices
       |> string_of_int
     with Not_found ->
-      raise Api_errors.(Server_error (vm_pci_bus_full, [Ref.string_of vM]))
+      raise Api_errors.(Server_error (vm_pci_bus_full, [Ref.string_of vM], None))
   else if device_in_use d then
-    raise Api_errors.(Server_error (device_already_exists, [device]))
+    raise Api_errors.(Server_error (device_already_exists, [device], None))
   else if d >= min_valid_vgpu_device && d <= max_valid_vgpu_device then
     device
   else
-    raise Api_errors.(Server_error (invalid_device, [device]))
+    raise Api_errors.(Server_error (invalid_device, [device], None))
 
 let create' ~__context ~vM ~gPU_group ~device ~other_config ~_type
     ~powerstate_check ~compatibility_metadata =
   let vgpu = Ref.make () in
   let uuid = Uuidx.to_string (Uuidx.make ()) in
   if not (Pool_features.is_enabled ~__context Features.GPU) then
-    raise (Api_errors.Server_error (Api_errors.feature_restricted, [])) ;
+    raise (Api_errors.Server_error (Api_errors.feature_restricted, [], None)) ;
   if powerstate_check then
     Xapi_vm_lifecycle.assert_initial_power_state_is ~__context ~self:vM
       ~expected:`Halted ;

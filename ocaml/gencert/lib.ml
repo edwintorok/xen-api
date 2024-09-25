@@ -84,7 +84,7 @@ let _validate_not_expired ~now (blob : string) ~error_invalid ~error_not_yet
 let validate_not_expired x ~error_not_yet ~error_expired ~error_invalid =
   let now = Ptime_clock.now () in
   _validate_not_expired ~now x ~error_not_yet ~error_expired ~error_invalid
-  |> Rresult.R.reword_error @@ fun (`Msg (e, msgs)) -> Server_error (e, msgs)
+  |> Rresult.R.reword_error @@ fun (`Msg (e, msgs)) -> Server_error (e, msgs, None)
 
 let validate_certificate kind pem now private_key =
   let ensure_keys_match private_key certificate =

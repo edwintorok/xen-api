@@ -189,7 +189,7 @@ let parallel_with_vms async_op opname n vms rpc session_id test subtest_name =
               finished := process_finished_tasks finished_tasks
             done
           with
-          | Api_errors.Server_error (code, _)
+          | Api_errors.Server_error (code, _, _)
           when code = Api_errors.events_lost
           ->
             debug ~out:stderr "Caught EVENTS_LOST; reregistering" ;

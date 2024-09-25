@@ -160,12 +160,12 @@ let handle req bio _method_name tag (method_name, request_func) =
         trim_and_send method_name tag wlb_sock client_sock
       in
       try request_func ~__context ~handler:parse with
-      | Api_errors.Server_error (_, _) as exn ->
+      | Api_errors.Server_error (_, _, _) as exn ->
           raise exn
       | exn ->
           warn "WLB %s request failed: %s" method_name
             (ExnHelper.string_of_exn exn) ;
-          raise (Api_errors.Server_error (Api_errors.internal_error, []))
+          raise (Api_errors.Server_error (Api_errors.internal_error, [], None))
   )
 
 (* GET /wlb_report?session_id=<session>&task_id=<task>&

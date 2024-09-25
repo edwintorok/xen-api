@@ -166,7 +166,7 @@ let throw_error table op =
            )
         )
   | Some (Some (code, params)) ->
-      raise (Api_errors.Server_error (code, params))
+      raise (Api_errors.Server_error (code, params, None))
   | Some None ->
       ()
 
@@ -272,7 +272,7 @@ let mark_host_as_dead ~__context ~host ~reason =
 
 let assert_host_disabled ~__context ~host =
   if Db.Host.get_enabled ~__context ~self:host then
-    raise (Api_errors.Server_error (Api_errors.host_not_disabled, []))
+    raise (Api_errors.Server_error (Api_errors.host_not_disabled, [], None))
 
 (* Toggled by an explicit Host.disable call to prevent a master restart making us bounce back *)
 let user_requested_host_disable = ref false
@@ -288,7 +288,7 @@ let signal_startup_complete () =
 let assert_startup_complete () =
   with_lock startup_complete_m (fun () ->
       if not !startup_complete then
-        raise (Api_errors.Server_error (Api_errors.host_still_booting, []))
+        raise (Api_errors.Server_error (Api_errors.host_still_booting, [], None))
   )
 
 (* Check whether the currently installed Toolstack is compatible with the
@@ -332,7 +332,7 @@ let assert_xen_compatible () =
         x
   in
   if not compatible then
-    raise Api_errors.(Server_error (xen_incompatible, []))
+    raise Api_errors.(Server_error (xen_incompatible, [], None))
 
 let remove_pending_guidance ~__context ~self ~value =
   let h = Db.Host.get_name_label ~__context ~self in

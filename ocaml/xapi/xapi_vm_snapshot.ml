@@ -119,7 +119,7 @@ let checkpoint ~__context ~vm ~new_name =
         (* suspend the VM *)
         Xapi_gpumon.update_vgpu_metadata ~__context ~vm ;
         Xapi_xenops.suspend ~__context ~self:vm
-      with Api_errors.Server_error (_, _) as e -> raise e
+      with Api_errors.Server_error (_, _, _) as e -> raise e
     (* | _ -> raise (Api_errors.Server_error (Api_errors.vm_checkpoint_suspend_failed, [Ref.string_of vm])) *)
   ) ;
   (* snapshot the disks and the suspend VDI *)
@@ -163,7 +163,7 @@ let checkpoint ~__context ~vm ~new_name =
 let copy_vm_fields ~__context ~metadata ~dst ~do_not_copy ~overrides =
   ( if not (Pool_role.is_master ()) then
       let msg = "copy_vm_fields: Aborting because the host is not master" in
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
   ) ;
   debug "copying metadata into %s" (Ref.string_of dst) ;
   let db = Context.database_of __context in
@@ -528,7 +528,7 @@ let revert ~__context ~snapshot ~vm =
     | Api_errors.Server_error ("SR_BACKEND_FAILURE_109", _) as e ->
         error "Snapshot chain too long" ;
         raise e
-    | Api_errors.Server_error (code, _) as e
+    | Api_errors.Server_error (code, _, _) as e
       when code = Api_errors.vdi_incompatible_type ->
         raise e
     | _ ->

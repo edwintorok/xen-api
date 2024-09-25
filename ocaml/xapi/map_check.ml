@@ -84,7 +84,7 @@ type key_type =
 
 let err field key value =
   let msg = if key = "" then field else field ^ ":" ^ key in
-  raise (Api_errors.Server_error (Api_errors.invalid_value, [msg; value]))
+  raise (Api_errors.Server_error (Api_errors.invalid_value, [msg; value], None))
 
 let mem value range =
   try

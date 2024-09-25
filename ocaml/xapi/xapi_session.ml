@@ -241,7 +241,7 @@ let _record_login_failure ~__context ~now ~uname ~originator ~record f =
   try f () with
   | Auth_signature.Auth_failure _ as e ->
       on_fail e
-  | Api_errors.Server_error (code, _) as e
+  | Api_errors.Server_error (code, _, _) as e
     when code = Api_errors.session_authentication_failed ->
       on_fail e
 
@@ -926,9 +926,9 @@ let login_with_password ~__context ~uname ~pwd ~version:_ ~originator =
         Thread.delay some_seconds ;
         (* sleep a bit to avoid someone brute-forcing the password *)
         if error = Api_errors.session_authentication_failed then
-          raise (Api_errors.Server_error (error, [uname; msg]))
+          raise (Api_errors.Server_error (error, [uname; msg], None))
         else if error = Api_errors.session_authorization_failed then
-          raise Api_errors.(Server_error (error, [uname; msg]))
+          raise Api_errors.(Server_error (error, [uname; msg], None))
         else
           raise
             (Api_errors.Server_error

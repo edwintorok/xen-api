@@ -231,7 +231,7 @@ let destroy ~__context ~self =
 (* Validation and assertion functions *)
 
 let invalid_value x y =
-  raise (Api_errors.Server_error (Api_errors.invalid_value, [x; y]))
+  raise (Api_errors.Server_error (Api_errors.invalid_value, [x; y], None))
 
 let value_not_supported fld v reason =
   raise
@@ -394,7 +394,7 @@ let is_host_live ~__context host =
 let assert_host_is_live ~__context ~host =
   let host_is_live = is_host_live ~__context host in
   if not host_is_live then
-    raise (Api_errors.Server_error (Api_errors.host_not_live, []))
+    raise (Api_errors.Server_error (Api_errors.host_not_live, [], None))
 
 let which_specified_SRs_not_available_on_host ~__context ~reqd_srs ~host =
   let available_srs =
@@ -749,10 +749,10 @@ let retrieve_wlb_recommendations ~__context ~vm ~snapshot =
          * with 0.0, and the same reason code that WLB would've used. This should keep observable behaviour
          * identical and work both with old and new WLBs.
          *)
-        | Api_errors.Server_error (x, _)
+        | Api_errors.Server_error (x, _, _)
           when x = Api_errors.vm_incompatible_with_this_host ->
             Impossible {source; id; reason= "HostCPUFeaturesIncompatible"}
-        | Api_errors.Server_error (x, y) ->
+        | Api_errors.Server_error (x, y, _) ->
             let reason = String.concat ";" (x :: y) in
             Impossible {source; id; reason}
       )
@@ -830,7 +830,7 @@ let choose_host ~__context ?vm ~choose_fn ?(prefer_slaves = false) () =
   let choices = possible_hosts ~__context ?vm ~choose_fn () in
   match choices with
   | [] ->
-      raise (Api_errors.Server_error (Api_errors.no_hosts_available, []))
+      raise (Api_errors.Server_error (Api_errors.no_hosts_available, [], None))
   | [h] ->
       h
   | _ ->
@@ -969,7 +969,7 @@ let get_group_key ~__context ~vm =
 let rank_hosts_by_best_vgpu ~__context vgpu visible_hosts =
   match visible_hosts with
   | [] ->
-      raise (Api_errors.Server_error (Api_errors.no_hosts_available, []))
+      raise (Api_errors.Server_error (Api_errors.no_hosts_available, [], None))
   | hosts ->
       let vgpu_type = Db.VGPU.get_type ~__context ~self:vgpu in
       let gpu_group = Db.VGPU.get_GPU_group ~__context ~self:vgpu in
@@ -1085,7 +1085,7 @@ let rank_hosts_by_placement ~__context ~vm ~group =
 let rec select_host_from_ranked_lists ~vm ~host_selector ~ranked_host_lists =
   match ranked_host_lists with
   | [] ->
-      raise (Api_errors.Server_error (Api_errors.no_hosts_available, []))
+      raise (Api_errors.Server_error (Api_errors.no_hosts_available, [], None))
   | hosts :: less_optimal_groups_of_hosts -> (
       let hosts_str = String.concat ";" (List.map Ref.string_of hosts) in
       debug
@@ -1153,7 +1153,7 @@ let choose_host_for_vm_no_wlb ~__context ~vm ~snapshot =
     select_host_from_ranked_lists ~vm ~host_selector
       ~ranked_host_lists:host_lists
   with
-  | Api_errors.Server_error (x, []) when x = Api_errors.no_hosts_available ->
+  | Api_errors.Server_error (x, [], _) when x = Api_errors.no_hosts_available ->
     debug
       "No hosts guaranteed to satisfy VM constraints. Trying again ignoring \
        memory checks" ;
@@ -1230,7 +1230,7 @@ let choose_host_for_vm ~__context ~vm ~snapshot =
           debug "Wlb has no recommendations. Using original algorithm" ;
           choose_host_for_vm_no_wlb ~__context ~vm ~snapshot
     with
-    | Api_errors.Server_error (error_type, error_detail) ->
+    | Api_errors.Server_error (error_type, error_detail, _) ->
         debug
           "Encountered error when using wlb for choosing host \"%s: %s\". \
            Using original algorithm"
@@ -1591,7 +1591,7 @@ let assert_valid_bios_strings ~__context ~value =
                Printf.sprintf "%s has length more than %d characters" v
                  Constants.bios_string_limit_size
              in
-             raise (Api_errors.Server_error (Api_errors.invalid_value, [k; err]))
+             raise (Api_errors.Server_error (Api_errors.invalid_value, [k; err], None))
          | _ ->
              String.iter
                (fun c ->
@@ -1610,7 +1610,7 @@ let copy_bios_strings ~__context ~vm ~host =
   (* only allow to fill in BIOS strings if they are not yet set *)
   let current_strings = Db.VM.get_bios_strings ~__context ~self:vm in
   if current_strings <> [] then
-    raise (Api_errors.Server_error (Api_errors.vm_bios_strings_already_set, []))
+    raise (Api_errors.Server_error (Api_errors.vm_bios_strings_already_set, [], None))
   else
     let bios_strings = Db.Host.get_bios_strings ~__context ~self:host in
     Db.VM.set_bios_strings ~__context ~self:vm ~value:bios_strings ;

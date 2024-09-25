@@ -26,7 +26,7 @@ let of_string = function
   | "HyperVServer" ->
       HyperVServer
   | x ->
-      raise (Api_errors.Server_error (Api_errors.invalid_value, [x]))
+      raise (Api_errors.Server_error (Api_errors.invalid_value, [x], None))
 
 let to_string = function
   | XenServer ->

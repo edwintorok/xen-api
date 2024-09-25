@@ -117,7 +117,7 @@ let assert_credentials_ok realm ?(http_action = realm) ?(fn = Rbac.nofn)
       Rbac.check_with_new_task session_id http_permission ~fn
         ~args:(rbac_audit_params_of req) ~task_desc:rbac_task_desc
     with
-    | Api_errors.Server_error (err, [perm; msg])
+    | Api_errors.Server_error (err, [perm; msg], _)
       when err = Api_errors.rbac_permission_denied ->
         rbac_raise perm msg Http.Forbidden
     | e ->
@@ -231,7 +231,7 @@ let with_context ?(dummy = false) label (req : Request.t) (s : Unix.file_descr)
               , true
               )
             with
-            | Api_errors.Server_error (code, _)
+            | Api_errors.Server_error (code, _, _)
             when code = Api_errors.session_authentication_failed
             ->
               raise (Http.Unauthorised label)
@@ -374,7 +374,7 @@ let add_handler (name, handler) =
                       raise e
                   ) else (* no rbac checks *)
                     callback req ic context
-                with Api_errors.Server_error (name, params) as e ->
+                with Api_errors.Server_error (name, params, _) as e ->
                   error "Unhandled Api_errors.Server_error(%s, [ %s ])" name
                     (String.concat "; " params) ;
                   raise (Http_svr.Generic_error (ExnHelper.string_of_exn e))
@@ -395,7 +395,7 @@ let add_handler (name, handler) =
                   if check_rbac then assert_credentials_ok name req ic ;
                   (* session and rbac checks *)
                   callback req ic context
-                with Api_errors.Server_error (name, params) as e ->
+                with Api_errors.Server_error (name, params, _) as e ->
                   error "Unhandled Api_errors.Server_error(%s, [ %s ])" name
                     (String.concat "; " params) ;
                   raise (Http_svr.Generic_error (ExnHelper.string_of_exn e))

@@ -1116,4 +1116,4 @@ let assert_not_legacy ~__context ~self =
     let vendor = Db.VGPU_type.get_vendor_name ~__context ~self in
     let model = Db.VGPU_type.get_model_name ~__context ~self in
     let msg = [Printf.sprintf "%s: %s" vendor model] in
-    raise Api_errors.(Server_error (vgpu_type_no_longer_supported, msg))
+    raise Api_errors.(Server_error (vgpu_type_no_longer_supported, msg, None))

@@ -465,7 +465,7 @@ let assert_operation_valid ~__context ~self ~(op : API.vdi_operations) =
   | None ->
       ()
   | Some (a, b) ->
-      raise (Api_errors.Server_error (a, b))
+      raise (Api_errors.Server_error (a, b, None))
 
 let update_allowed_operations_internal ~__context ~self ~sr_records ~pbd_records
     ?vbd_records () =
@@ -700,7 +700,7 @@ let introduce_dbonly ~__context ~uuid ~name_label ~name_description ~sR ~_type
         (fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> ()
       )
     with _ ->
-      raise (Api_errors.Server_error (Api_errors.uuid_invalid, ["VDI"; uuid]))
+      raise (Api_errors.Server_error (Api_errors.uuid_invalid, ["VDI"; uuid], None))
   ) ;
   let ref = Ref.make () in
   debug "VDI.introduce read_only = %b" read_only ;
@@ -1218,7 +1218,7 @@ let copy ~__context ~vdi ~sr ~base_vdi ~into_vdi =
     raise e
 
 let force_unlock ~__context ~vdi:_ =
-  raise (Api_errors.Server_error (Api_errors.message_deprecated, []))
+  raise (Api_errors.Server_error (Api_errors.message_deprecated, [], None))
 
 let set_sharable ~__context ~self ~value =
   Db.VDI.set_sharable ~__context ~self ~value

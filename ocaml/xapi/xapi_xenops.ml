@@ -477,7 +477,7 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
           k
       | Error (file, msg) ->
           info {|%s: refusing to load %s "%s": %s|} __FUNCTION__ name file msg ;
-          raise Api_errors.(Server_error (invalid_value, [name; file; msg]))
+          raise Api_errors.(Server_error (invalid_value, [name; file; msg], None))
     in
     let kernel = resolve "kernel" ~path:kernel in
     let ramdisk = Option.map (fun k -> resolve "ramdisk" ~path:k) ramdisk in
@@ -531,7 +531,7 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
       PVH (make_indirect_boot_record options)
   | _ ->
       let msg = "invalid boot configuration" in
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let list_net_sriov_vf_pcis ~__context ~vm =
   vm.API.vM_VIFs
@@ -1434,7 +1434,7 @@ let vm_exists_in_xenopsd queue_name dbg id =
   Client.VM.exists dbg id
 
 let string_of_exn = function
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       Printf.sprintf "%s [ %s ]" code (String.concat "; " params)
   | e ->
       Printexc.to_string e
@@ -2912,7 +2912,7 @@ let rec events_watch ~__context cancel queue_name from =
   let module Client = (val make_client queue_name : XENOPS) in
   let barriers, events, next = Client.UPDATES.get dbg from None in
   if !cancel then
-    raise (Api_errors.Server_error (Api_errors.task_cancelled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.task_cancelled, [], None)) ;
   let done_events = ref [] in
   let already_done x = List.mem x !done_events in
   let add_event x = done_events := x :: !done_events in
@@ -3339,12 +3339,12 @@ let events_from_xapi () =
               done
           )
         with
-        | Api_errors.Server_error (code, _)
+        | Api_errors.Server_error (code, _, _)
           when code = Api_errors.session_invalid ->
             debug
               "Caught SESSION_INVALID listening to events from xapi. \
                Restarting thread immediately."
-        | Api_errors.Server_error (code, _)
+        | Api_errors.Server_error (code, _, _)
           when code = Api_errors.xen_incompatible ->
             warn
               "Stopping events-from-xapi thread due to Xen/libxenctrl \
@@ -3956,7 +3956,7 @@ let resume ~__context ~self ~start_paused ~force:_ =
     info "VM suspend VDI not found; Performing VM hard_shutdown" ;
     Xapi_vm_lifecycle.force_state_reset ~__context ~self ~value:`Halted ;
     let err_content = ["VM"; Ref.string_of self] in
-    raise Api_errors.(Server_error (vm_has_no_suspend_vdi, err_content))
+    raise Api_errors.(Server_error (vm_has_no_suspend_vdi, err_content, None))
   ) ;
   let d = disk_of_vdi ~__context ~self:vdi |> Option.get in
   let module Client = (val make_client queue_name : XENOPS) in

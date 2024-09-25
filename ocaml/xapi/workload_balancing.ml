@@ -35,7 +35,7 @@ type vm_recommendation =
 let request_mutex = Locking_helpers.Named_mutex.create "WLB"
 
 let raise_url_invalid url =
-  raise (Api_errors.Server_error (Api_errors.wlb_url_invalid, [url]))
+  raise (Api_errors.Server_error (Api_errors.wlb_url_invalid, [url], None))
 
 let raise_malformed_response' meth reason response =
   raise
@@ -47,32 +47,32 @@ let raise_malformed_response meth reason response =
   raise_malformed_response' meth reason (Xml.to_string response)
 
 let raise_not_initialized () =
-  raise (Api_errors.Server_error (Api_errors.wlb_not_initialized, []))
+  raise (Api_errors.Server_error (Api_errors.wlb_not_initialized, [], None))
 
 let raise_disabled () =
-  raise (Api_errors.Server_error (Api_errors.wlb_disabled, []))
+  raise (Api_errors.Server_error (Api_errors.wlb_disabled, [], None))
 
 let raise_timeout timeout =
   raise
     (Api_errors.Server_error (Api_errors.wlb_timeout, [string_of_float timeout]))
 
 let raise_verify_error reason =
-  raise (Api_errors.Server_error (Api_errors.ssl_verify_error, [reason]))
+  raise (Api_errors.Server_error (Api_errors.ssl_verify_error, [reason], None))
 
 let raise_authentication_failed () =
-  raise (Api_errors.Server_error (Api_errors.wlb_authentication_failed, []))
+  raise (Api_errors.Server_error (Api_errors.wlb_authentication_failed, [], None))
 
 let raise_connection_refused () =
-  raise (Api_errors.Server_error (Api_errors.wlb_connection_refused, []))
+  raise (Api_errors.Server_error (Api_errors.wlb_connection_refused, [], None))
 
 let raise_unknown_host () =
-  raise (Api_errors.Server_error (Api_errors.wlb_unknown_host, []))
+  raise (Api_errors.Server_error (Api_errors.wlb_unknown_host, [], None))
 
 let raise_connection_reset () =
-  raise (Api_errors.Server_error (Api_errors.wlb_connection_reset, []))
+  raise (Api_errors.Server_error (Api_errors.wlb_connection_reset, [], None))
 
 let raise_internal_error args =
-  raise (Api_errors.Server_error (Api_errors.wlb_internal_error, args))
+  raise (Api_errors.Server_error (Api_errors.wlb_internal_error, args, None))
 
 let split_host_port url =
   try
@@ -119,7 +119,7 @@ let check_wlb_enabled ~__context =
   try
     assert_wlb_enabled ~__context ;
     true
-  with Api_errors.Server_error (err, _) ->
+  with Api_errors.Server_error (err, _, _) ->
     debug "Wlb check failed: %s" err ;
     false
 

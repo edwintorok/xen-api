@@ -89,11 +89,11 @@ let alert_matched ~__context ~label_name ~id alert =
   | _ ->
       let msg = "Invalid message body of VM group alert" in
       error "%s" msg ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
   | exception e ->
       let msg = Printf.sprintf "%s" (ExnHelper.string_of_exn e) in
       error "%s" msg ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let filter_alerts_with_group ~__context ~group ~alerts =
   let group_uuid = Db.VM_group.get_uuid ~__context ~self:group in

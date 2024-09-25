@@ -23,7 +23,7 @@ let read_backups () =
       "xapi_psr_util.ml:read_backups failed (paths='%s', '%s'). reason: %s"
       old_pool_secret_backup_path new_pool_secret_backup_path
       (Printexc.to_string e) ;
-    raise Api_errors.(Server_error (internal_error, ["failed to read backups"]))
+    raise Api_errors.(Server_error (internal_error, ["failed to read backups"], None))
 
 let load_psr_pool_secrets () =
   match

@@ -101,7 +101,7 @@ let raise_internal ?e ?(details = "") msg : 'a =
       e
   in
   [msg; details; e] |> String.concat ". " |> D.error "%s" ;
-  raise Api_errors.(Server_error (internal_error, [msg]))
+  raise Api_errors.(Server_error (internal_error, [msg], None))
 
 module type CertificateProvider = sig
   val store_path : string

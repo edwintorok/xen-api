@@ -740,7 +740,7 @@ let assert_operation_valid ~__context ~self ~op ~strict =
   | None ->
       ()
   | Some (a, b) ->
-      raise (Api_errors.Server_error (a, b))
+      raise (Api_errors.Server_error (a, b, None))
 
 (* can't put this into xapi_vtpm because it creates a cycle *)
 let vtpm_update_allowed_operations ~__context ~self =

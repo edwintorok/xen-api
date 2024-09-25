@@ -228,12 +228,12 @@ let assert_sr_support_operations ~__context ~vdi_map ~remote ~ops =
 let assert_can_migrate_vdis ~__context ~vdi_map =
   let assert_cbt_not_enabled vdi =
     if Db.VDI.get_cbt_enabled ~__context ~self:vdi then
-      raise Api_errors.(Server_error (vdi_cbt_enabled, [Ref.string_of vdi]))
+      raise Api_errors.(Server_error (vdi_cbt_enabled, [Ref.string_of vdi], None))
   in
   let assert_not_encrypted vdi =
     let sm_config = Db.VDI.get_sm_config ~__context ~self:vdi in
     if List.exists (fun (key, _value) -> key = "key_hash") sm_config then
-      raise Api_errors.(Server_error (vdi_is_encrypted, [Ref.string_of vdi]))
+      raise Api_errors.(Server_error (vdi_is_encrypted, [Ref.string_of vdi], None))
   in
   List.iter
     (fun (vdi, target_sr) ->
@@ -1702,7 +1702,7 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
     TaskHelper.exn_if_cancelling ~__context ;
     match e with
     | Storage_interface.Storage_error (Backend_error (code, params)) ->
-        raise (Api_errors.Server_error (code, params))
+        raise (Api_errors.Server_error (code, params, None))
     | Storage_interface.Storage_error (Unimplemented code) ->
         raise
           (Api_errors.Server_error
@@ -1748,7 +1748,7 @@ let assert_can_migrate ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~options
     (fun vconf ->
       let vdi = vconf.vdi in
       if Db.VDI.get_cbt_enabled ~__context ~self:vdi then
-        raise Api_errors.(Server_error (vdi_cbt_enabled, [Ref.string_of vdi]))
+        raise Api_errors.(Server_error (vdi_cbt_enabled, [Ref.string_of vdi], None))
     )
     vms_vdis ;
   (* operations required for migration *)
@@ -1934,7 +1934,7 @@ let vdi_pool_migrate ~__context ~vdi ~sr ~options =
       "VDI.pool_migrate: changed block tracking is enabled for the specified \
        VDI (at %s)"
       __LOC__ ;
-    raise Api_errors.(Server_error (vdi_cbt_enabled, [Ref.string_of vdi]))
+    raise Api_errors.(Server_error (vdi_cbt_enabled, [Ref.string_of vdi], None))
   ) ;
   (* inserted by message_forwarding *)
   let vm = Ref.of_string (List.assoc "__internal__vm" options) in
@@ -1948,7 +1948,7 @@ let vdi_pool_migrate ~__context ~vdi ~sr ~options =
     | v :: _ ->
         v
     | _ ->
-        raise (Api_errors.Server_error (Api_errors.vbd_missing, []))
+        raise (Api_errors.Server_error (Api_errors.vbd_missing, [], None))
   in
   (* Fully specify vdi_map: other VDIs stay on current SR *)
   let vbds = Db.VM.get_VBDs ~__context ~self:vm in

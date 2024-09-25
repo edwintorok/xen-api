@@ -196,11 +196,11 @@ let introduce ~__context ~uuid ~name_label ~name_description ~_type
     (* Return ref of newly created sr *)
     sr_ref
   with Db_exn.Uniqueness_constraint_violation ("SR", "uuid", _) ->
-    raise (Api_errors.Server_error (Api_errors.sr_uuid_exists, [uuid]))
+    raise (Api_errors.Server_error (Api_errors.sr_uuid_exists, [uuid], None))
 
 let make ~__context ~host:_ ~device_config:_ ~physical_size:_ ~name_label:_
     ~name_description:_ ~_type ~content_type:_ ~sm_config:_ =
-  raise (Api_errors.Server_error (Api_errors.message_deprecated, []))
+  raise (Api_errors.Server_error (Api_errors.message_deprecated, [], None))
 
 let get_pbds ~__context ~self ~attached ~master_pos =
   let master = Helpers.get_master ~__context in
@@ -345,7 +345,7 @@ let probe_ext =
 
   call_probe ~f:(function
     | Storage_interface.Raw _ ->
-        raise Api_errors.(Server_error (sr_operation_not_supported, []))
+        raise Api_errors.(Server_error (sr_operation_not_supported, [], None))
     | Storage_interface.Probe results ->
         List.map to_xenapi_probe_result results
     )
@@ -440,7 +440,7 @@ let assert_all_pbds_unplugged ~__context ~sr =
       (fun self -> Db.PBD.get_currently_attached ~__context ~self)
       pbds
   then
-    raise (Api_errors.Server_error (Api_errors.sr_has_pbd, [Ref.string_of sr]))
+    raise (Api_errors.Server_error (Api_errors.sr_has_pbd, [Ref.string_of sr], None))
 
 let assert_sr_not_indestructible ~__context ~sr =
   let oc = Db.SR.get_other_config ~__context ~self:sr in
@@ -888,7 +888,7 @@ let assert_supports_database_replication ~__context ~sr =
             (Listext.List.set_difference all_hosts connected_hosts)
          )
       ) ;
-    raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr]))
+    raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr], None))
   ) ;
   (* Check that each PBD is plugged in *)
   List.iter

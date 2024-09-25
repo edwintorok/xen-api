@@ -135,7 +135,7 @@ let get_remaining_capacity_internal ~__context ~self ~vgpu_type =
           ]
         in
         let score_exception = function
-          | Api_errors.Server_error (code, _) ->
+          | Api_errors.Server_error (code, _, _) ->
               if List.mem_assoc code error_code_scores then
                 List.assoc code error_code_scores
               else

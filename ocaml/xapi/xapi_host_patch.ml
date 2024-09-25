@@ -18,4 +18,4 @@
 let destroy ~__context ~self = Db.Host_patch.destroy ~__context ~self
 
 let apply ~__context ~self:_ =
-  raise (Api_errors.Server_error (Api_errors.message_deprecated, []))
+  raise (Api_errors.Server_error (Api_errors.message_deprecated, [], None))

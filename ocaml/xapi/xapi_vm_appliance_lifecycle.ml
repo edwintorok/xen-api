@@ -57,7 +57,7 @@ let assert_operation_valid ~__context ~self ~(op : API.vm_appliance_operation) =
   | None ->
       ()
   | Some (a, b) ->
-      raise (Api_errors.Server_error (a, b))
+      raise (Api_errors.Server_error (a, b, None))
 
 let update_allowed_operations ~__context ~self =
   let all = Db.VM_appliance.get_record_internal ~__context ~self in

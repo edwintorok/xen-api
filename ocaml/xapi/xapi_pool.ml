@@ -51,7 +51,7 @@ let get_pool ~rpc ~session_id =
   match Client.Pool.get_all ~rpc ~session_id with
   | [] ->
       let err_msg = "Remote host does not belong to a pool." in
-      raise Api_errors.(Server_error (internal_error, [err_msg]))
+      raise Api_errors.(Server_error (internal_error, [err_msg], None))
   | pool :: _ ->
       pool
 
@@ -85,14 +85,14 @@ let pre_join_checks ~__context ~rpc ~session_id ~force =
         "Pool.join/Pool.eject requires a properly configured management \
          interface. Wait for xapi/firstboot initialisation to complete and \
          then retry." ;
-      raise (Api_errors.Server_error (Api_errors.host_still_booting, []))
+      raise (Api_errors.Server_error (Api_errors.host_still_booting, [], None))
   in
   (* I cannot join a Pool if I have HA already enabled on me *)
   let ha_is_not_enable_on_me () =
     let pool = Helpers.get_pool ~__context in
     if Db.Pool.get_ha_enabled ~__context ~self:pool then (
       error "Cannot join pool as HA is enabled" ;
-      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, []))
+      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None))
     )
   in
   (* I Cannot join a Pool if it has HA enabled on it *)
@@ -100,7 +100,7 @@ let pre_join_checks ~__context ~rpc ~session_id ~force =
     let pool = get_pool ~rpc ~session_id in
     if Client.Pool.get_ha_enabled ~rpc ~session_id ~self:pool then (
       error "Cannot join pool which already has HA enabled" ;
-      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, []))
+      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None))
     )
   in
   (* I cannot join a Pool if I have Clustering enabled on me *)
@@ -181,7 +181,7 @@ let pre_join_checks ~__context ~rpc ~session_id ~force =
             )
         )
       with
-      | Api_errors.Server_error (code, []) when code = Api_errors.v6d_failure ->
+      | Api_errors.Server_error (code, [], _) when code = Api_errors.v6d_failure ->
         error
           "Pool.join failed because edition strings differ and local has no \
            license daemon running." ;
@@ -292,7 +292,7 @@ let pre_join_checks ~__context ~rpc ~session_id ~force =
         (diff remote_updates local_updates)
         local_uuid
         (diff local_updates remote_updates) ;
-      raise Api_errors.(Server_error (pool_hosts_not_homogeneous, [reason]))
+      raise Api_errors.(Server_error (pool_hosts_not_homogeneous, [reason], None))
     )
   in
   (* CP-700: Restrict pool.join if AD configuration of slave-to-be does not match *)
@@ -511,7 +511,7 @@ let pre_join_checks ~__context ~rpc ~session_id ~force =
         (Option.value ~default:"Unknown" (snd master_compatibility_info))
         (Option.value ~default:"Unknown" (fst my_compatibility_info))
         (Option.value ~default:"Unknown" (snd my_compatibility_info)) ;
-      raise (Api_errors.Server_error (Api_errors.pool_hosts_not_compatible, []))
+      raise (Api_errors.Server_error (Api_errors.pool_hosts_not_compatible, [], None))
     )
   in
   let assert_hosts_homogeneous () =
@@ -751,7 +751,7 @@ let pre_join_checks ~__context ~rpc ~session_id ~force =
         (fun (_, op) -> op = `apply_updates)
         (Db.Pool.get_current_operations ~__context ~self:pool)
     then
-      raise Api_errors.(Server_error (not_supported_during_upgrade, []))
+      raise Api_errors.(Server_error (not_supported_during_upgrade, [], None))
   in
   let assert_no_hosts_in_updating () =
     if
@@ -759,7 +759,7 @@ let pre_join_checks ~__context ~rpc ~session_id ~force =
         (fun (_, op) -> op = `apply_updates)
         (Client.Pool.get_current_operations ~rpc ~session_id ~self:remote_pool)
     then
-      raise Api_errors.(Server_error (not_supported_during_upgrade, []))
+      raise Api_errors.(Server_error (not_supported_during_upgrade, [], None))
   in
   let assert_ca_certificates_compatible () =
     (* When both pools trust a different certificate using the same name
@@ -954,7 +954,7 @@ and create_or_get_sr_on_master __context rpc session_id (_sr_ref, sr) :
         |> fun (ref, _) -> ref
       with Not_found ->
         let msg = Printf.sprintf "can't find SR %s of tools iso" my_uuid in
-        raise Api_errors.(Server_error (internal_error, [msg]))
+        raise Api_errors.(Server_error (internal_error, [msg], None))
     else (
       debug "Found no SR with uuid = '%s' on the master, so creating one."
         my_uuid ;
@@ -1372,7 +1372,7 @@ let update_non_vm_metadata ~__context ~rpc ~session_id =
 
 let assert_pooling_licensed ~__context =
   if not (Pool_features.is_enabled ~__context Features.Pooling) then
-    raise (Api_errors.Server_error (Api_errors.license_restriction, []))
+    raise (Api_errors.Server_error (Api_errors.license_restriction, [], None))
 
 let certificate_install ~__context ~name ~cert =
   let open Certificates in
@@ -1668,12 +1668,12 @@ let exchange_ca_certificates_on_join ~__context ~import ~export :
 (* Assume that db backed up from master will be there and ready to go... *)
 let emergency_transition_to_master ~__context =
   if Localdb.get Constants.ha_armed = "true" then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   Xapi_pool_transition.become_master ()
 
 let emergency_reset_master ~__context ~master_address =
   if Localdb.get Constants.ha_armed = "true" then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   let master_address = Helpers.gethostbyname master_address in
   Xapi_pool_transition.become_another_masters_slave master_address
 
@@ -1726,13 +1726,13 @@ let eject_self ~__context ~host =
   (* If HA is enabled then refuse *)
   let pool = Helpers.get_pool ~__context in
   if Db.Pool.get_ha_enabled ~__context ~self:pool then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   if
     List.exists
       (fun (_, op) -> op = `apply_updates)
       (Db.Pool.get_current_operations ~__context ~self:pool)
   then
-    raise Api_errors.(Server_error (not_supported_during_upgrade, [])) ;
+    raise Api_errors.(Server_error (not_supported_during_upgrade, [], None)) ;
   if Pool_role.is_master () then
     raise Cannot_eject_master
   else (* Fail the operation if any VMs are running here (except dom0) *)
@@ -2044,7 +2044,7 @@ let designate_new_master ~__context ~host:_ =
   if not (Pool_role.is_master ()) then (
     let pool = Helpers.get_pool ~__context in
     if Db.Pool.get_ha_enabled ~__context ~self:pool then
-      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
     Db.Pool.set_last_update_sync ~__context ~self:pool ~value:Date.epoch ;
     (* Only the master can sync the *current* database; only the master
        knows the current generation count etc. *)
@@ -2068,7 +2068,7 @@ let management_reconfigure ~__context ~network =
   (* Disallow if HA is enabled *)
   let pool = Helpers.get_pool ~__context in
   if Db.Pool.get_ha_enabled ~__context ~self:pool then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   (* Create a hash table for hosts with pifs for the network *)
   let pifs_on_network = Db.Network.get_PIFs ~__context ~self:network in
   let hosts_with_pifs = Hashtbl.create 16 in
@@ -2179,10 +2179,10 @@ let hello ~__context ~host_uuid ~host_address =
              )
             )
         with
-      | Api_errors.Server_error (code, ["pool.is_slave"; "1"; "2"]) as e
+      | Api_errors.Server_error (code, ["pool.is_slave"; "1"; "2"], _) as e
         when code = Api_errors.message_parameter_count_mismatch ->
           debug "Caught %s: this host is a Rio box" (ExnHelper.string_of_exn e)
-      | Api_errors.Server_error (code, _) as e
+      | Api_errors.Server_error (code, _, _) as e
         when code = Api_errors.host_still_booting ->
           debug "Caught %s: this host is a Miami box" (ExnHelper.string_of_exn e)
       ) ;
@@ -2238,7 +2238,7 @@ let create_VLAN ~__context ~device ~network ~vLAN =
           (fun pif ->
             (* This call destroys the metrics too *)
             try Client.PIF.destroy ~rpc ~session_id ~self:pif with
-            | Api_errors.Server_error (a, _) ->
+            | Api_errors.Server_error (a, _, _) ->
                 if a = Api_errors.host_offline then
                   Db.PIF.destroy ~__context ~self:pif
                 else
@@ -2366,7 +2366,7 @@ let enable_ha ~__context ~heartbeat_srs ~configuration =
         Xapi_ha.enable __context heartbeat_srs configuration
     )
   else
-    raise Api_errors.(Server_error (not_supported_during_upgrade, []))
+    raise Api_errors.(Server_error (not_supported_during_upgrade, [], None))
 
 let disable_ha ~__context =
   with_lock enable_disable_m (fun () -> Xapi_ha.disable __context)
@@ -2479,7 +2479,7 @@ let ha_compute_vm_failover_plan ~__context ~failed_hosts ~failed_vms =
              Agility.vm_assert_agile ~__context ~self ;
              [(self, [("error_code", Api_errors.host_not_enough_free_memory)])]
              (* default *)
-           with Api_errors.Server_error (code, _) ->
+           with Api_errors.Server_error (code, _, _) ->
              [(self, [("error_code", code)])]
          )
          failed_vms
@@ -2653,7 +2653,7 @@ let enable_external_auth ~__context ~pool:_ ~config ~service_name ~auth_type =
                     true
                     (* h was successfully enabled. try next in the pool *)
                   with
-                  | Api_errors.Server_error (err, [msg]) as e ->
+                  | Api_errors.Server_error (err, [msg], _) as e ->
                       debug
                         "received exception while enabling external \
                          authentication for host %s: %s"
@@ -2776,7 +2776,7 @@ let disable_external_auth ~__context ~pool:_ ~config =
               (* no failed host to add to the filtered list, just visit next host *)
               (host, "", "")
             with
-            | Api_errors.Server_error (err, [host_msg]) ->
+            | Api_errors.Server_error (err, [host_msg], _) ->
                 let msg =
                   Printf.sprintf "%s: %s"
                     (Db.Host.get_name_label ~__context ~self:host)
@@ -2907,7 +2907,7 @@ let enable_redo_log ~__context ~sr =
       let msg =
         "failed to create a VDI for the redo log on the SR with the given UUID."
       in
-      raise (Api_errors.Server_error (Api_errors.cannot_enable_redo_log, [msg]))
+      raise (Api_errors.Server_error (Api_errors.cannot_enable_redo_log, [msg], None))
   in
   (* ensure VDI is static, and set a flag in the local DB, such that the redo log can be
      	 * re-enabled after a restart of xapi *)
@@ -2934,7 +2934,7 @@ let enable_redo_log ~__context ~sr =
       debug "VDI is static on all hosts"
     with _ ->
       let msg = "failed to make VDI static." in
-      raise (Api_errors.Server_error (Api_errors.cannot_enable_redo_log, [msg]))
+      raise (Api_errors.Server_error (Api_errors.cannot_enable_redo_log, [msg], None))
   ) ;
   (* update state *)
   debug "Updating state..." ;
@@ -3022,7 +3022,7 @@ let audit_log_append ~__context ~line =
   ()
 
 let test_archive_target ~__context ~self:_ ~config:_ =
-  raise (Api_errors.Server_error (Api_errors.message_removed, []))
+  raise (Api_errors.Server_error (Api_errors.message_removed, [], None))
 
 let enable_local_storage_caching ~__context ~self:_ =
   let srs = Db.SR.get_all_records ~__context in
@@ -3356,11 +3356,11 @@ let contains_bundle_repo ~__context ~repos =
 
 let assert_single_bundle_repo_can_be_enabled ~__context ~repos =
   if List.length repos > 1 && contains_bundle_repo ~__context ~repos then
-    raise Api_errors.(Server_error (bundle_repo_should_be_single_enabled, []))
+    raise Api_errors.(Server_error (bundle_repo_should_be_single_enabled, [], None))
 
 let assert_not_bundle_repo ~__context ~repos =
   if contains_bundle_repo ~__context ~repos then
-    raise Api_errors.(Server_error (can_not_sync_updates, []))
+    raise Api_errors.(Server_error (can_not_sync_updates, [], None))
 
 let disable_auto_update_sync_for_bundle_repo ~__context ~self ~repos =
   if contains_bundle_repo ~__context ~repos then (
@@ -3567,7 +3567,7 @@ let get_updates_handler (req : Http.Request.t) s _ =
                   (* http_500_internal_server_error *)
                   error "getting updates for pool failed: %s"
                     (ExnHelper.string_of_exn e) ;
-                  raise Api_errors.(Server_error (get_updates_failed, []))
+                  raise Api_errors.(Server_error (get_updates_failed, [], None))
           )
       | [] ->
           error "400: Invalid 'host_refs' in query" ;
@@ -3579,19 +3579,19 @@ let configure_repository_proxy ~__context ~self ~url ~username ~password =
   | Some "http" | Some "https" ->
       ()
   | _ ->
-      raise Api_errors.(Server_error (invalid_repository_proxy_url, [url]))
+      raise Api_errors.(Server_error (invalid_repository_proxy_url, [url], None))
   ) ;
   ( match (username, password) with
   | "", p when p <> "" ->
       error "missing username of the repository proxy with a password specified" ;
-      raise Api_errors.(Server_error (invalid_repository_proxy_credential, []))
+      raise Api_errors.(Server_error (invalid_repository_proxy_credential, [], None))
   | u, "" when u <> "" ->
       error "missing password of the repository proxy with a username specified" ;
-      raise Api_errors.(Server_error (invalid_repository_proxy_credential, []))
+      raise Api_errors.(Server_error (invalid_repository_proxy_credential, [], None))
   | u, p when u <> "" && p <> "" ->
       if String.contains u '\n' || String.contains p '\n' then (
         error "getting invalid username/password of the repository proxy" ;
-        raise Api_errors.(Server_error (invalid_repository_proxy_credential, []))
+        raise Api_errors.(Server_error (invalid_repository_proxy_credential, [], None))
       )
   | _ ->
       ()
@@ -3626,7 +3626,7 @@ let set_uefi_certificates ~__context ~self:_ ~value:_ =
     "Setting UEFI certificates is deprecated, please use \
      `set_custom_uefi_certificates`"
   in
-  raise Api_errors.(Server_error (operation_not_allowed, [msg]))
+  raise Api_errors.(Server_error (operation_not_allowed, [msg], None))
 
 let set_custom_uefi_certificates ~__context ~self ~value =
   match !Xapi_globs.allow_custom_uefi_certs with
@@ -3635,7 +3635,7 @@ let set_custom_uefi_certificates ~__context ~self ~value =
         "Setting UEFI certificates is not possible when \
          allow_custom_uefi_certs is false"
       in
-      raise Api_errors.(Server_error (operation_not_allowed, [msg]))
+      raise Api_errors.(Server_error (operation_not_allowed, [msg], None))
   | true ->
       Db.Pool.set_custom_uefi_certificates ~__context ~self ~value ;
       Helpers.call_api_functions ~__context (fun rpc session_id ->
@@ -3676,12 +3676,12 @@ let set_telemetry_next_collection ~__context ~self ~value =
         (dt1, dt2)
     | _ | (exception _) ->
         let err_msg = "Can't parse date and time for telemetry collection." in
-        raise Api_errors.(Server_error (internal_error, [err_msg]))
+        raise Api_errors.(Server_error (internal_error, [err_msg], None))
   in
   let ts = Date.to_string value in
   match Ptime.is_later dt_of_value ~than:dt_of_max_sched with
   | true ->
-      raise Api_errors.(Server_error (telemetry_next_collection_too_late, [ts]))
+      raise Api_errors.(Server_error (telemetry_next_collection_too_late, [ts], None))
   | false ->
       debug "Set the next telemetry collection to %s" ts ;
       Db.Pool.set_telemetry_next_collection ~__context ~self ~value
@@ -3734,7 +3734,7 @@ let set_update_sync_enabled ~__context ~self ~value =
           error
             "Cannot enable automatic update syncing if there are no \
              repositories." ;
-          raise Api_errors.(Server_error (no_repositories_configured, []))
+          raise Api_errors.(Server_error (no_repositories_configured, [], None))
       | repos ->
           assert_not_bundle_repo ~__context ~repos
   ) ;
@@ -3806,7 +3806,7 @@ let put_bundle_handler (req : Request.t) s _ =
                         ~token:"" ~token_id:""
                       |> ignore
                     with _ ->
-                      raise Api_errors.(Server_error (bundle_sync_failed, []))
+                      raise Api_errors.(Server_error (bundle_sync_failed, [], None))
                   )
                   (fun () -> Unixext.rm_rec !Xapi_globs.bundle_repository_dir)
             | Error e ->

@@ -301,11 +301,11 @@ let start_proxy ~__context vif proxy =
                 )
           ) ;
           "no PVS server available"
-      | Api_errors.Server_error (code, args)
+      | Api_errors.Server_error (code, args, _)
         when code = Api_errors.license_restriction
              && args = [Features.(name_of_feature PVS_proxy)] ->
           "PVS proxy not licensed"
-      | Api_errors.Server_error (code, _)
+      | Api_errors.Server_error (code, _, _)
         when code = Api_errors.openvswitch_not_active ->
           "Host is not using openvswitch"
       | Api_errors.Server_error ("SR_BACKEND_FAILURE_44", _)

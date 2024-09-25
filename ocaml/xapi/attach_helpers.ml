@@ -24,10 +24,10 @@ let timeout = 300. (* 5 minutes, should never take this long *)
     detach by polling the currently-attached field. *)
 let safe_unplug rpc session_id self =
   try Client.VBD.unplug ~rpc ~session_id ~self with
-  | Api_errors.Server_error (error, _)
+  | Api_errors.Server_error (error, _, _)
     when error = Api_errors.device_already_detached ->
       debug "safe_unplug caught DEVICE_ALREADY_DETACHED: this is safe to ignore"
-  | Api_errors.Server_error (error, _) as e
+  | Api_errors.Server_error (error, _, _) as e
     when error = Api_errors.device_detach_rejected ->
       debug
         "safe_unplug caught DEVICE_DETACH_REJECTED: polling the \

@@ -21,13 +21,13 @@ open Extauth
 let call_with_exception_handler fn =
   try fn () with
   | Extauth.Extauth_is_disabled ->
-      raise (Api_errors.Server_error (Api_errors.auth_is_disabled, []))
+      raise (Api_errors.Server_error (Api_errors.auth_is_disabled, [], None))
   | Extauth.Unknown_extauth_type msg ->
-      raise (Api_errors.Server_error (Api_errors.auth_unknown_type, [msg]))
+      raise (Api_errors.Server_error (Api_errors.auth_unknown_type, [msg], None))
   | Not_found | Auth_signature.Subject_cannot_be_resolved ->
-      raise (Api_errors.Server_error (Api_errors.subject_cannot_be_resolved, []))
+      raise (Api_errors.Server_error (Api_errors.subject_cannot_be_resolved, [], None))
   | Auth_signature.Auth_service_error (_, msg) ->
-      raise (Api_errors.Server_error (Api_errors.auth_service_error, [msg]))
+      raise (Api_errors.Server_error (Api_errors.auth_service_error, [msg], None))
   | e ->
       raise
         (Api_errors.Server_error

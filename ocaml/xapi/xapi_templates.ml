@@ -134,7 +134,7 @@ let create_disk rpc session_id vm sm_config disk =
     try Client.SR.get_by_uuid ~rpc ~session_id ~uuid:disk.sr
     with _ ->
       D.error "Unable to find SR (uuid: %s) to provision the disk" disk.sr ;
-      raise (Api_errors.Server_error (Api_errors.uuid_invalid, ["sr"; disk.sr]))
+      raise (Api_errors.Server_error (Api_errors.uuid_invalid, ["sr"; disk.sr], None))
   in
   debug "Provisioning VDI for new VM" ;
   let vdi =

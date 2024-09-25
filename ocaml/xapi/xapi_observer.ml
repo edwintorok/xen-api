@@ -444,7 +444,7 @@ let assert_valid_attributes attributes =
     (fun (k, v) ->
       if not (Tracing.validate_attribute (k, v)) then
         let kv = Printf.sprintf "%s:%s" k v in
-        raise Api_errors.(Server_error (invalid_value, ["attributes"; kv]))
+        raise Api_errors.(Server_error (invalid_value, ["attributes"; kv], None))
     )
     attributes
 

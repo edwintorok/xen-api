@@ -56,7 +56,7 @@ let startup_components () =
 let assert_valid_components components =
   try List.iter (fun c -> ignore @@ of_string c) components
   with Unsupported_Component component ->
-    raise Api_errors.(Server_error (invalid_value, ["component"; component]))
+    raise Api_errors.(Server_error (invalid_value, ["component"; component], None))
 
 let filter_out_exp_components components =
   let open Xapi_globs in

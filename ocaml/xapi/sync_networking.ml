@@ -320,19 +320,19 @@ let copy_network_sriovs_from_master ~__context () =
             ~network:sriov_network
           |> ignore
         with
-        | Api_errors.Server_error (err, _)
+        | Api_errors.Server_error (err, _, _)
           when err = Api_errors.network_has_incompatible_sriov_pifs ->
             warn
               "Cannot sync network sriov on slave because PCI device of %s is \
                different from the PIF of master in the same position"
               pif_rec.API.pIF_uuid
-        | Api_errors.Server_error (err, _)
+        | Api_errors.Server_error (err, _, _)
           when err = Api_errors.network_sriov_already_enabled ->
             warn
               "Cannot sync network sriov on slave because PIF %s on slave has \
                enabled sriov in another network"
               pif_rec.API.pIF_uuid
-        | Api_errors.Server_error (err, _)
+        | Api_errors.Server_error (err, _, _)
           when err = Api_errors.pif_is_not_sriov_capable ->
             warn
               "Cannot sync network sriov on slave because PIF %s on slave is \

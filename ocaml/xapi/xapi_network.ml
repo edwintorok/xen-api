@@ -346,7 +346,7 @@ let set_default_locking_mode ~__context ~network ~value =
         )
 
 let string_of_exn = function
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       Printf.sprintf "%s [ %s ]" code (String.concat "; " params)
   | e ->
       Printexc.to_string e

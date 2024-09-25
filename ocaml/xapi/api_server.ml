@@ -132,7 +132,7 @@ let callback is_json req bio _ =
       (Int64.of_int @@ String.length response_str)
       (fun fd -> Unixext.really_write_string fd response_str |> ignore)
   with
-  | Api_errors.Server_error (err, params) ->
+  | Api_errors.Server_error (err, params, _) ->
       Http_svr.response_str req
         ~hdrs:[(Http.Hdr.content_type, "text/xml")]
         fd
@@ -172,7 +172,7 @@ let jsoncallback req bio _ =
       fd
       (Int64.of_int @@ String.length response)
       (fun fd -> Unixext.really_write_string fd response |> ignore)
-  with Api_errors.Server_error (err, params) ->
+  with Api_errors.Server_error (err, params, _) ->
     Http_svr.response_str req
       ~hdrs:[(Http.Hdr.content_type, "application/json")]
       fd

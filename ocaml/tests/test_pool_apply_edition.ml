@@ -16,7 +16,7 @@ let apply_edition_succeed ~__context ~host ~edition =
   Db.Host.set_edition ~__context ~self:host ~value:edition
 
 let apply_edition_fail_host_offline ~__context ~host ~edition:_ =
-  raise Api_errors.(Server_error (host_offline, [Ref.string_of host]))
+  raise Api_errors.(Server_error (host_offline, [Ref.string_of host], None))
 
 let setup ~host_count ~edition =
   let __context = Test_common.make_test_database () in

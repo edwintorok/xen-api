@@ -334,7 +334,7 @@ let create ~__context ~network ~members ~mAC ~mode ~properties =
      	 * primary slave PIF' (see below) *)
   let did_user_specify_MAC = mAC <> "" in
   if did_user_specify_MAC && not (Helpers.is_valid_MAC mAC) then
-    raise Api_errors.(Server_error (mac_invalid, [mAC])) ;
+    raise Api_errors.(Server_error (mac_invalid, [mAC], None)) ;
   let requirements = requirements_of_mode mode in
   (* Check that each of the supplied properties is valid. *)
   List.iter
@@ -411,7 +411,7 @@ let create ~__context ~network ~members ~mAC ~mode ~properties =
         | None, [], pif :: _ ->
             pif
         | None, [], [] ->
-            raise Api_errors.(Server_error (pif_bond_needs_more_members, []))
+            raise Api_errors.(Server_error (pif_bond_needs_more_members, [], None))
       in
       let primary_slave_address_type =
         Db.PIF.get_primary_address_type ~__context ~self:primary_slave
@@ -471,7 +471,7 @@ let create ~__context ~network ~members ~mAC ~mode ~properties =
         List.map (fun self -> Db.PIF.get_host ~__context ~self) members
       in
       if List.length (Xapi_stdext_std.Listext.List.setify hosts) <> 1 then
-        raise Api_errors.(Server_error (pif_cannot_bond_cross_host, [])) ;
+        raise Api_errors.(Server_error (pif_cannot_bond_cross_host, [], None)) ;
       let pif_properties =
         if members = [] then
           []
@@ -486,12 +486,12 @@ let create ~__context ~network ~members ~mAC ~mode ~properties =
             List.fold_left (fun result p' -> result && p = p') true (List.tl ps)
           in
           if not equal then
-            raise Api_errors.(Server_error (incompatible_pif_properties, []))
+            raise Api_errors.(Server_error (incompatible_pif_properties, [], None))
           else
             p
       in
       if List.length pifs_with_ip_conf > 1 then
-        raise Api_errors.(Server_error (pif_bond_more_than_one_ip, [])) ;
+        raise Api_errors.(Server_error (pif_bond_more_than_one_ip, [], None)) ;
       (* Create master PIF and Bond objects *)
       let device = choose_bond_device_name ~__context ~host in
       let device_name = device in

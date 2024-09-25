@@ -16,7 +16,7 @@
 
 module E = Api_errors
 
-let api_error msg xs = raise (E.Server_error (msg, xs))
+let api_error msg xs = raise (E.Server_error (msg, xs, None))
 
 let introduce ~__context ~name_label ~name_description ~pVS_uuid =
   Pool_features.assert_enabled ~__context ~f:Features.PVS_proxy ;

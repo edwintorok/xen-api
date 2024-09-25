@@ -91,7 +91,7 @@ end
 module M = Make (IO)
 
 let exn_to_string = function
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       Printf.sprintf "%s %s" code (String.concat ~sep:" " params)
   | e ->
       Printf.sprintf "Caught unexpected exception: %s" (Exn.to_string e)

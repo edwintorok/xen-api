@@ -62,7 +62,7 @@ let create ~__context ~subject_identifier ~other_config:_ =
     (* we found an already existing user with the same subject identifier. *)
     (* we should not add another one with the same subject id *)
     debug "subject-id %s already exists in pool" subject_identifier ;
-    raise (Api_errors.Server_error (Api_errors.subject_already_exists, []))
+    raise (Api_errors.Server_error (Api_errors.subject_already_exists, [], None))
   ) else
     (*
 		(* one of other_config's fields MUST be 'subject_name' (see interface requirement: ocaml/auth/auth_signature.ml) *)
@@ -216,7 +216,7 @@ let add_to_roles ~__context ~self ~role =
       debug "subject %s already has role %s"
         (Db.Subject.get_subject_identifier ~__context ~self)
         (Ref.string_of role) ;
-      raise (Api_errors.Server_error (Api_errors.role_already_exists, []))
+      raise (Api_errors.Server_error (Api_errors.role_already_exists, [], None))
     ) else (
       Db.Subject.add_roles ~__context ~self ~value:role ;
       (* CP-710: call extauth hook-script after subject.add_roles *)
@@ -225,7 +225,7 @@ let add_to_roles ~__context ~self ~role =
     )
   else (
     debug "role %s is not valid" (Ref.string_of role) ;
-    raise (Api_errors.Server_error (Api_errors.role_not_found, []))
+    raise (Api_errors.Server_error (Api_errors.role_not_found, [], None))
   )
 
 let remove_from_roles ~__context ~self ~role =
@@ -241,7 +241,7 @@ let remove_from_roles ~__context ~self ~role =
     debug "subject %s does not have role %s"
       (Db.Subject.get_subject_identifier ~__context ~self)
       (Ref.string_of role) ;
-    raise (Api_errors.Server_error (Api_errors.role_not_found, []))
+    raise (Api_errors.Server_error (Api_errors.role_not_found, [], None))
   )
 
 let query_subject_information_from_db ~__context identifier =

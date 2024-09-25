@@ -365,7 +365,7 @@ let enable_dom0_access ~__context ~self =
 
 let disable_dom0_access ~__context ~self =
   if not (Pool_features.is_enabled ~__context Features.Integrated_GPU) then
-    raise Api_errors.(Server_error (feature_restricted, [])) ;
+    raise Api_errors.(Server_error (feature_restricted, [], None)) ;
   update_dom0_access ~__context ~self ~action:`disable
 
 (* This must be run LOCALLY on the host that is about to start a VM that is

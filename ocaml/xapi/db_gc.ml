@@ -325,7 +325,7 @@ let start_heartbeat_thread () =
                         send_one_heartbeat ~__context rpc session_id ;
                         Thread.delay !Xapi_globs.host_heartbeat_interval
                       with
-                      | Api_errors.Server_error (x, _) as e
+                      | Api_errors.Server_error (x, _, _) as e
                         when x = Api_errors.session_invalid ->
                           raise e
                       | e ->
@@ -335,7 +335,7 @@ let start_heartbeat_thread () =
                     done
                 )
               with
-              | Api_errors.Server_error (code, _)
+              | Api_errors.Server_error (code, _, _)
                 when code = Api_errors.session_authentication_failed ->
                   debug
                     "Master did not recognise our pool secret: we must be \

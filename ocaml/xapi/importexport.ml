@@ -132,7 +132,7 @@ let assert_compatible ~__context other_version =
        other_version=(%d,%d)"
       this_version.xapi_vsn_major this_version.xapi_vsn_minor
       other_version.xapi_vsn_major other_version.xapi_vsn_minor ;
-    raise (Api_errors.Server_error (Api_errors.import_incompatible_version, []))
+    raise (Api_errors.Server_error (Api_errors.import_incompatible_version, [], None))
   )
 
 let vm_has_field ~(x : obj) ~name =
@@ -370,7 +370,7 @@ let remote_metadata_export_import ~__context ~rpc ~session_id ~remote_address
               in
               match error_info with
               | code :: params when Hashtbl.mem Datamodel.errors code ->
-                  raise (Api_errors.Server_error (code, params))
+                  raise (Api_errors.Server_error (code, params, None))
               | _ ->
                   failwith
                     (Printf.sprintf "VM metadata import failed: %s"

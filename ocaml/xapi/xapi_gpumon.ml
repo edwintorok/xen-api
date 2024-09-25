@@ -147,10 +147,10 @@ module Nvidia = struct
     with
     | Gpumon_interface.(Gpumon_error NvmlInterfaceNotAvailable) ->
         let host = Helpers.get_localhost ~__context |> Ref.string_of in
-        raise Api_errors.(Server_error (nvidia_tools_error, [host]))
+        raise Api_errors.(Server_error (nvidia_tools_error, [host], None))
     | err ->
         let msg = Printexc.to_string err in
-        raise Api_errors.(Server_error (internal_error, [msg]))
+        raise Api_errors.(Server_error (internal_error, [msg], None))
 
   (* N.B. the vgpu (and the vm) must be in the local host where this function runs *)
   let assert_pgpu_is_compatible_with_vm ~__context ~vm ~vgpu ~dest_host
@@ -263,7 +263,7 @@ module Nvidia = struct
           false
       (* errors *)
       | exception Gpumon_interface.(Gpumon_error NvmlInterfaceNotAvailable) ->
-          raise Api_errors.(Server_error (nvidia_tools_error, [localhost']))
+          raise Api_errors.(Server_error (nvidia_tools_error, [localhost'], None))
       | exception err ->
           raise
             Api_errors.(Server_error (internal_error, [Printexc.to_string err]))

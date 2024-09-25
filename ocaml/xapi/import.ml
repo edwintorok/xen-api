@@ -246,7 +246,7 @@ let assert_can_restore_backup ~__context rpc session_id (x : header) =
       List.iter
         (fun (mac', vm') ->
           if mac = mac' && not (is_compatible vm vm') then
-            raise Api_errors.(Server_error (duplicate_mac_seed, [mac']))
+            raise Api_errors.(Server_error (duplicate_mac_seed, [mac'], None))
         )
         existing_vms
     )
@@ -1834,7 +1834,7 @@ module VTPM : HandlerTools = struct
 
   let fail fmt =
     Printf.ksprintf
-      (fun msg -> raise Api_errors.(Server_error (import_error_generic, [msg])))
+      (fun msg -> raise Api_errors.(Server_error (import_error_generic, [msg], None)))
       fmt
 
   let colliding ~__context ~uuid =
@@ -2252,7 +2252,7 @@ let with_error_handling f =
       | e ->
           let msg_exn = ExnHelper.string_of_exn e in
           error "Import caught exception: %s" msg_exn ;
-          reraise Api_errors.(Server_error (import_error_generic, [msg_exn]))
+          reraise Api_errors.(Server_error (import_error_generic, [msg_exn], None))
     )
 
 (** Import metadata only *)

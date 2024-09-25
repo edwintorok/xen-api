@@ -278,7 +278,7 @@ let update_pcis ~__context =
                 Printf.sprintf "failed to update PCI dependencies for %s (%s)"
                   (Ref.string_of pref) __LOC__
               in
-              raise Api_errors.(Server_error (internal_error, [msg]))
+              raise Api_errors.(Server_error (internal_error, [msg], None))
           in
           Db.PCI.set_dependencies ~__context ~self:pref ~value:dependencies ;
           update remaining

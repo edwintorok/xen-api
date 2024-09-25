@@ -101,7 +101,7 @@ let create ~__context ~tagged_PIF ~tag ~network =
         )
   in
   if vlans <> [] then
-    raise (Api_errors.Server_error (Api_errors.pif_vlan_exists, [device])) ;
+    raise (Api_errors.Server_error (Api_errors.pif_vlan_exists, [device], None)) ;
   (* Check the VLAN is not in use by the kernel *)
   let open Network in
   if
@@ -139,7 +139,7 @@ let destroy ~__context ~self =
     Xapi_pif.assert_not_slave_management_pif ~__context ~self:untagged_PIF ;
     Xapi_pif.assert_no_protection_enabled ~__context ~self:untagged_PIF ;
     if Db.PIF.get_VLAN ~__context ~self:untagged_PIF < 0L then
-      raise (Api_errors.Server_error (Api_errors.pif_is_physical, [])) ;
+      raise (Api_errors.Server_error (Api_errors.pif_is_physical, [], None)) ;
     Xapi_pif.unplug ~__context ~self:untagged_PIF ;
     ( try
         let vlan = Db.PIF.get_VLAN_master_of ~__context ~self:untagged_PIF in

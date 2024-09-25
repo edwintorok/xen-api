@@ -91,7 +91,7 @@ let _watch_networks_for_nbd_changes __context ~update_firewall
         Thread.delay wait_after_event_seconds ;
         (token, Some interfaces)
       with
-      | Api_errors.Server_error (code, _) as e
+      | Api_errors.Server_error (code, _, _) as e
         when code = Api_errors.events_lost ->
           warn "Lost events: %s" (ExnHelper.string_of_exn e) ;
           ("", allowed_interfaces)

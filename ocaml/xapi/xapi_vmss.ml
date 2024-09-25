@@ -244,7 +244,7 @@ let destroy ~__context ~self =
     destroy_all_messages ~__context ~self ;
     Db.VMSS.destroy ~__context ~self
   ) else (* we can't delete a VMSS that contains VMs *)
-    raise (Api_errors.Server_error (Api_errors.vmss_has_vm, []))
+    raise (Api_errors.Server_error (Api_errors.vmss_has_vm, [], None))
 
 (* Verify if snapshot is happening due to a VM Schedule Snapshot *)
 let is_vmss_snapshot ~__context =

@@ -25,7 +25,7 @@ let assert_raises_api_error (code : string) ?(args : string list option)
     f () ;
     Alcotest.fail
       (Printf.sprintf "Function didn't raise expected API error %s" code)
-  with Api_errors.Server_error (c, a) -> (
+  with Api_errors.Server_error (c, a, _) -> (
     Alcotest.check Alcotest.string "Function raised unexpected API error" code c ;
     match args with
     | None ->

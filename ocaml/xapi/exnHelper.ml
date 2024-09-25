@@ -55,7 +55,7 @@ let error_of_exn e =
   (* These are the two catch-all patterns. If ever an Errors.Server_error exception		*)
   (* is raised, this is assumed to be an API error, and passed straight on. Any other *)
   (* exception at this point is regarded as an 'internal error', and returned as such *)
-  | Api_errors.Server_error (e, l) ->
+  | Api_errors.Server_error (e, l, _) ->
       (e, l)
   | Forkhelpers.Spawn_internal_error (stderr, stdout, Unix.WEXITED n) ->
       ( internal_error

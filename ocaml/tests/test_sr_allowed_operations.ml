@@ -35,7 +35,7 @@ let check_operation_error f exn =
     try
       ignore (f ()) ;
       None
-    with Api_errors.Server_error (c, p) -> Some (c, p)
+    with Api_errors.Server_error (c, p, _) -> Some (c, p)
   in
   check_same_error_code exn exn'
 

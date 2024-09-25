@@ -34,7 +34,7 @@ let create ~__context ~site ~vIF =
   Helpers.assert_is_valid_ref ~__context ~name:"VIF" ~ref:vIF ;
   let device = Db.VIF.get_device ~__context ~self:vIF in
   if device <> "0" then
-    raise Api_errors.(Server_error (invalid_device, [device])) ;
+    raise Api_errors.(Server_error (invalid_device, [device], None)) ;
   let pvs_proxy = Ref.make () in
   let uuid = Uuidx.(to_string (make ())) in
   Db.PVS_proxy.create ~__context ~ref:pvs_proxy ~uuid ~site ~vIF

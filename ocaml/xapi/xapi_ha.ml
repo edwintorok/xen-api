@@ -1136,7 +1136,7 @@ let emergency_ha_disable __context soft =
     if soft then
       ()
     else
-      raise (Api_errors.Server_error (Api_errors.ha_not_enabled, []))
+      raise (Api_errors.Server_error (Api_errors.ha_not_enabled, [], None))
   else (
     warn
       "Host.emergency_ha_disable: Disabling the HA subsystem on the local host \
@@ -1212,7 +1212,7 @@ let ha_wait_for_shutdown_via_statefile __context _localhost =
         || (not me.Xha_interface.LiveSetInformation.Host.state_file_access)
         || me.Xha_interface.LiveSetInformation.Host.state_file_corrupted
       then
-        raise (Api_errors.Server_error (Api_errors.ha_lost_statefile, [])) ;
+        raise (Api_errors.Server_error (Api_errors.ha_lost_statefile, [], None)) ;
       (* check to see if this node still has statefile access *)
       Thread.delay 5.
     done
@@ -1444,7 +1444,7 @@ let proposed_master_m = Mutex.create ()
 let rec propose_new_master_internal ~__context ~address ~manual =
   (* Handy function to throw the right API error *)
   let issue_abort reason =
-    raise (Api_errors.Server_error (Api_errors.ha_abort_new_master, [reason]))
+    raise (Api_errors.Server_error (Api_errors.ha_abort_new_master, [reason], None))
   in
   match !proposed_master with
   | Some x when address = x ->
@@ -1486,14 +1486,14 @@ let commit_new_master ~__context ~address =
           address x
       in
       error "%s" msg ;
-      raise (Api_errors.Server_error (Api_errors.ha_abort_new_master, [msg]))
+      raise (Api_errors.Server_error (Api_errors.ha_abort_new_master, [msg], None))
   | None ->
       let msg =
         Printf.sprintf
           "Received commit_new_master(%s) but never received a proposal" address
       in
       error "%s" msg ;
-      raise (Api_errors.Server_error (Api_errors.ha_abort_new_master, [msg]))
+      raise (Api_errors.Server_error (Api_errors.ha_abort_new_master, [msg], None))
   | Some _ ->
       debug "Setting new master address to: %s" address
   ) ;
@@ -1758,14 +1758,14 @@ let disable_internal __context =
 let disable __context =
   let pool = Helpers.get_pool ~__context in
   if not (Db.Pool.get_ha_enabled ~__context ~self:pool) then
-    raise (Api_errors.Server_error (Api_errors.ha_not_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_not_enabled, [], None)) ;
   disable_internal __context
 
 let enable __context heartbeat_srs configuration =
   debug "Enabling HA on the Pool." ;
   let pool = Helpers.get_pool ~__context in
   if Db.Pool.get_ha_enabled ~__context ~self:pool then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   Pool_features.assert_enabled ~__context ~f:Features.HA ;
   (* Check that all of our 'disallow_unplug' PIFs are currently attached *)
   let unplugged_ununpluggable_pifs =
@@ -1875,7 +1875,7 @@ let enable __context heartbeat_srs configuration =
         heartbeat_srs
     in
     if possible_srs = [] then
-      raise (Api_errors.Server_error (Api_errors.cannot_create_state_file, [])) ;
+      raise (Api_errors.Server_error (Api_errors.cannot_create_state_file, [], None)) ;
     (* For the moment we'll create a state file in one compatible SR since the xHA component only handles one *)
     let srs = [List.hd possible_srs] in
     List.iter
@@ -2045,7 +2045,7 @@ let assert_have_statefile_access ~__context ~host:_ =
       (not me.Xha_interface.LiveSetInformation.Host.state_file_access)
       || me.Xha_interface.LiveSetInformation.Host.state_file_corrupted
     then
-      raise (Api_errors.Server_error (Api_errors.ha_lost_statefile, []))
+      raise (Api_errors.Server_error (Api_errors.ha_lost_statefile, [], None))
 
 let before_clean_shutdown_or_reboot_precheck = assert_have_statefile_access
 

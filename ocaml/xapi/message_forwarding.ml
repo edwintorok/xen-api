@@ -133,7 +133,7 @@ let check_live ~__context h =
     && Helpers.get_localhost ~__context <> h
     && not (Xapi_vm_helpers.is_host_live ~__context h)
   then
-    raise (Api_errors.Server_error (Api_errors.host_offline, [Ref.string_of h]))
+    raise (Api_errors.Server_error (Api_errors.host_offline, [Ref.string_of h], None))
 
 (* Forward op to one of the specified hosts if host is not localhost *)
 let do_op_on_common ~local_fn ~__context ~host op f =
@@ -331,7 +331,7 @@ functor
     let tolerate_connection_loss fn success timeout =
       try fn ()
       with
-      | Api_errors.Server_error (ercode, params)
+      | Api_errors.Server_error (ercode, params, _)
       when ercode = Api_errors.cannot_contact_host
       ->
         debug
@@ -342,7 +342,7 @@ functor
         let rec poll i =
           match i with
           | 0 ->
-              raise (Api_errors.Server_error (ercode, params))
+              raise (Api_errors.Server_error (ercode, params, None))
               (* give up and re-raise exn *)
           | i -> (
             match success () with
@@ -1831,7 +1831,7 @@ functor
               with
               | Not_forwarding ->
                   []
-              | Api_errors.Server_error (code, _)
+              | Api_errors.Server_error (code, _, _)
                 when code = Api_errors.no_hosts_available ->
                   []
             in
@@ -2511,7 +2511,7 @@ functor
                 ~live ~vdi_map ~vif_map ~vgpu_map ~options
           )
         with
-        | Api_errors.Server_error (code, _)
+        | Api_errors.Server_error (code, _, _)
         when code = Api_errors.message_method_unknown
         ->
           warn
@@ -4875,7 +4875,7 @@ functor
             |> List.iter (fun host ->
                    try do_op_on ~local_fn ~__context ~host op
                    with
-                   | Api_errors.Server_error (reason, _)
+                   | Api_errors.Server_error (reason, _, _)
                    when reason = Api_errors.host_offline
                    ->
                      ()
@@ -6535,7 +6535,7 @@ functor
                   )
               )
             with
-            | Api_errors.Server_error (code, _) as e
+            | Api_errors.Server_error (code, _, _) as e
             when code = Api_errors.host_offline
             -> (
               match rest with

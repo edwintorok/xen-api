@@ -43,7 +43,7 @@ let initialise ~__context ~host =
     Xapi_host.apply_edition_internal ~__context ~host ~edition
       ~additional:[("force", "true")]
   with
-  | Api_errors.Server_error (code, []) when code = Api_errors.v6d_failure ->
+  | Api_errors.Server_error (code, [], _) when code = Api_errors.v6d_failure ->
       (* Couldn't communicate with v6d, so fall back to running in free/libre
          		 * "xcp" mode, with all standard features enabled and no additional
          		 * features advertised. This is the same as the "free" edition from v6d

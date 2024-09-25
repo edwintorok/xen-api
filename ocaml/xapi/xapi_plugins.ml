@@ -24,7 +24,7 @@ let find_plugin name =
   if List.mem name all then
     Filename.concat !Xapi_globs.xapi_plugins_root name
   else
-    raise (Api_errors.Server_error (Api_errors.xenapi_missing_plugin, [name]))
+    raise (Api_errors.Server_error (Api_errors.xenapi_missing_plugin, [name], None))
 
 (* Execute the plugin with XMLRPC-over-cmdline/stdout convention, like the SM plugins.
    The args provided are a Map(String, String) and these will be passed as an XMLRPC struct *)
@@ -75,7 +75,7 @@ let call_plugin session_id plugin_name fn_name args =
     | XMLRPC.Success [result] ->
         XMLRPC.From.string result
     | XMLRPC.Failure (code, params) ->
-        raise (Api_errors.Server_error (code, params))
+        raise (Api_errors.Server_error (code, params, None))
     | _ ->
         raise
           (Api_errors.Server_error

@@ -16,7 +16,7 @@
 [@@@ocaml.warning "-27"]
 
 let raise_removed () =
-  raise (Api_errors.Server_error (Api_errors.message_removed, []))
+  raise (Api_errors.Server_error (Api_errors.message_removed, [], None))
 
 let protect_now ~__context ~vmpp = raise_removed ()
 

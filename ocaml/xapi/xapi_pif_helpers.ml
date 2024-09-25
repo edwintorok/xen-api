@@ -135,7 +135,7 @@ let vlan_is_allowed_on_pif ~__context ~tagged_PIF ~pif_rec:_ ~pif_topo ~tag:_ =
             (cannot_add_vlan_to_bond_slave, [Ref.string_of tagged_PIF])
         )
   | VLAN_untagged _ :: _ ->
-      raise Api_errors.(Server_error (pif_is_vlan, [Ref.string_of tagged_PIF]))
+      raise Api_errors.(Server_error (pif_is_vlan, [Ref.string_of tagged_PIF], None))
   | Tunnel_access _ :: _ ->
       raise
         Api_errors.(
@@ -233,7 +233,7 @@ let sriov_is_allowed_on_pif ~__context ~physical_PIF ~pif_rec =
 
 let assert_pif_is_managed ~__context ~self =
   if Db.PIF.get_managed ~__context ~self <> true then
-    raise Api_errors.(Server_error (pif_unmanaged, [Ref.string_of self]))
+    raise Api_errors.(Server_error (pif_unmanaged, [Ref.string_of self], None))
 
 let assert_not_vlan_slave ~__context ~self =
   let vlans = Db.PIF.get_VLAN_slave_of ~__context ~self in
@@ -244,7 +244,7 @@ let assert_not_vlan_slave ~__context ~self =
     List.map (fun self -> Db.VLAN.get_uuid ~__context ~self) vlans
     |> String.concat "; "
     |> debug "PIF has associated VLANs: [ %s ]" ;
-    raise Api_errors.(Server_error (pif_vlan_still_exists, [Ref.string_of self]))
+    raise Api_errors.(Server_error (pif_vlan_still_exists, [Ref.string_of self], None))
   )
 
 let is_device_underneath_same_type ~__context pif1 pif2 =

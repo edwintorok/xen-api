@@ -68,7 +68,7 @@ let pif_of_host ~__context (network : API.ref_network) (host : API.ref_host) =
           (Ref.string_of host) (Ref.string_of network)
       in
       debug "%s" msg ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let ip_of_pif (ref, record) =
   let ip = record.API.pIF_IP in
@@ -113,7 +113,7 @@ let assert_pif_attached_to ~__context ~host ~pIF =
 
 let handle_error = function
   | InternalError message ->
-      raise Api_errors.(Server_error (internal_error, [message]))
+      raise Api_errors.(Server_error (internal_error, [message], None))
   | Unix_error message ->
       failwith ("Unix Error: " ^ message)
 
@@ -151,7 +151,7 @@ let get_required_cluster_stacks ~__context ~sr_sm_type =
 let assert_cluster_stack_valid ~cluster_stack =
   if not (List.mem cluster_stack Constants.supported_smapiv3_cluster_stacks)
   then
-    raise Api_errors.(Server_error (invalid_cluster_stack, [cluster_stack]))
+    raise Api_errors.(Server_error (invalid_cluster_stack, [cluster_stack], None))
 
 let with_clustering_lock_if_needed ~__context ~sr_sm_type where f =
   match get_required_cluster_stacks ~__context ~sr_sm_type with
@@ -180,7 +180,7 @@ let find_cluster_host ~__context ~host =
       (* should never happen; this indicates a bug *)
       let msg = "Multiple cluster_hosts found for host" in
       error "%s %s" msg (Db.Host.get_uuid ~__context ~self:host) ;
-      raise Api_errors.(Server_error (internal_error, [msg; Ref.string_of host]))
+      raise Api_errors.(Server_error (internal_error, [msg; Ref.string_of host], None))
   | _ ->
       None
 
@@ -247,7 +247,7 @@ let assert_cluster_host_has_no_attached_sr_which_requires_cluster_stack
       )
       srs
   then
-    raise Api_errors.(Server_error (cluster_stack_in_use, [cluster_stack]))
+    raise Api_errors.(Server_error (cluster_stack_in_use, [cluster_stack], None))
 
 module Daemon = struct
   let enabled = Atomic.make false
@@ -270,7 +270,7 @@ module Daemon = struct
       with _ ->
         (* call_script already logged the error *)
         D.info "No clustering implementation is available" ;
-        raise Api_errors.(Server_error (not_implemented, ["Cluster.create"]))
+        raise Api_errors.(Server_error (not_implemented, ["Cluster.create"], None))
     ) ;
     ( try
         maybe_call_script ~__context

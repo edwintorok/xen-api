@@ -81,7 +81,7 @@ let move ~__context ~self ~network =
         Xapi_network_attach_helpers.assert_can_see_named_networks ~__context ~vm
           ~host [network]
       with
-      | Api_errors.Server_error (name, _)
+      | Api_errors.Server_error (name, _, _)
       when name = Api_errors.vm_requires_net
       ->
         raise
@@ -165,7 +165,7 @@ let assert_has_feature_static_ip_setting ~__context ~self =
     if List.assoc feature other <> "1" then
       failwith "not found"
   with _ ->
-    raise Api_errors.(Server_error (vm_lacks_feature, [Ref.string_of vm]))
+    raise Api_errors.(Server_error (vm_lacks_feature, [Ref.string_of vm], None))
 
 let assert_no_locking_mode_conflict ~__context ~self kind address =
   let vif_locking_mode = Db.VIF.get_locking_mode ~__context ~self in

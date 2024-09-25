@@ -414,7 +414,7 @@ let create ~__context ~name ~priority ~cls ~obj_uuid ~body =
     (Record_util.cls_to_string cls)
     obj_uuid ;
   if not (Encodings.UTF8_XML.is_valid body) then
-    raise (Api_errors.Server_error (Api_errors.invalid_value, ["UTF8 expected"])) ;
+    raise (Api_errors.Server_error (Api_errors.invalid_value, ["UTF8 expected"], None)) ;
   if not (check_uuid ~__context ~cls ~uuid:obj_uuid) then
     raise
       (Api_errors.Server_error
@@ -631,7 +631,7 @@ let get ~__context ~cls ~obj_uuid ~since =
   (* Read in all the messages for a particular object *)
   let class_symlink = class_symlink cls obj_uuid in
   if not (check_uuid ~__context ~cls ~uuid:obj_uuid) then
-    raise (Api_errors.Server_error (Api_errors.uuid_invalid, [])) ;
+    raise (Api_errors.Server_error (Api_errors.uuid_invalid, [], None)) ;
   let msg =
     get_real_inner class_symlink
       (fun msg -> Date.to_float msg.API.message_timestamp > Date.to_float since)
@@ -702,7 +702,7 @@ let get_by_uuid ~__context ~uuid =
     in
     _ref
   with _ ->
-    raise (Api_errors.Server_error (Api_errors.uuid_invalid, ["message"; uuid]))
+    raise (Api_errors.Server_error (Api_errors.uuid_invalid, ["message"; uuid], None))
 
 let get_all ~__context =
   try

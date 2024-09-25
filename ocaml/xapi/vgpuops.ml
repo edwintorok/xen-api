@@ -141,7 +141,7 @@ let reserve_free_virtual_function ~__context vm impl pf =
               Printf.sprintf "Unexpected GPU implementation vm=%s pf=%s (%s)"
                 vm_ref pf_ref __LOC__
             in
-            raise Api_errors.(Server_error (internal_error, [msg]))
+            raise Api_errors.(Server_error (internal_error, [msg], None))
         ) ;
         get false
     | None ->

@@ -28,7 +28,7 @@ let find_extension name =
   if List.mem name all then
     Filename.concat !Xapi_globs.xapi_extensions_root name
   else
-    raise (Api_errors.Server_error (Api_errors.message_method_unknown, [name]))
+    raise (Api_errors.Server_error (Api_errors.message_method_unknown, [name], None))
 
 (* Execute the extension with XMLRPC-over-cmdline/stdout convention. *)
 let call_extension rpc =
@@ -77,7 +77,7 @@ let call_extension rpc =
            )
         )
   with
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       API.response_of_failure code params
   | e ->
       error "Unexpected exception calling extension %s: %s" rpc.Rpc.name

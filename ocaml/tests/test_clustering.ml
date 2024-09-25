@@ -779,7 +779,7 @@ let get_only_cluster_host ~__context : API.ref_Cluster_host =
       cluster_host
   | lst ->
       let nodes = lst |> List.length |> string_of_int in
-      raise Api_errors.(Server_error (cluster_does_not_have_one_node, [nodes]))
+      raise Api_errors.(Server_error (cluster_does_not_have_one_node, [nodes], None))
 
 let test_pool_ha_cluster_stacks_no_ha_with_clustering () =
   (* Test that cluster creation and destruction set

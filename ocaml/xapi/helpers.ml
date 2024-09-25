@@ -937,7 +937,7 @@ let is_platform_version_same_on_master ~__context ~host =
 let maybe_raise_vtpm_unimplemented func message =
   if not !ignore_vtpm_unimplemented then (
     error {|%s: Functionality not implemented yet. "%s"|} func message ;
-    raise Api_errors.(Server_error (not_implemented, [message]))
+    raise Api_errors.(Server_error (not_implemented, [message], None))
   )
 
 let assert_platform_version_is_same_on_master ~__context ~host ~self =
@@ -956,14 +956,14 @@ let assert_platform_version_is_same_on_master ~__context ~host ~self =
 let assert_rolling_upgrade_not_in_progress : __context:Context.t -> unit =
  fun ~__context ->
   if rolling_upgrade_in_progress ~__context then
-    raise (Api_errors.Server_error (Api_errors.not_supported_during_upgrade, []))
+    raise (Api_errors.Server_error (Api_errors.not_supported_during_upgrade, [], None))
 
 let assert_host_has_highest_version_in_pool :
     __context:Context.t -> host:API.ref_host -> unit =
  fun ~__context ~host ->
   if not (host_has_highest_version_in_pool ~__context ~host:(LocalObject host))
   then
-    raise (Api_errors.Server_error (Api_errors.not_supported_during_upgrade, []))
+    raise (Api_errors.Server_error (Api_errors.not_supported_during_upgrade, [], None))
 
 let pool_has_different_host_platform_versions ~__context =
   let all_hosts = Db.Host.get_all ~__context in
@@ -1107,7 +1107,7 @@ let is_valid_ip kind address =
 
 let assert_is_valid_ip kind field address =
   if not (is_valid_ip kind address) then
-    raise Api_errors.(Server_error (invalid_ip_address_specified, [field]))
+    raise Api_errors.(Server_error (invalid_ip_address_specified, [field], None))
 
 module type AbstractIpaddr = sig
   type t
@@ -1154,11 +1154,11 @@ let valid_cidr_aux kind cidr =
 
 let assert_is_valid_cidr kind field cidr =
   if valid_cidr_aux kind cidr then
-    raise Api_errors.(Server_error (invalid_cidr_address_specified, [field]))
+    raise Api_errors.(Server_error (invalid_cidr_address_specified, [field], None))
 
 let assert_is_valid_ip_addr kind field address =
   if (not (is_valid_ip kind address)) && valid_cidr_aux kind address then
-    raise Api_errors.(Server_error (invalid_ip_address_specified, [field]))
+    raise Api_errors.(Server_error (invalid_ip_address_specified, [field], None))
 
 (** Return true if the MAC is in the right format XX:XX:XX:XX:XX:XX *)
 let is_valid_MAC mac =
@@ -1313,7 +1313,7 @@ let touch_file cmd_arg =
 let vm_to_string __context vm =
   let str = Ref.string_of vm in
   if not (Db.is_valid_ref __context vm) then
-    raise (Api_errors.Server_error (Api_errors.invalid_value, [str])) ;
+    raise (Api_errors.Server_error (Api_errors.invalid_value, [str], None)) ;
   let t = Context.database_of __context in
   let module DB =
     (val Xapi_database.Db_cache.get t : Xapi_database.Db_interface.DB_ACCESS)
@@ -1355,7 +1355,7 @@ let get_srmaster ~__context ~sr =
   else
     match List.length pbds with
     | 0 ->
-        raise (Api_errors.Server_error (Api_errors.sr_no_pbds, []))
+        raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [], None))
     | 1 ->
         Db.PBD.get_host ~__context ~self:(List.hd pbds)
     | _ ->
@@ -1439,7 +1439,7 @@ let assert_using_vswitch ~__context =
     with Not_found -> false
   in
   if not using_vswitch then
-    raise Api_errors.(Server_error (openvswitch_not_active, []))
+    raise Api_errors.(Server_error (openvswitch_not_active, [], None))
 
 exception No_pvs_server_available
 
@@ -1449,7 +1449,7 @@ let assert_pvs_servers_available ~__context ~pvs_site =
 
 let assert_is_valid_ref ~__context ~name ~ref =
   if not (Db.is_valid_ref __context ref) then
-    raise Api_errors.(Server_error (invalid_value, [name; Ref.string_of ref]))
+    raise Api_errors.(Server_error (invalid_value, [name; Ref.string_of ref], None))
 
 let force_loopback_vbd ~__context =
   (* Workaround assumption in SMRT: if a global flag is set, force use
@@ -1477,7 +1477,7 @@ let resolve_uri_path ~root ~uri_path =
         Printf.sprintf "Failed to resolve uri path '%s' under '%s': %s" uri_path
           root x
       in
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let run_in_parallel ~funs ~capacity =
   let rec run_in_parallel' acc funs capacity =
@@ -1535,7 +1535,7 @@ let with_global_lock x = with_lock __internal_mutex x
 let queue_thread f =
   with_global_lock (fun () ->
       if !__number_of_queueing_threads > max_number_of_queueing_threads then
-        raise (Api_errors.Server_error (Api_errors.too_many_pending_tasks, []))
+        raise (Api_errors.Server_error (Api_errors.too_many_pending_tasks, [], None))
       else
         incr __number_of_queueing_threads
   ) ;
@@ -1645,7 +1645,7 @@ module Repeat_with_uniform_backoff : POLICY = struct
     debug "Waiting for up to %f seconds before retrying..." this_timeout ;
     let start = Unix.gettimeofday () in
     ( match e with
-    | Api_errors.Server_error (code, [cls; objref])
+    | Api_errors.Server_error (code, [cls; objref], _)
       when code = Api_errors.other_operation_in_progress ->
         Early_wakeup.wait (cls, objref) this_timeout
     | _ ->
@@ -1860,13 +1860,13 @@ end = struct
       | `pending ->
           fail "task shouldn't be pending - we just waited on it"
       | `cancelled | `cancelling ->
-          raise Api_errors.(Server_error (task_cancelled, [Ref.string_of t]))
+          raise Api_errors.(Server_error (task_cancelled, [Ref.string_of t], None))
       | `failure -> (
         match Db.Task.get_error_info ~__context ~self:t with
         | [] | [_] ->
             fail "couldn't extract error info from task"
         | code :: params ->
-            raise (Api_errors.Server_error (code, params))
+            raise (Api_errors.Server_error (code, params, None))
       )
       | `success -> (
         match Db.Task.get_result ~__context ~self:t with
@@ -1892,7 +1892,7 @@ let try_internal_async ~__context (marshaller : Rpc.t -> 'b)
   let res =
     try `internal_async_task (internal_async_fn ())
     with
-    | Api_errors.Server_error (code, _)
+    | Api_errors.Server_error (code, _, _)
     when code = Api_errors.message_method_unknown
     ->
       `use_old_api

@@ -366,7 +366,7 @@ let assert_host_is_localhost ~__context ~host =
     let msg =
       "Error in message forwarding layer: host parameter was not localhost"
     in
-    raise (Api_errors.Server_error (Api_errors.internal_error, [msg]))
+    raise (Api_errors.Server_error (Api_errors.internal_error, [msg], None))
 
 let start_on ~__context ~vm ~host ~start_paused ~force =
   (* If we modify this to support start_on other-than-localhost,
@@ -544,7 +544,7 @@ let suspend ~__context ~vm =
            Xapi_pgpu_helpers.assert_destination_pgpu_is_compatible_with_vm
              ~__context ~vm ~host ~vgpu ~pgpu ()
          with
-         | Api_errors.Server_error (e, params)
+         | Api_errors.Server_error (e, params, _)
          when e = Api_errors.vgpu_destination_incompatible
          ->
            raise
@@ -1041,7 +1041,7 @@ let request_rdp_off ~__context ~vm = request_rdp ~__context ~vm ~enabled:false
 let run_script ~__context ~vm ~args =
   (* Args can be any key value pair, which include "username", "password", "script", "interpreter" (optional), and "arguments" (optional). *)
   if not (Helpers.guest_agent_run_script_enabled ~__context) then
-    raise (Api_errors.Server_error (Api_errors.feature_restricted, [])) ;
+    raise (Api_errors.Server_error (Api_errors.feature_restricted, [], None)) ;
   let required = ["username"; "password"; "script"] in
   (* let optional = [ "interpreter"; "arguments" ] in *)
   List.iter
@@ -1141,7 +1141,7 @@ let record_call_plugin_latest vm =
 (* this is the generic plugin call available to xapi users *)
 let call_plugin ~__context ~vm ~plugin ~fn ~args =
   if plugin <> "guest-agent-operation" then
-    raise (Api_errors.Server_error (Api_errors.xenapi_missing_plugin, [plugin])) ;
+    raise (Api_errors.Server_error (Api_errors.xenapi_missing_plugin, [plugin], None)) ;
   (* throttle plugin calls, hold a call if there are frequent attempts *)
   record_call_plugin_latest vm ;
   try
@@ -1177,10 +1177,10 @@ let call_plugin ~__context ~vm ~plugin ~fn ~args =
       )
 
 let send_sysrq ~__context ~vm:_ ~key:_ =
-  raise (Api_errors.Server_error (Api_errors.not_implemented, ["send_sysrq"]))
+  raise (Api_errors.Server_error (Api_errors.not_implemented, ["send_sysrq"], None))
 
 let send_trigger ~__context ~vm:_ ~trigger:_ =
-  raise (Api_errors.Server_error (Api_errors.not_implemented, ["send_trigger"]))
+  raise (Api_errors.Server_error (Api_errors.not_implemented, ["send_trigger"], None))
 
 let get_boot_record ~__context ~self = Db.VM.get_record ~__context ~self
 
@@ -1261,7 +1261,7 @@ let s3_resume ~__context ~vm = Xapi_xenops.s3resume ~__context ~self:vm
 let set_bios_strings ~__context ~self ~value =
   (* Allowed only if the VM has no BIOS strings *)
   if Db.VM.get_bios_strings ~__context ~self <> [] then
-    raise (Api_errors.Server_error (Api_errors.vm_bios_strings_already_set, [])) ;
+    raise (Api_errors.Server_error (Api_errors.vm_bios_strings_already_set, [], None)) ;
   Xapi_vm_helpers.assert_valid_bios_strings ~__context ~value ;
   let bios_strings =
     List.map
@@ -1275,7 +1275,7 @@ let set_bios_strings ~__context ~self ~value =
 let copy_bios_strings = Xapi_vm_helpers.copy_bios_strings
 
 let set_protection_policy ~__context ~self:_ ~value:_ =
-  raise (Api_errors.Server_error (Api_errors.message_removed, []))
+  raise (Api_errors.Server_error (Api_errors.message_removed, [], None))
 
 let set_snapshot_schedule ~__context ~self ~value =
   Pool_features.assert_enabled ~__context ~f:Features.VMSS ;
@@ -1458,7 +1458,7 @@ let set_groups ~__context ~self ~value =
          )
       ) ;
   if List.length value > 1 then
-    raise Api_errors.(Server_error (Api_errors.too_many_groups, [])) ;
+    raise Api_errors.(Server_error (Api_errors.too_many_groups, [], None)) ;
   Db.VM.set_groups ~__context ~self ~value
 
 let import_convert ~__context ~_type ~username ~password ~sr ~remote_config =
@@ -1525,7 +1525,7 @@ let max_redirects = 5
 let rec import_inner n ~__context ~url ~sr ~full_restore ~force =
   if n > max_redirects then
     let redirect_limit = "Maximum redirect limit reached" in
-    raise Api_errors.(Server_error (import_error_generic, [redirect_limit]))
+    raise Api_errors.(Server_error (import_error_generic, [redirect_limit], None))
   else
     let uri = Uri.of_string url in
     try
@@ -1545,9 +1545,9 @@ let rec import_inner n ~__context ~url ~sr ~full_restore ~force =
           Request.write (fun _ -> ()) request fd ;
           match Response.read ic with
           | `Eof ->
-              raise Api_errors.(Server_error (import_error_premature_eof, []))
+              raise Api_errors.(Server_error (import_error_premature_eof, [], None))
           | `Invalid x ->
-              raise Api_errors.(Server_error (import_error_generic, [x]))
+              raise Api_errors.(Server_error (import_error_generic, [x], None))
           | `Ok r -> (
             match r.Cohttp.Response.status with
             | `OK ->
@@ -1586,7 +1586,7 @@ let import ~__context ~url ~sr ~full_restore ~force =
   import_inner 0 ~__context ~url ~sr ~full_restore ~force
 
 let query_services ~__context ~self:_ =
-  raise Api_errors.(Server_error (not_implemented, ["query_services"]))
+  raise Api_errors.(Server_error (not_implemented, ["query_services"], None))
 
 let set_has_vendor_device ~__context ~self ~value =
   Xapi_vm_lifecycle.assert_initial_power_state_is ~__context ~self

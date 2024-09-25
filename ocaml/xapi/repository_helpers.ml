@@ -77,7 +77,7 @@ module Update = struct
     with e ->
       let msg = "Can't construct an update from json" in
       error "%s: %s" msg (ExnHelper.string_of_exn e) ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
   let to_string u =
     Printf.sprintf "%s.%s %s:%s-%s -> %s:%s-%s from %s:%s" u.name u.arch
@@ -187,7 +187,7 @@ let assert_url_is_valid ~url =
             ()
         | valids, [] when not (hostname_allowed valids) ->
             let msg = "host is not in allowlist" in
-            raise Api_errors.(Server_error (internal_error, [msg]))
+            raise Api_errors.(Server_error (internal_error, [msg], None))
         | _, [] ->
             ()
         | _ ->
@@ -199,17 +199,17 @@ let assert_url_is_valid ~url =
               )
       )
     | _, None ->
-        raise Api_errors.(Server_error (internal_error, ["invalid host in url"]))
+        raise Api_errors.(Server_error (internal_error, ["invalid host in url"], None))
     | _ ->
         raise
           Api_errors.(Server_error (internal_error, ["invalid scheme in url"]))
   with
-  | Api_errors.Server_error (err, _) as e
+  | Api_errors.Server_error (err, _, _) as e
     when err = Api_errors.invalid_repository_domain_allowlist ->
       raise e
   | e ->
       error "Invalid url %s: %s" url (ExnHelper.string_of_exn e) ;
-      raise Api_errors.(Server_error (invalid_base_url, [url]))
+      raise Api_errors.(Server_error (invalid_base_url, [url], None))
 
 let is_gpgkey_path_valid = function
   | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '-' ->
@@ -228,7 +228,7 @@ let assert_gpgkey_path_is_valid path =
     ()
   else (
     error "Invalid gpgkey path %s" path ;
-    raise Api_errors.(Server_error (invalid_gpgkey_path, [path]))
+    raise Api_errors.(Server_error (invalid_gpgkey_path, [path], None))
   )
 
 let with_pool_repositories f =
@@ -267,7 +267,7 @@ let with_updateinfo_xml gz_path f =
           with e ->
             error "Failed to decompress updateinfo.xml.gz: %s"
               (ExnHelper.string_of_exn e) ;
-            raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+            raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
         )
         (fun () -> close_out tmpch) ;
       f tmpfile
@@ -368,7 +368,7 @@ let get_repo_config repo_name config_name =
       let msg =
         Printf.sprintf "Not found %s for repository %s" config_name repo_name
       in
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let get_enabled_repositories ~__context =
   let pool = Helpers.get_pool ~__context in
@@ -465,7 +465,7 @@ let assert_yum_error output =
     (fun err ->
       if Astring.String.is_infix ~affix:err output then (
         error "Error from 'yum updateinfo list': %s" err ;
-        raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+        raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
       ) else
         ()
     )
@@ -938,14 +938,14 @@ let get_latest_updates_from_redundancy ~fail_on_error ~pkgs ~fallback_pkgs =
         debug "Use 'yum upgrade (dry run)'" ;
         pkgs
     | true, false ->
-        raise Api_errors.(Server_error (internal_error, [err]))
+        raise Api_errors.(Server_error (internal_error, [err], None))
     | false, false ->
         (* falling back *)
         warn "%s" err ; fallback_pkgs
   in
   match (fail_on_error, pkgs) with
   | true, None ->
-      raise Api_errors.(Server_error (internal_error, [err]))
+      raise Api_errors.(Server_error (internal_error, [err], None))
   | false, None ->
       (* falling back *)
       warn "%s" err ; fallback_pkgs
@@ -1110,7 +1110,7 @@ let get_update_in_json ~installed_pkgs (new_pkg, update_id, repo) =
   | None ->
       let msg = "Found update from unmanaged repository" in
       error "%s: %s" msg repo ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let merge_updates ~repository_name ~updates =
   let accumulative_updates =
@@ -1265,9 +1265,9 @@ let get_singleton = function
   | [s] ->
       s
   | [] ->
-      raise Api_errors.(Server_error (no_repository_enabled, []))
+      raise Api_errors.(Server_error (no_repository_enabled, [], None))
   | _ ->
-      raise Api_errors.(Server_error (multiple_update_repositories_enabled, []))
+      raise Api_errors.(Server_error (multiple_update_repositories_enabled, [], None))
 
 let get_single_enabled_update_repository ~__context =
   let enabled_update_repositories =
@@ -1296,7 +1296,7 @@ let with_access_token ~token ~token_id f =
       f None
   | _ ->
       let msg = Printf.sprintf "%s: The token or token_id is empty" __LOC__ in
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let prune_updateinfo_for_livepatches livepatches updateinfo =
   let open UpdateInfo in

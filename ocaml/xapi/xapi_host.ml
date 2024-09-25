@@ -164,7 +164,7 @@ let bugreport_upload ~__context ~host:_ ~url ~options =
 *)
 let assert_bacon_mode ~__context ~host =
   if Db.Host.get_enabled ~__context ~self:host then
-    raise (Api_errors.Server_error (Api_errors.host_not_disabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.host_not_disabled, [], None)) ;
   let selfref = Ref.string_of host in
   let vms =
     Db.VM.get_refs_where ~__context
@@ -185,7 +185,7 @@ let assert_bacon_mode ~__context ~host =
       ()
   | guest_vms ->
       let vm_data = [selfref; "vm"; Ref.string_of (List.hd guest_vms)] in
-      raise (Api_errors.Server_error (Api_errors.host_in_use, vm_data))
+      raise (Api_errors.Server_error (Api_errors.host_in_use, vm_data, None))
   ) ;
   debug "Bacon test: VMs OK - %d running VMs" (List.length vms) ;
   let control_domain_vbds =
@@ -353,7 +353,7 @@ let compute_evacuation_plan_no_wlb ~__context ~host ?(ignore_ha = false) () =
               )
               target_hosts ;
             true
-          with Api_errors.Server_error (code, params) ->
+          with Api_errors.Server_error (code, params, _) ->
             Hashtbl.replace plans vm (Error (code, params)) ;
             false
         )
@@ -398,7 +398,7 @@ let compute_evacuation_plan_no_wlb ~__context ~host ?(ignore_ha = false) () =
         ( try
             Xapi_vm_helpers.assert_can_boot_here ~__context ~self:vm ~host
               ~snapshot ~do_memory_check:false ~do_cpuid_check:true ()
-          with Api_errors.Server_error (code, params) ->
+          with Api_errors.Server_error (code, params, _) ->
             Hashtbl.replace plans vm (Error (code, params))
         ) ;
         if not (Hashtbl.mem plans vm) then
@@ -575,7 +575,7 @@ let compute_evacuation_plan ~__context ~host =
       debug "Using WLB recommendations for host evacuation." ;
       compute_evacuation_plan_wlb ~__context ~self:host
     with
-    | Api_errors.Server_error (error_type, error_detail) ->
+    | Api_errors.Server_error (error_type, error_detail, _) ->
         debug
           "Encountered error when using wlb for choosing host \"%s: %s\". \
            Using original algorithm"
@@ -611,7 +611,7 @@ let evacuate ~__context ~host ~network ~evacuate_batch_size =
     (fun _ plan ->
       match plan with
       | Error (code, params) ->
-          raise (Api_errors.Server_error (code, params))
+          raise (Api_errors.Server_error (code, params, None))
       | _ ->
           ()
     )
@@ -647,7 +647,7 @@ let evacuate ~__context ~host ~network ~evacuate_batch_size =
         Client.Client.Async.VM.pool_migrate ~rpc ~session_id ~vm ~host ~options
     | Error (code, params) ->
         (* should never happen *)
-        raise (Api_errors.Server_error (code, params))
+        raise (Api_errors.Server_error (code, params, None))
   in
 
   (* execute [n] asynchronous API calls [api_fn] for [xs] and wait for them to
@@ -674,7 +674,7 @@ let evacuate ~__context ~host ~network ~evacuate_batch_size =
         | code :: _ when code = Api_errors.vm_bad_power_state ->
             ()
         | code :: params ->
-            raise (Api_errors.Server_error (code, params))
+            raise (Api_errors.Server_error (code, params, None))
       )
       | _ ->
           fail task "unexpected status of migration task"
@@ -908,10 +908,10 @@ let dmesg ~__context ~host:_ =
   Client.HOST.get_console_data dbg
 
 let dmesg_clear ~__context ~host:_ =
-  raise (Api_errors.Server_error (Api_errors.not_implemented, ["dmesg_clear"]))
+  raise (Api_errors.Server_error (Api_errors.not_implemented, ["dmesg_clear"], None))
 
 let get_log ~__context ~host:_ =
-  raise (Api_errors.Server_error (Api_errors.not_implemented, ["get_log"]))
+  raise (Api_errors.Server_error (Api_errors.not_implemented, ["get_log"], None))
 
 let send_debug_keys ~__context ~host:_ ~keys =
   let open Xapi_xenops_queue in
@@ -920,7 +920,7 @@ let send_debug_keys ~__context ~host:_ ~keys =
   Client.HOST.send_debug_keys dbg keys
 
 let list_methods ~__context =
-  raise (Api_errors.Server_error (Api_errors.not_implemented, ["list_method"]))
+  raise (Api_errors.Server_error (Api_errors.not_implemented, ["list_method"], None))
 
 let is_slave ~__context ~host:_ = not (Pool_role.is_master ())
 
@@ -1094,7 +1094,7 @@ let destroy ~__context ~self =
   (* CA-23732: Block if HA is enabled *)
   let pool = Helpers.get_pool ~__context in
   if Db.Pool.get_ha_enabled ~__context ~self:pool then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   let my_control_domains, my_regular_vms = get_resident_vms ~__context ~self in
   if my_regular_vms <> [] then
     raise
@@ -1158,7 +1158,7 @@ let ha_join_liveset ~__context ~host =
   try Xapi_ha.join_liveset __context host with
   | Xha_scripts.Xha_error Xha_errno.Mtc_exit_bootjoin_timeout ->
       error "HA enable failed with BOOTJOIN_TIMEOUT" ;
-      raise (Api_errors.Server_error (Api_errors.ha_failed_to_form_liveset, []))
+      raise (Api_errors.Server_error (Api_errors.ha_failed_to_form_liveset, [], None))
   | Xha_scripts.Xha_error Xha_errno.Mtc_exit_can_not_access_statefile ->
       error "HA enable failed with CAN_NOT_ACCESS_STATEFILE" ;
       raise
@@ -1246,7 +1246,7 @@ let local_management_reconfigure ~__context ~interface =
   (* Only let this one through if we are in emergency mode, otherwise use
      	 Host.management_reconfigure *)
   if not !Xapi_globs.slave_emergency_mode then
-    raise (Api_errors.Server_error (Api_errors.pool_not_in_emergency_mode, [])) ;
+    raise (Api_errors.Server_error (Api_errors.pool_not_in_emergency_mode, [], None)) ;
   change_management_interface ~__context interface
     (Record_util.primary_address_type_of_string
        (Xapi_inventory.lookup Xapi_inventory._management_address_type
@@ -1258,7 +1258,7 @@ let management_reconfigure ~__context ~pif =
   (* Disallow if HA is enabled *)
   let pool = Helpers.get_pool ~__context in
   if Db.Pool.get_ha_enabled ~__context ~self:pool then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   let net = Db.PIF.get_network ~__context ~self:pif in
   let bridge = Db.Network.get_bridge ~__context ~self:net in
   let primary_address_type =
@@ -1298,7 +1298,7 @@ let management_disable ~__context =
   (* Disallow if HA is enabled *)
   let pool = Helpers.get_pool ~__context in
   if Db.Pool.get_ha_enabled ~__context ~self:pool then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [])) ;
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None)) ;
   (* Make sure we aren't about to disable our management interface on a slave *)
   if Pool_role.is_slave () then
     raise
@@ -1490,12 +1490,12 @@ let call_extension ~__context ~host:_ ~call =
         List.map (function Rpc.String x -> x | _ -> protocol_failure ()) xs
       with
       | x :: xs ->
-          raise (Api_errors.Server_error (x, xs))
+          raise (Api_errors.Server_error (x, xs, None))
       | _ ->
           protocol_failure ()
     )
     | Rpc.String x ->
-        raise (Api_errors.Server_error (x, []))
+        raise (Api_errors.Server_error (x, [], None))
     | _ ->
         protocol_failure ()
 
@@ -1597,7 +1597,7 @@ let replace_host_certificate ~__context ~type' ~host
 let install_server_certificate ~__context ~host ~certificate ~private_key
     ~certificate_chain =
   if Db.Pool.get_ha_enabled ~__context ~self:(Helpers.get_pool ~__context) then
-    raise Api_errors.(Server_error (ha_is_enabled, [])) ;
+    raise Api_errors.(Server_error (ha_is_enabled, [], None)) ;
   let path = !Xapi_globs.server_cert_path in
   let write_cert_fs () =
     let pem_chain =
@@ -1614,7 +1614,7 @@ let _new_host_cert ~dbg ~path : X509.Certificate.t =
     | None ->
         let msg = Printf.sprintf "%s: failed to get management IP" __LOC__ in
         D.error "%s" msg ;
-        raise Api_errors.(Server_error (internal_error, [msg]))
+        raise Api_errors.(Server_error (internal_error, [msg], None))
     | Some ip ->
         ip
   in
@@ -1764,7 +1764,7 @@ let enable_external_auth ~__context ~host ~config ~service_name ~auth_type =
           "Failed while enabling unknown external authentication type %s for \
            service name %s in host %s"
           msg service_name host_name_label ;
-        raise (Api_errors.Server_error (Api_errors.auth_unknown_type, [msg]))
+        raise (Api_errors.Server_error (Api_errors.auth_unknown_type, [msg], None))
       ) else
         (* if no auth_type is currently defined (it is an empty string), then we can set up a new one *)
 
@@ -1824,7 +1824,7 @@ let enable_external_auth ~__context ~host ~config ~service_name ~auth_type =
               "Failed while enabling unknown external authentication type %s \
                for service name %s in host %s"
               msg service_name host_name_label ;
-            raise (Api_errors.Server_error (Api_errors.auth_unknown_type, [msg]))
+            raise (Api_errors.Server_error (Api_errors.auth_unknown_type, [msg], None))
         | Auth_signature.Auth_service_error (errtag, msg) ->
             (* plugin returned some error *)
             (* we rollback to the original xapi configuration *)
@@ -2061,15 +2061,15 @@ let apply_edition_internal ~__context ~host ~edition ~additional =
     let dbg = Context.string_of_task __context in
     try V6_client.apply_edition dbg edition params with
     | V6_interface.(V6_error (Invalid_edition e)) ->
-        raise Api_errors.(Server_error (invalid_edition, [e]))
+        raise Api_errors.(Server_error (invalid_edition, [e], None))
     | V6_interface.(V6_error License_processing_error) ->
-        raise Api_errors.(Server_error (license_processing_error, []))
+        raise Api_errors.(Server_error (license_processing_error, [], None))
     | V6_interface.(V6_error Missing_connection_details) ->
-        raise Api_errors.(Server_error (missing_connection_details, []))
+        raise Api_errors.(Server_error (missing_connection_details, [], None))
     | V6_interface.(V6_error (License_checkout_error s)) ->
-        raise Api_errors.(Server_error (license_checkout_error, [s]))
+        raise Api_errors.(Server_error (license_checkout_error, [s], None))
     | V6_interface.(V6_error (Internal_error e)) ->
-        raise Api_errors.(Server_error (internal_error, [e]))
+        raise Api_errors.(Server_error (internal_error, [e], None))
   in
   let create_feature fname fenabled =
     Db.Feature.create ~__context
@@ -2124,7 +2124,7 @@ let apply_edition ~__context ~host ~edition ~force =
     Db.Pool.get_ha_enabled ~__context ~self:pool
     && edition <> Db.Host.get_edition ~__context ~self:host
   then
-    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, []))
+    raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None))
   else
     let additional = if force then [("force", "true")] else [] in
     apply_edition_internal ~__context ~host ~edition ~additional
@@ -2134,7 +2134,7 @@ let license_add ~__context ~host ~contents =
     try Base64.decode_exn contents
     with _ ->
       error "Base64 decoding of supplied license has failed" ;
-      raise Api_errors.(Server_error (license_processing_error, []))
+      raise Api_errors.(Server_error (license_processing_error, [], None))
   in
   let tmp = "/tmp/new_license" in
   Pervasiveext.finally
@@ -2142,7 +2142,7 @@ let license_add ~__context ~host ~contents =
       ( try Unixext.write_string_to_file tmp license
         with _ ->
           let s = "Failed to write temporary file." in
-          raise Api_errors.(Server_error (internal_error, [s]))
+          raise Api_errors.(Server_error (internal_error, [s], None))
       ) ;
       apply_edition_internal ~__context ~host ~edition:""
         ~additional:[("license_file", tmp)]
@@ -2267,7 +2267,7 @@ let enable_local_storage_caching ~__context ~host ~sr =
         Rrdd.set_cache_sr (Db.SR.get_uuid ~__context ~self:sr)
     )
   ) else
-    raise (Api_errors.Server_error (Api_errors.sr_operation_not_supported, []))
+    raise (Api_errors.Server_error (Api_errors.sr_operation_not_supported, [], None))
 
 let disable_local_storage_caching ~__context ~host =
   assert_bacon_mode ~__context ~host ;
@@ -2646,7 +2646,7 @@ let enable_display ~__context ~host =
 
 let disable_display ~__context ~host =
   if not (Pool_features.is_enabled ~__context Features.Integrated_GPU) then
-    raise Api_errors.(Server_error (feature_restricted, [])) ;
+    raise Api_errors.(Server_error (feature_restricted, [], None)) ;
   update_display ~__context ~host ~action:`disable
 
 let sync_display ~__context ~host =
@@ -2821,11 +2821,11 @@ let set_uefi_certificates ~__context ~host:_ ~value:_ =
   let msg =
     "To set UEFI certificates use: `Pool.set_custom_uefi_certificates`"
   in
-  raise Api_errors.(Server_error (Api_errors.operation_not_allowed, [msg]))
+  raise Api_errors.(Server_error (Api_errors.operation_not_allowed, [msg], None))
 
 let set_iscsi_iqn ~__context ~host ~value =
   if value = "" then
-    raise Api_errors.(Server_error (invalid_value, ["value"; value])) ;
+    raise Api_errors.(Server_error (invalid_value, ["value"; value], None)) ;
   (* Note, the following sequence is carefully written - see the
      other-config watcher thread in xapi_host_helpers.ml *)
   Db.Host.remove_from_other_config ~__context ~self:host ~key:"iscsi_iqn" ;
@@ -3012,7 +3012,7 @@ let apply_updates ~__context ~self ~hash =
     @@ fun () ->
     let pool = Helpers.get_pool ~__context in
     if Db.Pool.get_ha_enabled ~__context ~self:pool then
-      raise Api_errors.(Server_error (ha_is_enabled, [])) ;
+      raise Api_errors.(Server_error (ha_is_enabled, [], None)) ;
     if Db.Host.get_enabled ~__context ~self then (
       disable ~__context ~host:self ;
       Xapi_host_helpers.update_allowed_operations ~__context ~self
@@ -3053,7 +3053,7 @@ let set_https_only ~__context ~self ~value =
       ()
   | true ->
       (* it is illegal changing the firewall/https config in CC/FIPS mode *)
-      raise (Api_errors.Server_error (Api_errors.illegal_in_fips_mode, []))
+      raise (Api_errors.Server_error (Api_errors.illegal_in_fips_mode, [], None))
 
 let emergency_clear_mandatory_guidance ~__context =
   debug "Host.emergency_clear_mandatory_guidance" ;

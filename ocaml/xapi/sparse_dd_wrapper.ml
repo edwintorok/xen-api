@@ -165,7 +165,7 @@ let dd_internal progress_cb base prezeroed verify_cert infile outfile size =
             progress_cb (Finished None)
         | Forkhelpers.Failure (log, End_of_file) ->
             error "Error while trying to read progress from sparse_dd" ;
-            raise (Api_errors.Server_error (Api_errors.vdi_copy_failed, [log]))
+            raise (Api_errors.Server_error (Api_errors.vdi_copy_failed, [log], None))
         | Forkhelpers.Failure (log, exn) ->
             error "Failure from sparse_dd: %s raising %s" log
               (Printexc.to_string exn) ;

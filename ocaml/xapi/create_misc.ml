@@ -524,7 +524,7 @@ let make_software_version ~__context host_info =
     match V6_client.get_version "make_software_version" with
     | l ->
         l
-    | exception Api_errors.Server_error (code, [])
+    | exception Api_errors.Server_error (code, [], _)
       when code = Api_errors.v6d_failure ->
         []
   in

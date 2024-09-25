@@ -462,7 +462,7 @@ let attempt_host_status_check_with_coordinator ~__context my_ip =
               None
     )
   with
-  | Api_errors.Server_error (code, _)
+  | Api_errors.Server_error (code, _, _)
     when code = Api_errors.session_authentication_failed ->
       debug
         "Master did not recognise our pool secret: we must be pointing at the \
@@ -470,7 +470,7 @@ let attempt_host_status_check_with_coordinator ~__context my_ip =
       Xapi_host.set_emergency_mode_error Api_errors.host_unknown_to_master
         [localhost_uuid] ;
       Some Permanent
-  | Api_errors.Server_error (code, params) as exn ->
+  | Api_errors.Server_error (code, params, _) as exn ->
       debug "Caught exception: %s in %s"
         (ExnHelper.string_of_exn exn)
         __FUNCTION__ ;

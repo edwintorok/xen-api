@@ -231,7 +231,7 @@ module SMAPIv1 : Server_impl = struct
                           )
                        )
                     )
-              | Api_errors.Server_error (code, params) ->
+              | Api_errors.Server_error (code, params, _) ->
                   raise (Storage_error (Backend_error (code, params)))
               | e ->
                   let e' = ExnHelper.string_of_exn e in
@@ -279,7 +279,7 @@ module SMAPIv1 : Server_impl = struct
                   (Some (Context.get_task_id __context), device_config)
                   _type sr
               with
-              | Api_errors.Server_error (code, params) ->
+              | Api_errors.Server_error (code, params, _) ->
                   raise (Storage_error (Backend_error (code, params)))
               | e ->
                   let e' = ExnHelper.string_of_exn e in
@@ -297,7 +297,7 @@ module SMAPIv1 : Server_impl = struct
           in
           Sm.call_sm_functions ~__context ~sR:sr (fun device_config _type ->
               try Sm.sr_detach ~dbg device_config _type sr with
-              | Api_errors.Server_error (code, params) ->
+              | Api_errors.Server_error (code, params, _) ->
                   raise (Storage_error (Backend_error (code, params)))
               | e ->
                   let e' = ExnHelper.string_of_exn e in
@@ -326,7 +326,7 @@ module SMAPIv1 : Server_impl = struct
                           )
                        )
                     )
-              | Api_errors.Server_error (code, params) ->
+              | Api_errors.Server_error (code, params, _) ->
                   raise (Storage_error (Backend_error (code, params)))
               | e ->
                   let e' = ExnHelper.string_of_exn e in
@@ -374,7 +374,7 @@ module SMAPIv1 : Server_impl = struct
                           )
                        )
                     )
-              | Api_errors.Server_error (code, params) ->
+              | Api_errors.Server_error (code, params, _) ->
                   error "SR.scan failed SR:%s code=%s params=[%s]"
                     (Ref.string_of sr) code
                     (String.concat "; " params) ;
@@ -412,7 +412,7 @@ module SMAPIv1 : Server_impl = struct
                           )
                        )
                     )
-              | Api_errors.Server_error (code, params) ->
+              | Api_errors.Server_error (code, params, _) ->
                   error "SR.scan failed SR:%s code=%s params=[%s]"
                     (Ref.string_of sr) code
                     (String.concat "; " params) ;
@@ -504,7 +504,7 @@ module SMAPIv1 : Server_impl = struct
           (fun device_config _type sr self ->
             Sm.vdi_epoch_begin ~dbg device_config _type sr self
         )
-      with Api_errors.Server_error (code, params) ->
+      with Api_errors.Server_error (code, params, _) ->
         raise (Storage_error (Backend_error (code, params)))
 
     let attach2 _context ~dbg ~dp:_ ~sr ~vdi ~read_write =
@@ -570,7 +570,7 @@ module SMAPIv1 : Server_impl = struct
             Hashtbl.replace vdi_read_write (sr, vdi) read_write
         ) ;
         backend
-      with Api_errors.Server_error (code, params) ->
+      with Api_errors.Server_error (code, params, _) ->
         raise (Storage_error (Backend_error (code, params)))
 
     let attach3 context ~dbg ~dp ~sr ~vdi ~vm:_ ~read_write =
@@ -614,7 +614,7 @@ module SMAPIv1 : Server_impl = struct
               info "%s sr:%s does not support vdi_activate: doing nothing" dp
                 (Ref.string_of sr)
         )
-      with Api_errors.Server_error (code, params) ->
+      with Api_errors.Server_error (code, params, _) ->
         raise (Storage_error (Backend_error (code, params)))
 
     let activate3 context ~dbg ~dp ~sr ~vdi ~vm:_ =
@@ -645,7 +645,7 @@ module SMAPIv1 : Server_impl = struct
               info "%s sr:%s does not support vdi_deactivate: doing nothing" dp
                 (Ref.string_of sr)
         )
-      with Api_errors.Server_error (code, params) ->
+      with Api_errors.Server_error (code, params, _) ->
         raise (Storage_error (Backend_error (code, params)))
 
     let detach _context ~dbg ~dp:_ ~sr ~vdi ~vm:_ =
@@ -668,7 +668,7 @@ module SMAPIv1 : Server_impl = struct
         with_lock vdi_read_write_m (fun () ->
             Hashtbl.remove vdi_read_write (sr, vdi)
         )
-      with Api_errors.Server_error (code, params) ->
+      with Api_errors.Server_error (code, params, _) ->
         raise (Storage_error (Backend_error (code, params)))
 
     let epoch_end _context ~dbg ~sr ~vdi ~vm:_ =
@@ -679,7 +679,7 @@ module SMAPIv1 : Server_impl = struct
           (fun device_config _type sr self ->
             Sm.vdi_epoch_end ~dbg device_config _type sr self
         )
-      with Api_errors.Server_error (code, params) ->
+      with Api_errors.Server_error (code, params, _) ->
         raise (Storage_error (Backend_error (code, params)))
 
     let require_uuid vdi_info =
@@ -728,7 +728,7 @@ module SMAPIv1 : Server_impl = struct
             newvdi ~__context vi
         )
       with
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | Sm.MasterOnly ->
           redirect sr
@@ -792,7 +792,7 @@ module SMAPIv1 : Server_impl = struct
             vdi
         )
       with
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | Smint.Not_implemented_in_backend ->
           raise (Storage_error (Unimplemented call_name))
@@ -840,7 +840,7 @@ module SMAPIv1 : Server_impl = struct
             Db.VDI.get_virtual_size ~__context ~self
         )
       with
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | Smint.Not_implemented_in_backend ->
           raise (Storage_error (Unimplemented "VDI.resize"))
@@ -858,7 +858,7 @@ module SMAPIv1 : Server_impl = struct
             Hashtbl.remove vdi_read_write (sr, vdi)
         )
       with
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | No_VDI ->
           raise (Storage_error (Vdi_does_not_exist (s_of_vdi vdi)))
@@ -925,7 +925,7 @@ module SMAPIv1 : Server_impl = struct
             )
         )
       with
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | Sm.MasterOnly ->
           redirect sr
@@ -1092,7 +1092,7 @@ module SMAPIv1 : Server_impl = struct
       with
       | Smint.Not_implemented_in_backend ->
           raise (Storage_error (Unimplemented "VDI.compose"))
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | No_VDI ->
           raise
@@ -1156,7 +1156,7 @@ module SMAPIv1 : Server_impl = struct
       with
       | Smint.Not_implemented_in_backend ->
           raise (Storage_error (Unimplemented f_name))
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | No_VDI ->
           raise
@@ -1194,7 +1194,7 @@ module SMAPIv1 : Server_impl = struct
       with
       | Smint.Not_implemented_in_backend ->
           raise (Storage_error (Unimplemented "VDI.list_changed_blocks"))
-      | Api_errors.Server_error (code, params) ->
+      | Api_errors.Server_error (code, params, _) ->
           raise (Storage_error (Backend_error (code, params)))
       | Sm.MasterOnly ->
           redirect sr

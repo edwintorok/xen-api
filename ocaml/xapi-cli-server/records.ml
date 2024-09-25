@@ -134,7 +134,7 @@ let field_lookup recs name =
 
 let safe_get_field x =
   try x.get () with
-  | Api_errors.Server_error (s, _) as e ->
+  | Api_errors.Server_error (s, _, _) as e ->
       if s = Api_errors.handle_invalid then "<invalid reference>" else raise e
   | e ->
       raise e
@@ -1775,7 +1775,7 @@ let vm_record rpc session_id vm =
                  ~data_source:"memory_target"
               )
           with
-          | Api_errors.Server_error (code, _)
+          | Api_errors.Server_error (code, _, _)
           when code = Api_errors.vm_bad_power_state
           ->
             0L

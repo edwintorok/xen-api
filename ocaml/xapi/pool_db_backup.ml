@@ -67,7 +67,7 @@ let version_check db =
        expected: (%d,%d), actual: (%d,%d)"
       Datamodel_common.schema_major_vsn Datamodel_common.schema_minor_vsn major
       minor ;
-    raise (Api_errors.Server_error (Api_errors.restore_incompatible_version, []))
+    raise (Api_errors.Server_error (Api_errors.restore_incompatible_version, [], None))
   )
 
 (** Makes a new database suitable for xapi by rewriting some configuration from the current

@@ -255,9 +255,9 @@ let assert_no_protection_enabled ~__context ~self =
   if Db.PIF.get_currently_attached ~__context ~self then
     let pool = Helpers.get_pool ~__context in
     if Db.Pool.get_ha_enabled ~__context ~self:pool then
-      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, []))
+      raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None))
     else if Db.Pool.get_redo_log_enabled ~__context ~self:pool then
-      raise (Api_errors.Server_error (Api_errors.redo_log_is_enabled, []))
+      raise (Api_errors.Server_error (Api_errors.redo_log_is_enabled, [], None))
 
 let assert_no_sriov ~__context ~self =
   let pif_rec = Db.PIF.get_record ~__context ~self in
@@ -606,7 +606,7 @@ let introduce ~__context ~host ~mAC ~device ~managed =
       mAC
   in
   if not (Helpers.is_valid_MAC mAC) then
-    raise (Api_errors.Server_error (Api_errors.mac_invalid, [mAC])) ;
+    raise (Api_errors.Server_error (Api_errors.mac_invalid, [mAC], None)) ;
   (* Assert that a local PIF with the given device name does not already exist *)
   if List.mem device (List.map snd t.pif_to_device_table) then
     raise
@@ -724,7 +724,7 @@ let create_VLAN ~__context ~device ~network ~host ~vLAN =
 (* DEPRECATED! Rewritten to use VLAN.destroy. *)
 let destroy ~__context ~self =
   if Db.PIF.get_VLAN ~__context ~self < 0L then
-    raise (Api_errors.Server_error (Api_errors.pif_is_physical, [])) ;
+    raise (Api_errors.Server_error (Api_errors.pif_is_physical, [], None)) ;
   let vlan = Db.PIF.get_VLAN_master_of ~__context ~self in
   Helpers.call_api_functions ~__context (fun rpc session_id ->
       Client.Client.VLAN.destroy ~rpc ~session_id ~self:vlan

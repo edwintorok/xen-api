@@ -24,7 +24,7 @@ module Net = Network_client.Client
 let transform_networkd_exn pif f =
   let reraise code params =
     error "Re-raising as %s [ %s ]" code (String.concat "; " params) ;
-    raise (Api_errors.Server_error (code, params))
+    raise (Api_errors.Server_error (code, params, None))
   in
   try f () with
   | Network_error (Script_missing script) ->

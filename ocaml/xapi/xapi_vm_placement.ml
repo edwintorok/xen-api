@@ -103,4 +103,4 @@ let select_host __context guest validate_host hosts =
   | Some host ->
       Db.Host.get_by_uuid ~__context ~uuid:host
   | None ->
-      raise (Api_errors.Server_error (Api_errors.no_hosts_available, []))
+      raise (Api_errors.Server_error (Api_errors.no_hosts_available, [], None))

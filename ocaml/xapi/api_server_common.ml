@@ -85,7 +85,7 @@ module Actions = struct
   module VTPM = Xapi_vtpm
 
   let not_implemented x =
-    raise (Api_errors.Server_error (Api_errors.not_implemented, [x]))
+    raise (Api_errors.Server_error (Api_errors.not_implemented, [x], None))
 
   module Console = struct
     let create ~__context ~other_config:_ = not_implemented "Console.create"

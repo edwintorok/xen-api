@@ -123,7 +123,7 @@ let internal_error fmt =
   fmt
   |> Printf.ksprintf @@ fun msg ->
      error "%s" msg ;
-     raise Api_errors.(Server_error (internal_error, [msg]))
+     raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let remove_from_db ~__context cert =
   try

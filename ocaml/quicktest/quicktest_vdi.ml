@@ -113,7 +113,7 @@ let vdi_db_forget rpc session_id sr_info () =
         Client.Client.VDI.db_forget ~rpc ~session_id ~vdi ;
         Alcotest.fail "Call succeeded but it shouldn't have"
       with
-      | Api_errors.Server_error (code, _)
+      | Api_errors.Server_error (code, _, _)
         when code = Api_errors.permission_denied ->
           print_endline "Caught PERMISSION_DENIED"
       | e ->
@@ -144,7 +144,7 @@ let vdi_bad_introduce rpc session_id sr_info () =
           in
           Alcotest.fail
             "vdi_bad_introduce: A bad VDI with a duplicate UUID was introduced"
-        with Api_errors.Server_error (_, _) as e ->
+        with Api_errors.Server_error (_, _, _) as e ->
           Printf.printf "API error caught as expected: %s\n"
             (Printexc.to_string e)
       ) ;
@@ -167,7 +167,7 @@ let vdi_bad_introduce rpc session_id sr_info () =
         Alcotest.fail
           "vdi_bad_introduce: A bad VDI with a duplicate location was \
            introduced"
-      with Api_errors.Server_error (_, _) as e ->
+      with Api_errors.Server_error (_, _, _) as e ->
         Printf.printf "API error caught as expected: %s\n" (Printexc.to_string e)
   )
 

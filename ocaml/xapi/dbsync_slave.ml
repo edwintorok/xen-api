@@ -136,7 +136,7 @@ let refresh_localhost_info ~__context info =
         "unexpected output from /etc/xapi.d/plugins/firewall-port: %s"
         script_output
     in
-    raise Api_errors.(Server_error (internal_error, [message]))
+    raise Api_errors.(Server_error (internal_error, [message], None))
 (*************** update database tools ******************)
 
 (** Record host memory properties in database *)

@@ -38,12 +38,12 @@ let transform_storage_exn f =
   in
   try f () with
   | Storage_error (Backend_error (code, params)) as e ->
-      Backtrace.reraise e (Api_errors.Server_error (code, params))
+      Backtrace.reraise e (Api_errors.Server_error (code, params, None))
   | Storage_error (Backend_error_with_backtrace (code, backtrace :: params)) as
     e ->
       let backtrace = Backtrace.Interop.of_json "SM" backtrace in
       Backtrace.add e backtrace ;
-      Backtrace.reraise e (Api_errors.Server_error (code, params))
+      Backtrace.reraise e (Api_errors.Server_error (code, params, None))
   | Storage_error (Sr_unhealthy (sr, health)) as e ->
       let advice =
         match health with
@@ -126,7 +126,7 @@ let check_queue_exists queue_name =
     let driver =
       String.sub queue_name prefix_len (String.length queue_name - prefix_len)
     in
-    raise Api_errors.(Server_error (sr_unknown_driver, [driver]))
+    raise Api_errors.(Server_error (sr_unknown_driver, [driver], None))
 
 (* RPC calls done during startup and received through remote interface:
    there is no need to redirect here, let the caller handle it.
@@ -298,7 +298,7 @@ let bind ~__context ~pbd =
               ~force:false
         )
       with
-      | Api_errors.Server_error (code, params)
+      | Api_errors.Server_error (code, params, _)
       when code = Api_errors.vm_bad_power_state
       ->
         error "Caught VM_BAD_POWER_STATE [ %s ]" (String.concat "; " params)
@@ -585,7 +585,7 @@ let of_vbd ~__context ~vbd ~domid =
     | Some dev ->
         dev
     | None ->
-        raise Api_errors.(Server_error (invalid_device, [userdevice]))
+        raise Api_errors.(Server_error (invalid_device, [userdevice], None))
   in
   let dp = datapath_of_vbd ~domid ~device in
   ( rpc

@@ -70,7 +70,7 @@ let assert_operation_valid ~__context ~self ~op =
   | None ->
       ()
   | Some (a, b) ->
-      raise (Api_errors.Server_error (a, b))
+      raise (Api_errors.Server_error (a, b, None))
 
 let update_allowed_operations ~__context ~self =
   let check accu op =

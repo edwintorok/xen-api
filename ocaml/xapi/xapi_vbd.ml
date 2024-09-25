@@ -170,7 +170,7 @@ let create ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type
   ) ;
   (* All "CD" VBDs must be readonly *)
   if _type = `CD && mode <> `RO then
-    raise (Api_errors.Server_error (Api_errors.vbd_cds_must_be_readonly, [])) ;
+    raise (Api_errors.Server_error (Api_errors.vbd_cds_must_be_readonly, [], None)) ;
   (* Only "CD" VBDs may be empty *)
   if _type <> `CD && empty then
     raise
@@ -216,7 +216,7 @@ let create ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type
                   )
           in
           let raise_invalid_device () =
-            raise Api_errors.(Server_error (invalid_device, [userdevice]))
+            raise Api_errors.(Server_error (invalid_device, [userdevice], None))
           in
           if not (valid_device userdevice ~_type) then
             raise_invalid_device () ;
@@ -321,7 +321,7 @@ let assert_not_suspended ~__context ~vm =
       ; Record_util.vm_power_state_to_lowercase_string `Suspended
       ]
     in
-    raise (Api_errors.Server_error (Api_errors.vm_bad_power_state, error_params))
+    raise (Api_errors.Server_error (Api_errors.vm_bad_power_state, error_params, None))
 
 let assert_ok_to_insert ~__context ~vbd ~vdi =
   let vm = Db.VBD.get_VM ~__context ~self:vbd in
@@ -348,6 +348,6 @@ let eject ~__context ~vbd =
 let pause ~__context ~self =
   let vdi = Db.VBD.get_VDI ~__context ~self in
   let sr = Db.VDI.get_SR ~__context ~self:vdi |> Ref.string_of in
-  raise (Api_errors.Server_error (Api_errors.sr_operation_not_supported, [sr]))
+  raise (Api_errors.Server_error (Api_errors.sr_operation_not_supported, [sr], None))
 
 let unpause = pause

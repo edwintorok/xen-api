@@ -119,7 +119,7 @@ let assert_update_vbds_attached ~__context ~vdi =
           "pool_update: expected VBDs=[ %s ] to be attached but they aren't!"
           (unplugged |> List.map Ref.string_of |> String.concat "; ")
       in
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let with_dec_refcount ~__context ~uuid ~vdi f =
   with_lock updates_to_attach_count_tbl_mutex (fun () ->
@@ -218,11 +218,11 @@ let with_api_errors f x =
           ret status stdout_log stderr_log
       in
       error "%s" msg ;
-      raise (Api_errors.Server_error (Api_errors.invalid_update, [errinfo]))
+      raise (Api_errors.Server_error (Api_errors.invalid_update, [errinfo], None))
   | e ->
       let msg = ExnHelper.string_of_exn e in
       error "%s" msg ;
-      raise (Api_errors.Server_error (Api_errors.invalid_update, [errinfo]))
+      raise (Api_errors.Server_error (Api_errors.invalid_update, [errinfo], None))
 
 (* yum config example
    [main]
@@ -638,7 +638,7 @@ let destroy ~__context ~self =
       Db.Pool_patch.destroy ~__context ~self:patch ;
       Db_gc_util.gc_updates_requiring_reboot ~__context
   | _ ->
-      raise (Api_errors.Server_error (Api_errors.update_is_applied, []))
+      raise (Api_errors.Server_error (Api_errors.update_is_applied, [], None))
 
 let detach_attached_updates __context =
   Db.Pool_update.get_all ~__context

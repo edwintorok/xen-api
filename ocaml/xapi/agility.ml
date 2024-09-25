@@ -108,10 +108,10 @@ let empty_cache = (SRSet.empty, NetworkSet.empty)
 let caching_vm_t_assert_agile ~__context (ok_srs, ok_networks) vm vm_t =
   (* Any kind of vGPU means that the VM is not agile. *)
   if vm_t.API.vM_VGPUs <> [] then
-    raise Api_errors.(Server_error (vm_has_vgpu, [Ref.string_of vm])) ;
+    raise Api_errors.(Server_error (vm_has_vgpu, [Ref.string_of vm], None)) ;
   (* Any kind of VUSB means that the VM is not agile. *)
   if vm_t.API.vM_VUSBs <> [] then
-    raise Api_errors.(Server_error (vm_has_vusbs, [Ref.string_of vm])) ;
+    raise Api_errors.(Server_error (vm_has_vusbs, [Ref.string_of vm], None)) ;
   (* All referenced VDIs should be in shared SRs *)
   let check_vbd ok_srs vbd =
     if Db.VBD.get_empty ~__context ~self:vbd then
@@ -143,7 +143,7 @@ let caching_vm_t_assert_agile ~__context (ok_srs, ok_networks) vm vm_t =
         )
     else if Xapi_network_sriov_helpers.is_sriov_network ~__context ~self:network
     then
-      raise Api_errors.(Server_error (vm_has_sriov_vif, [Ref.string_of vm]))
+      raise Api_errors.(Server_error (vm_has_sriov_vif, [Ref.string_of vm], None))
     else
       NetworkSet.add network ok_networks
   in

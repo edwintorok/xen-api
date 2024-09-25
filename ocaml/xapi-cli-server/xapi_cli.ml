@@ -317,7 +317,7 @@ let exception_handler s e =
       multiple_error errs s
   | Cli_util.Cli_failure str ->
       other_error ("Error: " ^ str) s
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       if code = Api_errors.session_authentication_failed then
         let uname = List.hd params in
         if uname = "" (* default when not specified *) then

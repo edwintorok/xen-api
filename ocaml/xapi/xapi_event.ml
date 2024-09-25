@@ -278,7 +278,7 @@ module Next = struct
      	   manually before calling Event.next () again.
   *)
   let events_lost () =
-    raise (Api_errors.Server_error (Api_errors.events_lost, []))
+    raise (Api_errors.Server_error (Api_errors.events_lost, [], None))
 
   (* Return events from the queue between a start and an end ID. Throws
      	   an API error if some events have been lost, signalling the client to

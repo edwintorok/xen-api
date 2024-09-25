@@ -86,7 +86,7 @@ let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
         Context.complete_tracing __context ;
       result
     with
-    | Api_errors.Server_error (a, _) as e when a = Api_errors.task_cancelled ->
+    | Api_errors.Server_error (a, _, _) as e when a = Api_errors.task_cancelled ->
         Backtrace.is_important e ;
         if need_complete then TaskHelper.cancel ~__context ;
         raise e

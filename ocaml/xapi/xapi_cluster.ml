@@ -24,7 +24,7 @@ open D
 
 let validate_params ~token_timeout ~token_timeout_coefficient =
   let invalid_value x y =
-    raise Api_errors.(Server_error (invalid_value, [x; string_of_float y]))
+    raise Api_errors.(Server_error (invalid_value, [x; string_of_float y], None))
   in
   if token_timeout < Constants.minimum_token_timeout_s then
     invalid_value "token_timeout" token_timeout ;

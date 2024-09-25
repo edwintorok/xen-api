@@ -80,7 +80,7 @@ let create ~__context ~transport_PIF ~network ~protocol =
           && List.assoc "network_backend" v = "openvswitch"
           )
       then
-        raise (Api_errors.Server_error (Api_errors.openvswitch_not_active, []))
+        raise (Api_errors.Server_error (Api_errors.openvswitch_not_active, [], None))
     )
     hosts ;
   let tunnel, access_PIF =

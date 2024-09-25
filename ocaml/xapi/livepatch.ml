@@ -68,7 +68,7 @@ let of_json js =
       (ExnHelper.string_of_exn e)
       msg
       (Yojson.Basic.pretty_to_string js) ;
-    raise Api_errors.(Server_error (internal_error, [msg]))
+    raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let get_latest_livepatch lps =
   List.map (fun (_, _, t_v, t_r) -> (t_v, t_r)) lps
@@ -351,7 +351,7 @@ let apply ~component ~livepatch_file ~base_build_id ~base_version ~base_release
             expected component_str
             (Option.value real ~default:"None")
         in
-        raise Api_errors.(Server_error (internal_error, [msg]))
+        raise Api_errors.(Server_error (internal_error, [msg], None))
   in
   match component with
   | Xen ->

@@ -105,7 +105,7 @@ let is_unsafe name =
   || (not (Astring.String.is_suffix ~affix:".pem" name))
   || not_safe_chars name
 
-let raise_server_error parameters err = raise (Server_error (err, parameters))
+let raise_server_error parameters err = raise (Server_error (err, parameters, None))
 
 let raise_name_invalid kind n =
   let err =
@@ -148,7 +148,7 @@ let raise_corrupt kind n =
   raise_server_error [n] err
 
 let raise_library_corrupt () =
-  raise (Server_error (certificate_library_corrupt, []))
+  raise (Server_error (certificate_library_corrupt, [], None))
 
 module Db_util : sig
   type name = string

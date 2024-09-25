@@ -59,7 +59,7 @@ let host_backup_handler_core ~__context s =
       warn {|host_backup failed with "%s" - returned: %s|}
         (ExnHelper.string_of_exn e)
         log ;
-      raise (Api_errors.Server_error (Api_errors.backup_script_failed, [log]))
+      raise (Api_errors.Server_error (Api_errors.backup_script_failed, [log], None))
 
 let host_backup_handler (req : Request.t) s _ =
   req.Request.close <- true ;

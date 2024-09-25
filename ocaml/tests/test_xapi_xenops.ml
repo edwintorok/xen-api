@@ -40,7 +40,7 @@ let test_xapi_restart_inner () =
       Thread.create
         (fun () ->
           try Xapi_xenops.events_watch ~__context cancel "simulator" None with
-          | Api_errors.Server_error (x, []) when x = Api_errors.task_cancelled
+          | Api_errors.Server_error (x, [], _) when x = Api_errors.task_cancelled
             ->
               ()
           | e ->
@@ -148,7 +148,7 @@ let test_xapi_restart_inner () =
         Thread.create
           (fun () ->
             try Xapi_xenops.events_watch ~__context cancel "simulator" None with
-            | Api_errors.Server_error (x, []) when x = Api_errors.task_cancelled
+            | Api_errors.Server_error (x, [], _) when x = Api_errors.task_cancelled
               ->
                 ()
             | e ->

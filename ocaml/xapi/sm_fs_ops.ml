@@ -190,7 +190,7 @@ let copy_vdi ~__context ?base vdi_src vdi_dst =
                         | code :: params ->
                             debug "Copy of VDI to remote failed: %s [ %s ]" code
                               (String.concat "; " params) ;
-                            raise (Api_errors.Server_error (code, params))
+                            raise (Api_errors.Server_error (code, params, None))
                       )
                     with e ->
                       Tasks.wait_for_all ~rpc ~session_id

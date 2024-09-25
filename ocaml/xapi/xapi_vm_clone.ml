@@ -74,7 +74,7 @@ let wait_for_subtask ?progress_minmax ~__context task =
         | `failure -> (
           match task_rec.API.task_error_info with
           | code :: params ->
-              raise (Api_errors.Server_error (code, params))
+              raise (Api_errors.Server_error (code, params, None))
           | _ ->
               failwith "xapi_vm_clone: task_info has no error_info"
         )

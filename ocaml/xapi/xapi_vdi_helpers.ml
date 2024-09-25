@@ -57,7 +57,7 @@ let destroy_all_vbds ~__context ~vdi =
                 (* In the case of HA failover, attempting to unplug the previous master's VBD will timeout as the host is uncontactable. *)
                 Attach_helpers.safe_unplug rpc session_id vbd
               with
-              | Api_errors.Server_error (code, _)
+              | Api_errors.Server_error (code, _, _)
               when code = Api_errors.cannot_contact_host
               ->
                 debug

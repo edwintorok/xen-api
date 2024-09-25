@@ -25,7 +25,7 @@ let assert_not_restricted ~__context =
   | Some "false" ->
       ()
   | _ ->
-      raise Api_errors.(Server_error (feature_restricted, [feature]))
+      raise Api_errors.(Server_error (feature_restricted, [feature], None))
 
 let assert_no_vtpm_associated ~__context vm =
   match Db.VM.get_VTPMs ~__context ~self:vm with
@@ -33,7 +33,7 @@ let assert_no_vtpm_associated ~__context vm =
       ()
   | vtpms ->
       let amount = List.length vtpms |> Int.to_string in
-      raise Api_errors.(Server_error (vtpm_max_amount_reached, [amount]))
+      raise Api_errors.(Server_error (vtpm_max_amount_reached, [amount], None))
 
 let introduce ~__context ~vM ~persistence_backend ~contents ~is_unique =
   let ref = Ref.make () in
@@ -101,7 +101,7 @@ let set_contents ~__context ~self ~contents =
     (* verify contents to be already base64-encoded *)
     try Base64.decode contents
     with Invalid_argument err ->
-      raise Api_errors.(Server_error (internal_error, [err]))
+      raise Api_errors.(Server_error (internal_error, [err], None))
   in
   let secret = Xapi_secret.create ~__context ~value:contents ~other_config:[] in
   Db.VTPM.set_contents ~__context ~self ~value:secret ;

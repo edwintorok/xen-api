@@ -143,7 +143,7 @@ let throw_error table op =
            )
         )
   | Some (Some (code, params)) ->
-      raise (Api_errors.Server_error (code, params))
+      raise (Api_errors.Server_error (code, params, None))
   | Some None ->
       ()
 
@@ -152,7 +152,7 @@ let assert_operation_valid ~__context ~self ~(op : API.pool_allowed_operations)
   (* no pool operations allowed during a pending PSR *)
   if Db.Pool.get_is_psr_pending ~__context ~self:(Helpers.get_pool ~__context)
   then
-    raise Api_errors.(Server_error (pool_secret_rotation_pending, [])) ;
+    raise Api_errors.(Server_error (pool_secret_rotation_pending, [], None)) ;
   let all = Db.Pool.get_record_internal ~__context ~self in
   let table = valid_operations ~__context all self in
   throw_error table op
@@ -206,7 +206,7 @@ let assert_no_pool_ops ~__context =
         |> String.concat "; "
         |> Printf.sprintf "pool operations in progress: [ %s ]"
       in
-      raise Api_errors.(Server_error (internal_error, [err]))
+      raise Api_errors.(Server_error (internal_error, [err], None))
 
 let get_master_slaves_list_with_fn ~__context fn =
   let _unsorted_hosts = Db.Host.get_all ~__context in

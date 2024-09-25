@@ -226,7 +226,7 @@ let unplug ~__context ~self =
               List.mem sr statefile_srs
               && not (Xha_scripts.can_unplug_statefile_pbd ())
             then
-              raise (Api_errors.Server_error (Api_errors.ha_is_enabled, []))
+              raise (Api_errors.Server_error (Api_errors.ha_is_enabled, [], None))
         ) ;
         let vdis = get_active_vdis_by_pbd ~__context ~self in
         let non_metadata_vdis =

@@ -123,7 +123,7 @@ let maybe_remove_tools_sr rpc session_id __context =
       Client.SR.forget ~rpc ~session_id ~sr ;
       info "Tools SR %s has been removed" (Ref.string_of sr)
     with
-    | Api_errors.Server_error (e, _) when e = Api_errors.sr_has_pbd ->
+    | Api_errors.Server_error (e, _, _) when e = Api_errors.sr_has_pbd ->
         info
           "Tools SR %s could not be removed: it is still in use by another host"
           (Ref.string_of sr)

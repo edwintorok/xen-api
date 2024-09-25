@@ -200,7 +200,7 @@ let valid_operations ~__context ?op record _ref' : table =
      * plugging a PBD for this SR *)
     try
       Cluster_stack_constraints.assert_cluster_stack_compatible ~__context _ref'
-    with Api_errors.Server_error (e, args) -> set_errors e args [`plug]
+    with Api_errors.Server_error (e, args, _) -> set_errors e args [`plug]
   in
   (* List of (operations * function which checks for errors relevant to those operations) *)
   let relevant_functions =
@@ -237,7 +237,7 @@ let throw_error (table : table) op =
            )
         )
   | Some (Some (code, params)) ->
-      raise (Api_errors.Server_error (code, params))
+      raise (Api_errors.Server_error (code, params, None))
   | Some None ->
       ()
 

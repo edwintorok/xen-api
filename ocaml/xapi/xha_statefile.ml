@@ -91,7 +91,7 @@ let check_sr_can_host_statefile ~__context ~sr ~cluster_stack =
             )
          )
       ) ;
-    raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr]))
+    raise (Api_errors.Server_error (Api_errors.sr_no_pbds, [Ref.string_of sr], None))
   ) ;
   (* Check that each PBD is plugged in *)
   List.iter

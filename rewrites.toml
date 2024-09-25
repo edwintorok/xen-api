@@ -1,0 +1,22 @@
+[pattern-matchin-on-Server-error]
+
+# a whitespace matches 1+ whitespace chars, and the lack of whitespace doesn't match any
+# so we must use a regex to match optional whitespace
+match=":[m~with|\\|]:[ sp]:[x]Server_error:[~[ \t\n]*](:[~[ \t\n]*]:[a:e]:[~[ \t\n]*],:[~[ \t\n]*]:[b:e]:[~[ \t\n]*])"
+
+rewrite=":[m]:[sp]:[x]Server_error (:[a], :[b], _)"
+
+
+[creating-a-Server_error]
+
+# Careful not to match a pattern match, we must use _ and not None there!
+match=":[m~raise|ref|->]:[ sp]:[x]Server_error:[~[ \t\n]*](:[~[ \t\n]*]:[a:e]:[~[ \t\n]*],:[~[ \t\n]*]:[b:e]:[~[ \t\n]*])"
+
+rewrite=":[m]:[sp]:[x]Server_error (:[a], :[b], None)"
+
+[creating-a-Server_error-paren]
+
+# Careful not to match a pattern match, we must use _ and not None there!
+match=":[m~raise|ref|->]:[ sp]:[y](:[x]Server_error:[~[ \t\n]*](:[~[ \t\n]*]:[a:e]:[~[ \t\n]*],:[~[ \t\n]*]:[b:e]:[~[ \t\n]*]))"
+
+rewrite=":[m]:[sp]:[y](:[x]Server_error (:[a], :[b], None))"

@@ -369,7 +369,7 @@ let rec select_host_for_anti_aff_evac_plan vm_size hosts_psq =
 let impossible_error_handler () =
   let msg = "Data corrupted during host evacuation." in
   error "%s" msg ;
-  raise (Api_errors.Server_error (Api_errors.internal_error, [msg]))
+  raise (Api_errors.Server_error (Api_errors.internal_error, [msg], None))
 
 (*****************************************************************************************************)
 (* Planning code follows                                                                             *)

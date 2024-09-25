@@ -14,7 +14,7 @@
 
 module E = Api_errors
 
-let api_error msg xs = raise (E.Server_error (msg, xs))
+let api_error msg xs = raise (E.Server_error (msg, xs, None))
 
 let str ref = Ref.string_of ref
 

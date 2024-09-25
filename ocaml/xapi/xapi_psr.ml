@@ -235,7 +235,7 @@ end = struct
       SecretString.(equal old_backup old_ps && equal new_backup new_ps)
     in
     if not do_backups_match then
-      raise Api_errors.(Server_error (internal_error, ["backups don't match"]))
+      raise Api_errors.(Server_error (internal_error, ["backups don't match"], None))
 
   let no_backups () =
     if do_backups_exist () then
@@ -527,7 +527,7 @@ let start =
     let assert_no_ha () =
       let is_ha_enabled = Db.Pool.get_ha_enabled ~__context ~self in
       if is_ha_enabled then
-        raise Api_errors.(Server_error (ha_is_enabled, []))
+        raise Api_errors.(Server_error (ha_is_enabled, [], None))
     in
     let assert_all_hosts_alive () =
       let live_hosts = Helpers.get_live_hosts ~__context |> HostSet.of_list in
@@ -547,7 +547,7 @@ let start =
     in
     let assert_no_rpu () =
       if Helpers.rolling_upgrade_in_progress ~__context then
-        raise Api_errors.(Server_error (not_supported_during_upgrade, []))
+        raise Api_errors.(Server_error (not_supported_during_upgrade, [], None))
     in
     with_lock (fun () ->
         let master, members =
@@ -580,5 +580,5 @@ let start =
         | Error e ->
             let err_msg = user_facing_error_message ~__context e in
             D.error "PSR failed: %s" err_msg ;
-            raise Api_errors.(Server_error (internal_error, [err_msg]))
+            raise Api_errors.(Server_error (internal_error, [err_msg], None))
     )

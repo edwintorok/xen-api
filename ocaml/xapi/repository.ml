@@ -70,7 +70,7 @@ let forget ~__context ~self =
   let pool = Helpers.get_pool ~__context in
   let enabled = Db.Pool.get_repositories ~__context ~self:pool in
   if List.mem self enabled then
-    raise Api_errors.(Server_error (repository_is_in_use, []))
+    raise Api_errors.(Server_error (repository_is_in_use, [], None))
   else
     Db.Repository.destroy ~__context ~self
 
@@ -93,7 +93,7 @@ let cleanup_all_pool_repositories () =
   with e ->
     error "Failed to clean up all pool repositories: %s"
       (ExnHelper.string_of_exn e) ;
-    raise Api_errors.(Server_error (repository_cleanup_failed, []))
+    raise Api_errors.(Server_error (repository_cleanup_failed, [], None))
 
 let cleanup_pool_repo ~__context ~self =
   let repo_name = get_remote_repository_name ~__context ~self in
@@ -106,7 +106,7 @@ let cleanup_pool_repo ~__context ~self =
   with e ->
     error "Failed to clean up pool repository %s: %s" repo_name
       (ExnHelper.string_of_exn e) ;
-    raise Api_errors.(Server_error (repository_cleanup_failed, []))
+    raise Api_errors.(Server_error (repository_cleanup_failed, [], None))
 
 let get_proxy_params ~__context repo_name =
   let pool = Helpers.get_pool ~__context in
@@ -205,7 +205,7 @@ let sync ~__context ~self ~token ~token_id =
   with e ->
     error "Failed to sync with remote YUM repository: %s"
       (ExnHelper.string_of_exn e) ;
-    raise Api_errors.(Server_error (reposync_failed, []))
+    raise Api_errors.(Server_error (reposync_failed, [], None))
 
 let http_get_host_updates_in_json ~__context ~host ~installed =
   let host_session_id =
@@ -246,7 +246,7 @@ let http_get_host_updates_in_json ~__context ~host ~installed =
         let host' = Ref.string_of host in
         error "Failed to get updates from host ref='%s': %s" host'
           (ExnHelper.string_of_exn e) ;
-        raise Api_errors.(Server_error (get_host_updates_failed, [host']))
+        raise Api_errors.(Server_error (get_host_updates_failed, [host'], None))
     )
     (fun () -> Xapi_session.destroy_db_session ~__context ~self:host_session_id)
 
@@ -266,7 +266,7 @@ let parse_updateinfo ~__context ~self ~check =
             hash md.RepoMetaData.checksum
         in
         error "%s: %s" repo_name msg ;
-        raise Api_errors.(Server_error (internal_error, [msg]))
+        raise Api_errors.(Server_error (internal_error, [msg], None))
       )
   ) ;
   let updateinfo_xml_gz_path =
@@ -275,7 +275,7 @@ let parse_updateinfo ~__context ~self ~check =
   match Sys.file_exists updateinfo_xml_gz_path with
   | false ->
       error "File %s doesn't exist" updateinfo_xml_gz_path ;
-      raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+      raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
   | true ->
       with_updateinfo_xml updateinfo_xml_gz_path UpdateInfo.of_xml_file
 
@@ -416,7 +416,7 @@ let create_pool_repository ~__context ~self =
             )
         | false ->
             error "No updateinfo.xml.gz found: %s" updateinfo_xml_gz_path ;
-            raise Api_errors.(Server_error (invalid_updateinfo_xml, []))
+            raise Api_errors.(Server_error (invalid_updateinfo_xml, [], None))
     with
     | Api_errors.(Server_error (code, _)) as e
       when code <> Api_errors.internal_error ->
@@ -424,11 +424,11 @@ let create_pool_repository ~__context ~self =
     | e ->
         error "Creating local pool repository failed: %s"
           (ExnHelper.string_of_exn e) ;
-        raise Api_errors.(Server_error (createrepo_failed, []))
+        raise Api_errors.(Server_error (createrepo_failed, [], None))
   )
   | false ->
       error "local pool repository directory '%s' does not exist" repo_dir ;
-      raise Api_errors.(Server_error (reposync_failed, []))
+      raise Api_errors.(Server_error (reposync_failed, [], None))
 
 let get_host_updates_in_json ~__context ~installed =
   try
@@ -486,7 +486,7 @@ let get_host_updates_in_json ~__context ~installed =
       let ref = Ref.string_of (Helpers.get_localhost ~__context) in
       error "Failed to get host updates on host ref=%s: %s" ref
         (ExnHelper.string_of_exn e) ;
-      raise Api_errors.(Server_error (get_host_updates_failed, [ref]))
+      raise Api_errors.(Server_error (get_host_updates_failed, [ref], None))
 
 (* This handler hosts HTTP endpoint '/repository' which will be available iif
  * 'is_local_pool_repo_enabled' returns true with 'with_pool_repositories' being called by
@@ -530,7 +530,7 @@ let get_repository_handler (req : Http.Request.t) s _ =
               Printf.sprintf "Failed to get path from uri': %s"
                 (ExnHelper.string_of_exn e)
             in
-            raise Api_errors.(Server_error (internal_error, [msg]))
+            raise Api_errors.(Server_error (internal_error, [msg], None))
       with e ->
         error "Failed to serve for request on uri %s: %s" req.Request.uri
           (ExnHelper.string_of_exn e) ;
@@ -596,7 +596,7 @@ let get_pool_updates_in_json ~__context ~hosts =
       raise e
   | e ->
       error "getting updates for pool failed: %s" (ExnHelper.string_of_exn e) ;
-      raise Api_errors.(Server_error (get_updates_failed, []))
+      raise Api_errors.(Server_error (get_updates_failed, [], None))
 
 let apply ~__context ~host =
   (* This function runs on member host *)
@@ -607,7 +607,7 @@ let apply ~__context ~host =
         let host' = Ref.string_of host in
         error "Failed to apply updates on host ref='%s': %s" host'
           (ExnHelper.string_of_exn e) ;
-        raise Api_errors.(Server_error (apply_updates_failed, [host']))
+        raise Api_errors.(Server_error (apply_updates_failed, [host'], None))
   )
 
 let apply_livepatch ~__context ~host:_ ~component ~base_build_id ~base_version
@@ -619,7 +619,7 @@ let apply_livepatch ~__context ~host:_ ~component ~base_build_id ~base_version
     with _ ->
       let msg = Printf.sprintf "Invalid component name '%s'" component in
       error "%s" msg ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
   in
   match
     Livepatch.get_livepatch_file_path ~component:component' ~base_build_id
@@ -631,7 +631,7 @@ let apply_livepatch ~__context ~host:_ ~component ~base_build_id ~base_version
   | None ->
       let msg = Printf.sprintf "No expected livepatch file for %s" component in
       error "%s" msg ;
-      raise Api_errors.(Server_error (internal_error, [msg]))
+      raise Api_errors.(Server_error (internal_error, [msg], None))
 
 let apply_livepatches' ~__context ~host ~livepatches =
   List.partition_map
@@ -789,7 +789,7 @@ let apply_updates ~__context ~host ~hash =
     let repository_name = get_repository_name ~__context ~self:repository in
     if hash = "" || hash <> Db.Repository.get_hash ~__context ~self:repository
     then
-      raise Api_errors.(Server_error (updateinfo_hash_mismatch, [])) ;
+      raise Api_errors.(Server_error (updateinfo_hash_mismatch, [], None)) ;
     with_pool_repositories (fun () ->
         let updates_info =
           parse_updateinfo ~__context ~self:repository ~check:true |> snd
@@ -841,6 +841,6 @@ let apply_updates ~__context ~host ~hash =
       let host' = Ref.string_of host in
       error "applying updates on host ref='%s' failed: %s" host'
         (ExnHelper.string_of_exn e) ;
-      raise Api_errors.(Server_error (apply_updates_failed, [host']))
+      raise Api_errors.(Server_error (apply_updates_failed, [host'], None))
 
 let reset_updates_in_cache () = Hashtbl.clear updates_in_cache

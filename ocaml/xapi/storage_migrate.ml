@@ -865,7 +865,7 @@ let start' ~task ~dbg:_ ~sr ~vdi ~dp ~url ~dest ~verify_dest =
       error " Caught exception %s:%s. Performing cleanup."
         Api_errors.sr_not_attached sr_uuid ;
       perform_cleanup_actions !on_fail ;
-      raise (Api_errors.Server_error (Api_errors.sr_not_attached, [sr_uuid]))
+      raise (Api_errors.Server_error (Api_errors.sr_not_attached, [sr_uuid], None))
   | e ->
       error "Caught %s: performing cleanup actions" (Api_errors.to_string e) ;
       perform_cleanup_actions !on_fail ;
@@ -875,7 +875,7 @@ let start' ~task ~dbg:_ ~sr ~vdi ~dp ~url ~dest ~verify_dest =
 let stop ~dbg ~id =
   try stop ~dbg ~id with
   | Storage_error (Backend_error (code, params))
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       raise (Storage_error (Backend_error (code, params)))
   | e ->
       raise e
@@ -1329,7 +1329,7 @@ let copy ~task ~dbg ~sr ~vdi ~dp:_ ~url ~dest ~verify_dest =
       raise (Storage_error (Internal_error (Printexc.to_string e)))
   with
   | Storage_error (Backend_error (code, params))
-  | Api_errors.Server_error (code, params) ->
+  | Api_errors.Server_error (code, params, _) ->
       raise (Storage_error (Backend_error (code, params)))
   | e ->
       raise (Storage_error (Internal_error (Printexc.to_string e)))
@@ -1340,7 +1340,7 @@ let with_task_and_thread ~dbg f =
         Storage_task.set_tracing task dbg.Debug_info.tracing ;
         try f task with
         | Storage_error (Backend_error (code, params))
-        | Api_errors.Server_error (code, params) ->
+        | Api_errors.Server_error (code, params, _) ->
             raise (Storage_error (Backend_error (code, params)))
         | Storage_error (Unimplemented msg) ->
             raise (Storage_error (Unimplemented msg))
