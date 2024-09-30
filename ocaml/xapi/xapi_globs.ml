@@ -1077,7 +1077,7 @@ let make_batching name ~delay_before ~delay_between =
   (config, (name, Arg.String set, get, desc))
 
 let event_from_delay, event_from_entry =
-  make_batching "event_from" ~delay_before:0. ~delay_between:0.05
+  make_batching "event_from" ~delay_before:0.05 ~delay_between:0.05
 
 let event_from_task_delay, event_from_task_entry =
   make_batching "event_from_task" ~delay_before:0. ~delay_between:0.05
