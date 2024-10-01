@@ -1087,7 +1087,7 @@ let event_next_delay, event_next_entry =
 
 let event_batching = ref true
 
-let use_xmlrpc = ref true
+let use_xmlrpc = ref false
 
 let xapi_globs_spec =
   [
