@@ -1029,7 +1029,7 @@ let max_spans = ref 10000
 
 let max_traces = ref 10000
 
-let use_xmlrpc = ref true
+let use_xmlrpc = ref false
 
 let compress_tracing_files = ref true
 
