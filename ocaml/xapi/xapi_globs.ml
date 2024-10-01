@@ -1085,7 +1085,7 @@ let event_from_task_delay, event_from_task_entry =
 let event_next_delay, event_next_entry =
   make_batching "event_next" ~delay_before:0.2 ~delay_between:0.2
 
-let event_batching = ref false
+let event_batching = ref true
 
 let use_xmlrpc = ref true
 
