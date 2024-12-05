@@ -31,17 +31,13 @@ let (queue : t Ipq.t) = Ipq.create 50 queue_default
 
 let lock = Mutex.create ()
 
-let add_span clock span =
-  (* return max value if the add overflows: spans are unsigned integers *)
-  match Mtime.add_span clock span with Some t -> t | None -> Mtime.max_stamp
-
 let add_to_queue_span ?(signal = true) name ty start_span newfunc =
   with_lock lock (fun () ->
-      let ( ++ ) = add_span in
+      let ( ++ ) = Mtime.Span.add in
       Ipq.add queue
         {
           Ipq.ev= {func= newfunc; ty; name}
-        ; Ipq.time= Mtime_clock.now () ++ start_span
+        ; Ipq.time= Mtime_clock.elapsed () ++ start_span
         }
   ) ;
   if signal then Delay.signal delay
@@ -83,8 +79,8 @@ let loop () =
       (* Doesn't happen often - the queue isn't usually empty *)
       else
         let next = with_lock lock (fun () -> Ipq.maximum queue) in
-        let now = Mtime_clock.now () in
-        if next.Ipq.time < now then (
+        let now = Mtime_clock.elapsed () in
+        if Mtime.Span.is_shorter next.Ipq.time ~than:now then (
           let todo =
             (with_lock lock (fun () -> Ipq.pop_maximum queue)).Ipq.ev
           in
@@ -96,7 +92,7 @@ let loop () =
               add_to_queue ~signal:false todo.name todo.ty timer todo.func
         ) else (* Sleep until next event. *)
           let sleep =
-            Mtime.(span next.Ipq.time now)
+            Mtime.(Span.abs_diff next.Ipq.time now)
             |> Mtime.Span.(add ms)
             |> Clock.Timer.span_to_s
           in
