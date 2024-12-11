@@ -62,11 +62,17 @@ let periodic =
   Gc.Memprof.
     {null_tracker with alloc_minor= periodic_hook; alloc_major= periodic_hook}
 
+let started = Atomic.make false
+
 let set ?(sampling_rate = 1e-4) interval =
   Atomic.set yield_interval
     (Mtime.Span.of_float_ns @@ (interval *. 1e9) |> Option.get) ;
-  Gc.Memprof.start ~sampling_rate ~callstack_size:0 periodic
+  if not (Atomic.get started) then
+    Gc.Memprof.start ~sampling_rate ~callstack_size:0 periodic ;
+  Atomic.set started true
 
 let clear () =
-  Gc.Memprof.stop () ;
+  if Atomic.get started then
+    Gc.Memprof.stop () ;
+  Atomic.set started false ;
   Atomic.set yield_interval Mtime.Span.zero

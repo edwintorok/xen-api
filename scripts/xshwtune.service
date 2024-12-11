@@ -1,0 +1,15 @@
+[Unit]
+Description=Tune system for current hardware and kernel
+Before=xapi.service xenopsd-xc.service
+ConditionPathExists=/etc/xenserver/features.d/ocamltimeslice
+ConditionPathExists=!@ETCDIR@/xenopsd.conf.d/xshwtune.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecCondition=/bin/bash -c '[ "$($</etc/xenserver/features.d/ocamltimeslice)" = "1" ]'
+ExecStartPre=/usr/bin/mkdir -p /etc/xapi.conf.d /etc/xenopsd.conf.d
+ExecStart=/usr/bin/xshwtune @ETCDIR@/xapi.conf.d/xshwtune.conf @ETCDIR@/xenopsd.conf.d/xshwtune.conf
+
+[Install]
+WantedBy=multi-user.target

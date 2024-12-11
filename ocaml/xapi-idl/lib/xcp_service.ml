@@ -172,7 +172,7 @@ let setify =
     4ms = 1/HZ in Dom0 seems like a good default,
     a better value will be written by a boot time service.
  *)
-let timeslice = ref 0.05
+let timeslice = ref 0.005
 
 let adjust_timeslice () =
   let interval = !timeslice in

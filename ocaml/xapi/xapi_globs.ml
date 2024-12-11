@@ -500,6 +500,16 @@ let rpu_allowed_vm_operations =
   ; `update_allowed_operations
   ]
 
+module Vdi_operations = struct
+  type t = API.vdi_operations
+
+  (* this is more efficient than just 'let compare = Stdlib.compare',
+     because the compiler can specialize it to [t] without calling any runtime functions *)
+  let compare (a : t) (b : t) = Stdlib.compare a b
+end
+
+module Vdi_operations_set = Set.Make (Vdi_operations)
+
 (* Until the Ely release, the vdi_operations enum had stayed unchanged
  * since 2009 or earlier, but then Ely and some subsequent releases
  * added new members to the enum. *)
@@ -517,6 +527,7 @@ let pre_ely_vdi_operations =
   ; `generate_config
   ; `blocked
   ]
+  |> Vdi_operations_set.of_list
 
 (* We might consider restricting this further. *)
 let rpu_allowed_vdi_operations = pre_ely_vdi_operations
@@ -1043,7 +1054,7 @@ let max_spans = ref 10000
 
 let max_traces = ref 10000
 
-let use_xmlrpc = ref true
+let use_xmlrpc = ref false
 
 let compress_tracing_files = ref true
 
@@ -1083,7 +1094,7 @@ let validate_reusable_pool_session = ref false
 
 let test_open = ref 0
 
-let tgroups_enabled = ref false
+let tgroups_enabled = ref true
 
 let xapi_requests_cgroup =
   "/sys/fs/cgroup/cpu/control.slice/xapi.service/request"
@@ -1117,7 +1128,8 @@ let make_batching name ~delay_before ~delay_between =
   (config, (name, Arg.String set, get, desc))
 
 let event_from_delay, event_from_entry =
-  make_batching "event_from" ~delay_before:Mtime.Span.zero
+  make_batching "event_from"
+    ~delay_before:Mtime.Span.(50 * ms)
     ~delay_between:Mtime.Span.(50 * ms)
 
 let event_from_task_delay, event_from_task_entry =
