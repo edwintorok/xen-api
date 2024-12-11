@@ -1056,7 +1056,7 @@ let max_spans = ref 10000
 
 let max_traces = ref 10000
 
-let use_xmlrpc = ref true
+let use_xmlrpc = ref false
 
 let compress_tracing_files = ref true
 
@@ -1088,7 +1088,7 @@ let pool_recommendations_dir = ref "/etc/xapi.pool-recommendations.d"
 
 let disable_webserver = ref false
 
-let reuse_pool_sessions = ref false
+let reuse_pool_sessions = ref true
 (* Enables the reuse of pool sessions, speeding up intrapool communication *)
 
 let validate_reusable_pool_session = ref false
@@ -1128,7 +1128,8 @@ let make_batching name ~delay_before ~delay_between =
   (config, (name, Arg.String set, get, desc))
 
 let event_from_delay, event_from_entry =
-  make_batching "event_from" ~delay_before:Mtime.Span.zero
+  make_batching "event_from"
+    ~delay_before:Mtime.Span.(50 * ms)
     ~delay_between:Mtime.Span.(50 * ms)
 
 let event_from_task_delay, event_from_task_entry =
