@@ -1068,7 +1068,7 @@ let tgroups_enabled = ref false
 let xapi_requests_cgroup =
   "/sys/fs/cgroup/cpu/control.slice/xapi.service/request"
 
-let event_filter = ref (StringSet.of_list [])
+let event_filter = ref (StringSet.of_list ["NVRAM"])
 
 (* Event.{from,next} batching delays *)
 let make_batching name ~delay_before ~delay_between =
