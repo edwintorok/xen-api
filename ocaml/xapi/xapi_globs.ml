@@ -1073,7 +1073,7 @@ let disable_webserver = ref false
 
 let test_open = ref 0
 
-let tgroups_enabled = ref false
+let tgroups_enabled = ref true
 
 let xapi_requests_cgroup =
   "/sys/fs/cgroup/cpu/control.slice/xapi.service/request"
