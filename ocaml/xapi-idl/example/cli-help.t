@@ -56,7 +56,7 @@
              Unix domain socket path on localhost where the message switch is
              listening
   
-         --timeslice=VAL (absent=0.05)
+         --timeslice=VAL (absent=0.005)
              timeslice in seconds
   
          --use-switch=VAL (absent=true)
