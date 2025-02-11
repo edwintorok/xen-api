@@ -27,4 +27,4 @@ let context = "__context"
 let context_with_correct_database =
   "(Context.check_for_foreign_database ~__context)"
 
-let context_arg = O.Named (context, "Context.t")
+let context_arg = O.Named (context, "Context.db Context.t")

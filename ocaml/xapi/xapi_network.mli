@@ -32,14 +32,14 @@
    Note: It is currently assumed that all PIFs that are associated with a certain Network are physically connected, but this is not checked or enforced anywhere. This means that if a system admin connects the cables in a wrong way, things may be broken. Moreover, if two PIFs are of different Networks, this does not mean that they are not on the same physical network. Ideally, Networks objects should be constructed and maintained automatically by xapi based the actual physical connections.
 *)
 
-val check_himn : __context:Context.t -> unit
+val check_himn : __context:Context.db Context.t -> unit
 (** This function is called when xapi starts and management is disabled. It ensures
  *  that a HIMN API server is running if there is a HIMN bridge present. *)
 
 val attach_internal :
      ?management_interface:bool
   -> ?force_bringup:bool
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> self:[`network] Ref.t
   -> unit
   -> unit
@@ -52,20 +52,20 @@ val attach_internal :
     {!Nm.bring_pif_up} with the [management_interface] argument so it can make sure
     the default gateway is set up correctly *)
 
-val attach : __context:Context.t -> network:[`network] Ref.t -> host:'a -> unit
+val attach : __context:Context.db Context.t -> network:[`network] Ref.t -> host:'a -> unit
 (** Makes the network immediately available on a particular host (Network.attach is hidden from docs) *)
 
-val register_vif : __context:Context.t -> API.ref_VIF -> unit
+val register_vif : __context:Context.db Context.t -> API.ref_VIF -> unit
 (** [register_vif __context vif] is called both before adding a VIF to a Network, to
     make sure the network doesn't disappear beneath it, and also from the dbsync sync_devices
     code at start of day. *)
 
-val deregister_vif : __context:Context.t -> API.ref_VIF -> unit
+val deregister_vif : __context:Context.db Context.t -> API.ref_VIF -> unit
 (** [deregister_vif __context vif] is called before cleaning up a VIF device. Once this
     happens, it is safe to clean up the underlying network switch/bridge *)
 
 val pool_introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> mTU:int64
@@ -77,7 +77,7 @@ val pool_introduce :
 (** Internal fn used by slave to create new network records on master during pool join operation *)
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> mTU:int64
@@ -88,12 +88,12 @@ val create :
   -> [`network] Ref.t
 (** Attempt to create a bridge with a unique name *)
 
-val destroy : __context:Context.t -> self:[`network] Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`network] Ref.t -> unit
 (** WARNING WARNING WARNING: called with the master dispatcher lock; do nothing but basic DB calls
     here without being really sure *)
 
 val create_new_blob :
-     __context:Context.t
+     __context:Context.db Context.t
   -> network:[`network] Ref.t
   -> name:string
   -> mime_type:string
@@ -102,36 +102,36 @@ val create_new_blob :
 (** Create a placeholder for a named binary blob of data that is associated with this pool *)
 
 val set_default_locking_mode :
-     __context:Context.t
+     __context:Context.db Context.t
   -> network:[`network] Ref.t
   -> value:API.network_default_locking_mode
   -> unit
 
 (** {2 Networking helper functions for VMs and VIFs} *)
 
-val attach_for_vif : __context:Context.t -> vif:[`VIF] Ref.t -> unit -> unit
+val attach_for_vif : __context:Context.db Context.t -> vif:[`VIF] Ref.t -> unit -> unit
 
 val attach_for_vm :
-  __context:Context.t -> host:[`host] Ref.t -> vm:[`VM] Ref.t -> unit
+  __context:Context.db Context.t -> host:[`host] Ref.t -> vm:[`VM] Ref.t -> unit
 
 val detach_for_vm :
-  __context:Context.t -> host:[`host] Ref.t -> vm:[`VM] Ref.t -> unit
+  __context:Context.db Context.t -> host:[`host] Ref.t -> vm:[`VM] Ref.t -> unit
 
 val with_networks_attached_for_vm :
-     __context:Context.t
+     __context:Context.db Context.t
   -> ?host:[`host] Ref.t
   -> vm:[`VM] Ref.t
   -> (unit -> 'a)
   -> 'a
 
 val add_purpose :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`network] Ref.t
   -> value:API.network_purpose
   -> unit
 
 val remove_purpose :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`network] Ref.t
   -> value:API.network_purpose
   -> unit
@@ -139,4 +139,4 @@ val remove_purpose :
 (** {2 Assertion Helper Functions} *)
 
 val assert_network_is_managed :
-  __context:Context.t -> self:[`network] Ref.t -> unit
+  __context:Context.db Context.t -> self:[`network] Ref.t -> unit

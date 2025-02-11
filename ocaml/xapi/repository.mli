@@ -13,7 +13,7 @@
  *)
 
 val introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> binary_url:string
@@ -23,40 +23,40 @@ val introduce :
   -> [`Repository] API.Ref.t
 
 val introduce_bundle :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> [`Repository] API.Ref.t
 
-val forget : __context:Context.t -> self:[`Repository] API.Ref.t -> unit
+val forget : __context:Context.db Context.t -> self:[`Repository] API.Ref.t -> unit
 
 val cleanup_all_pool_repositories : unit -> unit
 
 val cleanup_pool_repo :
-  __context:Context.t -> self:[`Repository] API.Ref.t -> unit
+  __context:Context.db Context.t -> self:[`Repository] API.Ref.t -> unit
 
 val sync :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`Repository] API.Ref.t
   -> token:string
   -> token_id:string
   -> bool
 
 val create_pool_repository :
-  __context:Context.t -> self:[`Repository] API.Ref.t -> unit
+  __context:Context.db Context.t -> self:[`Repository] API.Ref.t -> unit
 
 val get_repository_handler : Http.Request.t -> Unix.file_descr -> 'a -> unit
 
 val get_host_updates_in_json :
-  __context:Context.t -> installed:bool -> Yojson.Basic.t
+  __context:Context.db Context.t -> installed:bool -> Yojson.Basic.t
 
 val get_pool_updates_in_json :
-  __context:Context.t -> hosts:[`host] API.Ref.t list -> Yojson.Basic.t
+  __context:Context.db Context.t -> hosts:[`host] API.Ref.t list -> Yojson.Basic.t
 
-val apply : __context:Context.t -> host:[`host] API.Ref.t -> unit
+val apply : __context:Context.db Context.t -> host:[`host] API.Ref.t -> unit
 
 val apply_livepatch :
-     __context:Context.t
+     __context:Context.db Context.t
   -> host:[`host] API.Ref.t
   -> component:string
   -> base_build_id:string
@@ -67,14 +67,14 @@ val apply_livepatch :
   -> unit
 
 val apply_updates :
-     __context:Context.t
+     __context:Context.db Context.t
   -> host:[`host] API.Ref.t
   -> hash:string
   -> string list list
 
-val set_available_updates : __context:Context.t -> string
+val set_available_updates : __context:Context.db Context.t -> string
 
 val reset_updates_in_cache : unit -> unit
 
 val set_gpgkey_path :
-  __context:Context.t -> self:[`Repository] API.Ref.t -> value:string -> unit
+  __context:Context.db Context.t -> self:[`Repository] API.Ref.t -> value:string -> unit

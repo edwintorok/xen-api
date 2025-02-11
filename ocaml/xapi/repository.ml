@@ -518,7 +518,7 @@ let get_repository_handler (req : Http.Request.t) s _ =
     in
     let internal_repo_access_only =
       let __context =
-        Context.make ~origin:(Http (req, s)) "get_repository_handler"
+        Context.make ~origin:(Http (req, s)) `DB "get_repository_handler"
       in
       Pool_features.is_enabled ~__context Features.Internal_repo_access
     in

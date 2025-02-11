@@ -299,7 +299,7 @@ module type VENDOR = sig
 
   val vendor_id : int
 
-  val get_gpu : __context:Context.t -> [`PCI] API.Ref.t -> gpu
+  val get_gpu : __context:Context.db Context.t -> [`PCI] API.Ref.t -> gpu
 
   val pt_when_vgpu : bool
 

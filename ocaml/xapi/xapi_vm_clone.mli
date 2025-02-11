@@ -38,7 +38,7 @@ val safe_clone_disks :
      (Rpc.call -> Rpc.response Client.Id.t)
   -> [< `session] Ref.t
   -> disk_op_t
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> [`VBD] API.Ref.t list
   -> (string * string) list
   -> ([`VBD] API.Ref.t * API.ref_VDI * bool) list
@@ -48,7 +48,7 @@ val clone_single_vdi :
   -> (Rpc.call -> Rpc.response Client.Id.t)
   -> [< `session] Ref.t
   -> disk_op_t
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> [< `VDI] Ref.t
   -> (string * string) list
   -> API.ref_VDI
@@ -58,7 +58,7 @@ val clone :
      ?snapshot_info_record:(string * string) list
   -> ?ignore_vdis:[`VDI] API.Ref.t list
   -> disk_op_t
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> vm:[`VM] API.Ref.t
   -> new_name:string
   -> [`VM] Ref.t

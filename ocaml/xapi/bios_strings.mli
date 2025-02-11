@@ -13,7 +13,7 @@
  *)
 (** BIOS strings handling *)
 
-val get_host_bios_strings : __context:Context.t -> (string * string) list
+val get_host_bios_strings : __context:Context.db Context.t -> (string * string) list
 (** Obtains the BIOS strings of localhost. *)
 
 (** Exposed to test the module *)

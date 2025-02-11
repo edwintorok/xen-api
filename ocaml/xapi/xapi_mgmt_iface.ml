@@ -31,7 +31,7 @@ let update_mh_info interface =
 module Server : sig
   type listening_mode = Off | Any | Local of Addresses.t
 
-  val update : __context:Context.t -> listening_mode -> unit
+  val update : __context:Context.db Context.t -> listening_mode -> unit
 
   val current_mode : unit -> listening_mode
 

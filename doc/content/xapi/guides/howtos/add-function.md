@@ -201,7 +201,7 @@ We add the following function to `xapi/xapi_host.ml`:
 We also need to add the function to the interface `xapi/xapi_host.mli`:
 
     val price_of :
-        __context:Context.t -> host:API.ref_host -> item:string -> float
+        __context:Context.db Context.t -> host:API.ref_host -> item:string -> float
 
 Congratulations, you've added a function to the API!
 

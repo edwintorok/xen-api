@@ -63,6 +63,16 @@ let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
        already been taken by the master
        2. If we are the master, locks are only necessary for the potentially-forwarded
        (ie side-effecting) operations and not things like the database layer *)
+    let complete_db =
+      if need_complete then
+        match Context.as_maybe_db __context with
+        | None ->
+            invalid_arg "No access to the database"
+        | Some _ as r ->
+            r
+      else
+        None
+    in
     try
       let result =
         if not (Pool_role.is_master ()) then
@@ -74,25 +84,41 @@ let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
               f ~__context
           | Some forward ->
               (* use the forwarding layer (NB this might make a local call ultimately) *)
+              match Context.as_maybe_db __context with
+              | None -> invalid_arg "Cannot forward without DB"
+              | Some __context ->
               forward ~local_fn:f ~__context
       in
-      if need_complete then
+      ( match complete_db with
+      | Some __context -> (
         match marshaller with
         | None ->
             TaskHelper.complete ~__context None
         | Some fn ->
             TaskHelper.complete ~__context (Some (fn result))
-      else
-        Context.complete_tracing __context ;
+      )
+      | None ->
+          Context.complete_tracing __context
+      ) ;
       result
     with
     | Api_errors.Server_error (a, _) as e when a = Api_errors.task_cancelled ->
         Backtrace.is_important e ;
-        if need_complete then TaskHelper.cancel ~__context ;
+        ( match complete_db with
+        | None ->
+            ()
+        | Some __context ->
+            TaskHelper.cancel ~__context
+        ) ;
         raise e
     | e ->
         Backtrace.is_important e ;
-        if need_complete then TaskHelper.failed ~__context e ;
+        ( match complete_db with
+        | None ->
+            ()
+        | Some __context ->
+            TaskHelper.failed ~__context e
+        ) ;
         raise e
   in
   Locking_helpers.Thread_state.with_named_thread
@@ -106,7 +132,9 @@ let exec_with_context ~__context ~need_complete ?marshaller ?f_forward
             info "spawning a new thread to handle the current task%s"
               (Context.trackid ~with_brackets:true ~prefix:" " __context) ;
           Xapi_stdext_pervasives.Pervasiveext.finally exec (fun () ->
-              if not called_async then Context.destroy __context
+              if not called_async then match Context.as_maybe_db __context with
+              | Some __context -> Context.destroy __context
+              | None -> invalid_arg "No access to database"
               (* else debug "nothing more to process for this thread" *)
           )
         )
@@ -128,7 +156,7 @@ module Helper = struct
 end
 
 let do_dispatch ?session_id ?forward_op ?self:_ supports_async called_fn_name
-    op_fn marshaller fd http_req label sync_ty generate_task_for =
+    (op_fn : __context: _ Context.t -> _) marshaller fd http_req label sync_ty generate_task_for kind =
   (* if the call has been forwarded to us, then they are responsible for completing the task, so we don't need to complete it *)
   let@ http_req = Helper.with_tracing ~name:__FUNCTION__ http_req in
   let called_async = sync_ty <> `Sync in
@@ -139,18 +167,23 @@ let do_dispatch ?session_id ?forward_op ?self:_ supports_async called_fn_name
     let internal_async_subtask = sync_ty = `InternalAsync in
     let __context =
       Context.of_http_req ?session_id ~internal_async_subtask ~generate_task_for
-        ~supports_async ~label ~http_req ~fd ()
+        ~supports_async ~label ~http_req ~fd kind
     in
     let identity =
       try
-        Option.map
-          (fun session_id ->
-            let subject =
-              Db.Session.get_auth_user_sid ~__context ~self:session_id
-            in
-            Tgroup.Group.Identity.make ?user_agent:http_req.user_agent subject
-          )
-          session_id
+        match Context.as_maybe_db __context with
+        | Some __context ->
+            Option.map
+              (fun session_id ->
+                let subject =
+                  Db.Session.get_auth_user_sid ~__context ~self:session_id
+                in
+                Tgroup.Group.Identity.make ?user_agent:http_req.user_agent
+                  subject
+              )
+              session_id
+        | None ->
+            None
       with _ -> None
     in
     Tgroup.of_creator (Tgroup.Group.Creator.make ?identity ()) ;
@@ -191,7 +224,7 @@ let exec_with_new_task ?http_other_config ?quiet ?subtask_of ?session_id
   exec_with_context ?quiet
     ~__context:
       (Context.make ?http_other_config ?quiet ?subtask_of ?session_id
-         ?task_in_database ?task_description ?origin task_name
+         ?task_in_database ?task_description ?origin `DB task_name
       ) ~need_complete:true (fun ~__context -> f __context
   )
 

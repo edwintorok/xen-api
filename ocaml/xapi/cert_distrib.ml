@@ -154,7 +154,7 @@ let provider_of_certificate (typ : WireProtocol.certificate) :
 (* eventually the remote calls should probably become API calls in the datamodel
    but they remain here for quick development *)
 module Worker : sig
-  val local_exec : __context:Context.t -> command:string -> string
+  val local_exec : __context:Context.db Context.t -> command:string -> string
 
   val remote_collect_cert :
        WireProtocol.certificate
@@ -175,19 +175,19 @@ module Worker : sig
   val remote_regen_bundle : unit remote_call
 
   val local_collect_certs :
-       __context:Context.t
+       __context:Context.db Context.t
     -> WireProtocol.certificate
     -> string list
     -> WireProtocol.certificate_file list
 
   val local_write_cert_fs :
-       __context:Context.t
+       __context:Context.db Context.t
     -> WireProtocol.certificate
     -> WireProtocol.conflict_resolution
     -> WireProtocol.certificate_file list
     -> unit
 
-  val local_regen_bundle : __context:Context.t -> unit
+  val local_regen_bundle : __context:Context.db Context.t -> unit
 end = struct
   open WireProtocol
 

@@ -18,7 +18,7 @@
 val start_smapiv1_servers : unit -> unit
 (** start listening for requests backed by SMAPIv1-style plugins *)
 
-val on_xapi_start : __context:Context.t -> unit
+val on_xapi_start : __context:Context.db Context.t -> unit
 (** Synchronises the known SM plugins with the SM table *)
 
 val start : unit -> unit
@@ -26,11 +26,11 @@ val start : unit -> unit
     its unix domain socket. *)
 
 val bind :
-  __context:Context.t -> pbd:API.ref_PBD -> Storage_interface.query_result
+  __context:Context.db Context.t -> pbd:API.ref_PBD -> Storage_interface.query_result
 (** [bind __context pbd] causes the storage_access module to choose the most
         appropriate driver implementation for the given [pbd] *)
 
-val unbind : __context:Context.t -> pbd:API.ref_PBD -> unit
+val unbind : __context:Context.db Context.t -> pbd:API.ref_PBD -> unit
 (** [unbind __context pbd] causes the storage access module to forget the association
     between [pbd] and driver implementation *)
 
@@ -48,7 +48,7 @@ val datapath_of_vbd : domid:int -> device:string -> Storage_interface.dp
     to device [userdevice] on domain [domid] *)
 
 val presentative_datapath_of_vbd :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vm:API.ref_VM
   -> vdi:API.ref_VDI
   -> Storage_interface.dp
@@ -57,12 +57,12 @@ val presentative_datapath_of_vbd :
     the VM is running), the result is the same as datapath_of_vbd; otherwise,
     it's a string artificially constructed based on VM uuid and VDI uuid. *)
 
-val reset : __context:Context.t -> vm:API.ref_VM -> unit
+val reset : __context:Context.db Context.t -> vm:API.ref_VM -> unit
 (** [reset __context vm] declares that [vm] has reset and if it's a driver
     domain, we expect it to lose all state. *)
 
 val attach_and_activate :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vbd:API.ref_VBD
   -> domid:int
   -> (Storage_interface.backend -> 'a)
@@ -73,12 +73,12 @@ val attach_and_activate :
     control of the ordering of attach/activate/deactivate/detach *)
 
 val deactivate_and_detach :
-  __context:Context.t -> vbd:API.ref_VBD -> domid:int -> unit
+  __context:Context.db Context.t -> vbd:API.ref_VBD -> domid:int -> unit
 (** [deactivate_and_detach __context vbd domid] idempotent function which ensures
     that any attached or activated VDI gets properly deactivated and detached. *)
 
 val on_vdi :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vbd:API.ref_VBD
   -> domid:int
   -> (   (Rpc.call -> Rpc.response)
@@ -93,32 +93,32 @@ val on_vdi :
     useful for executing Storage_interface.Client.VDI functions, applying the
     standard convention mapping VBDs onto DPs *)
 
-val resynchronise_pbds : __context:Context.t -> pbds:API.ref_PBD list -> unit
+val resynchronise_pbds : __context:Context.db Context.t -> pbds:API.ref_PBD list -> unit
 (** [resynchronise_pbds __context pbds] sets the currently_attached state of
     each of [pbd] to match the state of the storage layer. *)
 
-val refresh_local_vdi_activations : __context:Context.t -> unit
+val refresh_local_vdi_activations : __context:Context.db Context.t -> unit
 (** [refresh_local_vdi_activations __context] updates the VDI.sm_config fields to
     match the state stored within the storage layer. *)
 
 val vbd_attach_order :
-  __context:Context.t -> API.ref_VBD list -> API.ref_VBD list
+  __context:Context.db Context.t -> API.ref_VBD list -> API.ref_VBD list
 (** [vbd_attach_order __context vbds] returns vbds in the order which xapi should
     	attempt to attach them. *)
 
 val vbd_detach_order :
-  __context:Context.t -> API.ref_VBD list -> API.ref_VBD list
+  __context:Context.db Context.t -> API.ref_VBD list -> API.ref_VBD list
 (** [vbd_detach_order __context vbds] returns vbds in the order which xapi should
     	attempt to detach them. *)
 
-val diagnostics : __context:Context.t -> string
+val diagnostics : __context:Context.db Context.t -> string
 (** [diagnostics __context] returns a printable snapshot of SM system state *)
 
-val dp_destroy : __context:Context.t -> string -> bool -> unit
+val dp_destroy : __context:Context.db Context.t -> string -> bool -> unit
 (** [dp_destroy __context dp allow_leak] attempts to cleanup and detach a given DP *)
 
 val create_sr :
-     __context:Context.t
+     __context:Context.db Context.t
   -> sr:API.ref_SR
   -> name_label:string
   -> name_description:string
@@ -127,7 +127,7 @@ val create_sr :
 (** [create_sr __context sr name_label name_description physical_size] attempts to create an empty SR *)
 
 val destroy_sr :
-  __context:Context.t -> sr:API.ref_SR -> and_vdis:API.ref_VDI list -> unit
+  __context:Context.db Context.t -> sr:API.ref_SR -> and_vdis:API.ref_VDI list -> unit
 (** [destroy_sr __context sr] attempts to cleanup and destroy a given SR *)
 
 val event_wait :
@@ -157,13 +157,13 @@ val mirror_of_task :
   -> Storage_interface.Mirror.id
 
 val register_task :
-  Context.t -> Storage_interface.Task.id -> Storage_interface.Task.id
+  Context.db Context.t -> Storage_interface.Task.id -> Storage_interface.Task.id
 
 val unregister_task :
-  Context.t -> Storage_interface.Task.id -> Storage_interface.Task.id
+  Context.db Context.t -> Storage_interface.Task.id -> Storage_interface.Task.id
 
 val register_mirror :
-  Context.t -> Storage_interface.Mirror.id -> Storage_interface.Mirror.id
+  Context.db Context.t -> Storage_interface.Mirror.id -> Storage_interface.Mirror.id
 
 val unregister_mirror :
   Storage_interface.Mirror.id -> Storage_interface.Mirror.id
@@ -176,4 +176,4 @@ val remove_from_progress_map :
 
 val events_from_sm : unit -> unit
 
-val task_cancel : __context:Context.t -> self:API.ref_task -> bool
+val task_cancel : __context:Context.db Context.t -> self:API.ref_task -> bool

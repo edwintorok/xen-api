@@ -44,14 +44,14 @@
 (** {2 API functions} *)
 
 val refresh :
-  __context:Context.t -> host:[`host] Ref.t -> self:[`PIF] Ref.t -> unit
+  __context:Context.db Context.t -> host:[`host] Ref.t -> self:[`PIF] Ref.t -> unit
 (** Refresh the metadata of an existing PIF on the current host. *)
 
-val refresh_all : __context:Context.t -> host:[`host] Ref.t -> unit
+val refresh_all : __context:Context.db Context.t -> host:[`host] Ref.t -> unit
 (** Refresh the metadata of all existing PIFs on the current host. *)
 
 val db_introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> device:string
   -> network:[`network] Ref.t
   -> host:[`host] Ref.t
@@ -78,11 +78,11 @@ val db_introduce :
   -> [`PIF] Ref.t
 (** Create a new PIF record in the database only *)
 
-val db_forget : __context:Context.t -> self:[`PIF] Ref.t -> unit
+val db_forget : __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Perform a database delete of the PIF record on the pool master. *)
 
 val introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> host:[`host] Ref.t
   -> mAC:string
   -> device:Helpers.StringSet.elt
@@ -90,15 +90,15 @@ val introduce :
   -> API.ref_PIF
 (** Create a new PIF record for a new NIC *)
 
-val forget : __context:Context.t -> self:API.ref_PIF -> unit
+val forget : __context:Context.db Context.t -> self:API.ref_PIF -> unit
 (** Destroy the PIF record from the database, but only if the interface is no longer used. *)
 
-val scan : __context:Context.t -> host:[`host] Ref.t -> unit
+val scan : __context:Context.db Context.t -> host:[`host] Ref.t -> unit
 (** Scan for physical interfaces on this host and ensure PIF records, and
  *  corresponding networks are present and up-to-date. Uses {!introduce_internal}. *)
 
 val create_VLAN :
-     __context:Context.t
+     __context:Context.db Context.t
   -> device:string
   -> network:[`network] Ref.t
   -> host:[`host] Ref.t
@@ -107,12 +107,12 @@ val create_VLAN :
 (** External facing call to create a new VLAN interface
  * @deprecated since Miami; use [VLAN.create] instead *)
 
-val destroy : __context:Context.t -> self:API.ref_PIF -> unit
+val destroy : __context:Context.db Context.t -> self:API.ref_PIF -> unit
 (** External facing call to destroy a VLAN or Bond interface
   * @deprecated since Miami; use [VLAN.destroy] or [Bond.destroy] instead *)
 
 val reconfigure_ip :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PIF
   -> mode:[`DHCP | `None | `Static]
   -> iP:string
@@ -123,7 +123,7 @@ val reconfigure_ip :
 (** Change the IP configuration of a PIF *)
 
 val reconfigure_ipv6 :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PIF
   -> mode:[`DHCP | `None | `Static | `Autoconf]
   -> iPv6:string
@@ -133,28 +133,28 @@ val reconfigure_ipv6 :
 (** Change the IPv6 configuration of a PIF *)
 
 val set_primary_address_type :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PIF
   -> primary_address_type:[`IPv4 | `IPv6]
   -> unit
 (** Change the primary address type between IPv4 and IPv6 *)
 
-val set_default_properties : __context:Context.t -> self:API.ref_PIF -> unit
+val set_default_properties : __context:Context.db Context.t -> self:API.ref_PIF -> unit
 (** Set the default properties of a PIF *)
 
 val set_property :
-  __context:Context.t -> self:API.ref_PIF -> name:string -> value:string -> unit
+  __context:Context.db Context.t -> self:API.ref_PIF -> name:string -> value:string -> unit
 (** Set a property on a PIF *)
 
 (* Set disallow_unplug on a PIF *)
 val set_disallow_unplug :
-  __context:Context.t -> self:API.ref_PIF -> value:bool -> unit
+  __context:Context.db Context.t -> self:API.ref_PIF -> value:bool -> unit
 
-val unplug : __context:Context.t -> self:API.ref_PIF -> unit
+val unplug : __context:Context.db Context.t -> self:API.ref_PIF -> unit
 (** Attempt to bring down the PIF: disconnect the underlying network interface from
  *  its bridge and disable the interface. *)
 
-val plug : __context:Context.t -> self:[`PIF] Ref.t -> unit
+val plug : __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Attempt to bring up the PIF: enable the network underlying interface and attach the network
  *  (bridge) it is on. *)
 
@@ -169,7 +169,7 @@ val read_bridges_from_inventory : unit -> string list
 (** Return the list of bridges in the CURRENT_INTERFACES field in the inventory file. *)
 
 val assert_usable_for_management :
-     __context:Context.t
+     __context:Context.db Context.t
   -> primary_address_type:[`IPv4 | `IPv6 | `None]
   -> self:[`PIF] API.Ref.t
   -> unit
@@ -178,17 +178,17 @@ val assert_usable_for_management :
 (** Convenient lookup tables for scanning etc *)
 type tables
 
-val make_tables : __context:Context.t -> host:[`host] Ref.t -> tables
+val make_tables : __context:Context.db Context.t -> host:[`host] Ref.t -> tables
 (** Construct and return lookup {!tables} with information about the network interfaces *)
 
-val is_my_management_pif : __context:Context.t -> self:[`PIF] Ref.t -> bool
+val is_my_management_pif : __context:Context.db Context.t -> self:[`PIF] Ref.t -> bool
 (** Return true if this PIF is my management interface, according to xensource-inventory *)
 
-val make_pif_metrics : __context:Context.t -> [`PIF_metrics] Ref.t
+val make_pif_metrics : __context:Context.db Context.t -> [`PIF_metrics] Ref.t
 (** Make a new metrics objects and return reference to it *)
 
 val pool_introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> device:string
   -> network:[`network] Ref.t
   -> host:[`host] Ref.t
@@ -219,7 +219,7 @@ val introduce_internal :
      ?network:[`network] Ref.t
   -> ?physical:bool
   -> t:tables
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> host:[`host] Ref.t
   -> mAC:Helpers.StringSet.elt
   -> mTU:int64
@@ -238,16 +238,16 @@ val introduce_internal :
  *  flags accordingly. *)
 
 val forget_internal :
-  t:tables -> __context:Context.t -> self:API.ref_PIF -> unit
+  t:tables -> __context:Context.db Context.t -> self:API.ref_PIF -> unit
 (** Brings down the network interface and removes the PIF object. *)
 
-val update_management_flags : __context:Context.t -> host:[`host] Ref.t -> unit
+val update_management_flags : __context:Context.db Context.t -> host:[`host] Ref.t -> unit
 (** Look over all this host's PIFs and reset the management flag.
  *  The management interface is ultimately defined by the inventory file,
  *  which holds the bridge of the management interface in the MANAGEMENT_INTERFACE field. *)
 
 val calculate_pifs_required_at_start_of_day :
-  __context:Context.t -> (API.ref_PIF * API.pIF_t) list
+  __context:Context.db Context.t -> (API.ref_PIF * API.pIF_t) list
 (** Returns the set of PIF references + records which we want to be plugged in by the end of the
     start of day code. These are the PIFs on the localhost that are not bond slaves.
     For PIFs that have [disallow_unplug] set to true, and the management interface, will
@@ -256,41 +256,41 @@ val calculate_pifs_required_at_start_of_day :
     interfaces required by storage NICs etc. (these interface are not filtered out at the moment).
 *)
 
-val start_of_day_best_effort_bring_up : __context:Context.t -> unit -> unit
+val start_of_day_best_effort_bring_up : __context:Context.db Context.t -> unit -> unit
 (** Attempt to bring up (plug) the required PIFs when the host starts up.
  *  Uses {!calculate_pifs_required_at_start_of_day}. *)
 
 (** {2 Assertion Helper Functions} *)
 
 val assert_no_clustering_enabled_on :
-  __context:Context.t -> self:[`PIF] Ref.t -> unit
+  __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Raise an error if PIF attached to ENABLED cluster_host *)
 
-val assert_not_in_bond : __context:Context.t -> self:[`PIF] Ref.t -> unit
+val assert_not_in_bond : __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Ensure the PIF is not a bond slave or master. *)
 
-val assert_no_vlans : __context:Context.t -> self:[`PIF] Ref.t -> unit
+val assert_no_vlans : __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Ensure the PIF is not a VLAN slave or master. *)
 
-val assert_not_management_pif : __context:Context.t -> self:[`PIF] Ref.t -> unit
+val assert_not_management_pif : __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Ensure the PIF is not the management interface. *)
 
 val assert_not_slave_management_pif :
-  __context:Context.t -> self:[`PIF] Ref.t -> unit
+  __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Ensure the PIF is not the management interface if the host is a pool slave. *)
 
 val assert_no_protection_enabled :
-  __context:Context.t -> self:[`PIF] Ref.t -> unit
+  __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Ensure neither HA nor the general redo-log are enabled. *)
 
 val abort_if_network_attached_to_protected_vms :
-  __context:Context.t -> self:[`PIF] Ref.t -> unit
+  __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Ensure the Network attached to the given PIF has not VIFs on it
  *  belonging to VMs that are protected by HA. *)
 
 val assert_no_other_local_pifs :
-  __context:Context.t -> host:[`host] Ref.t -> network:[`network] Ref.t -> unit
+  __context:Context.db Context.t -> host:[`host] Ref.t -> network:[`network] Ref.t -> unit
 (** Ensure none of the PIFs on the given host are on the given network. *)
 
-val assert_fcoe_not_in_use : __context:Context.t -> self:[`PIF] Ref.t -> unit
+val assert_fcoe_not_in_use : __context:Context.db Context.t -> self:[`PIF] Ref.t -> unit
 (** Ensure PIF has no FCOE SR in use *)

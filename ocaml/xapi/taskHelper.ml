@@ -119,6 +119,9 @@ let get_name ~__context =
   if Ref.is_dummy task_id then
     Ref.name_of_dummy task_id
   else
+    match Context.as_maybe_db __context with
+    | None -> invalid_arg "No acces to the database"
+    | Some __context ->
     Db.Task.get_name_label ~__context ~self:task_id
 
 let destroy ~__context task_id =

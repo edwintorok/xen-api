@@ -16,7 +16,7 @@
     There exist scripts (e.g. xe-toolstack-restart) which also manipulate
     the stunnel daemon but they do this directly (not via ocaml). *)
 
-val sync : __context:Context.t -> bool -> unit
+val sync : __context:Context.db Context.t -> bool -> unit
 (** update config file and (re)start stunnel, if needed *)
 
 val reload : ?wait:float -> unit -> unit

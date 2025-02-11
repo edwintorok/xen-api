@@ -16,7 +16,7 @@
 *)
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> transport_PIF:[`PIF] Ref.t
   -> network:[`network] Ref.t
   -> protocol:API.tunnel_protocol
@@ -24,7 +24,7 @@ val create :
 (** Create a tunnel for a given transport PIF and network *)
 
 val create_internal :
-     __context:Context.t
+     __context:Context.db Context.t
   -> transport_PIF:[`PIF] Ref.t
   -> network:[`network] Ref.t
   -> host:[`host] Ref.t
@@ -32,5 +32,5 @@ val create_internal :
   -> [`tunnel] Ref.t * [`PIF] Ref.t
 (** Internal version of [create] without checks/exceptions and auto-plugging *)
 
-val destroy : __context:Context.t -> self:[`tunnel] Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`tunnel] Ref.t -> unit
 (** Destroy a tunnel. Removes the tunnel object as well as the tunnel access PIF. *)

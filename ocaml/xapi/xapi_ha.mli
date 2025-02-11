@@ -67,7 +67,7 @@ val ha_stop_daemon : 'a -> 'b -> unit
 val emergency_ha_disable : 'a -> bool -> unit
 (** Emergency-mode API call to disarm localhost *)
 
-val ha_release_resources : Context.t -> 'a -> unit
+val ha_release_resources : Context.db Context.t -> 'a -> unit
 (** Internal API call to release any HA resources after the system has been
     shutdown. This call is idempotent. Modified for CA-48539 to call
     vdi.deactivate before vdi.detach. *)
@@ -80,7 +80,7 @@ val ha_wait_for_shutdown_via_statefile : 'a -> 'b -> unit
 *)
 
 val preconfigure_host :
-     Context.t
+     Context.db Context.t
   -> [`host] API.Ref.t
   -> [`VDI] API.Ref.t list
   -> [`VDI] API.Ref.t
@@ -93,7 +93,7 @@ val join_liveset : 'a -> 'b Ref.t -> unit
 val propose_new_master : __context:'a -> address:string -> manual:'b -> unit
 (** First phase of a two-phase commit of a new master *)
 
-val commit_new_master : __context:Context.t -> address:string -> unit
+val commit_new_master : __context:Context.db Context.t -> address:string -> unit
 (** Second phase of a two-phase commit of a new master *)
 
 val abort_new_master : __context:'a -> address:string -> unit
@@ -103,16 +103,16 @@ val abort_new_master : __context:'a -> address:string -> unit
 
 (** {3 Pool.*_ha API calls} *)
 
-val disable : Context.t -> unit
+val disable : Context.db Context.t -> unit
 
-val enable : Context.t -> [`SR] API.Ref.t list -> (string * string) list -> unit
+val enable : Context.db Context.t -> [`SR] API.Ref.t list -> (string * string) list -> unit
 
 (** {3 Functions called by host.* API calls} *)
 
-val before_clean_shutdown_or_reboot : __context:Context.t -> host:'a -> unit
+val before_clean_shutdown_or_reboot : __context:Context.db Context.t -> host:'a -> unit
 (** Called before shutting down or rebooting a host
     (called by the host.shutdown, host.reboot API functions). *)
 
 val before_clean_shutdown_or_reboot_precheck :
-  __context:Context.t -> host:'a -> unit
+  __context:Context.db Context.t -> host:'a -> unit
 (** Only runs the checks performed by [before_clean_shutdown_or_reboot]. *)

@@ -49,19 +49,19 @@ type accounting_policy =
       (** use dynamic_min: liberal: assumes that guests always co-operate. *)
 
 val get_host_memory_summary :
-  __context:Context.t -> host:API.ref_host -> host_memory_summary
+  __context:Context.db Context.t -> host:API.ref_host -> host_memory_summary
 (** Return a host's memory summary from live database contents. *)
 
 val vm_compute_required_memory : API.vM_t -> int64 -> int64 * int64
 
 val vm_compute_start_memory :
-  __context:Context.t -> ?policy:accounting_policy -> API.vM_t -> int64 * int64
+  __context:Context.db Context.t -> ?policy:accounting_policy -> API.vM_t -> int64 * int64
 
 val vm_compute_used_memory :
-  __context:Context.t -> accounting_policy -> [`VM] Ref.t -> int64
+  __context:Context.db Context.t -> accounting_policy -> [`VM] Ref.t -> int64
 
 val host_compute_free_memory_with_policy :
-  __context:Context.t -> host_memory_summary -> accounting_policy -> int64
+  __context:Context.db Context.t -> host_memory_summary -> accounting_policy -> int64
 (**
    	Given a host's memory summary and a policy flag (i.e. whether to only
    	consider static_max or to consider dynamic balloon data) it returns a
@@ -70,7 +70,7 @@ val host_compute_free_memory_with_policy :
 
 val host_compute_free_memory_with_maximum_compression :
      ?dump_stats:bool
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> host:[`host] Ref.t
   -> [`VM] Ref.t option
   -> int64
@@ -90,6 +90,6 @@ val host_compute_free_memory_with_maximum_compression :
 *)
 
 val host_compute_memory_overhead :
-  __context:Context.t -> host:[`host] Ref.t -> int64
+  __context:Context.db Context.t -> host:[`host] Ref.t -> int64
 
 val vm_compute_memory_overhead : vm_record:API.vM_t -> int64

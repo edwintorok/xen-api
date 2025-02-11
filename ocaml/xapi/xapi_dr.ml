@@ -118,7 +118,7 @@ let add_vdis_to_cache ~__context ~vdis =
             let db_ref = Xapi_vdi_helpers.database_ref_of_vdi ~__context ~vdi in
             let generation = read_database_generation ~db_ref in
             let __foreign_database_context =
-              Context.make ~database:db_ref "Querying foreign database."
+              Context.make ~database:db_ref `DB "Querying foreign database."
             in
             let pool = Helpers.get_pool ~__context:__foreign_database_context in
             let pool_uuid =

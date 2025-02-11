@@ -12,28 +12,28 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val update_allowed_operations : __context:Context.t -> self:API.ref_pool -> unit
+val update_allowed_operations : __context:Context.db Context.t -> self:API.ref_pool -> unit
 
 (* checks that no other pool ops are running
    before starting a new pool operation *)
 val with_pool_operation :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_pool
   -> doc:string
   -> op:API.pool_allowed_operations
   -> (unit -> 'a)
   -> 'a
 
-val ha_disable_in_progress : __context:Context.t -> bool
+val ha_disable_in_progress : __context:Context.db Context.t -> bool
 
-val ha_enable_in_progress : __context:Context.t -> bool
+val ha_enable_in_progress : __context:Context.db Context.t -> bool
 
 (* useful when a non-pool operation requires
    that no pool operations are running. *)
-val assert_no_pool_ops : __context:Context.t -> unit
+val assert_no_pool_ops : __context:Context.db Context.t -> unit
 
 val call_fn_on_master_then_slaves :
-     __context:Context.t
+     __context:Context.db Context.t
   -> (   rpc:(Rpc.call -> Rpc.response)
       -> session_id:API.ref_session
       -> host:API.ref_host
@@ -44,7 +44,7 @@ val call_fn_on_master_then_slaves :
     when attaching an SR to all hosts in the pool. *)
 
 val call_fn_on_slaves_then_master :
-     __context:Context.t
+     __context:Context.db Context.t
   -> (   rpc:(Rpc.call -> Rpc.response)
       -> session_id:API.ref_session
       -> host:[`host] Ref.t
@@ -55,10 +55,10 @@ val call_fn_on_slaves_then_master :
  *  returned, call the function on the master. *)
 
 val get_master_slaves_list_with_fn :
-  __context:Context.t -> ([`host] Ref.t -> [`host] Ref.t list -> unit) -> unit
+  __context:Context.db Context.t -> ([`host] Ref.t -> [`host] Ref.t list -> unit) -> unit
 
-val get_master_slaves_list : __context:Context.t -> [`host] Ref.t list
+val get_master_slaves_list : __context:Context.db Context.t -> [`host] Ref.t list
 
-val get_slaves_list : __context:Context.t -> [`host] Ref.t list
+val get_slaves_list : __context:Context.db Context.t -> [`host] Ref.t list
 
-val apply_guest_agent_config : __context:Context.t -> unit
+val apply_guest_agent_config : __context:Context.db Context.t -> unit

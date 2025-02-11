@@ -16,27 +16,27 @@
 *)
 
 val assert_operation_valid :
-  __context:Context.t -> self:[`VIF] Ref.t -> op:API.vif_operations -> unit
+  __context:Context.db Context.t -> self:[`VIF] Ref.t -> op:API.vif_operations -> unit
 (** Throw error if the given operation is not in the list of allowed operations. *)
 
-val update_allowed_operations : __context:Context.t -> self:[`VIF] Ref.t -> unit
+val update_allowed_operations : __context:Context.db Context.t -> self:[`VIF] Ref.t -> unit
 (** Update the [PIF.allowed_operations] field. *)
 
 val cancel_tasks :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VIF] Ref.t
   -> all_tasks_in_db:API.ref_task list
   -> task_ids:string list
   -> unit
 (** Cancel all current operations. *)
 
-val clear_current_operations : __context:Context.t -> self:[`VIF] Ref.t -> unit
+val clear_current_operations : __context:Context.db Context.t -> self:[`VIF] Ref.t -> unit
 (** Empty the [PIF.current_operations] field. *)
 
-val assert_locking_licensed : __context:Context.t -> unit
+val assert_locking_licensed : __context:Context.db Context.t -> unit
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> device:string
   -> network:[`network] Ref.t
   -> vM:[`VM] Ref.t
@@ -58,11 +58,11 @@ val create :
   -> API.ref_VIF
 (** Create a VIF object in the database. *)
 
-val destroy : __context:Context.t -> self:[`VIF] Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`VIF] Ref.t -> unit
 (** Destroy a VIF object in the database. *)
 
 val copy :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vm:[`VM] Ref.t
   -> preserve_mac_address:bool
   -> [`VIF] Ref.t

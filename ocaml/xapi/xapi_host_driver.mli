@@ -15,7 +15,7 @@
 (** A host driver variant, referred to by a host driver *)
 module Variant : sig
   val create :
-       __context:Context.t
+       __context:Context.db Context.t
     -> name:string
     -> version:string
     -> driver:[`Host_driver] API.Ref.t
@@ -24,13 +24,13 @@ module Variant : sig
     -> dev_status:string
     -> [`Driver_variant] Ref.t
 
-  val destroy : __context:Context.t -> self:[`Driver_variant] API.Ref.t -> unit
+  val destroy : __context:Context.db Context.t -> self:[`Driver_variant] API.Ref.t -> unit
 
-  val select : __context:Context.t -> self:[`Driver_variant] API.Ref.t -> unit
+  val select : __context:Context.db Context.t -> self:[`Driver_variant] API.Ref.t -> unit
 end
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> host:[`host] API.Ref.t
   -> name:string
   -> friendly_name:string
@@ -42,20 +42,20 @@ val create :
   -> [`Host_driver] Ref.t
 (** A host driver *)
 
-val destroy : __context:Context.t -> self:[`Host_driver] API.Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`Host_driver] API.Ref.t -> unit
 
 val select :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`Host_driver] API.Ref.t
   -> variant:[`Driver_variant] API.Ref.t
   -> unit
 
-val deselect : __context:Context.t -> self:[`Host_driver] API.Ref.t -> unit
+val deselect : __context:Context.db Context.t -> self:[`Host_driver] API.Ref.t -> unit
 (** This is just for completeness; don't see a use case right now *)
 
-val scan : __context:Context.t -> host:[`host] API.Ref.t -> unit
+val scan : __context:Context.db Context.t -> host:[`host] API.Ref.t -> unit
 (** scan and re-scan scan the [host] for drivers and update the xapi
     database accordingly. Previous entries are purged (this may change
     in the future *)
 
-val rescan : __context:Context.t -> host:[`host] API.Ref.t -> unit
+val rescan : __context:Context.db Context.t -> host:[`host] API.Ref.t -> unit

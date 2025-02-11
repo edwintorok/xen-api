@@ -16,10 +16,10 @@
 *)
 
 val bring_pif_up :
-  __context:Context.t -> ?management_interface:bool -> API.ref_PIF -> unit
+  __context:Context.db Context.t -> ?management_interface:bool -> API.ref_PIF -> unit
 (** Bring up and configure a PIF and related infrastructure on this host *)
 
-val bring_pif_down : __context:Context.t -> ?force:bool -> API.ref_PIF -> unit
+val bring_pif_down : __context:Context.db Context.t -> ?force:bool -> API.ref_PIF -> unit
 (** Bring down a PIF and related infrastructure on this host *)
 
 val with_local_lock : (unit -> 'a) -> 'a
@@ -31,4 +31,4 @@ val is_dom0_interface : API.pIF_t -> bool
 
 (* Internals *)
 val maybe_update_master_pif_mac :
-  __context:Context.t -> API.bond_t -> API.pIF_t -> API.ref_PIF -> API.pIF_t
+  __context:Context.db Context.t -> API.bond_t -> API.pIF_t -> API.ref_PIF -> API.pIF_t

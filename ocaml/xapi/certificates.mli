@@ -40,7 +40,7 @@ val update_ca_bundle : unit -> unit
 
 val local_sync : unit -> unit
 
-val pool_sync : __context:Context.t -> unit
+val pool_sync : __context:Context.db Context.t -> unit
 
 (* Certificate installation to filesystem *)
 
@@ -56,16 +56,16 @@ val host_install : t_trusted -> name:string -> cert:string -> unit
 val host_uninstall : t_trusted -> name:string -> force:bool -> unit
 
 val pool_install :
-  t_trusted -> __context:Context.t -> name:string -> cert:string -> unit
+  t_trusted -> __context:Context.db Context.t -> name:string -> cert:string -> unit
 
 val pool_uninstall :
-  t_trusted -> __context:Context.t -> name:string -> force:bool -> unit
+  t_trusted -> __context:Context.db Context.t -> name:string -> force:bool -> unit
 
 (* Database manipulation *)
 
 module Db_util : sig
   val add_cert :
-       __context:Context.t
+       __context:Context.db Context.t
     -> type':
          [< `ca of string
          | `host of API.ref_host
@@ -73,15 +73,15 @@ module Db_util : sig
     -> X509.Certificate.t
     -> API.ref_Certificate
 
-  val remove_cert_by_ref : __context:Context.t -> API.ref_Certificate -> unit
+  val remove_cert_by_ref : __context:Context.db Context.t -> API.ref_Certificate -> unit
 
-  val remove_ca_cert_by_name : __context:Context.t -> string -> unit
+  val remove_ca_cert_by_name : __context:Context.db Context.t -> string -> unit
 
   val get_host_certs :
-       __context:Context.t
+       __context:Context.db Context.t
     -> type':[< `host | `host_internal]
     -> host:API.ref_host
     -> API.ref_Certificate list
 
-  val get_ca_certs : __context:Context.t -> API.ref_Certificate list
+  val get_ca_certs : __context:Context.db Context.t -> API.ref_Certificate list
 end

@@ -27,7 +27,7 @@ let finally = Xapi_stdext_pervasives.Pervasiveext.finally
 type upgrade_rule = {
     description: string
   ; version: int * int -> bool  (** rule will be applied if this is true *)
-  ; fn: __context:Context.t -> unit
+  ; fn: __context:Context.db Context.t -> unit
 }
 
 (** Apply all the rules needed for the previous_version *)

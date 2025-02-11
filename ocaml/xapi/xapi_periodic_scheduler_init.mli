@@ -13,5 +13,5 @@
  *)
 (** Schedule common background tasks. *)
 
-val register : __context:Context.t -> unit
+val register : __context:Context.db Context.t -> unit
 (** Register periodic calls, done by {!Xapi} on start-up. *)

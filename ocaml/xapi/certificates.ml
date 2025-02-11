@@ -162,25 +162,25 @@ module Db_util : sig
   type name = string
 
   val add_cert :
-       __context:Context.t
+       __context:Context.db Context.t
     -> type':
          [< `host of API.ref_host | `host_internal of API.ref_host | `ca of name]
     -> X509.Certificate.t
     -> API.ref_Certificate
 
-  val remove_cert_by_ref : __context:Context.t -> API.ref_Certificate -> unit
+  val remove_cert_by_ref : __context:Context.db Context.t -> API.ref_Certificate -> unit
 
-  val remove_ca_cert_by_name : __context:Context.t -> name -> unit
+  val remove_ca_cert_by_name : __context:Context.db Context.t -> name -> unit
 
   val get_host_certs :
-       __context:Context.t
+       __context:Context.db Context.t
     -> type':[< `host | `host_internal]
     -> host:API.ref_host
     -> API.ref_Certificate list
   (** [get_host_certs ~__context ~type' ~host] gets all the host certs in the database
     * of type [type'] belonging to [host] (the term 'host' is overloaded here) *)
 
-  val get_ca_certs : __context:Context.t -> API.ref_Certificate list
+  val get_ca_certs : __context:Context.db Context.t -> API.ref_Certificate list
 end = struct
   module Date = Xapi_stdext_date.Date
 

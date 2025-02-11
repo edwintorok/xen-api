@@ -17,11 +17,11 @@
 *)
 
 val create_vgpus :
-  __context:Context.t -> API.ref_host -> API.ref_VM * API.vM_t -> bool -> unit
+  __context:Context.db Context.t -> API.ref_host -> API.ref_VM * API.vM_t -> bool -> unit
 (** Assign a list of VGPU and/or PCI devices to a VM *)
 
 val list_pcis_for_passthrough :
-  __context:Context.t -> vm:API.ref_VM -> (int * (int * int * int * int)) list
+  __context:Context.db Context.t -> vm:API.ref_VM -> (int * (int * int * int * int)) list
 (** Return a list of the GPU PCI devices which have been assigned to this VM *)
 
 (** Allocate a vGPU to a pGPU of a host for the VM
@@ -38,11 +38,11 @@ type vgpu_t
 val allocate_vgpu_to_gpu :
      ?dry_run:bool
   -> ?pre_allocate_list:(API.ref_VGPU * API.ref_PGPU) list
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> API.ref_VM
   -> API.ref_host
   -> vgpu_t
   -> (API.ref_VGPU * API.ref_PGPU) list
 
-val vgpu_of_ref : __context:Context.t -> API.ref_VGPU -> vgpu_t
+val vgpu_of_ref : __context:Context.db Context.t -> API.ref_VGPU -> vgpu_t
 (** Get a vgpu record from vgpu ref *)

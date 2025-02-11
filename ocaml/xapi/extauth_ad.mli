@@ -19,7 +19,7 @@ val start_backend_daemon : wait_until_success:bool -> unit
 val stop_backend_daemon : wait_until_success:bool -> unit
 
 (* init AD external auth backend service *)
-val init_service : __context:Context.t -> unit
+val init_service : __context:Context.db Context.t -> unit
 
 (* methods to implement auth signature *)
 val methods : unit -> Auth_signature.t

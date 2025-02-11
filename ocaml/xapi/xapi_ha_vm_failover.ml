@@ -72,7 +72,7 @@ module TaskChains : sig
   end
 
   val parallel :
-       __context:Context.t
+       __context:Context.db Context.t
     -> rpc:(Rpc.call -> Rpc.response)
     -> session_id:API.ref_session
     -> ('a * ('b, exn) result t) list

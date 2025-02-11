@@ -19,7 +19,7 @@
 
 (** {2 External API calls} *)
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> pIF:API.ref_PIF
   -> cluster_stack:string
   -> pool_auto_join:bool
@@ -30,17 +30,17 @@ val create :
  *   ~token_timeout_coefficient] is the implementation of the XenAPI method
  *   'Cluster.create'. It is the constructor of the Cluster object. *)
 
-val destroy : __context:Context.t -> self:API.ref_Cluster -> unit
+val destroy : __context:Context.db Context.t -> self:API.ref_Cluster -> unit
 (** [destroy ~__context ~self] is the implementation of the XenAPI method
     'Cluster.destroy'. It is the destructor of the Cluster object *)
 
-val get_network : __context:Context.t -> self:API.ref_Cluster -> API.ref_network
+val get_network : __context:Context.db Context.t -> self:API.ref_Cluster -> API.ref_network
 (** [get_network ~__context ~self] returns the network of the master cluster host's PIF,
     as well as logging whether all the cluster hosts in the pool have
     PIFs on the same network *)
 
 val pool_create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> network:API.ref_network
   -> cluster_stack:string
   -> token_timeout:float
@@ -52,7 +52,7 @@ val pool_create :
     that creates the Cluster object and then creates Cluster_host objects for
     all hosts in the pool. *)
 
-val pool_force_destroy : __context:Context.t -> self:API.ref_Cluster -> unit
+val pool_force_destroy : __context:Context.db Context.t -> self:API.ref_Cluster -> unit
 (** [pool_force_destroy ~__context ~self] is the implementation of the XenAPI
     method 'Cluster.pool_force_destroy'. This is a convenience function that
     first attempts to destroy the Cluster_host objects for all hosts in the pool.
@@ -61,13 +61,13 @@ val pool_force_destroy : __context:Context.t -> self:API.ref_Cluster -> unit
     this, the cluster is destroyed, unless there are still cluster_hosts remaining,
     in which case the call raises an API error. *)
 
-val pool_destroy : __context:Context.t -> self:API.ref_Cluster -> unit
+val pool_destroy : __context:Context.db Context.t -> self:API.ref_Cluster -> unit
 (** [pool_destroy ~__context ~self] is the implementation of the XenAPI
     method 'Cluster.pool_destroy'. This is a convenience function that destroys
     the Cluster_host objects for all hosts in the pool and then destroys the
     Cluster object. *)
 
-val pool_resync : __context:Context.t -> self:API.ref_Cluster -> unit
+val pool_resync : __context:Context.db Context.t -> self:API.ref_Cluster -> unit
 (** [pool_resync ~__context ~self] is the implementation of the XenAPI method
     'Cluster.pool_resync'. The purpose of this function is to help after the
     failure to create Cluster_host objects. It should create all necessary
@@ -75,7 +75,7 @@ val pool_resync : __context:Context.t -> self:API.ref_Cluster -> unit
     has [pool_auto_join] set. If there is a failure, this function must return
     an error that enables the administrator to fix the problem. *)
 
-val cstack_sync : __context:Context.t -> self:API.ref_Cluster -> unit
+val cstack_sync : __context:Context.db Context.t -> self:API.ref_Cluster -> unit
 (** [cstack_sync ~__context ~self] is the implementation of the internal XenAPI method,
 which synchronously performs a diagnostics call to xapi-clusterd and updates the
 xapi db according to the call. This is used internally by cluster-host-create/destroy

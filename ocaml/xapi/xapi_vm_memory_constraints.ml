@@ -29,20 +29,20 @@ module type T = sig
       	    [c.static_min] ≤ [c.dynamic_min] = [c.dynamic_max] = [c.static_max]. *)
 
   val assert_valid_for_current_context :
-    __context:Context.t -> vm:[`VM] Ref.t -> constraints:t -> unit
+    __context:Context.db Context.t -> vm:[`VM] Ref.t -> constraints:t -> unit
   (** Asserts that the given set of constraints [c] is valid for the current
       	    context. *)
 
   val extract : vm_record:API.vM_t -> t
   (** Extracts memory constraints from the given VM record. *)
 
-  val get : __context:Context.t -> vm_ref:[`VM] Ref.t -> t
+  val get : __context:Context.db Context.t -> vm_ref:[`VM] Ref.t -> t
   (** Reads memory constraints for the given VM, from the database. *)
 
-  val get_live : __context:Context.t -> vm_ref:[`VM] Ref.t -> t
+  val get_live : __context:Context.db Context.t -> vm_ref:[`VM] Ref.t -> t
   (** Reads memory constraints effective for the given running VM, from the database. *)
 
-  val set : __context:Context.t -> vm_ref:[`VM] Ref.t -> constraints:t -> unit
+  val set : __context:Context.db Context.t -> vm_ref:[`VM] Ref.t -> constraints:t -> unit
   (** Writes memory constraints for the given VM, to the database. *)
 end
 

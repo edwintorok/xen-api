@@ -322,7 +322,7 @@ let cleanup_internal ~additional_files_to_remove ~old_ps ~new_ps =
 module Impl =
 functor
   (Ctx : sig
-     val __context : Context.t
+     val __context : Context.db Context.t
    end)
   ->
   struct

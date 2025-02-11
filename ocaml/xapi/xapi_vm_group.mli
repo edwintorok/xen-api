@@ -13,10 +13,10 @@
  *)
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> placement:API.placement_policy
   -> [`VM_group] Ref.t
 
-val destroy : __context:Context.t -> self:[`VM_group] Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`VM_group] Ref.t -> unit

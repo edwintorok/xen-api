@@ -13,21 +13,21 @@
  *)
 
 val assert_VGPU_type_enabled :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PGPU
   -> vgpu_type:API.ref_VGPU_type
   -> unit
 (** Check that the specified type of VGPU is enabled on this PGPU. *)
 
 val assert_VGPU_type_supported :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PGPU
   -> vgpu_type:API.ref_VGPU_type
   -> unit
 (** Check that the specified type of VGPU is supported on this PGPU. *)
 
 val assert_VGPU_type_allowed :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PGPU
   -> vgpu_type:API.ref_VGPU_type
   -> unit
@@ -36,7 +36,7 @@ val assert_VGPU_type_allowed :
  *  to run on a PGPU at any one time. *)
 
 val assert_no_resident_VGPUs_of_type :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PGPU
   -> vgpu_type:API.ref_VGPU_type
   -> unit
@@ -45,7 +45,7 @@ val assert_no_resident_VGPUs_of_type :
 (* Return the number of VGPUs of the specified type for which capacity
  * remains on the PGPU, or an exception if the remaining capacity is zero. *)
 val get_remaining_capacity_internal :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PGPU
   -> vgpu_type:API.ref_VGPU_type
   -> pre_allocate_list:(API.ref_VGPU * API.ref_PGPU) list
@@ -54,21 +54,21 @@ val get_remaining_capacity_internal :
 (* Return the number of VGPUs of the specified type for which capacity
  * remains on the PGPU. *)
 val get_remaining_capacity :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PGPU
   -> vgpu_type:API.ref_VGPU_type
   -> pre_allocate_list:(API.ref_VGPU * API.ref_PGPU) list
   -> int64
 
 val assert_capacity_exists_for_VGPU_type :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PGPU
   -> vgpu_type:API.ref_VGPU_type
   -> unit
 (** Check that the PGPU has capacity to run the specified VGPU. *)
 
 val assert_destination_pgpu_is_compatible_with_vm :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vm:API.ref_VM
   -> vgpu:API.ref_VGPU
   -> pgpu:API.ref_PGPU
@@ -81,7 +81,7 @@ val assert_destination_pgpu_is_compatible_with_vm :
  *  are detected. *)
 
 val assert_destination_has_pgpu_compatible_with_vm :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vm:API.ref_VM
   -> vgpu_map:(API.ref_VGPU * API.ref_GPU_group) list
   -> host:API.ref_host

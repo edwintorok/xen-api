@@ -32,7 +32,7 @@
 val watch_networks_for_nbd_changes : unit -> unit
 
 val _watch_networks_for_nbd_changes :
-     Context.t
+     Context.db Context.t
   -> update_firewall:(string list -> unit)
   -> wait_after_event_seconds:float
   -> wait_after_failure_seconds:float

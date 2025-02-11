@@ -15,14 +15,14 @@
  * @group Virtual-Machine Management
 *)
 
-val pcidev_of_pci : __context:Context.t -> API.ref_PCI -> int * int * int * int
+val pcidev_of_pci : __context:Context.db Context.t -> API.ref_PCI -> int * int * int * int
 (** Return the PCI DBDF string for a PCI object *)
 
 val sort_pcidevs : ('a * 'b) list -> ('a * 'b list) list
 (** Return a list of PCIdevs in plug order *)
 
 val other_pcidevs_of_vm :
-     __context:Context.t
+     __context:Context.db Context.t
   -> (string * string) list
   -> (int * (int * int * int * int)) list
 (** Return the PCI devices that are specified in the VM.other_config:pci field. *)
@@ -36,13 +36,13 @@ val of_string : string -> int * (int * int * int * int)
 val is_bdf_format : string -> bool
 (** True if the string matches BDF format, e.g. c002:8c:b3.a (all digits hex) *)
 
-val is_pci_hidden : __context:Context.t -> [`PCI] Ref.t -> bool
+val is_pci_hidden : __context:Context.db Context.t -> [`PCI] Ref.t -> bool
 (** Check whether a PCI device will be hidden from the dom0 kernel on boot. *)
 
-val hide_pci : __context:Context.t -> [`PCI] Ref.t -> unit
+val hide_pci : __context:Context.db Context.t -> [`PCI] Ref.t -> unit
 (** Hide a PCI device from the dom0 kernel. (Takes affect after next boot.) *)
 
-val unhide_pci : __context:Context.t -> [`PCI] Ref.t -> unit
+val unhide_pci : __context:Context.db Context.t -> [`PCI] Ref.t -> unit
 (** Unhide a PCI device from the dom0 kernel. (Takes affect after next boot.) *)
 
 val id_of : int * (int * int * int * int) -> int
@@ -61,5 +61,5 @@ val fn_of : int * (int * int * int * int) -> int
 (** Return the function of a PCI device *)
 
 val reserve_free_virtual_function :
-  __context:Context.t -> [`VM] Ref.t -> [`PCI] Ref.t -> [`PCI] Ref.t option
+  __context:Context.db Context.t -> [`VM] Ref.t -> [`PCI] Ref.t -> [`PCI] Ref.t option
 (** Find a free virtual function given a physical function (SR-IOV) *)

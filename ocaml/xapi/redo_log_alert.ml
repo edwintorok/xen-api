@@ -22,7 +22,7 @@ let raise_system_alert (name, priority) body =
     (Thread.create
        (fun () ->
          debug "Processing redo log event: %s" name ;
-         let __context = Context.make "context" in
+         let __context = Context.make `DB "context" in
          let pool = Helpers.get_pool ~__context in
          let obj_uuid = Db.Pool.get_uuid ~__context ~self:pool in
          let other_config = Db.Pool.get_other_config ~__context ~self:pool in

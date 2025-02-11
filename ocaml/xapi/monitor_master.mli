@@ -25,5 +25,5 @@ val update_configuration_from_master : unit -> unit
  * pass_through_pif_carrier. *)
 
 val update_pifs :
-  __context:Context.t -> 'a Ref.t -> Monitor_types.pif list -> unit
+  __context:Context.db Context.t -> 'a Ref.t -> Monitor_types.pif list -> unit
 (** A function to write information about PIFs to xapi's database. *)

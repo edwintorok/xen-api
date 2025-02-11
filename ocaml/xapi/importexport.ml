@@ -225,7 +225,7 @@ let find_host_for_VM ~__context vm =
 
 (* On any import error, we try to cleanup the bits we have created *)
 type cleanup_stack =
-  (Context.t -> (Rpc.call -> Rpc.response) -> API.ref_session -> unit) list
+  (Context.db Context.t -> (Rpc.call -> Rpc.response) -> API.ref_session -> unit) list
 
 let cleanup (x : cleanup_stack) =
   (* Always perform the cleanup with a fresh login + context to prevent problems with

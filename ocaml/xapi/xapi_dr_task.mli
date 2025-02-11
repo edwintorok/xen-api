@@ -13,7 +13,7 @@
  *)
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> _type:string
   -> device_config:(string * string) list
   -> whitelist:string list
@@ -26,7 +26,7 @@ val create :
     If anything goes wrong, unplug all PBDs which were created, forget the SRs,
     and re-raise the error. *)
 
-val destroy : __context:Context.t -> self:API.ref_DR_task -> unit
+val destroy : __context:Context.db Context.t -> self:API.ref_DR_task -> unit
 (** * Unplug all PBDs for each SR associated with the DR_task.
     * Forget each SR associated with the DR_task.
     * Destroy the DR_task. *)

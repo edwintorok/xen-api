@@ -72,7 +72,7 @@ type progress = {
     total_size: int64
   ; mutable transmitted_so_far: int64
   ; mutable time_of_last_update: float
-  ; __context: Context.t
+  ; __context: Context.db Context.t
 }
 
 (** Create a fresh progress record from a set of VDIs *)
@@ -257,7 +257,7 @@ let send_all refresh_session ofd ~__context rpc session_id
     (prefix_vdis : vdi list) =
   TaskHelper.set_cancellable ~__context ;
   let progress = new_progress_record __context prefix_vdis in
-  let send_one ofd (__context : Context.t) (prefix, vdi_ref, _size) =
+  let send_one ofd (__context : Context.db Context.t) (prefix, vdi_ref, _size) =
     let size = Db.VDI.get_virtual_size ~__context ~self:vdi_ref in
     let reusable_buffer = Bytes.make (Int64.to_int chunk_size) '\000' in
     with_open_vdi __context rpc session_id vdi_ref `RO [Unix.O_RDONLY] 0o644
@@ -438,14 +438,14 @@ let verify_inline_checksum ifd checksum_table hdr =
     raise e
 
 (** Receive a set of VDIs split into chunks in a tar format in a defined order *)
-let recv_all_vdi refresh_session ifd (__context : Context.t) rpc session_id
+let recv_all_vdi refresh_session ifd (__context : Context.db Context.t) rpc session_id
     ~has_inline_checksums ~force prefix_vdis =
   TaskHelper.set_cancellable ~__context ;
   let progress = new_progress_record __context prefix_vdis in
   let checksum_table = ref [] in
   let firstchunklength = ref (-1) in
   let zerochunkstring = ref Bytes.empty in
-  let recv_one ifd (__context : Context.t) (prefix, vdi_ref, size) =
+  let recv_one ifd (__context : Context.db Context.t) (prefix, vdi_ref, size) =
     let vdi_skip_zeros =
       not (Sm_fs_ops.must_write_zeroes_into_new_vdi ~__context vdi_ref)
     in
@@ -549,7 +549,7 @@ let recv_all_vdi refresh_session ifd (__context : Context.t) rpc session_id
   ) ;
   !checksum_table
 
-let recv_all refresh_session ifd (__context : Context.t) rpc session_id vsn
+let recv_all refresh_session ifd (__context : Context.db Context.t) rpc session_id vsn
     force =
   let has_inline_checksums = vsn.Importexport.export_vsn > 0 in
   recv_all_vdi refresh_session ifd __context rpc session_id

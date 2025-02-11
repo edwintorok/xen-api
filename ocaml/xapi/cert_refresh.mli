@@ -18,14 +18,14 @@ accept the old certificate and hence need to perform some clean-up
 actions *)
 
 val host :
-  __context:Context.t -> type':[< `host | `host_internal] -> API.ref_Certificate
+  __context:Context.db Context.t -> type':[< `host | `host_internal] -> API.ref_Certificate
 
 (** On this host, remove stale certs for [host] after [host]'s
 certificates were refreshed. This needs to be executed on every 
 host of the pool *)
 
 val remove_stale_cert :
-     __context:Context.t
+     __context:Context.db Context.t
   -> host:API.ref_host
   -> type':[< `host | `host_internal]
   -> unit

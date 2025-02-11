@@ -21,18 +21,18 @@ val serialize_expiry : Xapi_stdext_date.Date.t option -> string
     DB *)
 
 val get_expiry_date :
-  __context:Context.t -> host:API.ref_host -> Xapi_stdext_date.Date.t option
+  __context:Context.db Context.t -> host:API.ref_host -> Xapi_stdext_date.Date.t option
 (** Returns (Some date) if the host's license has an expiry date,
  *  otherwise returns None. *)
 
-val check_expiry : __context:Context.t -> host:API.ref_host -> unit
+val check_expiry : __context:Context.db Context.t -> host:API.ref_host -> unit
 (** Raises {!Api_errors.license_expired} if the current license has expired. *)
 
-val vm : __context:Context.t -> API.ref_VM -> unit
+val vm : __context:Context.db Context.t -> API.ref_VM -> unit
 (** Raises {!Api_errors.license_expired} if the current license has expired.
  *  The consequence would be that the VM is not allowed to start. *)
 
 val with_vm_license_check :
-  __context:Context.t -> [`VM] Ref.t -> (unit -> 'b) -> 'b
+  __context:Context.db Context.t -> [`VM] Ref.t -> (unit -> 'b) -> 'b
 (** Executes function [f] only if the current license has not yet expired.
  *  If it has expired, it raises {!Api_errors.license_expired}. *)

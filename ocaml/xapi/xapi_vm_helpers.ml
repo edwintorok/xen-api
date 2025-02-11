@@ -1263,7 +1263,7 @@ let choose_host_for_vm ~__context ~vm ~snapshot =
   )
 
 type set_cpus_number_fn =
-  __context:Context.t -> self:API.ref_VM -> int -> API.vM_t -> int64 -> unit
+  __context:Context.db Context.t -> self:API.ref_VM -> int -> API.vM_t -> int64 -> unit
 
 let validate_HVM_shadow_multiplier multiplier =
   if multiplier < 1. then

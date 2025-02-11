@@ -36,7 +36,7 @@ type get_record = unit -> Rpc.t
    a snapshot on-demand, when invoked. *)
 
 val set_get_record :
-  string -> (__context:Context.t -> self:string -> get_record) -> unit
+  string -> (__context: Context.db Context.t -> self:string -> get_record) -> unit
 (** [set_get_record table accessor] is used by [Db_actions] to
     register a means by which this module can read records from
     database, in order to produce snapshots used by the events
@@ -52,7 +52,7 @@ val set_get_record :
     [Db_actions]. *)
 
 val find_get_record :
-  string -> __context:Context.t -> self:string -> unit -> Rpc.t option
+  string -> __context:Context.db Context.t -> self:string -> unit -> Rpc.t option
 (** [find_get_record table context reference] yields a partial
     function which, when invoked, attempts to read a record snapshot from
     the database. Any [table] used must have already been registered

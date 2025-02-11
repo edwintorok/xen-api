@@ -16,11 +16,11 @@ val with_gpumon_stopped : ?timeout:float -> (unit -> 'a) -> 'a
 (** Stop gpumon if it's running, perform f, then start gpumon if
   * no other threads which require gpumon to be stopped are running. *)
 
-val update_vgpu_metadata : __context:Context.t -> vm:API.ref_VM -> unit
+val update_vgpu_metadata : __context:Context.db Context.t -> vm:API.ref_VM -> unit
 (** [update_vgpu_metadata] updates the vGPU compatibility metadata of
  * all vGPUs associated with [vm].  *)
 
-val clear_vgpu_metadata : __context:Context.t -> vm:API.ref_VM -> unit
+val clear_vgpu_metadata : __context:Context.db Context.t -> vm:API.ref_VM -> unit
 (** [clear_vgpu_metadata] removes the compatibility metadata from all
  * VMs associated with [vm] *)
 
@@ -36,11 +36,11 @@ module Nvidia : sig
    *  IMPORTANT: This must be called on the host that has the GPU installed in it. *)
 
   val is_nvidia :
-    __context:Context.t -> vgpu:API.ref_VGPU (** valid reference *) -> bool
+    __context:Context.db Context.t -> vgpu:API.ref_VGPU (** valid reference *) -> bool
   (** [is_nvidia] is true, if [vgpu] is an NVIDIA vGPU *)
 
   val get_vgpu_compatibility_metadata :
-       __context:Context.t
+       __context:Context.db Context.t
     -> vm:API.ref_VM
     -> vgpu:API.ref_VGPU (** must refer to NVIDIA vGPU *)
     -> (string * string) list
@@ -52,7 +52,7 @@ module Nvidia : sig
    *)
 
   val vgpu_pgpu_are_compatible :
-    __context:Context.t -> vgpu:API.ref_VGPU -> pgpu:API.ref_PGPU -> bool
+    __context:Context.db Context.t -> vgpu:API.ref_VGPU -> pgpu:API.ref_PGPU -> bool
   (** Predicate [vgpu_pgpu_are_compatible] checks that vGPU and pGPU are
    * comatible according to their abstract compatibility metadata. This
    * code can run on any host. If no vGPU or pGPU metadata is
@@ -60,7 +60,7 @@ module Nvidia : sig
    *)
 
   val assert_pgpu_is_compatible_with_vm :
-       __context:Context.t
+       __context:Context.db Context.t
     -> vm:API.ref_VM
     -> vgpu:API.ref_VGPU
     -> dest_host:API.ref_host

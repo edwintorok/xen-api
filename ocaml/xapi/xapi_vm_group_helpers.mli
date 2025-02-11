@@ -13,19 +13,19 @@
  *)
 
 val maybe_update_vm_anti_affinity_alert_for_vm :
-  __context:Context.t -> vm:[`VM] API.Ref.t -> unit
+  __context:Context.db Context.t -> vm:[`VM] API.Ref.t -> unit
 (** updates VM anti-affinity alert with a given VM.*)
 
 val remove_vm_anti_affinity_alert :
-  __context:Context.t -> groups:[`VM_group] API.Ref.t list -> unit
+  __context:Context.db Context.t -> groups:[`VM_group] API.Ref.t list -> unit
 (** removes VM anti-affinity alert with given groups.*)
 
 val update_vm_anti_affinity_alert :
-  __context:Context.t -> groups:[`VM_group] API.Ref.t list -> unit
+  __context:Context.db Context.t -> groups:[`VM_group] API.Ref.t list -> unit
 (** updates VM anti-affinity alert with given groups.*)
 
 val maybe_update_alerts_on_feature_change :
-     __context:Context.t
+     __context:Context.db Context.t
   -> old_restrictions:(string * string) list
   -> new_restrictions:(string * string) list
   -> unit

@@ -27,7 +27,7 @@ module Message = struct
     | Del of API.ref_message
 
   let get_since_for_events :
-      (__context:Context.t -> int64 -> int64 * t list) ref =
+      (__context:Context.db Context.t -> int64 -> int64 * t list) ref =
     ref (fun ~__context _ -> ignore __context ; (0L, []))
 end
 

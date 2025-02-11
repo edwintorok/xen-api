@@ -13,9 +13,9 @@
  *)
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> site:API.ref_PVS_site
   -> vIF:API.ref_VIF
   -> API.ref_PVS_proxy
 
-val destroy : __context:Context.t -> self:API.ref_PVS_proxy -> unit
+val destroy : __context:Context.db Context.t -> self:API.ref_PVS_proxy -> unit

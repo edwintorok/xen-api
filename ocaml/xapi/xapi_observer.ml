@@ -21,7 +21,7 @@ let ( // ) = Filename.concat
 
 module type ObserverInterface = sig
   val create :
-       __context:Context.t
+       __context:Context.db Context.t
     -> uuid:string
     -> name_label:string
     -> attributes:(string * string) list
@@ -29,34 +29,34 @@ module type ObserverInterface = sig
     -> enabled:bool
     -> unit
 
-  val destroy : __context:Context.t -> uuid:string -> unit
+  val destroy : __context:Context.db Context.t -> uuid:string -> unit
 
-  val set_enabled : __context:Context.t -> uuid:string -> enabled:bool -> unit
+  val set_enabled : __context:Context.db Context.t -> uuid:string -> enabled:bool -> unit
 
   val set_attributes :
-       __context:Context.t
+       __context:Context.db Context.t
     -> uuid:string
     -> attributes:(string * string) list
     -> unit
 
   val set_endpoints :
-    __context:Context.t -> uuid:string -> endpoints:string list -> unit
+    __context:Context.db Context.t -> uuid:string -> endpoints:string list -> unit
 
-  val init : __context:Context.t -> unit
+  val init : __context:Context.db Context.t -> unit
 
-  val set_trace_log_dir : __context:Context.t -> dir:string -> unit
+  val set_trace_log_dir : __context:Context.db Context.t -> dir:string -> unit
 
-  val set_export_interval : __context:Context.t -> interval:float -> unit
+  val set_export_interval : __context:Context.db Context.t -> interval:float -> unit
 
-  val set_max_spans : __context:Context.t -> spans:int -> unit
+  val set_max_spans : __context:Context.db Context.t -> spans:int -> unit
 
-  val set_max_traces : __context:Context.t -> traces:int -> unit
+  val set_max_traces : __context:Context.db Context.t -> traces:int -> unit
 
-  val set_max_file_size : __context:Context.t -> file_size:int -> unit
+  val set_max_file_size : __context:Context.db Context.t -> file_size:int -> unit
 
-  val set_host_id : __context:Context.t -> host_id:string -> unit
+  val set_host_id : __context:Context.db Context.t -> host_id:string -> unit
 
-  val set_compress_tracing_files : __context:Context.t -> enabled:bool -> unit
+  val set_compress_tracing_files : __context:Context.db Context.t -> enabled:bool -> unit
 end
 
 module Observer : ObserverInterface = struct

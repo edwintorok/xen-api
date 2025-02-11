@@ -21,7 +21,7 @@ val exec_with_new_task :
   -> ?task_description:string
   -> ?origin:Context.origin
   -> string
-  -> (Context.t -> 'a)
+  -> (Context.db Context.t -> 'a)
   -> 'a
 
 val exec_with_forwarded_task :
@@ -29,14 +29,14 @@ val exec_with_forwarded_task :
   -> ?session_id:API.ref_session
   -> ?origin:Context.origin
   -> API.ref_task
-  -> (Context.t -> 'a)
+  -> (Context.db Context.t -> 'a)
   -> 'a
 
 val exec_with_subtask :
-     __context:Context.t
+     __context:'a Context.t
   -> ?task_in_database:bool
   -> string
-  -> (__context:Context.t -> 'b)
+  -> (__context:'a Context.t -> 'b)
   -> 'b
 
 (* used by auto-generated code in server.ml *)
@@ -55,17 +55,18 @@ val dispatch_exn_wrapper : (unit -> Rpc.response) -> Rpc.response
 val do_dispatch :
      ?session_id:API.ref_session
   -> ?forward_op:
-       (local_fn:(__context:Context.t -> 'a) -> __context:Context.t -> 'a)
+       (local_fn:(__context:'k Context.t -> 'a) -> __context:Context.db Context.t -> 'a)
   -> ?self:'b
   -> bool
   -> string
-  -> (__context:Context.t -> 'a)
+  -> (__context:'k Context.t -> 'a)
   -> ('a -> Rpc.t)
   -> Unix.file_descr
   -> Http.Request.t
   -> string
   -> [< `Async | `InternalAsync | `Sync > `Sync `InternalAsync]
   -> bool
+  -> (Context.kind as 'k)
   -> Rpc.response
 
 val forward_extension :

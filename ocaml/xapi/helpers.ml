@@ -903,7 +903,7 @@ let sort_by_schwarzian ?(descending = false) f list =
 
 let platform_version_inverness = [2; 4; 0]
 
-let version_string_of : __context:Context.t -> [`host] api_object -> string =
+let version_string_of : __context:Context.db Context.t -> [`host] api_object -> string =
  fun ~__context host ->
   try
     let software_version =
@@ -917,19 +917,19 @@ let version_string_of : __context:Context.t -> [`host] api_object -> string =
     List.assoc Xapi_globs._platform_version software_version
   with Not_found -> Xapi_globs.default_platform_version
 
-let version_of : __context:Context.t -> [`host] api_object -> int list =
+let version_of : __context:Context.db Context.t -> [`host] api_object -> int list =
  fun ~__context host ->
   let vs = version_string_of ~__context host in
   List.map int_of_string (String.split_on_char '.' vs)
 
 (* Compares host versions, analogous to Stdlib.compare. *)
 let compare_host_platform_versions :
-    __context:Context.t -> [`host] api_object -> [`host] api_object -> int =
+    __context:Context.db Context.t -> [`host] api_object -> [`host] api_object -> int =
  fun ~__context host_a host_b ->
   let version_of = version_of ~__context in
   compare_int_lists (version_of host_a) (version_of host_b)
 
-let max_version_in_pool : __context:Context.t -> int list =
+let max_version_in_pool : __context:Context.db Context.t -> int list =
  fun ~__context ->
   let max_version a b =
     if a = [] then b else if compare_int_lists a b > 0 then a else b
@@ -941,7 +941,7 @@ let max_version_in_pool : __context:Context.t -> int list =
   List.fold_left max_version [] versions
 
 let host_has_highest_version_in_pool :
-    __context:Context.t -> host:[`host] api_object -> bool =
+    __context:Context.db Context.t -> host:[`host] api_object -> bool =
  fun ~__context ~host ->
   let host_version = version_of ~__context host
   and max_version = max_version_in_pool ~__context in
@@ -978,13 +978,13 @@ let assert_platform_version_is_same_on_master ~__context ~host ~self =
 
 (* Assertion functions which raise an exception if certain invariants
    are broken during an upgrade. *)
-let assert_rolling_upgrade_not_in_progress : __context:Context.t -> unit =
+let assert_rolling_upgrade_not_in_progress : __context:Context.db Context.t -> unit =
  fun ~__context ->
   if rolling_upgrade_in_progress ~__context then
     raise (Api_errors.Server_error (Api_errors.not_supported_during_upgrade, []))
 
 let assert_host_has_highest_version_in_pool :
-    __context:Context.t -> host:API.ref_host -> unit =
+    __context:Context.db Context.t -> host:API.ref_host -> unit =
  fun ~__context ~host ->
   if not (host_has_highest_version_in_pool ~__context ~host:(LocalObject host))
   then
@@ -1579,7 +1579,7 @@ module type POLICY = sig
 
   val fail_immediately : t
 
-  val wait : __context:Context.t -> t -> exn -> t
+  val wait : __context:Context.db Context.t -> t -> exn -> t
 end
 
 (* Mechanism for early wakeup of blocked threads. When a thread goes to sleep having got an
@@ -1777,10 +1777,10 @@ let env_with_path env_vars =
        (("PATH", String.concat ":" Forkhelpers.default_path) :: env_vars)
 
 module Task : sig
-  val wait_for : __context:Context.t -> tasks:API.ref_task list -> unit
+  val wait_for : __context:Context.db Context.t -> tasks:API.ref_task list -> unit
 
   val to_result :
-    __context:Context.t -> of_rpc:(Rpc.t -> 'a) -> t:API.ref_task -> 'a
+    __context:Context.db Context.t -> of_rpc:(Rpc.t -> 'a) -> t:API.ref_task -> 'a
 end = struct
   (* can't place these functions in task helpers due to circular dependencies *)
   let wait_for_ ~__context ~tasks ~propagate_cancel cb =

@@ -15,22 +15,22 @@
 val proxy_port_name : API.vIF_t -> string
 
 val get_running_proxies :
-  __context:Context.t -> site:API.ref_PVS_site -> API.ref_PVS_proxy list
+  __context:Context.db Context.t -> site:API.ref_PVS_site -> API.ref_PVS_proxy list
 
 val start_proxy :
-  __context:Context.t -> API.ref_VIF -> API.ref_PVS_proxy -> bool
+  __context:Context.db Context.t -> API.ref_VIF -> API.ref_PVS_proxy -> bool
 
-val stop_proxy : __context:Context.t -> API.ref_VIF -> API.ref_PVS_proxy -> unit
+val stop_proxy : __context:Context.db Context.t -> API.ref_VIF -> API.ref_PVS_proxy -> unit
 
 val clear_proxy_state :
-  __context:Context.t -> API.ref_VIF -> API.ref_PVS_proxy -> unit
+  __context:Context.db Context.t -> API.ref_VIF -> API.ref_PVS_proxy -> unit
 
 val find_proxy_for_vif :
-  __context:Context.t -> vif:API.ref_VIF -> API.ref_PVS_proxy option
+  __context:Context.db Context.t -> vif:API.ref_VIF -> API.ref_PVS_proxy option
 
-val maybe_start_proxy_for_vif : __context:Context.t -> vif:API.ref_VIF -> unit
+val maybe_start_proxy_for_vif : __context:Context.db Context.t -> vif:API.ref_VIF -> unit
 
-val maybe_stop_proxy_for_vif : __context:Context.t -> vif:API.ref_VIF -> unit
+val maybe_stop_proxy_for_vif : __context:Context.db Context.t -> vif:API.ref_VIF -> unit
 
 val remove_site_on_localhost :
-  __context:Context.t -> site:API.ref_PVS_site -> unit
+  __context:Context.db Context.t -> site:API.ref_PVS_site -> unit

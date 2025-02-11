@@ -23,17 +23,17 @@ type failure =
 type 'a r = (unit, failure * 'a) result
 
 (* entry point for the master *)
-val start : __context:Context.t -> unit
+val start : __context:Context.db Context.t -> unit
 
 (* expose client implementations *)
 val notify_new :
-  __context:Context.t -> old_ps:SecretString.t -> new_ps:SecretString.t -> unit
+  __context:Context.db Context.t -> old_ps:SecretString.t -> new_ps:SecretString.t -> unit
 
 val notify_send :
-  __context:Context.t -> old_ps:SecretString.t -> new_ps:SecretString.t -> unit
+  __context:Context.db Context.t -> old_ps:SecretString.t -> new_ps:SecretString.t -> unit
 
 val cleanup :
-  __context:Context.t -> old_ps:SecretString.t -> new_ps:SecretString.t -> unit
+  __context:Context.db Context.t -> old_ps:SecretString.t -> new_ps:SecretString.t -> unit
 
 (* the rest is exposed for unit testing *)
 

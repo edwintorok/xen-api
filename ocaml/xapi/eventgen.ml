@@ -16,7 +16,7 @@ open Debug.Make (struct let name = "sql" end)
 type get_record = unit -> Rpc.t
 
 let get_record_table :
-    (string, __context:Context.t -> self:string -> get_record) Hashtbl.t =
+    (string, __context:_ Context.t -> self:string -> get_record) Hashtbl.t =
   Hashtbl.create 64
 
 let set_get_record = Hashtbl.replace get_record_table
@@ -219,7 +219,7 @@ let database_callback_inner event db ~__context =
       compute_other_table_events tblname kvs |> emit_events ~kind:Modify
 
 let database_callback event db =
-  let __context = Context.make __MODULE__ in
+  let __context = Context.make `DB __MODULE__ in
   Xapi_stdext_pervasives.Pervasiveext.finally
     (fun () -> database_callback_inner event db ~__context)
     (fun () -> Context.complete_tracing __context)

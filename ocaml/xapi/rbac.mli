@@ -13,7 +13,7 @@
  *)
 
 val is_access_allowed :
-     __context:Context.t
+     __context:_ Context.t
   -> session_id:[`session] Ref.t
   -> permission:string
   -> bool
@@ -27,7 +27,7 @@ val check :
   -> ?extra_msg:string
   -> ?args:(string * Rpc.t) list
   -> ?keys:string list
-  -> __context:Context.t
+  -> __context:Context.db Context.t
   -> fn:(unit -> 'a)
   -> [`session] Ref.t
   -> string
@@ -59,16 +59,16 @@ val check_with_new_task :
 (** Defined in terms of [check] but using a context associated with a
     freshly-created task. *)
 
-val assert_permission_name : __context:Context.t -> permission:string -> unit
+val assert_permission_name : __context:Context.db Context.t -> permission:string -> unit
 (** Performs a dry run of the [check] function with a no-op action
     guarded by the provided permission (as a name). *)
 
 val assert_permission :
-  __context:Context.t -> permission:Db_actions.role_t -> unit
+  __context:Context.db Context.t -> permission:Db_actions.role_t -> unit
 (** Performs a dry run of the [check] function with a no-op action
     guarded by the provided permission (as a database role). *)
 
-val has_permission : __context:Context.t -> permission:Db_actions.role_t -> bool
+val has_permission : __context:_ Context.t -> permission:Db_actions.role_t -> bool
 (** [has_permission ctx p] determines if the session associated with
     the context [ctx] is authorised to perform a specific action.
 

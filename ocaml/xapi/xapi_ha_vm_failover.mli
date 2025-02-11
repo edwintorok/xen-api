@@ -15,14 +15,14 @@
  * @group High Availability (HA)
 *)
 
-val all_protected_vms : __context:Context.t -> (API.ref_VM * API.vM_t) list
+val all_protected_vms : __context:Context.db Context.t -> (API.ref_VM * API.vM_t) list
 
 val restart_auto_run_vms :
-  __context:Context.t -> API.ref_host list -> int -> unit
+  __context:Context.db Context.t -> API.ref_host list -> int -> unit
 (** Take a set of live VMs and attempt to restart all protected VMs which have failed *)
 
 val compute_evacuation_plan :
-     __context:Context.t
+     __context:Context.db Context.t
   -> int
   -> API.ref_host list
   -> (API.ref_VM * API.vM_t) list
@@ -51,11 +51,11 @@ type configuration_change = {
 val no_configuration_change : configuration_change
 
 val update_pool_status :
-  __context:Context.t -> ?live_set:API.ref_host list -> unit -> bool
+  __context:Context.db Context.t -> ?live_set:API.ref_host list -> unit -> bool
 (** Update the Pool.ha_* fields with the current planning status *)
 
 val plan_for_n_failures :
-     __context:Context.t
+     __context:Context.db Context.t
   -> all_protected_vms:(API.ref_VM * API.vM_t) list
   -> ?live_set:API.ref_host list
   -> ?change:configuration_change
@@ -64,7 +64,7 @@ val plan_for_n_failures :
 (** Consider all possible failures of 'n' hosts *)
 
 val compute_max_host_failures_to_tolerate :
-     __context:Context.t
+     __context:Context.db Context.t
   -> ?live_set:API.ref_host list
   -> ?protected_vms:(API.ref_VM * API.vM_t) list
   -> unit
@@ -72,7 +72,7 @@ val compute_max_host_failures_to_tolerate :
 (** Compute the maximum plan size we can currently find *)
 
 val assert_vm_placement_preserves_ha_plan :
-     __context:Context.t
+     __context:Context.db Context.t
   -> ?leaving:(API.ref_host * (API.ref_VM * API.vM_t)) list
   -> ?arriving:(API.ref_host * (API.ref_VM * API.vM_t)) list
   -> unit
@@ -80,12 +80,12 @@ val assert_vm_placement_preserves_ha_plan :
 (** HA admission control functions: aim is to block operations which would make us become overcommitted: *)
 
 val assert_host_disable_preserves_ha_plan :
-  __context:Context.t -> API.ref_host -> unit
+  __context:Context.db Context.t -> API.ref_host -> unit
 
 val assert_nfailures_change_preserves_ha_plan :
-  __context:Context.t -> int -> unit
+  __context:Context.db Context.t -> int -> unit
 
-val assert_new_vm_preserves_ha_plan : __context:Context.t -> API.ref_VM -> unit
+val assert_new_vm_preserves_ha_plan : __context:Context.db Context.t -> API.ref_VM -> unit
 
 (* Below exposed only for ease of testing *)
 
@@ -98,35 +98,35 @@ end
 module AntiAffEvacPlanHostPsq : Psq.S with type k = HostKey.t
 
 val compute_spread_evenly_plan :
-     __context:Context.t
+     __context:Context.db Context.t
   -> AntiAffEvacPlanHostPsq.t VMGrpMap.t
   -> (API.ref_VM * int64 * API.ref_VM_group) list
   -> (API.ref_VM * API.ref_host) list
 
 val compute_no_breach_plan :
-     __context:Context.t
+     __context:Context.db Context.t
   -> (AntiAffEvacPlanHostPsq.t * int) VMGrpMap.t
   -> (API.ref_VM * int64 * API.ref_VM_group) list
   -> (API.ref_VM * API.ref_host) list * (API.ref_VM * int64) list
 
 val compute_anti_aff_evac_plan :
-     __context:Context.t
+     __context:Context.db Context.t
   -> int
   -> (API.ref_host * int64) list
   -> (API.ref_VM * int64) list
   -> (API.ref_VM * API.ref_host) list
 
-val host_free_memory : __context:Context.t -> host:API.ref_host -> int64
+val host_free_memory : __context:Context.db Context.t -> host:API.ref_host -> int64
 
-val vm_memory : __context:Context.t -> API.vM_t -> int64
+val vm_memory : __context:Context.db Context.t -> API.vM_t -> int64
 
 val vms_partition :
-     __context:Context.t
+     __context:Context.db Context.t
   -> (API.ref_VM * 'a) list
   -> (API.ref_VM * 'a * API.ref_VM_group) list * (API.ref_VM * 'a) list
 
 val init_spread_evenly_plan_pool_state :
-     __context:Context.t
+     __context:Context.db Context.t
   -> ('a * 'b * API.ref_VM_group) list
   -> (API.ref_host * int64) list
   -> AntiAffEvacPlanHostPsq.t VMGrpMap.t

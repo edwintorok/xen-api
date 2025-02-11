@@ -98,7 +98,7 @@ As snapshots are served to external clients, the functions use the
 public `get_record` functions - returning types defined by `API` -
 which omits internal fields.
 
-Notice that the type of values being mapped to is `__context:Context.t -> self:string -> unit -> Rpc.t`.
+Notice that the type of values being mapped to is `__context:Context.db Context.t -> self:string -> unit -> Rpc.t`.
 
 The presence of `unit` in the type is to permit partial application
 (of `__context` and `self`) to create thunks. The type `unit -> Rpc.t`
@@ -121,8 +121,8 @@ open API
 module type CUSTOM_ACTIONS = sig
 
   module Session : sig
-    val login_with_password : __context:Context.t -> uname:string -> pwd:string -> version:string -> originator:string -> ref_session
-    val logout : __context:Context.t -> unit
+    val login_with_password : __context:Context.db Context.t -> uname:string -> pwd:string -> version:string -> originator:string -> ref_session
+    val logout : __context:Context.db Context.t -> unit
 (* ... *)
 ```
 

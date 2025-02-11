@@ -328,7 +328,7 @@ let operation (obj : obj) (x : message) =
            ~call:call_string) )) in"
         ; "let resp = Server_helpers.do_dispatch ~session_id ~forward_op \
            supports_async __call local_op marshaller fd http_req __label \
-           __sync_ty generate_task_for in"
+           __sync_ty generate_task_for `DB in"
         ; "if resp.Rpc.success then"
         ; "  try"
         ; "    "
@@ -391,7 +391,7 @@ let operation (obj : obj) (x : message) =
             Printf.sprintf
               "let resp = Server_helpers.do_dispatch %s %s supports_async \
                __call local_op marshaller fd http_req __label __sync_ty \
-               generate_task_for in"
+               generate_task_for `DB in"
               (if x.msg_session then "~session_id" else "")
               ( if Gen_empty_custom.operation_requires_side_effect x then
                   "~forward_op"

@@ -12,17 +12,17 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val register : __context:Context.t -> classes:string list -> unit
+val register : __context:Context.db Context.t -> classes:string list -> unit
 (** Register an interest in events generated on objects of class <class_name> *)
 
-val unregister : __context:Context.t -> classes:string list -> unit
+val unregister : __context:Context.db Context.t -> classes:string list -> unit
 (** Unregister interest in events generated on objects of class <class_name> *)
 
-val next : __context:Context.t -> Rpc.t
+val next : __context:Context.db Context.t -> Rpc.t
 (** Blocking call which returns the next set of events relevant to this session. *)
 
 val from :
-     __context:Context.t
+     __context:Context.db Context.t
   -> classes:string list
   -> token:string
   -> timeout:float
@@ -30,9 +30,9 @@ val from :
 (** Blocking call which returns the next set of events from a given set of
     classes/objects, or the empty list if the timeout is exceeded *)
 
-val get_current_id : __context:Context.t -> int64
+val get_current_id : __context:Context.db Context.t -> int64
 
-val inject : __context:Context.t -> _class:string -> _ref:string -> string
+val inject : __context:Context.db Context.t -> _class:string -> _ref:string -> string
 
 (** {2} Internal interfaces with the other parts of xapi. *)
 
@@ -46,7 +46,7 @@ val on_session_deleted : API.ref_session -> unit
 (* Inject an unnecessary update as a heartbeat. This will:
     1. hopefully prevent some firewalls from silently closing the connection
     2. allow the server to detect when a client has failed *)
-val heartbeat : __context:Context.t -> unit
+val heartbeat : __context:Context.db Context.t -> unit
 
 module Message : sig
   type t =
@@ -54,5 +54,5 @@ module Message : sig
     | Del of API.ref_message
 
   val get_since_for_events :
-    (__context:Context.t -> int64 -> int64 * t list) ref
+    (__context:Context.db Context.t -> int64 -> int64 * t list) ref
 end

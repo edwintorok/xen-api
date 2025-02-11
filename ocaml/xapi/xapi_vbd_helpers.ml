@@ -420,7 +420,7 @@ let destroy ~__context ~self =
   Db.VBD.destroy ~__context ~self
 
 (** Type of a function which does the actual hotplug/ hotunplug *)
-type do_hotplug_fn = __context:Context.t -> vbd:API.ref_VBD -> unit
+type do_hotplug_fn = __context:Context.db Context.t -> vbd:API.ref_VBD -> unit
 
 (* copy a vbd *)
 let copy ~__context ?vdi ~vm vbd =

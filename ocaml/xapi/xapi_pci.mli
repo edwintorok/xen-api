@@ -27,20 +27,20 @@ val id_of_int : int -> string
 (** Get string value of int form of PCI {class, vendor, device}_id
   * (the reverse of int_of_id) *)
 
-val string_of_pci : __context:Context.t -> self:API.ref_PCI -> string
+val string_of_pci : __context:Context.db Context.t -> self:API.ref_PCI -> string
 (** Get an identifier for this PCI device **)
 
 val get_local_pcis_and_records :
-  __context:Context.t -> (API.ref_PCI * Db_actions.pCI_t) list
+  __context:Context.db Context.t -> (API.ref_PCI * Db_actions.pCI_t) list
 (** A list of (ref, record) pairs for the PCI DB objects of the local host *)
 
-val get_idle_vf_nums : __context:Context.t -> self:API.ref_PCI -> int64
+val get_idle_vf_nums : __context:Context.db Context.t -> self:API.ref_PCI -> int64
 (** Get the numbers of VFs that have not been attached to a host *)
 
-val get_local_pci_refs : __context:Context.t -> API.ref_PCI list
+val get_local_pci_refs : __context:Context.db Context.t -> API.ref_PCI list
 (** A list of refs for the PCI DB objects of the local host *)
 
-val update_pcis : __context:Context.t -> unit
+val update_pcis : __context:Context.db Context.t -> unit
 (** Synchronise the PCI objects in the database with the actual devices in the local host. *)
 
 val get_system_display_device : unit -> string option
@@ -49,23 +49,23 @@ val get_system_display_device : unit -> string option
 val disable_system_display_device : unit -> unit
 (** Disable decoding for the host's display device. *)
 
-val dequarantine : __context:Context.t -> Xenops_interface.Pci.address -> unit
+val dequarantine : __context:Context.db Context.t -> Xenops_interface.Pci.address -> unit
 (** dequarantine a PCI device. This is idempotent. *)
 
 val disable_dom0_access :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PCI
   -> [`disable_on_reboot | `disabled | `enable_on_reboot | `enabled]
 (** Hide a PCI device from the dom0 kernel. (Takes affect after next boot.) *)
 
 val enable_dom0_access :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PCI
   -> [`disable_on_reboot | `disabled | `enable_on_reboot | `enabled]
 (** Unhide a PCI device from the dom0 kernel. (Takes affect after next boot.) *)
 
 val get_dom0_access_status :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PCI
   -> [`disable_on_reboot | `disabled | `enable_on_reboot | `enabled]
 (** Return a PCI device dom0 access status. *)

@@ -16,7 +16,7 @@
 *)
 
 val with_block_attached_device :
-     Context.t
+     Context.db Context.t
   -> (Rpc.call -> Rpc.response)
   -> API.ref_session
   -> API.ref_VDI
@@ -25,7 +25,7 @@ val with_block_attached_device :
   -> 'a
 
 val with_open_block_attached_device :
-     Context.t
+     Context.db Context.t
   -> (Rpc.call -> Rpc.response)
   -> API.ref_session
   -> API.ref_VDI
@@ -34,9 +34,9 @@ val with_open_block_attached_device :
   -> 'a
 
 val copy_vdi :
-  __context:Context.t -> ?base:API.ref_VDI -> API.ref_VDI -> API.ref_VDI -> unit
+  __context:Context.db Context.t -> ?base:API.ref_VDI -> API.ref_VDI -> API.ref_VDI -> unit
 (** [copy_vdi ~__context ?base src dst] copies the disk [src] into [dst].
     If [base = Some base] then we assume that [dst] initially contains
     the same contents as [dst], and we only copy the differences. *)
 
-val must_write_zeroes_into_new_vdi : __context:Context.t -> API.ref_VDI -> bool
+val must_write_zeroes_into_new_vdi : __context:Context.db Context.t -> API.ref_VDI -> bool

@@ -12,4 +12,4 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val update_pool_features : __context:Context.t -> unit
+val update_pool_features : __context:Context.db Context.t -> unit

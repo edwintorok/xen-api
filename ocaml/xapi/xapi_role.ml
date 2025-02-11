@@ -54,7 +54,7 @@ let find_role_by_uuid uuid = Hashtbl.find_opt static_role_by_uuid_tbl uuid
 let find_role_by_name_label name_label =
   Hashtbl.find_opt static_role_by_name_label_tbl name_label
 
-(*    val get_all : __context:Context.t -> ref_role_set*)
+(*    val get_all : __context:Context.db Context.t -> ref_role_set*)
 let get_all ~__context =
   List.map (fun r -> ref_of_role ~role:r) get_all_static_roles
 
@@ -72,7 +72,7 @@ let get_common ~__context ~self ~static_fn ~db_fn =
       (* then look up across the roles in the Db *)
       db_fn ~__context ~self
 
-(*    val get_record : __context:Context.t -> self:ref_role -> role_t*)
+(*    val get_record : __context:Context.db Context.t -> self:ref_role -> role_t*)
 let get_api_record ~static_record =
   {
     (* Db_actions.role_t -> API.role_t *)
@@ -117,10 +117,10 @@ let get_all_records_where ~__context ~expr =
   			(* TODO: this line is crashing for some unknown reason, but not needed in RBAC 1 *)
   			Db.Role.get_all_records_where ~__context ~expr*)
 
-(*    val get_all_records : __context:Context.t -> ref_role_to_role_t_map*)
+(*    val get_all_records : __context:Context.db Context.t -> ref_role_to_role_t_map*)
 let get_all_records ~__context = get_all_records_where ~__context ~expr:"True"
 
-(*    val get_by_uuid : __context:Context.t -> uuid:string -> ref_role*)
+(*    val get_by_uuid : __context:Context.db Context.t -> uuid:string -> ref_role*)
 let get_by_uuid ~__context ~uuid =
   match find_role_by_uuid uuid with
   | Some static_record ->
@@ -137,19 +137,19 @@ let get_by_name_label ~__context ~label =
       (* pass-through to Db *)
       Db.Role.get_by_name_label ~__context ~label
 
-(*    val get_uuid : __context:Context.t -> self:ref_role -> string*)
+(*    val get_uuid : __context:Context.db Context.t -> self:ref_role -> string*)
 let get_uuid ~__context ~self =
   get_common ~__context ~self
     ~static_fn:(fun static_record -> static_record.role_uuid)
     ~db_fn:(fun ~__context ~self -> Db.Role.get_uuid ~__context ~self)
 
-(*    val get_name : __context:Context.t -> self:ref_role -> string*)
+(*    val get_name : __context:Context.db Context.t -> self:ref_role -> string*)
 let get_name_label ~__context ~self =
   get_common ~__context ~self
     ~static_fn:(fun static_record -> static_record.role_name_label)
     ~db_fn:(fun ~__context ~self -> Db.Role.get_name_label ~__context ~self)
 
-(*    val get_description : __context:Context.t -> self:ref_role -> string*)
+(*    val get_description : __context:Context.db Context.t -> self:ref_role -> string*)
 let get_name_description ~__context ~self =
   get_common ~__context ~self
     ~static_fn:(fun static_record -> static_record.role_name_description)
@@ -157,7 +157,7 @@ let get_name_description ~__context ~self =
       Db.Role.get_name_description ~__context ~self
     )
 
-(*    val get_permissions : __context:Context.t -> self:ref_role -> string_set*)
+(*    val get_permissions : __context:Context.db Context.t -> self:ref_role -> string_set*)
 let get_subroles ~__context ~self =
   get_common ~__context ~self
     ~static_fn:(fun static_record -> static_record.role_subroles)
@@ -168,13 +168,13 @@ let get_is_internal ~__context ~self =
     ~static_fn:(fun static_record -> static_record.role_is_internal)
     ~db_fn:(fun ~__context ~self -> Db.Role.get_is_internal ~__context ~self)
 
-(*    val get_is_basic : __context:Context.t -> self:ref_role -> bool*)
+(*    val get_is_basic : __context:Context.db Context.t -> self:ref_role -> bool*)
 (*let get_is_basic ~__context ~self =
   	get_common ~__context ~self
   		~static_fn:(fun static_record -> static_record.role_is_basic)
   		~db_fn:(fun ~__context ~self -> Db.Role.get_is_basic ~__context ~self)
 *)
-(*    val get_is_complete : __context:Context.t -> self:ref_role -> bool*)
+(*    val get_is_complete : __context:Context.db Context.t -> self:ref_role -> bool*)
 (*let get_is_complete ~__context ~self =
   	get_common ~__context ~self
   		~static_fn:(fun static_record -> static_record.role_is_complete)
@@ -249,7 +249,7 @@ let get_by_permission_name_label ~__context ~label =
 (* For RBAC 2.0, with dynamic roles table, set Role.force_custom_actions=Some(RW)*)
 (* in datamodel.ml and implement the functions below *)
 
-(*    val create : __context:Context.t -> id:string -> name:string -> description:string -> permissions:string_set -> is_basic:bool -> is_complete:bool -> ref_role*)
+(*    val create : __context:Context.db Context.t -> id:string -> name:string -> description:string -> permissions:string_set -> is_basic:bool -> is_complete:bool -> ref_role*)
 (* we do not allow repeated name_labels in the role table *)
 let create ~__context ~name_label ~name_description ~subroles =
 	(* disabled in RBAC 1.0 *)
@@ -265,7 +265,7 @@ let create ~__context ~name_label ~name_description ~subroles =
 	*)
 	Ref.null
 
-(*    val destroy : __context:Context.t -> self:ref_role -> unit*)
+(*    val destroy : __context:Context.db Context.t -> self:ref_role -> unit*)
 let destroy ~__context ~self =
 	(* disabled in RBAC 1.0 *)
 	(* in RBAC 2.0: it is only possible to delete a role if it is not in*)
@@ -273,23 +273,23 @@ let destroy ~__context ~self =
 	(* Db.Role.destroy ~__context ~self*)
 	()
 
-(*    val set_uuid : __context:Context.t -> self:ref_role -> value:string -> unit*)
+(*    val set_uuid : __context:Context.db Context.t -> self:ref_role -> value:string -> unit*)
 let set_uuid ~__context ~self ~value = ()
-(*    val set_id : __context:Context.t -> self:ref_role -> value:string -> unit*)
+(*    val set_id : __context:Context.db Context.t -> self:ref_role -> value:string -> unit*)
 (*let set_id ~__context ~self ~value = ()*)
-(*    val set_name : __context:Context.t -> self:ref_role -> value:string -> unit*)
+(*    val set_name : __context:Context.db Context.t -> self:ref_role -> value:string -> unit*)
 (* we do not allow repeated name_labels in the role table *)
 let set_name_label ~__context ~self ~value = ()
-(*    val set_description : __context:Context.t -> self:ref_role -> value:string -> unit*)
+(*    val set_description : __context:Context.db Context.t -> self:ref_role -> value:string -> unit*)
 let set_name_description ~__context ~self ~value = ()
-(*    val set_permissions : __context:Context.t -> self:ref_role -> value:string_set -> unit*)
+(*    val set_permissions : __context:Context.db Context.t -> self:ref_role -> value:string_set -> unit*)
 let set_subroles ~__context ~self ~value = ()
-(*    val add_permissions : __context:Context.t -> self:ref_role -> value:string -> unit*)
+(*    val add_permissions : __context:Context.db Context.t -> self:ref_role -> value:string -> unit*)
 let add_subroles ~__context ~self ~value = ()
-(*    val remove_permissions : __context:Context.t -> self:ref_role -> value:string -> unit*)
+(*    val remove_permissions : __context:Context.db Context.t -> self:ref_role -> value:string -> unit*)
 let remove_subroles ~__context ~self ~value = ()
-(*    val set_is_basic : __context:Context.t -> self:ref_role -> value:bool -> unit*)
+(*    val set_is_basic : __context:Context.db Context.t -> self:ref_role -> value:bool -> unit*)
 (*let set_is_basic ~__context ~self ~value = ()*)
-(*    val set_is_complete : __context:Context.t -> self:ref_role -> value:bool -> unit*)
+(*    val set_is_complete : __context:Context.db Context.t -> self:ref_role -> value:bool -> unit*)
 (*let set_is_complete ~__context ~self ~value = ()*)
 *)

@@ -147,7 +147,7 @@ let reporter_m = Mutex.create ()
 let shared_page_count = 1
 
 let start () =
-  let __context = Context.make "xapi_stats" in
+  let __context = Context.make `DB  "xapi_stats" in
   let master = Pool_role.is_master () in
   with_lock reporter_m (fun () ->
       match !reporter_cache with

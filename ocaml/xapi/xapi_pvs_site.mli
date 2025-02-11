@@ -13,19 +13,19 @@
  *)
 
 val introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> pVS_uuid:string
   -> API.ref_PVS_site
 
 val forget_internal :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_PVS_site
-  -> cleanup_storage:(Context.t -> API.ref_PVS_site -> unit)
+  -> cleanup_storage:(Context.db Context.t -> API.ref_PVS_site -> unit)
   -> unit
 
-val forget : __context:Context.t -> self:API.ref_PVS_site -> unit
+val forget : __context:Context.db Context.t -> self:API.ref_PVS_site -> unit
 
 val set_PVS_uuid :
-  __context:Context.t -> self:API.ref_PVS_site -> value:string -> unit
+  __context:Context.db Context.t -> self:API.ref_PVS_site -> value:string -> unit

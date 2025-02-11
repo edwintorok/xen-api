@@ -19,5 +19,5 @@ module type V6clientS = module type of V6_client
 
 val v6client : (module V6clientS) ref
 
-val initialise : __context:Context.t -> host:API.ref_host -> unit
+val initialise : __context:Context.db Context.t -> host:API.ref_host -> unit
 (** Initialises licensing on xapi start up *)

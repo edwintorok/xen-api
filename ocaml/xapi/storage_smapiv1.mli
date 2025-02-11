@@ -18,9 +18,9 @@ val vdi_read_write_m : Mutex.t
 
 val vdi_read_write : (Sr.t * Vdi.t, bool) Hashtbl.t
 
-val vdi_info_of_vdi_rec : Context.t -> API.vDI_t -> Storage_interface.vdi_info
+val vdi_info_of_vdi_rec : Context.db Context.t -> API.vDI_t -> Storage_interface.vdi_info
 
-val find_vdi : __context:Context.t -> Sr.t -> Vdi.t -> [`VDI] Ref.t * API.vDI_t
+val find_vdi : __context:Context.db Context.t -> Sr.t -> Vdi.t -> [`VDI] Ref.t * API.vDI_t
 (** Find a VDI given a storage-layer SR and VDI *)
 
 module SMAPIv1 : Server_impl

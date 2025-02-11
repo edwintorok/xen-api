@@ -24,7 +24,7 @@ let check_local_session_hook = ref None
 
 let is_local_session __context session_id =
   Option.fold ~none:false
-    ~some:(fun f -> f ~__context ~session_id)
+    ~some:(fun f -> f ~__context:Context.(as_no_db __context) ~session_id)
     !check_local_session_hook
 
 (* intra_pool_only is true iff the call that's invoking this check can only be called from host<->host intra-pool communication *)
@@ -35,6 +35,9 @@ let check ~intra_pool_only ~session_id ~action =
       if is_local_session __context session_id then
         () (* debug "Session is in the local database" *)
       else (* Assuming we're in master mode *)
+        match Context.as_maybe_db __context with
+        | None -> invalid_arg "No local session, and no access to the database"
+        | Some __context ->
         try
           let pool =
             Db_actions.DB_Action.Session.get_pool ~__context ~self:session_id

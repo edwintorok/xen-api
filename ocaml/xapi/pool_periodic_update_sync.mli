@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val set_enabled : __context:Context.t -> value:bool -> unit
+val set_enabled : __context:Context.db Context.t -> value:bool -> unit
 
 (* Below exposed only for ease of testing *)
 

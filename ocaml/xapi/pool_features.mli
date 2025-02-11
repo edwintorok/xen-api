@@ -15,8 +15,8 @@
  * @group Licensing
 *)
 
-val is_enabled : __context:Context.t -> Features.feature -> bool
+val is_enabled : __context:Context.db Context.t -> Features.feature -> bool
 (** Check whether a given feature is currently enabled on the pool. *)
 
-val assert_enabled : __context:Context.t -> f:Features.feature -> unit
+val assert_enabled : __context:Context.db Context.t -> f:Features.feature -> unit
 (** Raise appropriate exception if feature is not enabled. *)

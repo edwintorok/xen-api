@@ -63,7 +63,7 @@ module DaemonConfiguration : sig
     -> local_heart_beat_interface:string
     -> local_heart_beat_physical_interface:string
     -> local_state_file:string
-    -> __context:Context.t
+    -> __context:Context.db Context.t
     -> unit
     -> t
 

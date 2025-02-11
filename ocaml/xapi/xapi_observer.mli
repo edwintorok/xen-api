@@ -13,15 +13,15 @@
  *)
 
 val observed_hosts_of :
-  __context:Context.t -> API.ref_host list -> API.ref_host list
+  __context:Context.db Context.t -> API.ref_host list -> API.ref_host list
 
-val initialise : __context:Context.t -> unit
+val initialise : __context:Context.db Context.t -> unit
 
 val initialise_observer :
-  __context:Context.t -> Xapi_observer_components.t -> unit
+  __context:Context.db Context.t -> Xapi_observer_components.t -> unit
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> hosts:API.ref_host list
@@ -34,34 +34,34 @@ val create :
 (** Xapi_observer.register is responsible for calling create on the Tracing library on a particular host *)
 
 val register :
-  __context:Context.t -> self:API.ref_Observer -> host:API.ref_host -> unit
+  __context:Context.db Context.t -> self:API.ref_Observer -> host:API.ref_host -> unit
 
 (** Xapi_observer.unregister is responsible for calling destroy on the Tracing library on a particular host *)
 
 val unregister :
-  __context:Context.t -> self:API.ref_Observer -> host:API.ref_host -> unit
+  __context:Context.db Context.t -> self:API.ref_Observer -> host:API.ref_host -> unit
 
 (** Xapi_observer.destroy is resonible for removing an observer from the database and purging it from the library on all hosts *)
 
-val destroy : __context:Context.t -> self:API.ref_Observer -> unit
+val destroy : __context:Context.db Context.t -> self:API.ref_Observer -> unit
 
 val set_hosts :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_Observer
   -> value:API.ref_host list
   -> unit
 
 val set_enabled :
-  __context:Context.t -> self:API.ref_Observer -> value:bool -> unit
+  __context:Context.db Context.t -> self:API.ref_Observer -> value:bool -> unit
 
 val set_attributes :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_Observer
   -> value:(string * string) list
   -> unit
 
 val set_endpoints :
-  __context:Context.t -> self:API.ref_Observer -> value:string list -> unit
+  __context:Context.db Context.t -> self:API.ref_Observer -> value:string list -> unit
 
 val set_components :
-  __context:Context.t -> self:API.ref_Observer -> value:string list -> unit
+  __context:Context.db Context.t -> self:API.ref_Observer -> value:string list -> unit

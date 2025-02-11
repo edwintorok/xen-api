@@ -40,7 +40,7 @@ module AuthFail : sig
   val get_stats_string : unit -> string option
 
   val on_fail :
-       __context:Context.t
+       __context:Context.db Context.t
     -> now:Date.t
     -> uname:string option
     -> originator:string option

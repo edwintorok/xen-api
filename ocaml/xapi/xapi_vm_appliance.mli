@@ -13,45 +13,45 @@
  *)
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> [`VM_appliance] Ref.t
 
-val destroy : __context:Context.t -> self:[`VM_appliance] Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`VM_appliance] Ref.t -> unit
 
 val assert_operation_valid :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VM_appliance] Ref.t
   -> op:API.vm_appliance_operation
   -> unit
 
 val update_allowed_operations :
-  __context:Context.t -> self:[`VM_appliance] Ref.t -> unit
+  __context:Context.db Context.t -> self:[`VM_appliance] Ref.t -> unit
 
 val start :
-  __context:Context.t -> self:[`VM_appliance] Ref.t -> paused:bool -> unit
+  __context:Context.db Context.t -> self:[`VM_appliance] Ref.t -> paused:bool -> unit
 
-val clean_shutdown : __context:Context.t -> self:[`VM_appliance] Ref.t -> unit
+val clean_shutdown : __context:Context.db Context.t -> self:[`VM_appliance] Ref.t -> unit
 
-val hard_shutdown : __context:Context.t -> self:[`VM_appliance] Ref.t -> unit
+val hard_shutdown : __context:Context.db Context.t -> self:[`VM_appliance] Ref.t -> unit
 
-val shutdown : __context:Context.t -> self:[`VM_appliance] Ref.t -> unit
+val shutdown : __context:Context.db Context.t -> self:[`VM_appliance] Ref.t -> unit
 
 val assert_can_be_recovered :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VM_appliance] Ref.t
   -> session_to:[`session] Ref.t
   -> unit
 
 val get_SRs_required_for_recovery :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VM_appliance] Ref.t
   -> session_to:[`session] Ref.t
   -> API.ref_SR list
 
 val recover :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VM_appliance] Ref.t
   -> session_to:[`session] Ref.t
   -> force:bool

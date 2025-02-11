@@ -24,7 +24,7 @@ module Winbind : sig
   val stop : timeout:float -> wait_until_success:bool -> unit
 
   (* init winbind service *)
-  val init_service : __context:Context.t -> unit
+  val init_service : __context:Context.db Context.t -> unit
 
   (* build NETBIOS name from localhost name *)
   val build_netbios_name : string -> string

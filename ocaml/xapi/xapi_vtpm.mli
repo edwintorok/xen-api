@@ -13,22 +13,22 @@
  *)
 
 val create :
-  __context:Context.t -> vM:[`VM] API.Ref.t -> is_unique:bool -> [`VTPM] Ref.t
+  __context:Context.db Context.t -> vM:[`VM] API.Ref.t -> is_unique:bool -> [`VTPM] Ref.t
 
 val import :
-  __context:Context.t -> vM:[`VM] API.Ref.t -> is_unique:bool -> [`VTPM] Ref.t
+  __context:Context.db Context.t -> vM:[`VM] API.Ref.t -> is_unique:bool -> [`VTPM] Ref.t
 
-val assert_no_vtpm_associated : __context:Context.t -> [`VM] API.Ref.t -> unit
+val assert_no_vtpm_associated : __context:Context.db Context.t -> [`VM] API.Ref.t -> unit
 
 val copy :
-  __context:Context.t -> vM:[`VM] Ref.t -> [`VTPM] Ref.t -> [`VTPM] Ref.t
+  __context:Context.db Context.t -> vM:[`VM] Ref.t -> [`VTPM] Ref.t -> [`VTPM] Ref.t
 
-val destroy : __context:Context.t -> self:[`VTPM] Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`VTPM] Ref.t -> unit
 
-val get_contents : __context:Context.t -> self:[`VTPM] Ref.t -> string
+val get_contents : __context:Context.db Context.t -> self:[`VTPM] Ref.t -> string
 
 val set_contents :
-  __context:Context.t -> self:[`VTPM] Ref.t -> contents:string -> unit
+  __context:Context.db Context.t -> self:[`VTPM] Ref.t -> contents:string -> unit
 
 val update_allowed_operations :
-  __context:Context.t -> self:[`VTPM] API.Ref.t -> unit
+  __context:Context.db Context.t -> self:[`VTPM] API.Ref.t -> unit

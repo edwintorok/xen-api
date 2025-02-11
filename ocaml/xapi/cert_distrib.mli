@@ -12,22 +12,22 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val local_exec : __context:Context.t -> command:string -> string
+val local_exec : __context:Context.db Context.t -> command:string -> string
 (** execute a string encoded job, returning a string encoded result *)
 
-val exchange_certificates_in_pool : __context:Context.t -> unit
+val exchange_certificates_in_pool : __context:Context.db Context.t -> unit
 (** [exchange_certificates_in_pool ~__context] collects internal
     certificates from all members in a pool and installed on all of them. On
     success, new bundles will have been generated on the members. *)
 
-val am_i_missing_certs : __context:Context.t -> bool
+val am_i_missing_certs : __context:Context.db Context.t -> bool
 
-val copy_certs_to_host : __context:Context.t -> host:API.ref_host -> unit
+val copy_certs_to_host : __context:Context.db Context.t -> host:API.ref_host -> unit
 (** [copy_certs_to_host ~__context ~host] collects all local certificates and
     installs them on [host] *)
 
 val exchange_certificates_with_joiner :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uuid:string
   -> certificate:string
   -> (string * string) list
@@ -39,7 +39,7 @@ val exchange_certificates_with_joiner :
     unlikely to be useful elsewhere. *)
 
 val import_joining_pool_certs :
-  __context:Context.t -> pool_certs:(string * string) list -> unit
+  __context:Context.db Context.t -> pool_certs:(string * string) list -> unit
 (** [import_joining_pool_certs ~__context ~pool_certs] Installs the
     [pool_certs] into the filesystem as certificates of hosts in the pool.
     This parameter must be a result of [exchange_certificates_with_joiner].
@@ -47,12 +47,12 @@ val import_joining_pool_certs :
     useful elsewhere. *)
 
 val collect_ca_certs :
-  __context:Context.t -> names:string list -> (string * string) list
+  __context:Context.db Context.t -> names:string list -> (string * string) list
 (** [collect_ca_certs ~__context ~names] returns the ca certificates present
     in the filesystem with the filenames [names], ready to export. *)
 
 val exchange_ca_certificates_with_joiner :
-     __context:Context.t
+     __context:Context.db Context.t
   -> import:(string * string) list
   -> export:string list
   -> (string * string) list
@@ -64,7 +64,7 @@ val exchange_ca_certificates_with_joiner :
     unlikely to be useful elsewhere. *)
 
 val import_joining_pool_ca_certificates :
-  __context:Context.t -> ca_certs:(string * string) list -> unit
+  __context:Context.db Context.t -> ca_certs:(string * string) list -> unit
 (** [import_joining_pool_ca_certificates ~__context ~ca_certs]
     Installs [ca_certs] into the filesystem as ca certificates.
     This parameter must be the result of
@@ -72,5 +72,5 @@ val import_joining_pool_ca_certificates :
     as part of pool join and is unlikely to be useful elsewhere. *)
 
 val distribute_new_host_cert :
-  __context:Context.t -> host:[`host] API.Ref.t -> content:string -> unit
+  __context:Context.db Context.t -> host:[`host] API.Ref.t -> content:string -> unit
 (** distribute a new (additional) certificate for [host] in the pool *)

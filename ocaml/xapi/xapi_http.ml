@@ -87,7 +87,7 @@ let rbac_audit_params_of (req : Request.t) =
   |> List.map (fun (n, v) -> (n, Rpc.String v))
 
 let create_session_for_client_cert req s =
-  let __context = Context.make ~origin:(Http (req, s)) "client_cert" in
+  let __context = Context.make ~origin:(Http (req, s)) `DB "client_cert" in
   match Context.preauth ~__context with
   | Some `client_cert ->
       (* Has been authenticated. Performing RBAC check only ... *)

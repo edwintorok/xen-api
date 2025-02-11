@@ -19,7 +19,7 @@
 
 (* TODO: consider updating sm_exec.ml and removing login_no_password from this mli *)
 val login_no_password :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uname:string option
   -> host:[`host] Ref.t
   -> pool:bool
@@ -31,27 +31,27 @@ val login_no_password :
   -> [`session] Ref.t
 
 (* public functions *)
-val destroy_db_session : __context:Context.t -> self:API.ref_session -> unit
+val destroy_db_session : __context:Context.db Context.t -> self:API.ref_session -> unit
 
-val revalidate_all_sessions : __context:Context.t -> unit
+val revalidate_all_sessions : __context:Context.db Context.t -> unit
 
 val consider_touching_session :
   (Rpc.call -> Rpc.response) -> API.ref_session -> unit -> unit
 
 val slave_login :
-     __context:Context.t
+     __context:Context.db Context.t
   -> host:[`host] Ref.t
   -> psecret:SecretString.t
   -> [`session] Ref.t
 
 val slave_local_login :
-  __context:Context.t -> psecret:SecretString.t -> API.ref_session
+  __context:Context.db Context.t -> psecret:SecretString.t -> API.ref_session
 
 val slave_local_login_with_password :
-  __context:Context.t -> uname:string -> pwd:string -> API.ref_session
+  __context:Context.db Context.t -> uname:string -> pwd:string -> API.ref_session
 
 val login_with_password :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uname:string
   -> pwd:string
   -> version:'a
@@ -59,34 +59,34 @@ val login_with_password :
   -> [`session] Ref.t
 
 val change_password :
-  __context:Context.t -> old_pwd:string -> new_pwd:string -> unit
+  __context:Context.db Context.t -> old_pwd:string -> new_pwd:string -> unit
 
-val logout : __context:Context.t -> unit
+val logout : __context:Context.db Context.t -> unit
 
-val local_logout : __context:Context.t -> unit
+val local_logout : __context:Context.db Context.t -> unit
 
 val get_group_subject_identifier_from_session :
-  __context:Context.t -> session:[`session] Ref.t -> string
+  __context:Context.db Context.t -> session:[`session] Ref.t -> string
 
-val get_all_subject_identifiers : __context:Context.t -> string list
+val get_all_subject_identifiers : __context:Context.db Context.t -> string list
 
 val logout_subject_identifier :
-  __context:Context.t -> subject_identifier:string -> unit
+  __context:Context.db Context.t -> subject_identifier:string -> unit
 
-val get_top : __context:Context.t -> self:API.ref_session -> API.ref_session
+val get_top : __context:Context.db Context.t -> self:API.ref_session -> API.ref_session
 
 val create_readonly_session :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uname:string
   -> db_ref:Xapi_database.Db_ref.t option
   -> API.ref_session
 
 val create_from_db_file :
-  __context:Context.t -> filename:string -> API.ref_session
+  __context:Context.db Context.t -> filename:string -> API.ref_session
 
 (* for unit testing *)
 val _record_login_failure :
-     __context:Context.t
+     __context:Context.db Context.t
   -> now:Xapi_stdext_date.Date.t
   -> uname:string option
   -> originator:string option
@@ -95,7 +95,7 @@ val _record_login_failure :
   -> 'a
 
 val record_login_failure :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uname:string option
   -> originator:string option
   -> record:[< `log_only | `log_and_alert]

@@ -20,7 +20,7 @@
    declaration also serves to annotate the (op:API.vdi_operations)
    parameter. *)
 val check_operation_error :
-     __context:Context.t
+     __context:Context.db Context.t
   -> ?sr_records:'a list
   -> ?pbd_records:(API.ref_PBD * API.pBD_t) list
   -> ?vbd_records:(API.ref_VBD * Db_actions.vBD_t) list
@@ -33,10 +33,10 @@ val check_operation_error :
     if not and None if everything is ok. *)
 
 val assert_operation_valid :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> op:API.vdi_operations -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> op:API.vdi_operations -> unit
 
 val update_allowed_operations_internal :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VDI] API.Ref.t
   -> sr_records:'a list
   -> pbd_records:(API.ref_PBD * API.pBD_t) list
@@ -45,17 +45,17 @@ val update_allowed_operations_internal :
   -> unit
 
 val update_allowed_operations :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> unit
 
 val cancel_tasks :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VDI] API.Ref.t
   -> all_tasks_in_db:API.ref_task list
   -> task_ids:string list
   -> unit
 
 val create :
-     __context:Context.t
+     __context:Context.db Context.t
   -> name_label:string
   -> name_description:string
   -> sR:[`SR] API.Ref.t
@@ -70,7 +70,7 @@ val create :
   -> [`VDI] API.Ref.t
 
 val pool_introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uuid:string
   -> name_label:string
   -> name_description:string
@@ -93,7 +93,7 @@ val pool_introduce :
   -> [`VDI] Ref.t
 
 val db_introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uuid:string
   -> name_label:string
   -> name_description:string
@@ -115,10 +115,10 @@ val db_introduce :
   -> cbt_enabled:bool
   -> [`VDI] Ref.t
 
-val db_forget : __context:Context.t -> vdi:[`VDI] API.Ref.t -> unit
+val db_forget : __context:Context.db Context.t -> vdi:[`VDI] API.Ref.t -> unit
 
 val introduce :
-     __context:Context.t
+     __context:Context.db Context.t
   -> uuid:string
   -> name_label:string
   -> name_description:string
@@ -139,12 +139,12 @@ val introduce :
   -> snapshot_of:'h
   -> [`VDI] API.Ref.t
 
-val update : __context:Context.t -> vdi:[`VDI] API.Ref.t -> unit
+val update : __context:Context.db Context.t -> vdi:[`VDI] API.Ref.t -> unit
 
-val forget : __context:Context.t -> vdi:[`VDI] API.Ref.t -> unit
+val forget : __context:Context.db Context.t -> vdi:[`VDI] API.Ref.t -> unit
 
 val snapshot :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vdi:[`VDI] API.Ref.t
   -> driver_params:(string * string) list
   -> [`VDI] API.Ref.t
@@ -152,29 +152,29 @@ val snapshot :
     snapshot operation (e.g. vmhint for NetAPP)
 *)
 
-val destroy : __context:Context.t -> self:[`VDI] API.Ref.t -> unit
+val destroy : __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> unit
 
-val data_destroy : __context:Context.t -> self:[`VDI] API.Ref.t -> unit
+val data_destroy : __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> unit
 
 val _data_destroy :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> timeout:int -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> timeout:int -> unit
 (** This version of {!data_destroy} is for unit testing purposes: the timeout
     for waiting for the VDI's VBDs to disappear is configurable to enable faster
     unit tests. *)
 
-val resize : __context:Context.t -> vdi:[`VDI] API.Ref.t -> size:int64 -> unit
+val resize : __context:Context.db Context.t -> vdi:[`VDI] API.Ref.t -> size:int64 -> unit
 
 val generate_config :
-  __context:Context.t -> host:'a -> vdi:[`VDI] API.Ref.t -> string
+  __context:Context.db Context.t -> host:'a -> vdi:[`VDI] API.Ref.t -> string
 
 val clone :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vdi:[`VDI] API.Ref.t
   -> driver_params:(string * string) list
   -> [`VDI] API.Ref.t
 
 val copy :
-     __context:Context.t
+     __context:Context.db Context.t
   -> vdi:[`VDI] API.Ref.t
   -> sr:[< `SR] Ref.t
   -> base_vdi:API.ref_VDI
@@ -184,73 +184,73 @@ val copy :
 val force_unlock : __context:'a -> vdi:'b -> 'c
 
 val set_sharable :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
 
 val set_managed :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
 
 val set_read_only :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
 
 val set_missing :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
 
 val set_virtual_size :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:int64 -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:int64 -> unit
 
 val set_physical_utilisation :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:int64 -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:int64 -> unit
 
 val set_is_a_snapshot :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
 
 val set_snapshot_of :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:[`VDI] API.Ref.t -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:[`VDI] API.Ref.t -> unit
 
 val set_snapshot_time :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:API.Date.t -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:API.Date.t -> unit
 
 val set_metadata_of_pool :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:[`VDI] API.Ref.t
   -> value:[`pool] API.Ref.t
   -> unit
 
 val set_on_boot :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:API.on_boot -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:API.on_boot -> unit
 
 val set_allow_caching :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:bool -> unit
 
 val set_name_label :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:string -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:string -> unit
 
 val set_name_description :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> value:string -> unit
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> value:string -> unit
 
-val checksum : __context:Context.t -> self:API.ref_VDI -> string
+val checksum : __context:Context.db Context.t -> self:API.ref_VDI -> string
 
 val open_database :
-  __context:Context.t -> self:[`VDI] API.Ref.t -> API.ref_session
+  __context:Context.db Context.t -> self:[`VDI] API.Ref.t -> API.ref_session
 (** Open a foreign database on a VDI *)
 
 val read_database_pool_uuid : __context:'a -> self:API.ref_VDI -> string
 
-val enable_cbt : __context:Context.t -> self:API.ref_VDI -> unit
+val enable_cbt : __context:Context.db Context.t -> self:API.ref_VDI -> unit
 
-val disable_cbt : __context:Context.t -> self:API.ref_VDI -> unit
+val disable_cbt : __context:Context.db Context.t -> self:API.ref_VDI -> unit
 
 val set_cbt_enabled :
-  __context:Context.t -> self:API.ref_VDI -> value:bool -> unit
+  __context:Context.db Context.t -> self:API.ref_VDI -> value:bool -> unit
 
 val list_changed_blocks :
-  __context:Context.t -> vdi_from:API.ref_VDI -> vdi_to:API.ref_VDI -> string
+  __context:Context.db Context.t -> vdi_from:API.ref_VDI -> vdi_to:API.ref_VDI -> string
 
 val get_nbd_info :
-  __context:Context.t -> self:API.ref_VDI -> API.vdi_nbd_server_info_t_set
+  __context:Context.db Context.t -> self:API.ref_VDI -> API.vdi_nbd_server_info_t_set
 
 val _get_nbd_info :
-     __context:Context.t
+     __context:Context.db Context.t
   -> self:API.ref_VDI
   -> get_server_certificate:(host:[`host] Ref.t -> string)
   -> API.vdi_nbd_server_info_t_set
