@@ -36,7 +36,6 @@
 
 enum direct_copy_rc {
   OK                   = 0,
-  TRIED_AND_FAILED     = 1,
   READ_FAILED          = 2,
   WRITE_FAILED         = 3,
   WRITE_UNEXPECTED_EOF = 4,
@@ -136,7 +135,6 @@ CAMLprim value stub_direct_copy(value handle, value len){
    * on so the caller must be careful. */
   caml_enter_blocking_section();
 
-  rc = TRIED_AND_FAILED;
   bytes = 0;
 
   remaining = c_len;
@@ -200,9 +198,6 @@ fail:
    * raise OCaml exceptions */
 
   switch (rc) {
-    case TRIED_AND_FAILED:
-      caml_failwith("direct_copy: General error");
-      break;
     case WRITE_FAILED:
       uerror("write", Nothing);
       break;
@@ -218,8 +213,11 @@ fail:
     case READ_POLL_FAILED:
       uerror("read poll", Nothing);
       break;
-    case OK:
+    default:
+      caml_failwith("direct_copy: General error");
       break;
+    case OK:
+        break;
   }
   result = caml_copy_int64(bytes);
   CAMLreturn(result);
