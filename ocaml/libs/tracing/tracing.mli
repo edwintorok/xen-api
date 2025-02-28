@@ -119,8 +119,6 @@ end
 module Span : sig
   type t
 
-  val compare : t -> t -> int
-
   val get_context : t -> SpanContext.t
 
   val get_trace_context : t -> TraceContext.t
