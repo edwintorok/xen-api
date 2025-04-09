@@ -27,7 +27,7 @@ let xml_leaf_element name value = Xml.element name [] [Xml.pcdata value]
 
 (** Returns true iff. the given element matches the given name. *)
 let xml_element_has_name name element =
-  match element with `El (name_, _, _) -> name = name_ | _ -> false
+  match element with `El (((_, name_), _), _) -> name = name_ | _ -> false
 
 (** Returns the first element with the specified name from
     the given element list. *)
@@ -39,9 +39,9 @@ let first_xml_element_with_name elements name =
     Returns a (name, value) string pair, where the arguments
     are stripped of leading and trailing whitespace. *)
 let hash_table_entry_of_leaf_xml_element = function
-  | `El (name, _, `Data value :: _) ->
+  | `El (((_, name), _), `Data value :: _) ->
       Some (String.trim name, String.trim value)
-  | `El (name, _, []) ->
+  | `El (((_, name), _), []) ->
       Some (String.trim name, "")
   | _ ->
       None
@@ -251,7 +251,7 @@ module LiveSetInformation = struct
         The element must contain valid child elements for
         each member of the host record type. *)
     let of_xml_element = function
-      | `El ("host", _, children) ->
+      | `El (((_, "host"), _), children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -303,7 +303,7 @@ module LiveSetInformation = struct
     }
 
     let of_xml_element = function
-      | `El ("host_raw_data", _, children) ->
+      | `El (((_, "host_raw_data"), _), children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -360,8 +360,8 @@ module LiveSetInformation = struct
       ; network_bonding_error: bool
     }
 
-    let of_xml_element = function
-      | `El ("warning_on_local_host", _, children) ->
+    let of_xml_element : Xml.xml -> _ = function
+      | `El (((_, "warning_on_local_host"), _), children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -405,7 +405,7 @@ module LiveSetInformation = struct
     }
 
     let of_xml_element = function
-      | `El ("raw_status_on_local_host", _, children) ->
+      | `El (((_, "raw_status_on_local_host"), _), children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -473,10 +473,7 @@ module LiveSetInformation = struct
           )
     ; local_host_id=
         ( match first_xml_element_with_name elements "localhost" with
-        | Some
-            (`El
-              (_, _, [`El ("HostID", _, [`Data local_host_id])])
-              ) -> (
+        | Some (`El (_, [`El (((_, "HostID"), _), [`Data local_host_id])])) -> (
           match Uuidx.of_string local_host_id with
           | None ->
               invalid_arg
@@ -493,7 +490,7 @@ module LiveSetInformation = struct
     ; status=
         (let status_option =
            match first_xml_element_with_name elements "status" with
-           | Some (`El (_, _, [`Data status_string])) ->
+           | Some (`El (_, [`Data status_string])) ->
                Status.of_string status_string
            | _ ->
                None
@@ -525,7 +522,7 @@ module LiveSetInformation = struct
   (** Creates a new HA live set information record
       from the given root XML element. *)
   let of_xml_element = function
-    | `El ("ha_liveset_info", _, children) ->
+    | `El (((_, "ha_liveset_info"), _), children) ->
         of_xml_element_list children
     | _ ->
         invalid_arg "Invalid or missing 'ha_liveset_info' element."

@@ -18,7 +18,7 @@
  *)
 
 (* tree representation *)
-type xml = [`El of string * (string * string) list * xml list | `Data of string]
+type xml = xml Xmlm.frag
 
 type error_pos = {eline: int}
 
@@ -44,16 +44,9 @@ let is_empty xml =
   in
   match xml with `Data data when is_empty_string data -> true | _ -> false
 
-let _parse i =
+let parse' i =
   let el (tag : Xmlm.tag) (children : xml list) : xml =
-    let name_local = snd (fst tag) in
-    let attrs' =
-      Xapi_stdext_std.Listext.List.map_tr
-        (fun (nameattr, str) -> (snd nameattr, str))
-        (snd tag)
-    in
-    `El
-      (name_local, attrs', List.filter (fun xml -> not (is_empty xml)) children)
+    `El (tag, List.filter (fun xml -> not (is_empty xml)) children)
   in
   let data s = `Data s in
   match Xmlm.peek i with
@@ -63,7 +56,7 @@ let _parse i =
       Xmlm.input_tree ~el ~data i
 
 let parse i =
-  try _parse i
+  try parse' i
   with Xmlm.Error ((line, _), msg) ->
     let pos = {eline= line} in
     let err = Xmlm.error_message msg in
@@ -71,12 +64,9 @@ let parse i =
 
 (* common parse function *)
 let parse_file file =
-  let chan = open_in file in
-  try
-    let i = Xmlm.make_input (`Channel chan) in
-    let ret = parse i in
-    close_in chan ; ret
-  with exn -> close_in_noerr chan ; raise exn
+  In_channel.with_open_text file @@ fun chan ->
+  let i = Xmlm.make_input (`Channel chan) in
+  parse i
 
 let parse_in chan =
   let i = Xmlm.make_input (`Channel chan) in
@@ -115,7 +105,7 @@ let str_of_attrs attrs =
   if attrs <> [] then
     " "
     ^ String.concat " "
-        (List.map (fun (k, v) -> fmt "%s=\"%s\"" k (esc_pcdata v)) attrs)
+        (List.map (fun ((_, k), v) -> fmt "%s=\"%s\"" k (esc_pcdata v)) attrs)
   else
     ""
 
@@ -123,11 +113,11 @@ let to_fct xml f =
   let fmt s = Printf.sprintf s in
   let rec print xml =
     match xml with
-    | `El (name, attrs, []) ->
+    | `El (((_, name), attrs), []) ->
         let astr = str_of_attrs attrs in
         let on = fmt "<%s%s/>" name astr in
         f on
-    | `El (name, attrs, children) ->
+    | `El (((_, name), attrs), children) ->
         let astr = str_of_attrs attrs in
         let on = fmt "<%s%s>" name astr in
         let off = fmt "</%s>" name in
@@ -141,20 +131,20 @@ let to_fct_fmt xml f =
   let fmt s = Printf.sprintf s in
   let rec print newl indent xml =
     match xml with
-    | `El (name, attrs, [`Data data]) ->
+    | `El (((_, name), attrs), [`Data data]) ->
         let astr = str_of_attrs attrs in
         let on = fmt "%s<%s%s>" indent name astr in
         let off = fmt "</%s>%s" name (if newl then "\n" else "") in
         f on ;
         f (esc_pcdata data) ;
         f off
-    | `El (name, attrs, []) ->
+    | `El (((_, name), attrs), []) ->
         let astr = str_of_attrs attrs in
         let on =
           fmt "%s<%s%s/>%s" indent name astr (if newl then "\n" else "")
         in
         f on
-    | `El (name, attrs, children) ->
+    | `El (((_, name), attrs), children) ->
         let astr = str_of_attrs attrs in
         let on = fmt "%s<%s%s>\n" indent name astr in
         let off = fmt "%s</%s>%s" indent name (if newl then "\n" else "") in
@@ -178,6 +168,14 @@ let to_string_fmt xml =
   let s = Buffer.contents buffer in
   Buffer.reset buffer ; s
 
-let element tag attrs children = `El (tag, attrs, children)
+let element tag attrs children =
+  `El ((("", tag), (List.map (fun (k, v) -> (("", k), v))) attrs), children)
 
 let pcdata str = `Data str
+
+let value_of_attrs_opt key attrs =
+  List.find_map
+    (fun ((_, k), v) -> if String.equal key k then Some v else None)
+    attrs
+
+let value_of_attrs_exn key attrs = value_of_attrs_opt key attrs |> Option.get

@@ -457,28 +457,17 @@ let make_packs_info () =
           Xml.parse_file (!Xapi_globs.packs_dir ^ "/" ^ fname ^ "/XS-REPOSITORY")
         in
         match xml with
-        | `El (_, attr, children) ->
-            let originator = List.assoc "originator" attr in
-            let name = List.assoc "name" attr in
-            let version = List.assoc "version" attr in
-            let build =
-              if List.mem_assoc "build" attr then
-                Some (List.assoc "build" attr)
-              else
-                None
-            in
+        | `El ((_, attr), children) ->
+            let originator = Xml.value_of_attrs_exn "originator" attr in
+            let name = Xml.value_of_attrs_exn "name" attr in
+            let version = Xml.value_of_attrs_exn "version" attr in
+            let build = Xml.value_of_attrs_opt "build" attr in
             let homogeneous =
-              if
-                List.mem_assoc "enforce-homogeneity" attr
-                && List.assoc "enforce-homogeneity" attr = "true"
-              then
-                true
-              else
-                false
+              Xml.value_of_attrs_opt "enforce-homogeneity" attr = Some "true"
             in
             let description =
               match children with
-              | `El (_, _, `Data s :: _) :: _ ->
+              | `El (_, `Data s :: _) :: _ ->
                   s
               | _ ->
                   failwith "error with parsing pack data"

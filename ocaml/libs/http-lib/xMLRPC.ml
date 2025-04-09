@@ -24,7 +24,7 @@ let rtte name xml =
 type xmlrpc = Xml.xml
 
 let pretty_print = function
-  | `El (tag, _, _) ->
+  | `El (((_, tag), _), _) ->
       "Element=" ^ String.escaped tag
   | `Data d ->
       "PCData=" ^ String.escaped d
@@ -136,14 +136,10 @@ end
 module From = struct
   let id x = x
 
-  let pcdata f  = function
-    | `Data string ->
-        f string
-    | xml ->
-        rtte "pcdata" xml
+  let pcdata f = function `Data string -> f string | xml -> rtte "pcdata" xml
 
   let unbox ok f = function
-    | `El (s, [], data) when List.mem s ok ->
+    | `El (((_, s), []), data) when List.mem s ok ->
         f data
     | xml ->
         rtte
@@ -210,10 +206,10 @@ module From = struct
       xml
 
   let string = function
-    | `El ("value", [], [`Data s]) ->
+    | `El (((_, "value"), []), [`Data s]) ->
         s
-    | `El ("value", [], [`El ("string", [], [])])
-    | `El ("value", [], []) ->
+    | `El (((_, "value"), []), [`El (((_, "string"), []), [])])
+    | `El (((_, "value"), []), []) ->
         ""
     | xml ->
         value (singleton ["string"] (pcdata id)) xml
@@ -250,14 +246,14 @@ module From = struct
   let methodResponse xml =
     singleton ["methodResponse"]
       (function
-        | `El ("params", _, _) as xml -> (
+        | `El (((_, "params"), _), _) as xml -> (
           match success xml with
           | [xml] ->
               status xml
           | _ ->
               rtte "Expected single return value (struct status)" xml
         )
-        | `El ("fault", _, _) as xml ->
+        | `El (((_, "fault"), _), _) as xml ->
             Fault (fault id xml)
         | xml ->
             rtte "response" xml

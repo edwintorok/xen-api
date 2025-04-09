@@ -44,7 +44,7 @@ and update_entries _ error =
 and get_keys key _ tail = key :: tail
 
 let rec get_node k = function
-  | `El (k', _, [`Data v]) :: _ when k = k' ->
+  | `El (((_, k'), _), [`Data v]) :: _ when k = k' ->
       v
   | _ :: xs ->
       get_node k xs
@@ -62,9 +62,9 @@ let parse_sr_xml filename =
       Hashtbl.add friendly_names key description
   in
   let rec parse_xml : Xml.xml -> _ = function
-    | `El ("SM-errorcodes", _, children) ->
+    | `El (((_, "SM-errorcodes"), _), children) ->
         List.iter parse_xml children
-    | `El ("code", _, children) ->
+    | `El (((_, "code"), _), children) ->
         update_entry children
     | _ ->
         ()
@@ -76,14 +76,14 @@ let parse_sr_xml filename =
 
 let parse_resx filename =
   let update_entry attrs children =
-    let key = List.assoc "name" attrs in
+    let key = Xml.value_of_attrs_exn "name" attrs in
     let value = get_node "value" children in
     Hashtbl.replace friendly_names key value
   in
-  let rec parse_xml = function
-    | `El ("root", _, children) ->
+  let rec parse_xml : Xml.xml -> _ = function
+    | `El (((_, "root"), _), children) ->
         List.iter parse_xml children
-    | `El ("data", attrs, children) ->
+    | `El (((_, "data"), attrs), children) ->
         update_entry attrs children
     | _ ->
         ()

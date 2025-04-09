@@ -124,11 +124,7 @@ let check_wlb_enabled ~__context =
     false
 
 let match_xml_tag x t =
-  match x with
-  | `El (tag, _, _) ->
-      String.compare tag t = 0
-  | `Data _ ->
-      false
+  match x with `El (((_, tag), _), _) -> String.equal tag t | `Data _ -> false
 
 let is_parent_to parent_element child_tag =
   match parent_element with
@@ -139,9 +135,9 @@ let is_parent_to parent_element child_tag =
 
 let is_childless elem =
   match elem with
-  | `El (_, _, [`Data _]) ->
+  | `El (_, [`Data _]) ->
       true
-  | `El (_, _, children) ->
+  | `El (_, children) ->
       children = []
   | `Data _ ->
       true
@@ -158,7 +154,7 @@ let rec descend_and_match tag_names xml =
   | [], elem ->
       elem
       (* have reached end of the list, with all correct matches so return this element*)
-  | hd_tag :: _, `El (_, _, [`Data _]) ->
+  | hd_tag :: _, `El (_, [`Data _]) ->
       (*we have a leaf node, check that we are at the end of the path and return it *)
       raise_malformed_response "unknown"
         (sprintf
@@ -168,7 +164,7 @@ let rec descend_and_match tag_names xml =
            (String.concat "->" tag_names)
         )
         xml
-  | hd_tag :: tail, `El (_, _, xml_elements) -> (
+  | hd_tag :: tail, `El (_, xml_elements) -> (
     try
       (* take the tag off the head of the list and search the children of this element for it *)
       descend_and_match tail
@@ -186,9 +182,9 @@ let rec descend_and_match tag_names xml =
 
 let data_from_leaf element =
   match element with
-  | `El (_, _, [`Data data]) ->
+  | `El (_, [`Data data]) ->
       data
-  | `El (_, _, _) ->
+  | `El (_, _) ->
       ""
   | _ ->
       raise_malformed_response "unknown" "Expected element to be leaf node"
@@ -457,7 +453,7 @@ let retrieve_vm_recommendations ~__context ~vm =
     in
     let recs = descend_and_match ["Recommendations"] inner_xml in
     match recs with
-    | `El (_, _, (_ :: _ as children)) ->
+    | `El (_, (_ :: _ as children)) ->
         if
           List.length children <> List.length (Helpers.get_live_hosts ~__context)
         then
@@ -531,7 +527,7 @@ let decon_wlb ~__context =
     Db.Secret.destroy ~__context ~self:secret_ref
   in
   let pool = Helpers.get_pool ~__context in
-  let handle_response inner_xml =
+  let handle_response (inner_xml:Xml.xml) =
     (* A succesful result is empty. Check this before clearing config *)
     if is_childless inner_xml then
       clear_wlb_config ~__context ~pool
@@ -596,7 +592,7 @@ let retrieve_wlb_config ~__context =
   let handle_response inner_xml =
     let rec gen_map key_value_parents =
       match key_value_parents with
-      | (`El (_, _, _) as key_value_parent) :: tl ->
+      | (`El (_, _) as key_value_parent) :: tl ->
           ( data_from_leaf (descend_and_match ["Key"] key_value_parent)
           , data_from_leaf (descend_and_match ["Value"] key_value_parent)
           )
@@ -607,7 +603,7 @@ let retrieve_wlb_config ~__context =
           []
     in
     match descend_and_match ["OptimizationParms"] inner_xml with
-    | `El (_, _, children) ->
+    | `El (_, children) ->
         gen_map children
     | _ ->
         raise_malformed_response "GetXenPoolConfiguration"
@@ -626,11 +622,11 @@ let get_opt_recommendations ~__context =
   let handle_response inner_xml =
     let rec gen_map key_value_parents =
       match key_value_parents with
-      | `El (_, _, kvalues) :: tl ->
+      | `El (_, kvalues) :: tl ->
           List.map
             (fun elem ->
               match elem with
-              | `El (key, _, _) as leaf ->
+              | `El (((_, key), _), _) as leaf ->
                   (key, data_from_leaf leaf)
               | `Data _ ->
                   unexpected_data "GetOptimizationRecommendations"
@@ -648,7 +644,7 @@ let get_opt_recommendations ~__context =
       ([], "") (*No recommendations to give. *)
     else
       match descend_and_match ["Recommendations"] inner_xml with
-      | `El (_, _, children) ->
+      | `El ( _, children) ->
           ( gen_map children
           , data_from_leaf (descend_and_match ["OptimizationId"] inner_xml)
           )
@@ -723,11 +719,11 @@ let get_evacuation_recoms ~__context ~uuid =
   let handle_response inner_xml =
     let rec gen_map key_value_parents =
       match key_value_parents with
-      | `El (_, _, kvalues) :: tl ->
+      | `El (_, kvalues) :: tl ->
           List.map
             (fun elem ->
               match elem with
-              | `El (key, _, _) as leaf ->
+              | `El (((_, key), _), _) as leaf ->
                   (key, data_from_leaf leaf)
               | `Data _ ->
                   unexpected_data "HostGetRecommendations"
@@ -744,9 +740,9 @@ let get_evacuation_recoms ~__context ~uuid =
       []
     else
       match inner_xml with
-      | `El (_, _, _) -> (
+      | `El (_, _) -> (
         match descend_and_match ["Recommendations"] inner_xml with
-        | `El (_, _, children) ->
+        | `El (_, children) ->
             gen_map children
         | _ ->
             [] (* just data, which we are treating as an empty response *)

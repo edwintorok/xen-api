@@ -3,7 +3,10 @@
  (public_name xml-light2)
  (modules xml)
  (wrapped false)
- (libraries threads xapi-stdext-std xmlm))
+ (libraries
+  threads
+  xapi-stdext-std
+  (re_export xmlm)))
 
 (executable
  (modes exe)

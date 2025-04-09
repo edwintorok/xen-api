@@ -232,10 +232,12 @@ let track_http_operation ?use_existing_task ?(progress_bar = false) fd rpc
 let rewrite_provisioning_xml rpc session_id new_vm sr_uuid =
   let rewrite_xml xml newsrname =
     let rewrite_disk = function
-      | `El ("disk", params, []) ->
+      | `El (((_, "disk"), params), []) ->
           Xml.element "disk"
             (List.map
-               (fun (x, y) -> if x <> "sr" then (x, y) else ("sr", newsrname))
+               (fun ((_, x), y) ->
+                 if x <> "sr" then (x, y) else ("sr", newsrname)
+               )
                params
             )
             []
@@ -243,7 +245,7 @@ let rewrite_provisioning_xml rpc session_id new_vm sr_uuid =
           x
     in
     match xml with
-    | `El ("provision", [], disks) ->
+    | `El (((_, "provision"), []), disks) ->
         Xml.element "provision" [] (List.map rewrite_disk disks)
     | x ->
         x

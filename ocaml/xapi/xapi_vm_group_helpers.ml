@@ -73,11 +73,11 @@ let get_anti_affinity_alerts ~__context =
 let alert_matched ~__context ~label_name ~id alert =
   let alert_rec = snd alert in
   match Xml.parse_string alert_rec.API.message_body with
-  | `El ("body", _, children) -> (
+  | `El (((_,"body"), _), children) -> (
       let filtered =
         List.filter_map
           (function
-            | `El (name, _, [`Data v]) when name = label_name ->
+            | `El (((_,name), _), [`Data v]) when name = label_name ->
                 Some v
             | _ ->
                 None

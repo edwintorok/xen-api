@@ -17,14 +17,14 @@ type sr_probe_sr = {uuid: string}
 
 let parse_sr_probe_xml (xml : string) : sr_probe_sr list =
   match Xml.parse_string xml with
-  | `El ("SRlist", _, children) ->
+  | `El (((_, "SRlist"), _), children) ->
       let parse_sr = function
-        | `El ("SR", _, children) ->
+        | `El (((_, "SR"), _), children) ->
             let parse_kv = function
-              | `El (key, _, [`Data v]) ->
+              | `El (((_, key), _), [`Data v]) ->
                   (key, Astring.String.trim v)
                   (* remove whitespace at both ends *)
-              | `El (key, _, []) ->
+              | `El (((_, key), _), []) ->
                   (key, "") (* We get an empty array for empty tag contents *)
               | _ ->
                   failwith "Malformed key/value pair"

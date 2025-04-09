@@ -13,8 +13,7 @@
  *)
 
 (** tree representation *)
-type xml =
-  [`El of string * (string * string) list * xml list | `Data of string]
+type xml = xml Xmlm.frag
 
 type error_pos
 
@@ -38,3 +37,6 @@ val to_string_fmt : xml -> string
 val element : string -> (string * string) list -> xml list -> xml
 
 val pcdata : string -> xml
+
+val value_of_attrs_exn: string -> Xmlm.attribute list -> string
+val value_of_attrs_opt: string -> Xmlm.attribute list -> string option

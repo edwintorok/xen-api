@@ -60,14 +60,15 @@ let string2vdi_type s =
 exception Parse_failure
 
 let disk_of_xml = function
-  | `El ("disk", params, []) -> (
+  | `El (((_, "disk"), params), []) -> (
     try
-      let device = List.assoc "device" params
-      and size = List.assoc "size" params
-      and sr = List.assoc "sr" params
-      and bootable = List.assoc "bootable" params
+      let device = Xml.value_of_attrs_exn "device" params
+      and size = Xml.value_of_attrs_exn "size" params
+      and sr = Xml.value_of_attrs_exn "sr" params
+      and bootable = Xml.value_of_attrs_exn "bootable" params
       and _type =
-        try string2vdi_type (List.assoc "type" params) with _ -> `system
+        try string2vdi_type (Xml.value_of_attrs_exn "type" params)
+        with _ -> `system
       in
       {
         device
@@ -82,7 +83,7 @@ let disk_of_xml = function
       raise Parse_failure
 
 let disks_of_xml = function
-  | `El ("provision", [], disks) ->
+  | `El (((_, "provision"), []), disks) ->
       List.map disk_of_xml disks
   | _ ->
       raise Parse_failure

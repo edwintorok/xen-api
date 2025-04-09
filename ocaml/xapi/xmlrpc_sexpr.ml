@@ -44,15 +44,15 @@ let xmlrpc_to_sexpr (root : xml) =
         let text = String.trim text in
         [SExpr.String text]
     (* empty <value>s have default value '' *)
-    | h, `El ("value", _, []) :: siblings ->
+    | h, `El (((_, "value"), _), []) :: siblings ->
         SExpr.String "" :: visit h siblings
     (* <data>,<value>,<name> tags: ignore them and go to children *)
-    | h, `El ("data", _, children) :: siblings
-    | h, `El ("value", _, children) :: siblings
-    | h, `El ("name", _, children) :: siblings ->
+    | h, `El (((_, "data"), _), children) :: siblings
+    | h, `El (((_, "value"), _), children) :: siblings
+    | h, `El (((_, "name"), _), children) :: siblings ->
         visit (h + 1) children @ visit h siblings
     (* <member> tags *)
-    | h, `El ("member", _, children) :: siblings -> (
+    | h, `El (((_, "member"), _), children) :: siblings -> (
         let (mychildren : SExpr.t list) = visit (h + 1) children in
         let anode = SExpr.Node mychildren in
         let (mysiblings : SExpr.t list) = visit h siblings in
@@ -68,7 +68,7 @@ let xmlrpc_to_sexpr (root : xml) =
       )
     (*ignore incorrect member*)
     (* any other element *)
-    | h, `El (tag, _, children) :: siblings ->
+    | h, `El (((_, tag), _), children) :: siblings ->
         let tag = String.trim tag in
         let mytag = SExpr.String tag in
         let (mychildren : SExpr.t list) = visit (h + 1) children in
@@ -98,7 +98,7 @@ let xmlrpc_to_sexpr (root : xml) =
 let sexpr_to_xmlrpc (root : SExpr.t) =
   let encase_with (container : string) (el : xml) = element container [] [el] in
   let is_not_empty_tag (el : xml) =
-    match el with `El ("", _, _) -> false | _ -> true
+    match el with `El (((_, ""), _), _) -> false | _ -> true
   in
   let rec visit (h : int) (parent : SExpr.t) (sexpr : SExpr.t) =
     match (h, parent, sexpr) with

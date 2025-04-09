@@ -309,9 +309,8 @@ let xmlrpc_of_call (call : call) =
 let methodResponse xml =
   match xml with
   | `El
-      ( "methodResponse"
-      , _
-      , [`El ("params", _, [`El ("param", _, [param])])]
+      ( ((_, "methodResponse"), _)
+      , [`El (((_, "params"), _), [`El (((_, "param"), _), [param])])]
       ) ->
       XMLRPC.Success [param]
   | xml ->

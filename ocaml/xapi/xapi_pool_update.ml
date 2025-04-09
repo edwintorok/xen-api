@@ -332,17 +332,12 @@ let guidance_from_string = function
 
 let parse_update_info xml =
   match xml with
-  | `El ("update", attr, children) ->
+  | `El (((_, "update"), attr), children) ->
       let key =
-        Option.bind (List.assoc_opt "key" attr) (function
-          | "" ->
-              None
-          | s ->
-              Some (Filename.basename s)
-          )
+        Xml.value_of_attrs_opt "key" attr |> Option.map Filename.basename
       in
       let uuid =
-        try List.assoc "uuid" attr
+        try Xml.value_of_attrs_exn "uuid" attr
         with _ ->
           raise
             (Api_errors.Server_error
@@ -350,7 +345,7 @@ let parse_update_info xml =
             )
       in
       let name_label =
-        try List.assoc "name-label" attr
+        try Xml.value_of_attrs_exn "name-label" attr
         with _ ->
           raise
             (Api_errors.Server_error
@@ -360,7 +355,7 @@ let parse_update_info xml =
             )
       in
       let version =
-        try List.assoc "version" attr
+        try Xml.value_of_attrs_exn "version" attr
         with _ ->
           raise
             (Api_errors.Server_error
@@ -368,11 +363,12 @@ let parse_update_info xml =
             )
       in
       let installation_size =
-        try Int64.of_string (List.assoc "installation-size" attr) with _ -> 0L
+        try Int64.of_string (Xml.value_of_attrs_exn "installation-size" attr)
+        with _ -> 0L
       in
       let guidance =
         try
-          match List.assoc "after-apply-guidance" attr with
+          match Xml.value_of_attrs_exn "after-apply-guidance" attr with
           | "" ->
               []
           | s ->
@@ -380,18 +376,19 @@ let parse_update_info xml =
         with _ -> []
       in
       let enforce_homogeneity =
-        Vm_platform.is_true ~key:"enforce-homogeneity" ~platformdata:attr
+        let platformdata = List.map (fun ((_, k), v) -> (k, v)) attr in
+        Vm_platform.is_true ~key:"enforce-homogeneity" ~platformdata
           ~default:false
       in
       let is_name_description_node = function
-        | `El ("name-description", _, _) ->
+        | `El (((_, "name-description"), _), _) ->
             true
         | _ ->
             false
       in
       let name_description =
         match List.find is_name_description_node children with
-        | `El ("name-description", _, [`Data s]) ->
+        | `El (((_, "name-description"), _), [`Data s]) ->
             s
         | _ ->
             raise

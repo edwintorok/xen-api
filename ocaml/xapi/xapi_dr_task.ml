@@ -30,9 +30,9 @@ type sr_probe_sr = {uuid: string; name_label: string; name_description: string}
 
 (* Attempt to parse a key/value pair from XML. *)
 let parse_kv = function
-  | `El (key, _, [`Data v]) ->
+  | `El (((_,key), _), [`Data v]) ->
       (key, String.trim v)
-  | `El (key, _, []) ->
+  | `El (((_,key), _), []) ->
       (key, "")
   | _ ->
       failwith "Malformed key/value pair"
@@ -40,9 +40,9 @@ let parse_kv = function
 (* Parse a list of SRs from an iscsi/hba SR probe response with sm-config:metadata=true *)
 let parse_sr_probe xml =
   match Xml.parse_string xml with
-  | `El ("SRlist", _, children) ->
+  | `El (((_,"SRlist"), _), children) ->
       let parse_sr = function
-        | `El ("SR", _, children) ->
+        | `El (((_,"SR"), _), children) ->
             let all = List.map parse_kv children in
             {
               uuid= List.assoc "UUID" all
