@@ -4,8 +4,6 @@
  (modules xml)
  (wrapped false)
  (libraries
-  threads
-  xapi-stdext-std
   (re_export xmlm)))
 
 (executable

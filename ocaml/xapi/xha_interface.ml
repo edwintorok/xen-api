@@ -155,7 +155,7 @@ module DaemonConfiguration = struct
       into an XML element tree. *)
   let to_xml_element config =
     Xml.element "xhad-config"
-      [("version", "1.0")]
+      [(("", "version"), "1.0")]
       [
         Xml.element "common-config" []
           (xml_leaf_element "GenerationUUID" config.common_generation_uuid

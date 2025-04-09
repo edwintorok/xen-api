@@ -34,7 +34,7 @@ val to_string : xml -> string
 
 val to_string_fmt : xml -> string
 
-val element : string -> (string * string) list -> xml list -> xml
+val element : string -> Xmlm.attribute list -> xml list -> xml
 
 val pcdata : string -> xml
 

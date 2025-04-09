@@ -236,7 +236,7 @@ let rewrite_provisioning_xml rpc session_id new_vm sr_uuid =
           Xml.element "disk"
             (List.map
                (fun ((_, x), y) ->
-                 if x <> "sr" then (x, y) else ("sr", newsrname)
+                 if x <> "sr" then (("", x), y) else (("", "sr"), newsrname)
                )
                params
             )
