@@ -1,0 +1,3 @@
+(test
+ (name xml_compat)
+ (libraries xml-light2 old_xml qcheck-core qcheck-alcotest alcotest))

@@ -78,14 +78,14 @@ let parse_string s =
 
 let to_string xml =
   let buffer = Buffer.create 1024 in
-  let dest = Xmlm.make_output (`Buffer buffer) in
-  Xmlm.output_doc_tree Fun.id dest (None, xml) ;
+  let dest = Xmlm.make_output ~decl:false (`Buffer buffer) in
+  Xmlm.output_doc_tree Fun.id dest (None, xml);
   Buffer.contents buffer
 
 let to_string_fmt xml =
   let buffer = Buffer.create 1024 in
-  let dest = Xmlm.make_output ~indent:(Some 2) (`Buffer buffer) in
-  Xmlm.output_doc_tree Fun.id dest (None, xml) ;
+  let dest = Xmlm.make_output ~decl:false ~indent:(Some 2) (`Buffer buffer) in
+  Xmlm.output_doc_tree Fun.id dest (None, xml);
   Buffer.contents buffer
 
 let element tag attrs children = `El ((("", tag), attrs), children)

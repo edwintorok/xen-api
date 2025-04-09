@@ -1,0 +1,3 @@
+(library
+ (name old_xml)
+ (libraries xmlm))
