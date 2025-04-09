@@ -118,7 +118,7 @@ let test_cache_updates_duplicates () =
   let credentials = CS.to_seq credentials in
   Seq.iter (insert cache) credentials ;
   let is_even i = i mod 2 = 0 in
-  (* Elements occurring at even indices will have their TTLs extended. *)
+  (* `Els occurring at even indices will have their TTLs extended. *)
   Seq.iteri (fun i c -> if is_even i then insert cache c) credentials ;
   (* Delay for at least as long as the original TTL. *)
   Thread.delay (float_of_int expiry_seconds) ;

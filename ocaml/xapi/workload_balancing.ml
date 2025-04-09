@@ -125,25 +125,25 @@ let check_wlb_enabled ~__context =
 
 let match_xml_tag x t =
   match x with
-  | Xml.Element (tag, _, _) ->
+  | `El (tag, _, _) ->
       String.compare tag t = 0
-  | Xml.PCData _ ->
+  | `Data _ ->
       false
 
 let is_parent_to parent_element child_tag =
   match parent_element with
-  | Xml.Element (_, _, xml_elements) ->
+  | `El (_, _, xml_elements) ->
       List.exists (fun x -> match_xml_tag x child_tag) xml_elements
   | _ ->
       false
 
 let is_childless elem =
   match elem with
-  | Xml.Element (_, _, [Xml.PCData _]) ->
+  | `El (_, _, [`Data _]) ->
       true
-  | Xml.Element (_, _, children) ->
+  | `El (_, _, children) ->
       children = []
-  | Xml.PCData _ ->
+  | `Data _ ->
       true
 
 let unexpected_data meth tag xml =
@@ -158,7 +158,7 @@ let rec descend_and_match tag_names xml =
   | [], elem ->
       elem
       (* have reached end of the list, with all correct matches so return this element*)
-  | hd_tag :: _, Xml.Element (_, _, [Xml.PCData _]) ->
+  | hd_tag :: _, `El (_, _, [`Data _]) ->
       (*we have a leaf node, check that we are at the end of the path and return it *)
       raise_malformed_response "unknown"
         (sprintf
@@ -168,7 +168,7 @@ let rec descend_and_match tag_names xml =
            (String.concat "->" tag_names)
         )
         xml
-  | hd_tag :: tail, Xml.Element (_, _, xml_elements) -> (
+  | hd_tag :: tail, `El (_, _, xml_elements) -> (
     try
       (* take the tag off the head of the list and search the children of this element for it *)
       descend_and_match tail
@@ -179,16 +179,16 @@ let rec descend_and_match tag_names xml =
            (sprintf "Descend_and_match failed. Node %s not found." hd_tag)
         )
   )
-  | _, Xml.PCData _ ->
+  | _, `Data _ ->
       (* This should never happen as a leaf node is detected in an earlier match and returned *)
       raise_malformed_response' "unknown"
         "Method descend_and_match failed. Found orphan leaf node" ""
 
 let data_from_leaf element =
   match element with
-  | Xml.Element (_, _, [Xml.PCData data]) ->
+  | `El (_, _, [`Data data]) ->
       data
-  | Xml.Element (_, _, _) ->
+  | `El (_, _, _) ->
       ""
   | _ ->
       raise_malformed_response "unknown" "Expected element to be leaf node"
@@ -250,7 +250,7 @@ let wlb_encoded_auth ~__context =
     (Db.Secret.get_value ~__context ~self:secret_ref)
 
 let generate_safe_param tag_name tag_value =
-  Xml.to_string (Xml.Element (tag_name, [], [Xml.PCData tag_value]))
+  Xml.to_string (Xml.element tag_name [] [Xml.pcdata tag_value])
 
 (* if the call has failed we should try and retrieve the result code and any error messages*)
 let parse_result_code meth xml_data response initial_error enable_log =
@@ -457,7 +457,7 @@ let retrieve_vm_recommendations ~__context ~vm =
     in
     let recs = descend_and_match ["Recommendations"] inner_xml in
     match recs with
-    | Xml.Element (_, _, (_ :: _ as children)) ->
+    | `El (_, _, (_ :: _ as children)) ->
         if
           List.length children <> List.length (Helpers.get_live_hosts ~__context)
         then
@@ -596,18 +596,18 @@ let retrieve_wlb_config ~__context =
   let handle_response inner_xml =
     let rec gen_map key_value_parents =
       match key_value_parents with
-      | (Xml.Element (_, _, _) as key_value_parent) :: tl ->
+      | (`El (_, _, _) as key_value_parent) :: tl ->
           ( data_from_leaf (descend_and_match ["Key"] key_value_parent)
           , data_from_leaf (descend_and_match ["Value"] key_value_parent)
           )
           :: gen_map tl
-      | Xml.PCData _ :: _ ->
+      | `Data _ :: _ ->
           unexpected_data "GetXenPoolConfiguration" "Configuration" inner_xml
       | [] ->
           []
     in
     match descend_and_match ["OptimizationParms"] inner_xml with
-    | Xml.Element (_, _, children) ->
+    | `El (_, _, children) ->
         gen_map children
     | _ ->
         raise_malformed_response "GetXenPoolConfiguration"
@@ -626,19 +626,19 @@ let get_opt_recommendations ~__context =
   let handle_response inner_xml =
     let rec gen_map key_value_parents =
       match key_value_parents with
-      | Xml.Element (_, _, kvalues) :: tl ->
+      | `El (_, _, kvalues) :: tl ->
           List.map
             (fun elem ->
               match elem with
-              | Xml.Element (key, _, _) as leaf ->
+              | `El (key, _, _) as leaf ->
                   (key, data_from_leaf leaf)
-              | Xml.PCData _ ->
+              | `Data _ ->
                   unexpected_data "GetOptimizationRecommendations"
                     "PoolOptimizationRecommendation" inner_xml
             )
             kvalues
           :: gen_map tl
-      | Xml.PCData _ :: _ ->
+      | `Data _ :: _ ->
           unexpected_data "GetOptimizationRecommendations"
             "Recommendations node" inner_xml
       | [] ->
@@ -648,7 +648,7 @@ let get_opt_recommendations ~__context =
       ([], "") (*No recommendations to give. *)
     else
       match descend_and_match ["Recommendations"] inner_xml with
-      | Xml.Element (_, _, children) ->
+      | `El (_, _, children) ->
           ( gen_map children
           , data_from_leaf (descend_and_match ["OptimizationId"] inner_xml)
           )
@@ -723,19 +723,19 @@ let get_evacuation_recoms ~__context ~uuid =
   let handle_response inner_xml =
     let rec gen_map key_value_parents =
       match key_value_parents with
-      | Xml.Element (_, _, kvalues) :: tl ->
+      | `El (_, _, kvalues) :: tl ->
           List.map
             (fun elem ->
               match elem with
-              | Xml.Element (key, _, _) as leaf ->
+              | `El (key, _, _) as leaf ->
                   (key, data_from_leaf leaf)
-              | Xml.PCData _ ->
+              | `Data _ ->
                   unexpected_data "HostGetRecommendations"
                     "HostEvacuationRecommendation" inner_xml
             )
             kvalues
           :: gen_map tl
-      | Xml.PCData _ :: _ ->
+      | `Data _ :: _ ->
           unexpected_data "HostGetRecommendations" "Recommendations" inner_xml
       | [] ->
           []
@@ -744,14 +744,14 @@ let get_evacuation_recoms ~__context ~uuid =
       []
     else
       match inner_xml with
-      | Xml.Element (_, _, _) -> (
+      | `El (_, _, _) -> (
         match descend_and_match ["Recommendations"] inner_xml with
-        | Xml.Element (_, _, children) ->
+        | `El (_, _, children) ->
             gen_map children
         | _ ->
             [] (* just data, which we are treating as an empty response *)
       )
-      | Xml.PCData _ ->
+      | `Data _ ->
           unexpected_data "HostGetRecommendations"
             "HostGetRecommendationsResult" inner_xml
   in
@@ -788,14 +788,11 @@ let get_evacuation_recoms ~__context ~uuid =
 
 let make_param = function
   | n, v ->
-      Xml.Element
-        ( "ReportParameter"
-        , []
-        , [
-            Xml.Element ("ParameterName", [], [Xml.PCData n])
-          ; Xml.Element ("ParameterValue", [], [Xml.PCData v])
-          ]
-        )
+      Xml.element "ReportParameter" []
+        [
+          Xml.element "ParameterName" [] [Xml.pcdata n]
+        ; Xml.element "ParameterValue" [] [Xml.pcdata v]
+        ]
 
 let wlb_context_request meth params ~__context ~handler =
   assert_wlb_licensed ~__context ;
@@ -809,8 +806,8 @@ let wlb_context_request meth params ~__context ~handler =
 let wlb_report_request report params =
   let meth = "ExecuteReport" in
   let p =
-    Xml.to_string (Xml.Element ("ReportName", [], [Xml.PCData report]))
-    ^ Xml.to_string (Xml.Element ("ReportParms", [], List.map make_param params))
+    Xml.to_string (Xml.element "ReportName" [] [Xml.pcdata report])
+    ^ Xml.to_string (Xml.element "ReportParms" [] (List.map make_param params))
   in
   debug "%s" p ;
   (meth, wlb_context_request meth p)

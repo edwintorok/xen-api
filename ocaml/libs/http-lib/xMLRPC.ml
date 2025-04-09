@@ -24,9 +24,9 @@ let rtte name xml =
 type xmlrpc = Xml.xml
 
 let pretty_print = function
-  | Xml.Element (tag, _, _) ->
+  | `El (tag, _, _) ->
       "Element=" ^ String.escaped tag
-  | Xml.PCData d ->
+  | `Data d ->
       "PCData=" ^ String.escaped d
 
 type response =
@@ -53,9 +53,9 @@ module FromString = struct
 end
 
 module To = struct
-  let pcdata string = Xml.PCData string
+  let pcdata = Xml.pcdata
 
-  let box tag vs = Xml.Element (tag, [], vs)
+  let box tag vs = Xml.element tag [] vs
 
   let value v = box "value" [v]
 
@@ -136,14 +136,14 @@ end
 module From = struct
   let id x = x
 
-  let pcdata f = function
-    | Xml.PCData string ->
+  let pcdata f  = function
+    | `Data string ->
         f string
     | xml ->
         rtte "pcdata" xml
 
   let unbox ok f = function
-    | Xml.Element (s, [], data) when List.mem s ok ->
+    | `El (s, [], data) when List.mem s ok ->
         f data
     | xml ->
         rtte
@@ -177,13 +177,13 @@ module From = struct
   let name f xml =
     unbox ["name"]
       (function
-        | [Xml.PCData str] ->
+        | [`Data str] ->
             f str
         | [] ->
             debug "encountered <name/> within a <structure>" ;
             f ""
         | _ ->
-            rtte "From.name: should contain PCData" xml
+            rtte "From.name: should contain `Data" xml
         )
       xml
 
@@ -194,7 +194,7 @@ module From = struct
 
   let array f = value (singleton ["array"] (unbox ["data"] (List.map f)))
 
-  let boolean = value (singleton ["boolean"] (( <> ) (Xml.PCData "0")))
+  let boolean = value (singleton ["boolean"] (( <> ) (Xml.pcdata "0")))
 
   let datetime x =
     Clock.Date.of_iso8601 (value (singleton ["dateTime.iso8601"] (pcdata id)) x)
@@ -210,10 +210,10 @@ module From = struct
       xml
 
   let string = function
-    | Xml.Element ("value", [], [Xml.PCData s]) ->
+    | `El ("value", [], [`Data s]) ->
         s
-    | Xml.Element ("value", [], [Xml.Element ("string", [], [])])
-    | Xml.Element ("value", [], []) ->
+    | `El ("value", [], [`El ("string", [], [])])
+    | `El ("value", [], []) ->
         ""
     | xml ->
         value (singleton ["string"] (pcdata id)) xml
@@ -233,7 +233,7 @@ module From = struct
       | "Failure" -> (
         match array id (List.assoc "ErrorDescription" bindings) with
         | [] ->
-            rtte "Empty array of error strings" (Xml.PCData "")
+            rtte "Empty array of error strings" (Xml.pcdata "")
         | code :: strings ->
             Failure (string code, List.map string strings)
       )
@@ -250,14 +250,14 @@ module From = struct
   let methodResponse xml =
     singleton ["methodResponse"]
       (function
-        | Xml.Element ("params", _, _) as xml -> (
+        | `El ("params", _, _) as xml -> (
           match success xml with
           | [xml] ->
               status xml
           | _ ->
               rtte "Expected single return value (struct status)" xml
         )
-        | Xml.Element ("fault", _, _) as xml ->
+        | `El ("fault", _, _) as xml ->
             Fault (fault id xml)
         | xml ->
             rtte "response" xml

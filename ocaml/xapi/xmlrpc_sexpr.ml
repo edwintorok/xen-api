@@ -40,19 +40,19 @@ let xmlrpc_to_sexpr (root : xml) =
     match (h, xml_lt) with
     | _, [] ->
         []
-    | _, PCData text :: _ ->
+    | _, `Data text :: _ ->
         let text = String.trim text in
         [SExpr.String text]
     (* empty <value>s have default value '' *)
-    | h, Element ("value", _, []) :: siblings ->
+    | h, `El ("value", _, []) :: siblings ->
         SExpr.String "" :: visit h siblings
     (* <data>,<value>,<name> tags: ignore them and go to children *)
-    | h, Element ("data", _, children) :: siblings
-    | h, Element ("value", _, children) :: siblings
-    | h, Element ("name", _, children) :: siblings ->
+    | h, `El ("data", _, children) :: siblings
+    | h, `El ("value", _, children) :: siblings
+    | h, `El ("name", _, children) :: siblings ->
         visit (h + 1) children @ visit h siblings
     (* <member> tags *)
-    | h, Element ("member", _, children) :: siblings -> (
+    | h, `El ("member", _, children) :: siblings -> (
         let (mychildren : SExpr.t list) = visit (h + 1) children in
         let anode = SExpr.Node mychildren in
         let (mysiblings : SExpr.t list) = visit h siblings in
@@ -68,7 +68,7 @@ let xmlrpc_to_sexpr (root : xml) =
       )
     (*ignore incorrect member*)
     (* any other element *)
-    | h, Element (tag, _, children) :: siblings ->
+    | h, `El (tag, _, children) :: siblings ->
         let tag = String.trim tag in
         let mytag = SExpr.String tag in
         let (mychildren : SExpr.t list) = visit (h + 1) children in
@@ -96,11 +96,9 @@ let xmlrpc_to_sexpr (root : xml) =
               function should not be used to process unsanitized/untrusted sexpr trees.
 *)
 let sexpr_to_xmlrpc (root : SExpr.t) =
-  let encase_with (container : string) (el : xml) =
-    Element (container, [], [el])
-  in
+  let encase_with (container : string) (el : xml) = element container [] [el] in
   let is_not_empty_tag (el : xml) =
-    match el with Element ("", _, _) -> false | _ -> true
+    match el with `El ("", _, _) -> false | _ -> true
   in
   let rec visit (h : int) (parent : SExpr.t) (sexpr : SExpr.t) =
     match (h, parent, sexpr) with
@@ -110,62 +108,44 @@ let sexpr_to_xmlrpc (root : SExpr.t) =
       , SExpr.Node (SExpr.String name :: avalue :: _) ) -> (
       match avalue with
       | SExpr.String "" ->
-          Element
-            ( "member"
-            , []
-            , [Element ("name", [], [PCData name]); Element ("value", [], [])]
-            )
+          element "member" []
+            [element "name" [] [pcdata name]; element "value" [] []]
       | SExpr.String value ->
-          Element
-            ( "member"
-            , []
-            , [
-                Element ("name", [], [PCData name])
-              ; Element ("value", [], [PCData value])
-              ]
-            )
+          element "member" []
+            [element "name" [] [pcdata name]; element "value" [] [pcdata value]]
       | SExpr.Node _ as somenode ->
-          Element
-            ( "member"
-            , []
-            , [
-                Element ("name", [], [PCData name])
-              ; Element
-                  ("value", [], [visit (h + 1) (SExpr.String "member") somenode])
-              ]
-            )
+          element "member" []
+            [
+              element "name" [] [pcdata name]
+            ; element "value" []
+                [visit (h + 1) (SExpr.String "member") somenode]
+            ]
       | _ ->
-          Element ("WRONG_SEXPR_MEMBER", [], [])
+          element "WRONG_SEXPR_MEMBER" [] []
     )
     (* member tag without values - wrong format - defaults to empty value *)
     | _, SExpr.Node (SExpr.String "struct" :: _), SExpr.Node [SExpr.String name]
       ->
-        Element
-          ( "member"
-          , []
-          , [Element ("name", [], [PCData name]); Element ("value", [], [])]
-          )
+        element "member" []
+          [element "name" [] [pcdata name]; element "value" [] []]
     (* sexpr representing array tags *)
     | h, _, SExpr.Node (SExpr.String "array" :: values) ->
         let xmlvalues = List.map (visit (h + 1) sexpr) values in
-        Element
-          ( "array"
-          , []
-          , [Element ("data", [], List.map (encase_with "value") xmlvalues)]
-          )
+        element "array" []
+          [element "data" [] (List.map (encase_with "value") xmlvalues)]
     (* sexpr representing any other tag with children *)
     | h, _, SExpr.Node (SExpr.String tag :: atail) ->
         let xmlvalues = List.map (visit (h + 1) sexpr) atail in
         let xml_noemptytags = List.filter is_not_empty_tag xmlvalues in
-        Element (tag, [], xml_noemptytags)
+        element tag [] xml_noemptytags
     (* sexpr representing a pcdata *)
     | _, _, SExpr.String s ->
-        PCData s
+        pcdata s
     (* sexpr representing a nameless tag *)
     | _, _, SExpr.Node [] ->
-        Element ("EMPTY_SEXPR", [], [])
+        element "EMPTY_SEXPR" [] []
     (* otherwise, we reached a senseless sexpr *)
     | _ ->
-        Element ("WRONG_SEXPR", [], [])
+        element "WRONG_SEXPR" [] []
   in
   encase_with "value" (visit 0 (SExpr.Node []) root)

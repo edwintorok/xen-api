@@ -457,7 +457,7 @@ let make_packs_info () =
           Xml.parse_file (!Xapi_globs.packs_dir ^ "/" ^ fname ^ "/XS-REPOSITORY")
         in
         match xml with
-        | Xml.Element (_, attr, children) ->
+        | `El (_, attr, children) ->
             let originator = List.assoc "originator" attr in
             let name = List.assoc "name" attr in
             let version = List.assoc "version" attr in
@@ -478,7 +478,7 @@ let make_packs_info () =
             in
             let description =
               match children with
-              | Xml.Element (_, _, Xml.PCData s :: _) :: _ ->
+              | `El (_, _, `Data s :: _) :: _ ->
                   s
               | _ ->
                   failwith "error with parsing pack data"

@@ -18,9 +18,7 @@
  *)
 
 (* tree representation *)
-type xml =
-  | Element of (string * (string * string) list * xml list)
-  | PCData of string
+type xml = [`El of string * (string * string) list * xml list | `Data of string]
 
 type error_pos = {eline: int}
 
@@ -44,7 +42,7 @@ let is_empty xml =
   let is_empty_string s =
     String.for_all (function '\n' | ' ' | '\t' -> true | _ -> false) s
   in
-  match xml with PCData data when is_empty_string data -> true | _ -> false
+  match xml with `Data data when is_empty_string data -> true | _ -> false
 
 let _parse i =
   let el (tag : Xmlm.tag) (children : xml list) : xml =
@@ -54,10 +52,10 @@ let _parse i =
         (fun (nameattr, str) -> (snd nameattr, str))
         (snd tag)
     in
-    Element
+    `El
       (name_local, attrs', List.filter (fun xml -> not (is_empty xml)) children)
   in
-  let data s = PCData s in
+  let data s = `Data s in
   match Xmlm.peek i with
   | `Dtd _ ->
       snd (Xmlm.input_doc_tree ~el ~data i)
@@ -125,16 +123,16 @@ let to_fct xml f =
   let fmt s = Printf.sprintf s in
   let rec print xml =
     match xml with
-    | Element (name, attrs, []) ->
+    | `El (name, attrs, []) ->
         let astr = str_of_attrs attrs in
         let on = fmt "<%s%s/>" name astr in
         f on
-    | Element (name, attrs, children) ->
+    | `El (name, attrs, children) ->
         let astr = str_of_attrs attrs in
         let on = fmt "<%s%s>" name astr in
         let off = fmt "</%s>" name in
         f on ; List.iter print children ; f off
-    | PCData data ->
+    | `Data data ->
         f (esc_pcdata data)
   in
   print xml
@@ -143,27 +141,27 @@ let to_fct_fmt xml f =
   let fmt s = Printf.sprintf s in
   let rec print newl indent xml =
     match xml with
-    | Element (name, attrs, [PCData data]) ->
+    | `El (name, attrs, [`Data data]) ->
         let astr = str_of_attrs attrs in
         let on = fmt "%s<%s%s>" indent name astr in
         let off = fmt "</%s>%s" name (if newl then "\n" else "") in
         f on ;
         f (esc_pcdata data) ;
         f off
-    | Element (name, attrs, []) ->
+    | `El (name, attrs, []) ->
         let astr = str_of_attrs attrs in
         let on =
           fmt "%s<%s%s/>%s" indent name astr (if newl then "\n" else "")
         in
         f on
-    | Element (name, attrs, children) ->
+    | `El (name, attrs, children) ->
         let astr = str_of_attrs attrs in
         let on = fmt "%s<%s%s>\n" indent name astr in
         let off = fmt "%s</%s>%s" indent name (if newl then "\n" else "") in
         f on ;
         List.iter (fun child -> print true (indent ^ "  ") child) children ;
         f off
-    | PCData data ->
+    | `Data data ->
         f (esc_pcdata data ^ if newl then "\n" else "")
   in
   print false "" xml
@@ -179,3 +177,7 @@ let to_string_fmt xml =
   to_fct_fmt xml (fun s -> Buffer.add_string buffer s) ;
   let s = Buffer.contents buffer in
   Buffer.reset buffer ; s
+
+let element tag attrs children = `El (tag, attrs, children)
+
+let pcdata str = `Data str

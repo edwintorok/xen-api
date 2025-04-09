@@ -41,7 +41,6 @@ type disk = {
 type template = {disks: disk list; post_install_script: string option}
 
 (** The disk records are marshalled as XML *)
-open Xml
 
 let string2vdi_type s =
   match s with
@@ -61,7 +60,7 @@ let string2vdi_type s =
 exception Parse_failure
 
 let disk_of_xml = function
-  | Element ("disk", params, []) -> (
+  | `El ("disk", params, []) -> (
     try
       let device = List.assoc "device" params
       and size = List.assoc "size" params
@@ -83,7 +82,7 @@ let disk_of_xml = function
       raise Parse_failure
 
 let disks_of_xml = function
-  | Element ("provision", [], disks) ->
+  | `El ("provision", [], disks) ->
       List.map disk_of_xml disks
   | _ ->
       raise Parse_failure

@@ -14,8 +14,7 @@
 
 (** tree representation *)
 type xml =
-  | Element of (string * (string * string) list * xml list)
-  | PCData of string
+  [`El of string * (string * string) list * xml list | `Data of string]
 
 type error_pos
 
@@ -35,3 +34,7 @@ val parse_string : string -> xml
 val to_string : xml -> string
 
 val to_string_fmt : xml -> string
+
+val element : string -> (string * string) list -> xml list -> xml
+
+val pcdata : string -> xml

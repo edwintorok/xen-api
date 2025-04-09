@@ -175,11 +175,11 @@ module Applicability = struct
         Some a
 
   let of_xml = function
-    | Xml.Element ("applicability", _, children) ->
+    | `El ("applicability", _, children) ->
         List.fold_left
           (fun a n ->
             match n with
-            | Xml.Element ("inequality", _, [Xml.PCData v]) ->
+            | `El ("inequality", _, [`Data v]) ->
                 {
                   a with
                   inequality=
@@ -187,7 +187,7 @@ module Applicability = struct
                       with Invalid_inequality -> None
                     )
                 }
-            | Xml.Element ("epoch", _, [Xml.PCData v]) -> (
+            | `El ("epoch", _, [`Data v]) -> (
               try {a with epoch= Epoch.of_string v}
               with e ->
                 let msg =
@@ -196,13 +196,13 @@ module Applicability = struct
                 (* The error should not block update. Ingore it. *)
                 warn "%s" msg ; a
             )
-            | Xml.Element ("version", _, [Xml.PCData v]) ->
+            | `El ("version", _, [`Data v]) ->
                 {a with version= v}
-            | Xml.Element ("release", _, [Xml.PCData v]) ->
+            | `El ("release", _, [`Data v]) ->
                 {a with release= v}
-            | Xml.Element ("name", _, [Xml.PCData v]) ->
+            | `El ("name", _, [`Data v]) ->
                 {a with name= v}
-            | Xml.Element ("arch", _, [Xml.PCData v]) ->
+            | `El ("arch", _, [`Data v]) ->
                 {a with arch= v}
             | _ ->
                 (* The error should not block update. Ingore it. *)
@@ -264,9 +264,9 @@ module RepoMetaData = struct
   let of_xml xml data_type =
     let dt = string_of_datatype data_type in
     match xml with
-    | Xml.Element ("repomd", _, children) -> (
+    | `El ("repomd", _, children) -> (
         let get_node = function
-          | Xml.Element ("data", attrs, nodes) -> (
+          | `El ("data", attrs, nodes) -> (
             match List.assoc_opt "type" attrs with
             | Some data_type' when data_type' = dt ->
                 Some nodes
@@ -281,9 +281,9 @@ module RepoMetaData = struct
             List.fold_left
               (fun md n ->
                 match n with
-                | Xml.Element ("checksum", _, [Xml.PCData v]) ->
+                | `El ("checksum", _, [`Data v]) ->
                     {md with checksum= v}
-                | Xml.Element ("location", attrs, _) -> (
+                | `El ("location", attrs, _) -> (
                   try {md with location= List.assoc "href" attrs}
                   with _ ->
                     error "Failed to get 'href' in 'location' of '%s'" dt ;
@@ -391,7 +391,7 @@ module LivePatch = struct
   let of_xml livepatches =
     livepatches
     |> List.filter_map (function
-         | Xml.Element ("livepatch", attrs, _) -> (
+         | `El ("livepatch", attrs, _) -> (
            match initial_record attrs with
            | None ->
                None
@@ -471,9 +471,9 @@ module GuidanceInUpdateInfo = struct
   type t = (Guidance.kind * Guidance.t list) list
 
   let value_of_xml = function
-    | Xml.Element ("value", _, [Xml.PCData v]) ->
+    | `El ("value", _, [`Data v]) ->
         Some (Guidance.of_string v)
-    | Xml.Element (unexpected, _, _) ->
+    | `El (unexpected, _, _) ->
         warn "Ignore unexpected guidance value XML tag %s" unexpected ;
         None
     | _ ->
@@ -501,7 +501,7 @@ module GuidanceInUpdateInfo = struct
     List.fold_left
       (fun acc xml_block ->
         match xml_block with
-        | Xml.Element (kind_xml, _, values_in_xml) -> (
+        | `El (kind_xml, _, values_in_xml) -> (
           match kind_of_xml kind_xml with
           | kind ->
               let values = List.filter_map value_of_xml values_in_xml in
@@ -609,13 +609,13 @@ module UpdateInfo = struct
     Option.value (List.assoc_opt kind updateinfo.guidance) ~default:[]
 
   let of_xml = function
-    | Xml.Element ("updates", attrs, children) -> (
+    | `El ("updates", attrs, children) -> (
         let api_ver = List.assoc_opt "xapi-api-version" attrs in
         let uis =
           List.filter_map
             (fun n ->
               match n with
-              | Xml.Element ("update", attrs, update_nodes) ->
+              | `El ("update", attrs, update_nodes) ->
                   let ty =
                     match List.assoc_opt "type" attrs with
                     | Some ty ->
@@ -627,31 +627,31 @@ module UpdateInfo = struct
                     List.fold_left
                       (fun acc node ->
                         match node with
-                        | Xml.Element ("id", _, [Xml.PCData v]) ->
+                        | `El ("id", _, [`Data v]) ->
                             {acc with id= v}
-                        | Xml.Element ("url", _, [Xml.PCData v]) ->
+                        | `El ("url", _, [`Data v]) ->
                             {acc with url= v}
-                        | Xml.Element ("special_info", _, [Xml.PCData v]) ->
+                        | `El ("special_info", _, [`Data v]) ->
                             {acc with spec_info= v}
-                        | Xml.Element ("summary", _, [Xml.PCData v]) ->
+                        | `El ("summary", _, [`Data v]) ->
                             {acc with summary= v}
-                        | Xml.Element ("description", _, [Xml.PCData v]) ->
+                        | `El ("description", _, [`Data v]) ->
                             {acc with description= v}
-                        | Xml.Element ("guidance", _, guidance_blocks) ->
+                        | `El ("guidance", _, guidance_blocks) ->
                             {
                               acc with
                               guidance=
                                 GuidanceInUpdateInfo.of_xml guidance_blocks
                             }
-                        | Xml.Element ("guidance_applicabilities", _, apps) ->
+                        | `El ("guidance_applicabilities", _, apps) ->
                             {
                               acc with
                               guidance_applicabilities=
                                 List.filter_map Applicability.of_xml apps
                             }
-                        | Xml.Element ("livepatches", _, livepatches) ->
+                        | `El ("livepatches", _, livepatches) ->
                             {acc with livepatches= LivePatch.of_xml livepatches}
-                        | Xml.Element ("issued", attrs, _) ->
+                        | `El ("issued", attrs, _) ->
                             let issued =
                               match List.assoc_opt "date" attrs with
                               | Some date -> (
@@ -675,14 +675,14 @@ module UpdateInfo = struct
                                   Clock.Date.epoch
                             in
                             {acc with issued}
-                        | Xml.Element ("severity", _, [Xml.PCData v]) -> (
+                        | `El ("severity", _, [`Data v]) -> (
                           try {acc with severity= Severity.of_string v}
                           with e ->
                             (* The error should not block update. Ingore it. *)
                             warn "%s" (ExnHelper.string_of_exn e) ;
                             acc
                         )
-                        | Xml.Element ("title", _, [Xml.PCData v]) ->
+                        | `El ("title", _, [`Data v]) ->
                             {acc with title= v}
                         | _ ->
                             acc

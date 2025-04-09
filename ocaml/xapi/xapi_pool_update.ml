@@ -332,7 +332,7 @@ let guidance_from_string = function
 
 let parse_update_info xml =
   match xml with
-  | Xml.Element ("update", attr, children) ->
+  | `El ("update", attr, children) ->
       let key =
         Option.bind (List.assoc_opt "key" attr) (function
           | "" ->
@@ -384,14 +384,14 @@ let parse_update_info xml =
           ~default:false
       in
       let is_name_description_node = function
-        | Xml.Element ("name-description", _, _) ->
+        | `El ("name-description", _, _) ->
             true
         | _ ->
             false
       in
       let name_description =
         match List.find is_name_description_node children with
-        | Xml.Element ("name-description", _, [Xml.PCData s]) ->
+        | `El ("name-description", _, [`Data s]) ->
             s
         | _ ->
             raise

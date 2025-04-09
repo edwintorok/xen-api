@@ -23,11 +23,11 @@ let hashtbl_of_list xs =
 
 (** Generates an XML leaf element of the form:
     [<name>value</name>] *)
-let xml_leaf_element name value = Xml.Element (name, [], [Xml.PCData value])
+let xml_leaf_element name value = Xml.element name [] [Xml.pcdata value]
 
 (** Returns true iff. the given element matches the given name. *)
 let xml_element_has_name name element =
-  match element with Xml.Element (name_, _, _) -> name = name_ | _ -> false
+  match element with `El (name_, _, _) -> name = name_ | _ -> false
 
 (** Returns the first element with the specified name from
     the given element list. *)
@@ -39,9 +39,9 @@ let first_xml_element_with_name elements name =
     Returns a (name, value) string pair, where the arguments
     are stripped of leading and trailing whitespace. *)
 let hash_table_entry_of_leaf_xml_element = function
-  | Xml.Element (name, _, Xml.PCData value :: _) ->
+  | `El (name, _, `Data value :: _) ->
       Some (String.trim name, String.trim value)
-  | Xml.Element (name, _, []) ->
+  | `El (name, _, []) ->
       Some (String.trim name, "")
   | _ ->
       None
@@ -77,14 +77,11 @@ module DaemonConfiguration = struct
     (** Converts the given HA daemon host configuration
         into an XML element tree. *)
     let to_xml_element host =
-      Xml.Element
-        ( "host"
-        , []
-        , [
-            xml_leaf_element "HostID" host.uuid
-          ; xml_leaf_element "IPaddress" host.address
-          ]
-        )
+      Xml.element "host" []
+        [
+          xml_leaf_element "HostID" host.uuid
+        ; xml_leaf_element "IPaddress" host.address
+        ]
   end
 
   type t = {
@@ -157,70 +154,55 @@ module DaemonConfiguration = struct
   (** Converts the given HA daemon configuration
       into an XML element tree. *)
   let to_xml_element config =
-    Xml.Element
-      ( "xhad-config"
-      , [("version", "1.0")]
-      , [
-          Xml.Element
-            ( "common-config"
-            , []
-            , xml_leaf_element "GenerationUUID" config.common_generation_uuid
-              :: xml_leaf_element "UDPport"
-                   (string_of_int config.common_udp_port)
-              :: List.map Host.to_xml_element config.common_hosts
-              @ [
-                  Xml.Element
-                    ( "parameters"
-                    , []
-                    , List.concat_map int_parameter
-                        [
-                          ("HeartbeatInterval", config.heart_beat_interval)
-                        ; ("HeartbeatTimeout", config.heart_beat_timeout)
-                        ; ("StateFileInterval", config.state_file_interval)
-                        ; ("StateFileTimeout", config.state_file_timeout)
-                        ; ( "HeartbeatWatchdogTimeout"
-                          , config.heart_beat_watchdog_timeout
-                          )
-                        ; ( "StateFileWatchdogTimeout"
-                          , config.state_file_watchdog_timeout
-                          )
-                        ; ("BootJoinTimeout", config.boot_join_timeout)
-                        ; ("EnableJoinTimeout", config.enable_join_timeout)
-                        ; ( "XapiHealthCheckInterval"
-                          , config.xapi_healthcheck_interval
-                          )
-                        ; ( "XapiHealthCheckTimeout"
-                          , config.xapi_healthcheck_timeout
-                          )
-                        ; ("XapiRestartAttempts", config.xapi_restart_attempts)
-                        ; ("XapiRestartTimeout", config.xapi_restart_timeout)
-                        ; ( "XapiLicenseCheckTimeout"
-                          , config.xapi_licensecheck_timeout
-                          )
-                        ]
-                    )
-                ]
-            )
-        ; Xml.Element
-            ( "local-config"
-            , []
-            , [
-                Xml.Element
-                  ( "localhost"
-                  , []
-                  , [
-                      xml_leaf_element "HostID" config.local_host_uuid
-                    ; xml_leaf_element "HeartbeatInterface"
-                        config.local_heart_beat_interface
-                    ; xml_leaf_element "HeartbeatPhysicalInterface"
-                        config.local_heart_beat_physical_interface
-                    ; xml_leaf_element "StateFile" config.local_state_file
-                    ]
-                  )
+    Xml.element "xhad-config"
+      [("version", "1.0")]
+      [
+        Xml.element "common-config" []
+          (xml_leaf_element "GenerationUUID" config.common_generation_uuid
+           :: xml_leaf_element "UDPport" (string_of_int config.common_udp_port)
+           :: List.map Host.to_xml_element config.common_hosts
+          @ [
+              Xml.element "parameters" []
+                (List.concat_map int_parameter
+                   [
+                     ("HeartbeatInterval", config.heart_beat_interval)
+                   ; ("HeartbeatTimeout", config.heart_beat_timeout)
+                   ; ("StateFileInterval", config.state_file_interval)
+                   ; ("StateFileTimeout", config.state_file_timeout)
+                   ; ( "HeartbeatWatchdogTimeout"
+                     , config.heart_beat_watchdog_timeout
+                     )
+                   ; ( "StateFileWatchdogTimeout"
+                     , config.state_file_watchdog_timeout
+                     )
+                   ; ("BootJoinTimeout", config.boot_join_timeout)
+                   ; ("EnableJoinTimeout", config.enable_join_timeout)
+                   ; ( "XapiHealthCheckInterval"
+                     , config.xapi_healthcheck_interval
+                     )
+                   ; ("XapiHealthCheckTimeout", config.xapi_healthcheck_timeout)
+                   ; ("XapiRestartAttempts", config.xapi_restart_attempts)
+                   ; ("XapiRestartTimeout", config.xapi_restart_timeout)
+                   ; ( "XapiLicenseCheckTimeout"
+                     , config.xapi_licensecheck_timeout
+                     )
+                   ]
+                )
+            ]
+          )
+      ; Xml.element "local-config" []
+          [
+            Xml.element "localhost" []
+              [
+                xml_leaf_element "HostID" config.local_host_uuid
+              ; xml_leaf_element "HeartbeatInterface"
+                  config.local_heart_beat_interface
+              ; xml_leaf_element "HeartbeatPhysicalInterface"
+                  config.local_heart_beat_physical_interface
+              ; xml_leaf_element "StateFile" config.local_state_file
               ]
-            )
-        ]
-      )
+          ]
+      ]
 
   (** Converts the given HA daemon configuration
       into an XML string. *)
@@ -269,7 +251,7 @@ module LiveSetInformation = struct
         The element must contain valid child elements for
         each member of the host record type. *)
     let of_xml_element = function
-      | Xml.Element ("host", _, children) ->
+      | `El ("host", _, children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -321,7 +303,7 @@ module LiveSetInformation = struct
     }
 
     let of_xml_element = function
-      | Xml.Element ("host_raw_data", _, children) ->
+      | `El ("host_raw_data", _, children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -379,7 +361,7 @@ module LiveSetInformation = struct
     }
 
     let of_xml_element = function
-      | Xml.Element ("warning_on_local_host", _, children) ->
+      | `El ("warning_on_local_host", _, children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -423,7 +405,7 @@ module LiveSetInformation = struct
     }
 
     let of_xml_element = function
-      | Xml.Element ("raw_status_on_local_host", _, children) ->
+      | `El ("raw_status_on_local_host", _, children) ->
           let table = hash_table_of_leaf_xml_element_list children in
           let find x =
             match Hashtbl.find_opt table x with
@@ -492,8 +474,8 @@ module LiveSetInformation = struct
     ; local_host_id=
         ( match first_xml_element_with_name elements "localhost" with
         | Some
-            (Xml.Element
-              (_, _, [Xml.Element ("HostID", _, [Xml.PCData local_host_id])])
+            (`El
+              (_, _, [`El ("HostID", _, [`Data local_host_id])])
               ) -> (
           match Uuidx.of_string local_host_id with
           | None ->
@@ -511,7 +493,7 @@ module LiveSetInformation = struct
     ; status=
         (let status_option =
            match first_xml_element_with_name elements "status" with
-           | Some (Xml.Element (_, _, [Xml.PCData status_string])) ->
+           | Some (`El (_, _, [`Data status_string])) ->
                Status.of_string status_string
            | _ ->
                None
@@ -543,7 +525,7 @@ module LiveSetInformation = struct
   (** Creates a new HA live set information record
       from the given root XML element. *)
   let of_xml_element = function
-    | Xml.Element ("ha_liveset_info", _, children) ->
+    | `El ("ha_liveset_info", _, children) ->
         of_xml_element_list children
     | _ ->
         invalid_arg "Invalid or missing 'ha_liveset_info' element."
