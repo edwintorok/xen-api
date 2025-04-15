@@ -81,11 +81,28 @@ let frame_of_slot process slot =
   | Some loc ->
       Some {process; filename= loc.filename; line= loc.line_number}
 
+let[@tail_mod_cons] rec dedup_frames' last seq =
+  match seq () with
+  | Seq.Nil ->
+      []
+  | Seq.Cons (x, xs) ->
+      if last = x then
+        dedup_frames' x xs
+      else
+        x :: dedup_frames' x xs
+
+let dedup_frames seq =
+  match seq () with
+  | Seq.Nil ->
+      []
+  | Seq.Cons (x, xs) ->
+      x :: dedup_frames' x xs
+
 let frames_of_slots slots =
   slots
   |> Array.to_seq
   |> Seq.filter_map (frame_of_slot !my_name)
-  |> List.of_seq
+  |> dedup_frames
 
 let get_backtrace_402 () =
   Printexc.get_raw_backtrace ()
