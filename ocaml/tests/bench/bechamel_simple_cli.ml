@@ -85,9 +85,17 @@ let thread_workload ~before ~run ~after =
 *)
 let limit = 10_000_000
 
-let benchmark ~instances tests =
-  let cfg = Benchmark.cfg ~limit ~quota:(Time.second 10.0) () in
-  Benchmark.all cfg instances tests
+let benchmark ~instances cfg tests =
+  let n = List.length tests in
+  tests
+  |> List.to_seq
+  |> Seq.mapi (fun i test ->
+         let name = Test.Elt.name test in
+         Format.eprintf "Running benchmark %u/%u %s ...@?" (i + 1) n name ;
+         let results = Benchmark.run cfg instances test in
+         Format.eprintf "@." ; (name, results)
+     )
+  |> Hashtbl.of_seq
 
 let analyze ~instances raw_results =
   let ols ~bootstrap =
@@ -108,14 +116,13 @@ open Notty_unix
 let img (window, results) =
   Bechamel_notty.Multiple.image_of_ols_results ~rect:window
     ~predictor:Measure.run results
-  |> eol
 
 let not_workload measure = not (Measure.label measure = skip_label)
 
-let run_and_print instances tests =
-  let results, _ =
+let run_and_print cfg instances tests =
+  let results, raw_results =
     tests
-    |> benchmark ~instances
+    |> benchmark ~instances cfg
     |> analyze ~instances:(List.filter not_workload instances)
   in
   let window =
@@ -127,27 +134,95 @@ let run_and_print instances tests =
   in
   img (window, results) |> eol |> output_image ;
   results
-  |> Hashtbl.iter @@ fun label results ->
-     if label = Measure.label Instance.monotonic_clock then
-       let units = Bechamel_notty.Unit.unit_of_label label in
-       results
-       |> Hashtbl.iter @@ fun name ols ->
-          Format.printf "%s (%s):@, %a@." name units Analyze.OLS.pp ols
+  |> Hashtbl.iter (fun label results ->
+         if label = Measure.label Instance.monotonic_clock then
+           let units = Bechamel_notty.Unit.unit_of_label label in
+           results
+           |> Hashtbl.iter @@ fun name ols ->
+              Format.printf "%s (%s):@, %a@." name units Analyze.OLS.pp ols
+     ) ;
+  raw_results
 
-let cli ?(always = []) ?(workloads = []) tests =
+let cli ~always ~workloads cfg tests store =
   let instances =
     always
     @ Instance.[monotonic_clock; minor_allocated; major_allocated]
     @ always
   in
   List.iter (fun i -> Bechamel_notty.Unit.add i (Measure.unit i)) instances ;
-  Format.printf "@,Running benchmarks (no workloads)@." ;
-  run_and_print instances tests ;
-
+  Format.eprintf "@,Running benchmarks (no workloads)@." ;
+  let raw_results = run_and_print cfg instances tests in
   if workloads <> [] then (
-    Format.printf "@,Running benchmarks (workloads)@." ;
+    Format.eprintf "@,Running benchmarks (workloads)@." ;
     List.iter (fun i -> Bechamel_notty.Unit.add i (Measure.unit i)) workloads ;
     (* workloads come first, so that we unpause them in time *)
     let instances = workloads @ instances @ workloads in
-    run_and_print instances tests
-  )
+    let (_ : (_, _) Hashtbl.t) = run_and_print cfg instances tests in
+    ()
+  ) ;
+  store
+  |> Option.iter @@ fun dir ->
+     let epoch = Unix.gettimeofday () in
+     raw_results
+     |> Hashtbl.iter @@ fun label results ->
+        let label = String.map (function '/' -> '_' | c -> c) label in
+        let dir = Filename.concat dir (Float.to_string epoch) in
+        let () =
+          try Unix.mkdir dir 0o700
+          with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
+        in
+
+        let file = Filename.concat dir (label ^ ".dat") in
+        Out_channel.with_open_text file @@ fun out ->
+        let label = Measure.label Instance.monotonic_clock in
+        results.Benchmark.lr
+        |> Array.iter @@ fun measurement ->
+           Printf.fprintf out "%.16g\n" (Measurement_raw.get ~label measurement)
+
+open Cmdliner
+
+let cli ?(always = []) ?(workloads = []) tests =
+  let tests = List.concat_map Test.elements tests in
+  let cmd =
+    let test_names = tests |> List.map (fun t -> (Test.Elt.name t, t)) in
+    let filtered =
+      let doc =
+        Printf.sprintf "Choose the benchmarks to run. $(docv) must be %s"
+          Arg.(doc_alts_enum test_names)
+      in
+      Arg.(
+        value
+        & pos_all (enum test_names) tests
+        & info [] ~absent:"all" ~doc ~docv:"BENCHMARK"
+      )
+    and cfg =
+      let open Term.Syntax in
+      let+ quota =
+        Arg.(
+          value
+          & opt (some float) None
+          & info ["quota"] ~doc:"Maximum time per benchmark" ~docv:"SECONDS"
+        )
+      and+ start =
+        Arg.(
+          value
+          & opt (some int) None
+          & info ["start"] ~doc:"Starting iteration count" ~docv:"COUNT"
+        )
+      in
+      Benchmark.cfg ?quota:(Option.map Time.second quota) ?start ~limit ()
+    and store =
+      Arg.(
+        value
+        & opt (some dir) None
+        & info ["output-dir"; "d"]
+            ~doc:
+              "directory to save the raw results to. The output can be used by \
+               ministat"
+            ~docv:"DIRECTORY"
+      )
+    in
+    let info = Cmd.info "benchmark" ~doc:"Run benchmarks" in
+    Cmd.v info Term.(const (cli ~always ~workloads) $ cfg $ filtered $ store)
+  in
+  exit (Cmd.eval cmd)

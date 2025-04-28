@@ -74,14 +74,13 @@ let test_tracing_on ?(overflow = false) ~name f =
 let benchmarks =
   Tracing.Spans.set_max_spans Bechamel_simple_cli.limit ;
   Tracing.Spans.set_max_traces Bechamel_simple_cli.limit ;
-  Test.make_grouped ~name:"tracing"
-    [
-      Test.make ~name:"overhead(off)" (Staged.stage trace_test_off)
-    ; test_tracing_on ~name:"overhead(on, no span)" (Staged.stage trace_test_off)
-    ; test_tracing_on ~name:"overhead(on, create span)"
-        (Staged.stage trace_test_span)
-    ; test_tracing_on ~overflow:true ~name:"max span overflow"
-        (Staged.stage trace_test_span)
-    ]
+  [
+    Test.make ~name:"overhead(off)" (Staged.stage trace_test_off)
+  ; test_tracing_on ~name:"overhead(on, no span)" (Staged.stage trace_test_off)
+  ; test_tracing_on ~name:"overhead(on, create span)"
+      (Staged.stage trace_test_span)
+  ; test_tracing_on ~overflow:true ~name:"max span overflow"
+      (Staged.stage trace_test_span)
+  ]
 
 let () = Bechamel_simple_cli.cli ~always:[export_thread] ~workloads benchmarks
