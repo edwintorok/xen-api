@@ -127,7 +127,7 @@ let read_record_internal db tblname objref =
           | None ->
               accum_setref
         in
-        let accum_fvlist = (k, (d, cached)) :: accum_fvlist in
+        let accum_fvlist = (k, cached) :: accum_fvlist in
         (accum_fvlist, accum_setref)
       )
       row ([], [])
