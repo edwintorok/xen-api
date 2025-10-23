@@ -71,6 +71,24 @@
  (wrapped false)
 )
 
+; Conditional compilation based on Xen version to avoid patching in .spec
+; Use copy# so that dune inserts #line directives that
+; retain the original source file location (for __FILE__, stacktraces, etc.)
+(rule
+  (enabled_if (<= %{version:xenctrl} 4.17))
+  (action (copy# xenver.417.ml xenver.ml))
+)
+
+(rule
+  (enabled_if (= %{version:xenctrl} 4.20))
+  (action (copy# xenver.420.ml xenver.ml))
+)
+
+(rule
+  (enabled_if (= %{version:xenctrl} 4.21))
+  (action (copy# xenver.421.ml xenver.ml))
+)
+
 (executable
  (name numa)
  (modules numa)
