@@ -337,6 +337,7 @@
   astring
   base64
   cmdliner
+  cppo
   cstruct-unix
   fmt
   logs

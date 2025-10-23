@@ -66,9 +66,37 @@
  (preprocess
    (per_module
     ((pps ppx_deriving_rpc) Device Device_common Domain Xenops_server_xen)
+    ; -V XENCTRL:%{version:xenctrl}
+    ; this will also parse and fill a triple XENCTRL_VERSION=(major,minor,patch)
+    ; That doesn't work with the mock xenctrl, TODO: fix that
+    ;
+
+    ; Domain should also be included here, but it already uses a PPX, and I
+    ; don't yet know how to combine it with an action (would probably need
+    ; domain.cppo.ml -> domain.ml -> run pps on that, for now experiment on
+    ; xenctrlext
+    ((action (run %{bin:cppo} -V XENCTRL:%{version:xenctrl} %{input-file})) Xenctrlext)
    )
  )
  (wrapped false)
+)
+
+; Conditional compilation based on Xen version to avoid patching in .spec
+; Use copy# so that dune inserts #line directives that
+; retain the original source file location (for __FILE__, stacktraces, etc.)
+(rule
+  (enabled_if (<= %{version:xenctrl} 4.17))
+  (action (copy# xenver.417.ml xenver.ml))
+)
+
+(rule
+  (enabled_if (= %{version:xenctrl} 4.20))
+  (action (copy# xenver.420.ml xenver.ml))
+)
+
+(rule
+  (enabled_if (= %{version:xenctrl} 4.21))
+  (action (copy# xenver.421.ml xenver.ml))
 )
 
 (executable

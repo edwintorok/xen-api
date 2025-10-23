@@ -108,6 +108,8 @@ external combine_cpu_policies : int64 array -> int64 array -> int64 array
 external policy_is_compatible : int64 array -> int64 array -> string option
   = "stub_xenctrlext_featuresets_are_compatible"
 
+
+
 external stub_domain_claim_pages : handle -> domid -> int -> int -> unit
   = "stub_xenctrlext_domain_claim_pages"
 
@@ -131,3 +133,17 @@ let domain_claim_pages handle domid ?(numa_node = NumaNode.none) nr_pages =
 let get_nr_nodes handle =
   let info = numainfo handle in
   Array.length info.memory
+
+let version = STRINGIFY(XENCTRL_VERSION_STRING)
+
+let () =
+#if XENCTRL_VERSION >= (4, 21, 0)
+  ()
+#elif XENCTRL_VERSION >= (4, 20, 0)
+  ()
+#elif XENCTRL_VERSION >= (4, 17, 0)
+  ()
+#else
+  #error "This version of Xen is not supported, requires at least 4.17+"
+#endif
+

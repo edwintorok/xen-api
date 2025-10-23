@@ -5351,6 +5351,8 @@ let look_for_xenctrl () =
     )
 
 let init () =
+  debug "Built for Xen using module %s, and XENCTRL_VERSION:%s" Xenver.current
+    Xenctrlext.version ;
   look_for_forkexec () ;
   let major, minor = look_for_xen () in
   look_for_xenctrl () ;

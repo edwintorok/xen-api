@@ -12,6 +12,8 @@
     xapi-stdext-unix
     xenctrl
   )
+  (preprocess
+    (action (run %{bin:cppo} -D XENCTRL:%{version:xenctrl} %{input-file})))
 )
 
 (install
