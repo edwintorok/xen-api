@@ -36,6 +36,7 @@ let () =
         ; ("Quicktest_async_calls", Quicktest_async_calls.tests ())
         ; ("Quicktest_vm_import_export", Quicktest_vm_import_export.tests ())
         ; ("Quicktest_vm_lifecycle", Quicktest_vm_lifecycle.tests ())
+        ; ("Quicktest_vm_memory", Quicktest_vm_memory.tests ())
         ; ("Quicktest_vm_snapshot", Quicktest_vm_snapshot.tests ())
         ; ( "Quicktest_vdi_ops_data_integrity"
           , Quicktest_vdi_ops_data_integrity.tests ()
