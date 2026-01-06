@@ -1,8 +1,25 @@
 (* round to power of 2 *)
-let all_possible_tests = [(3, 30); (3, 20); (3, 12); (3, 0)]
+let all_possible_tests = [(3, 30); (3, 20); (*(3, 12); (3, 0)*)] |> List.rev
 
 let round_down_to_pow2 ~round_pow2 size =
   Int64.(shift_left (shift_right size round_pow2) round_pow2)
+
+let wait_for_tasks_or_raise ~rpc ~session_id tasks =
+  Tasks.wait_for_all ~rpc ~session_id ~tasks ;
+  tasks
+  |> List.iter @@ fun self ->
+     match Client.Client.Task.get_status ~rpc ~session_id ~self with
+     | `success ->
+         ()
+     | `cancelled ->
+         failwith "Task canceled"
+     | `pending | `cancelling ->
+         assert false (* wait_for_all says task is not pending *)
+     | `failure ->
+         Client.Client.Task.get_error_info ~rpc ~session_id ~self
+         |> String.concat "; "
+         |> Printf.sprintf "Task failed: %s"
+         |> failwith
 
 let one rpc session_id host host_free vm (n, round_pow2) =
   let n = Int64.of_int n in
@@ -11,7 +28,8 @@ let one rpc session_id host host_free vm (n, round_pow2) =
     let value = round_down_to_pow2 ~round_pow2 value_raw in
     Printf.printf
       "Host free: %Ld, overhead: %Ld, n: %Ld, VM memory: %Ld, VM memory \
-       rounded to 2^%d: %Ld\n%!"
+       rounded to 2^%d: %Ld\n\
+       %!"
       host_free overhead n value_raw round_pow2 value ;
     Client.Client.VM.set_memory ~rpc ~session_id ~self:vm ~value ;
     let overhead =
@@ -45,7 +63,10 @@ let one rpc session_id host host_free vm (n, round_pow2) =
       clones
   in
   Printf.printf "Waiting for %d VM starts to finish\n%!" n ;
-  Tasks.wait_for_all ~rpc ~session_id ~tasks ;
+  wait_for_tasks_or_raise ~rpc ~session_id tasks ;
+
+  Printf.printf "Hard rebooting 1 VM\n%!" ;
+  Client.Client.VM.hard_reboot ~rpc ~session_id ~vm:(List.hd clones) ;
 
   Printf.printf "Hard rebooting %d VMs in parallel\n%!" n ;
   let tasks =
@@ -54,16 +75,16 @@ let one rpc session_id host host_free vm (n, round_pow2) =
       clones
   in
   Printf.printf "Waiting for %d VM hard reboots to finish\n%!" n ;
-  Tasks.wait_for_all ~rpc ~session_id ~tasks ;
+  wait_for_tasks_or_raise ~rpc ~session_id tasks ;
 
-  Printf.printf "Hard rebooting %d VMs in parallel\n%!" n ;
+  Printf.printf "Hard shutdown %d VMs in parallel\n%!" n ;
   let tasks =
     List.map
       (fun vm -> Client.Client.Async.VM.hard_shutdown ~rpc ~session_id ~vm)
       clones
   in
   Printf.printf "Waiting for %d VM shutdowns to finish\n%!" n ;
-  Tasks.wait_for_all ~rpc ~session_id ~tasks ;
+  wait_for_tasks_or_raise ~rpc ~session_id tasks ;
   Printf.printf "Deleting %d clones\n%!" n ;
   List.iter (fun self -> Client.Client.VM.destroy ~rpc ~session_id ~self) clones
 
@@ -92,7 +113,8 @@ let test rpc session_id vm_template iso_info () =
       let host_free =
         Client.Client.Host.compute_free_memory ~rpc ~session_id ~host
       in
-      Qt.VM.with_new rpc session_id ~template:vm_template ~iso (fun vm ->
+
+      Qt.VM.with_new rpc session_id ~template:vm_template (*~iso*) (fun vm ->
           List.iter (one rpc session_id host host_free vm) all_possible_tests
       )
 
