@@ -1,5 +1,6 @@
 (* round to power of 2 *)
-let all_possible_tests = [(3, 30); (3, 20); (*(3, 12); (3, 0)*)] |> List.rev
+let all_possible_tests = [(8, 30); (8, 20); (*(3, 12); (3, 0)*)] |>
+List.rev
 
 let round_down_to_pow2 ~round_pow2 size =
   Int64.(shift_left (shift_right size round_pow2) round_pow2)
@@ -58,15 +59,50 @@ let one rpc session_id host host_free vm (n, round_pow2) =
     List.map
       (fun vm ->
         Client.Client.Async.VM.start_on ~rpc ~session_id ~vm ~host
-          ~start_paused:true ~force:false
+          ~start_paused:false ~force:false
       )
       clones
   in
   Printf.printf "Waiting for %d VM starts to finish\n%!" n ;
   wait_for_tasks_or_raise ~rpc ~session_id tasks ;
 
+  let next = clones |> List.tl |> List.hd in
+(*  let one = List.hd clones in
+  Printf.printf "Hard  shutdown 1 VM: %s\n%!" (Ref.string_of one);
+  Client.Client.VM.hard_shutdown ~rpc ~session_id ~vm:one ;
+
+  Printf.printf "Localhost migrate 1 VM: %s\n%!"  (Ref.string_of next);
+  Client.Client.VM.pool_migrate ~rpc ~session_id ~vm:next ~options:["force",
+  "true"] ~host;
+
+  Printf.printf "Start up VM %s again\n%!" (Ref.string_of vm);
+  Client.Client.VM.start_on ~rpc ~session_id ~host ~vm:one ~start_paused:false
+  ~force:false;*)
+
+  (* TODO: skip when not in pool *)
+  let other = Client.Client.Host.get_all ~rpc ~session_id |> List.filter ((<>) host) |> List.hd in
+  Printf.printf "Pool migrate all VMs to: %s\n%!"  (Ref.string_of other);
+  let tasks =
+    List.map
+      (fun vm -> Client.Client.Async.VM.pool_migrate ~host:other ~rpc ~session_id ~vm ~options:["force", "true"])
+      clones
+  in
+  Printf.printf "Waiting for %d VM migrations to finish\n%!" n ;
+  wait_for_tasks_or_raise ~rpc ~session_id tasks ;
+
+  Printf.printf "Pool migrate all VMs back\n%!";
+  let tasks =
+    List.map
+      (fun vm -> Client.Client.Async.VM.pool_migrate ~host ~rpc ~session_id ~vm ~options:["force", "true"])
+      clones
+  in
+  Printf.printf "Waiting for %d VM migrations to finish\n%!" n ;
+  wait_for_tasks_or_raise ~rpc ~session_id tasks ;
+
+  Client.Client.VM.pool_migrate ~rpc ~session_id ~vm:next ~options:["force", "true"] ~host;
+
   Printf.printf "Hard rebooting 1 VM\n%!" ;
-  Client.Client.VM.hard_reboot ~rpc ~session_id ~vm:(List.hd clones) ;
+  Client.Client.VM.hard_reboot ~rpc ~session_id ~vm:next;
 
   Printf.printf "Hard rebooting %d VMs in parallel\n%!" n ;
   let tasks =
@@ -114,7 +150,7 @@ let test rpc session_id vm_template iso_info () =
         Client.Client.Host.compute_free_memory ~rpc ~session_id ~host
       in
 
-      Qt.VM.with_new rpc session_id ~template:vm_template (*~iso*) (fun vm ->
+      Qt.VM.with_new rpc session_id ~template:vm_template ~iso (fun vm ->
           List.iter (one rpc session_id host host_free vm) all_possible_tests
       )
 
