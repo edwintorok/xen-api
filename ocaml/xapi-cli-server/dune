@@ -35,6 +35,7 @@
     xapi-log
     xapi-types
     xapi-client
+    xapi-client.util
     xapi-cli-protocol
     xapi_aux
     clock

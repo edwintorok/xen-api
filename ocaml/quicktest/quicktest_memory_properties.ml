@@ -4,50 +4,50 @@ module D = Debug.Make (struct let name = "quicktest_memory_properties" end)
 
 let call (rpc, session_id) f = f ~rpc ~session_id
 
-let result_of_task ctx self =
+let result_of_task ~rpc ~session_id self =
+  let call f = f ~rpc ~session_id in
   try
-    match call ctx @@ Task.get_status ~self with
+    match call @@ Task.get_status ~self with
     | `pending ->
-        None
+        (* Task cannot still be pending, we've already waited for it in Tasks.wait_for_all *)
+        assert false
     | `success ->
-        call ctx @@ Task.get_result ~self |> Result.ok |> Option.some
-    | `cancelling ->
-        Failure "Cancelling" |> Result.error |> Option.some
-    | `cancelled ->
-        Failure "Cancelled" |> Result.error |> Option.some
-    | `failure -> (
-      match call ctx @@ Task.get_error_info ~self with
-      | [] ->
-          Failure "Unknown error" |> Result.error |> Option.some
-      | code :: params ->
-          Api_errors.Server_error (code, params) |> Result.error |> Option.some
-    )
-  with Api_errors.Server_error (_, _) as e -> e |> Result.error |> Option.some
+        call @@ Task.get_result ~self |> Result.ok
+    | `cancelling | `cancelled ->
+        Result.error [Api_errors.task_cancelled; Ref.string_of self]
+    | `failure ->
+        call @@ Task.get_error_info ~self |> Result.error
+  with Api_errors.Server_error (code, params) -> Result.error (code :: params)
 
-let cancel_all ctx tasks =
+let for_all_tasks f tasks =
   tasks
   |> List.iter @@ fun task ->
-     if Option.is_none (result_of_task ctx task) then (
-       (* This is inherently racy, the task could've finished or failed on its
-          own meanwhile *)
-       D.log_and_ignore_exn
-       @@ fun () ->
-       D.debug "cancel_all: Canceling task %s" Ref.(string_of task) ;
-       call ctx @@ Task.cancel ~task
-     )
+     (* Task may have been GCed meanwhile, or changed state on its own *)
+     D.log_and_ignore_exn @@ fun () -> f task
 
-let wait_for_all_or_cancel ctx tasks =
+let cancel_all ~rpc ~session_id tasks =
+  let call f = f ~rpc ~session_id in
+  tasks
+  |> for_all_tasks @@ fun task ->
+     if call @@ Task.get_status ~self:task = `pending then
+       call @@ Task.cancel ~task
+
+let wait_for_all_or_cancel ~rpc ~session_id tasks =
+  let call f = f ~rpc ~session_id in
   let callback _ task =
-    match result_of_task ctx task with
-    | Some (Ok _) | None ->
-        []
-    | Some (Error _) ->
-        tasks |> List.filter (( <> ) task) |> cancel_all ctx ;
-        (* the wait_for_all loop will then see the tasks getting cancelled and
-           exit, no need to raise exceptions here *)
-        []
+    let () =
+      task
+      |> call @@ result_of_task
+      |> Result.iter_error @@ fun _ ->
+         tasks |> List.filter (( <> ) task) |> call @@ cancel_all
+    in
+    []
   in
-  call ctx @@ Tasks.wait_for_all_with_callback ~tasks ~callback
+  call @@ Tasks.wait_for_all_with_callback ~tasks ~callback ;
+  (* Tasks may have been GC-ed already *)
+  tasks
+  |> List.iter @@ fun self ->
+     D.log_and_ignore_exn @@ fun () -> call @@ Task.destroy ~self
 
 let wait_for_results ctx tasks =
   wait_for_all_or_cancel ctx tasks ;

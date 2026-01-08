@@ -1,0 +1,15 @@
+(library
+ (name xapi_client_util)
+ (public_name xapi-client.util)
+ (libraries
+   rpclib.core
+   rpclib.xml
+   sexplib
+   sexplib0
+   xapi-backtrace
+   xapi-client
+   xapi-consts
+   xapi-log
+   xapi-types
+ )
+)

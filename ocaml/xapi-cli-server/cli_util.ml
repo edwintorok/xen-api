@@ -103,36 +103,8 @@ let track callback rpc (session_id : API.ref_session) task =
     )
     (fun () -> Client.Event.unregister ~rpc ~session_id ~classes)
 
-let result_from_task rpc session_id remote_task =
-  match Client.Task.get_status ~rpc ~session_id ~self:remote_task with
-  | `cancelling | `cancelled ->
-      raise
-        (Api_errors.Server_error
-           (Api_errors.task_cancelled, [Ref.string_of remote_task])
-        )
-  | `pending ->
-      failwith "wait_for_task_completion failed; task is still pending"
-  | `success ->
-      ()
-  | `failure ->
-      let error_info =
-        Client.Task.get_error_info ~rpc ~session_id ~self:remote_task
-      in
-      let trace =
-        Client.Task.get_backtrace ~rpc ~session_id ~self:remote_task
-      in
-      let exn =
-        match error_info with
-        | code :: params ->
-            Api_errors.Server_error (code, params)
-        | [] ->
-            Failure
-              (Printf.sprintf "Task failed but no error recorded: %s"
-                 (Ref.string_of remote_task)
-              )
-      in
-      Backtrace.(add exn (t_of_sexp (Sexplib.Sexp.of_string trace))) ;
-      raise exn
+let result_from_task rpc session_id task =
+  Xapi_client_util.raise_for_task_exn ~rpc ~session_id task
 
 (** Use the event system to wait for a specific task to complete (succeed, failed or be cancelled) *)
 let wait_for_task_completion = track (fun _ -> ())
