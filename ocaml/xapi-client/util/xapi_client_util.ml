@@ -31,46 +31,54 @@ let raise_for_task_exn ~rpc ~session_id remote_task =
       Backtrace.(add exn (t_of_sexp (Sexplib.Sexp.of_string trace))) ;
       raise exn
 
-let rpc_of_task = function "" -> Rpc.Null | s -> Xmlrpc.of_string s
+type t = {rpc:Rpc.call -> Rpc.response; session_id: API.ref_session}
+type client = t
+type outcome = (Rpc.t, exn * Printexc.raw_backtrace) result
 
-let on_task f task =
-  (* Task may have been GCed meanwhile, or changed state on its own,
-     ignore exceptions when canceling and destroying *)
-  try f task with Api_errors.Server_error (_, _) -> ()
+let make ~rpc ~session_id =
+  {rpc;session_id}
 
-let result_of_task ~rpc ~session_id self =
-  let call f = f ~rpc ~session_id in
-  let outcome =
+let call {rpc;session_id} f = f ~rpc ~session_id
+
+module Task = struct
+  type t = API.ref_task
+
+  let allowed_operations client self =
+    try call client @@ Client.Task.get_allowed_operations ~self
+    with Api_errors.Server_error _ -> []
+
+  let if_allowed client op f self =
+    if self |> allowed_operations client |> List.mem op then
+      (* there could still be a race condition here, so ignore API errors *)
+      try f ()
+      with Api_errors.Server_error _ -> ()
+
+  let try_cancel client self =
+    let perform () = call client @@ Client.Task.cancel ~task:self in
+    if_allowed client `cancel perform self
+
+  let destroy client self =
+    let perform () = call client @@ Client.Task.destroy ~self in
+    if_allowed client `destroy perform self
+
+  let rpc_of_task = function "" -> Rpc.Null | s -> Xmlrpc.of_string s
+
+  let result client self =
     try
-      call @@ raise_for_task_exn self ;
-      call @@ Client.Task.get_result ~self |> rpc_of_task |> Result.ok
+      call client @@ raise_for_task_exn self ;
+      call client @@ Client.Task.get_result ~self |> rpc_of_task |> Result.ok
     with e -> Error (e, Printexc.get_raw_backtrace ())
-  in
-  let () = self |> on_task @@ fun self -> call @@ Client.Task.destroy ~self in
-  outcome
+end
 
-let results_of_tasks ~rpc ~session_id tasks =
-  let call f = f ~rpc ~session_id in
-  let callback _ self =
-    let () =
-      if call @@ Client.Task.get_status ~self = `failure then
-        tasks
-        |> List.filter (( <> ) self)
-        |> List.iter @@ on_task @@ fun task -> call @@ Client.Task.cancel ~task
-    in
-    []
-  in
-  call @@ Tasks.wait_for_all_with_callback ~tasks ~callback ;
-  tasks |> List.map (call @@ result_of_task)
+let run client ?(on_task_complete = fun _ -> []) tasks =
+  let callback _ task = on_task_complete task in
+  call client @@ Tasks.wait_for_all_with_callback ~tasks ~callback
 
-let map_async ~rpc ~session_id f lst =
+(*let with_objects ~rpc ~session_id input create destroy f =
   let call f = f ~rpc ~session_id in
-  lst |> List.map (call @@ f) |> call @@ results_of_tasks
-
-let with_objects ~rpc ~session_id input create destroy f =
-  let call f = f ~rpc ~session_id in
-  let objects = input |> call @@ map_async create in
+  let objects = input |> List.map (call @@ f) |> call @@ results_of_tasks in
   (* TODO: ensure exceptions don't escape, wrap *)
   let outcomes = List.map f objects in
   let (_ : _ list) = objects |> call @@ map_async destroy in
   outcomes
+  *)
