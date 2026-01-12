@@ -42,7 +42,7 @@ val run_or_cancel :
   -> 'a AsyncTask.t list
   -> 'a outcome list
 
-val calls : client -> (client -> 'a -> 'b AsyncTask.t) api -> 'a list -> 'b outcome list
+val calls : client -> (client -> 'a -> 'b AsyncTask.t) -> 'a list -> 'b outcome list
 
 val with_objects_exn :
      client

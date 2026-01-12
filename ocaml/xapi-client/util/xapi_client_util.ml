@@ -82,7 +82,7 @@ end
 let run t ?(on_task_complete = fun _ _ _ -> []) ?(on_progress = fun _ _ -> ())
     tasks =
   let callback completed task = on_task_complete t completed task in
-  let finally () = tasks |> List.iter AsyncTaskcTask.(destroy t) in
+  let finally () = tasks |> List.iter AsyncTask.(destroy t) in
   let tbl = Hashtbl.create 7 in
   let overall = ref 0. in
   let count = List.length tasks |> float_of_int in
@@ -94,9 +94,9 @@ let run t ?(on_task_complete = fun _ _ _ -> []) ?(on_progress = fun _ _ -> ())
   in
   Fun.protect ~finally @@ fun () ->
   call t
-  @@ Tasks.wait_for_all_with_progress ~tasks:(List.map Task.task tasks)
+  @@ Tasks.wait_for_all_with_progress ~tasks:(List.map AsyncTask.task tasks)
        ~callback ~on_progress ;
-  tasks |> List.map (Task.result t)
+  tasks |> List.map (AsyncTask.result t)
 
 module P = Cli_progress_bar.Make (struct
   type t = float
@@ -118,14 +118,14 @@ let run_or_cancel t ?on_progress tasks =
     let () =
       if call t @@ Client.Task.get_status ~self:task = `failure then
         tasks
-        |> List.filter (fun t -> Task.task t <> task)
-        |> List.iter AsyncTaskcTask.(try_cancel t)
+        |> List.filter (fun t -> AsyncTask.task t <> task)
+        |> List.iter AsyncTask.(try_cancel t)
     in
     []
   in
   run t ~on_task_complete ~on_progress tasks
 
-let task client t_of_rpc f = call client @@ f |> Task.v t_of_rpc
+let task client t_of_rpc f = call client @@ f |> AsyncTask.v t_of_rpc
 
 let calls t f args =
   let tasks = List.map (f t) args in

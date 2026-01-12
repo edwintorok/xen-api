@@ -110,12 +110,12 @@ let wait_for_all_inner ~rpc ~session_id ~all_timeout ~tasks ~callback
 let wait_for_all ~rpc ~session_id ~tasks =
   wait_for_all_inner ~rpc ~session_id ~all_timeout:None ~tasks
     ~callback:(fun _ _ -> [])
-    ~on_progress:(fun _ _ -> ())
+    ~on_progress:(fun _ _ _ -> ())
   |> ignore
 
 let wait_for_all_with_callback ~rpc ~session_id ~tasks ~callback =
   wait_for_all_inner ~rpc ~session_id ~all_timeout:None ~tasks ~callback
-    ~on_progress:(fun _ _ -> ()
+    ~on_progress:(fun _ _ _ -> ()
   )
   |> ignore
 
@@ -131,7 +131,7 @@ let with_tasks_destroy ~rpc ~session_id ~timeout ~tasks =
       not
         (wait_for_all_inner ~rpc ~session_id ~all_timeout:(Some timeout) ~tasks
            ~callback:(fun _ _ -> [])
-           ~on_progress:(fun _ _ -> ())
+           ~on_progress:(fun _ _ _ -> ())
         )
     then (
       D.info "Canceling tasks" ;
@@ -144,7 +144,7 @@ let with_tasks_destroy ~rpc ~session_id ~timeout ~tasks =
       (* cancel is not immediate, give it a reasonable chance to take effect *)
       wait_for_all_inner ~rpc ~session_id ~all_timeout:(Some 60.) ~tasks
         ~callback:(fun _ _ -> [])
-        ~on_progress:(fun _ _ -> ())
+        ~on_progress:(fun _ _ _ -> ())
       |> ignore ;
       false
     ) else
