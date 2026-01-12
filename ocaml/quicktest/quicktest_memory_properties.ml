@@ -58,6 +58,8 @@ let operation t ~host ~vm =
   | `start ->
       unit_task @@ Async.VM.start ~start_paused:false ~force:false ~vm
   | `start_on ->
+      (* TODO: separate assert checking from performing, to increase
+         concurrency *)
       if_asserted t ~vm VM.(assert_can_boot_here ~host ~self:vm)
       @@ Async.VM.start_on ~host ~start_paused:true ~force:false
   | `pause ->
@@ -131,6 +133,6 @@ let operation t ~host ~vm =
   | `shutdown ->
       unit_task @@ Async.VM.shutdown ~vm
 
-let x t ~host vm =
+let todo t ~host vm =
   call t @@ VM.get_allowed_operations ~self:vm
   |> List.filter_map (operation t ~host ~vm)

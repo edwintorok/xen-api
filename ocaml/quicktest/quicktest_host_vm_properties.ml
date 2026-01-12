@@ -110,4 +110,27 @@ let test_free_memory t dummy_vm =
   if_asserted_vm t ~vm:self VM.(assert_can_boot_here ~host ~self)
   @@ Async.VM.start_on ~host ~start_paused:true ~force:false
 
-(* also might temporarily need more mem, so have a memory watcher... *)
+let scenarios t dummy_vm n =
+  let host = call t @@ Host.get_by_uuid ~uuid:Qt.localhost_uuid in
+  let self = call t @@ VM.clone ~vm:dummy_vm ~new_name:"free memory test" in
+  let computed_free = call t @@ Host.compute_free_memory ~host in
+  let n64 = Int64.of_int n in
+  let total = Int64.div computed_free n64 in
+  let value = call t @@ VM.maximise_memory ~self ~approximate:false ~total in
+  let last =
+    call t
+    @@ VM.maximise_memory ~self ~approximate:false
+         ~total:Int64.(sub computed_free @@ mul total @@ pred n64)
+  in
+  let memory = List.init n @@ fun i -> if i = 0 then last else value in
+  Quicktest_memory_properties.with_vm_clones t n dummy_vm @@ fun t vms ->
+  let () =
+    List.combine vms memory
+    |> List.iter @@ fun (self, value) -> call t @@ VM.set_memory ~self ~value
+  in
+  let tasks =
+    vms |> List.filter_map @@ fun vm -> Quicktest_memory_properties.operation t ~host ~vm `start_on
+  in
+  (* TODO now boot them with some combinations of with_objects and
+     run_or_cancel *)
+  ()

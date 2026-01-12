@@ -62,8 +62,13 @@ let calibrate rpc session_id vm_template var_name var_set var_min var_max () =
       Quicktest_host_vm_properties.xen_localhost_memory_free_pages ()
     in
     D.debug "VM %s: %Ld => %Ld free memory pages" var_name value free ;
+    let target_mem = call t @@ VM.get_memory_target ~self:vm in
+    let target_mem = Int64.shift_right target_mem 12 in (* TODO: use pagesize *)
     call t @@ VM.hard_shutdown ~vm ;
-    free
+    let free_and_target = Int64.add free target_mem (* we only want to measure
+    changes in overhead *) in
+    D.debug "VM %s: %Ld => %Ld" var_name value free_and_target;
+    free_and_target
   in
   (* a previous test may not have cleaned up properly, wait for any pending
      tasks to finish, so we get an "idle" host *)
@@ -121,6 +126,7 @@ let specialise (name, speed, test) (var_name, var_set, var_min, var_max) =
   (name, speed, test var_name var_set var_min var_max)
 
 let tests () =
+  Debug.log_to_stdout ();
   let open Qt_filter in
   [("VM memory overhead calibration", `Slow, calibrate)]
   |> conn
