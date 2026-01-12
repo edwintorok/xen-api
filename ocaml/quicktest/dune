@@ -26,6 +26,7 @@
     unix
     uuid
     xapi-client
+    xapi_client_util
     xapi-consts
     xapi-datamodel
     xapi_internal

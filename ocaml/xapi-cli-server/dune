@@ -9,7 +9,13 @@
 )
 
 (library
+  (name cli_progress_bar)
+  (modules cli_progress_bar)
+)
+
+(library
   (name xapi_cli_server)
+  (modules (:standard \ cli_progress_bar))
   (modes best)
   (libraries
     astring
@@ -35,9 +41,10 @@
     xapi-log
     xapi-types
     xapi-client
-    xapi-client.util
+    xapi_client_util
     xapi-cli-protocol
     xapi_aux
+    cli_progress_bar
     clock
     xapi-stdext-pervasives
     xapi-stdext-std

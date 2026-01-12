@@ -1,81 +1,136 @@
 open Client.Client
+open Xapi_client_util
 
 module D = Debug.Make (struct let name = "quicktest_memory_properties" end)
 
-let call (rpc, session_id) f = f ~rpc ~session_id
+let vm_ref rpc = Ref.t_of_rpc (fun _ -> `VM) rpc
 
-let result_of_task ~rpc ~session_id self =
-  let call f = f ~rpc ~session_id in
-  try
-    match call @@ Task.get_status ~self with
-    | `pending ->
-        (* Task cannot still be pending, we've already waited for it in Tasks.wait_for_all *)
-        assert false
-    | `success ->
-        call @@ Task.get_result ~self |> Result.ok
-    | `cancelling | `cancelled ->
-        Result.error [Api_errors.task_cancelled; Ref.string_of self]
-    | `failure ->
-        call @@ Task.get_error_info ~self |> Result.error
-  with Api_errors.Server_error (code, params) -> Result.error (code :: params)
+let vm_clone t ~new_name vm = task t vm_ref @@ Async.VM.clone ~vm ~new_name
 
-let for_all_tasks f tasks =
-  tasks
-  |> List.iter @@ fun task ->
-     (* Task may have been GCed meanwhile, or changed state on its own *)
-     D.log_and_ignore_exn @@ fun () -> f task
+let vm_destroy t self = task t Rpc.unit_of_rpc @@ Async.VM.destroy ~self
 
-let cancel_all ~rpc ~session_id tasks =
-  let call f = f ~rpc ~session_id in
-  tasks
-  |> for_all_tasks @@ fun task ->
-     if call @@ Task.get_status ~self:task = `pending then
-       call @@ Task.cancel ~task
-
-let wait_for_all_or_cancel ~rpc ~session_id tasks =
-  let call f = f ~rpc ~session_id in
-  let callback _ task =
-    let () =
-      task
-      |> call @@ result_of_task
-      |> Result.iter_error @@ fun _ ->
-         tasks |> List.filter (( <> ) task) |> call @@ cancel_all
-    in
-    []
+let with_vm_clones t n vm f =
+  let base = call t @@ VM.get_name_label ~self:vm in
+  let clone t i =
+    let new_name = Printf.sprintf "%s-clone-%d" base i in
+    vm_clone t ~new_name vm
   in
-  call @@ Tasks.wait_for_all_with_callback ~tasks ~callback ;
-  (* Tasks may have been GC-ed already *)
-  tasks
-  |> List.iter @@ fun self ->
-     D.log_and_ignore_exn @@ fun () -> call @@ Task.destroy ~self
+  List.init n Fun.id |> with_objects_exn t clone vm_destroy f
 
-let wait_for_results ctx tasks =
-  wait_for_all_or_cancel ctx tasks ;
-  (* wait_for_all ensures that we have no pending tasks, thus the Option.get
-     below should be safe *)
-  List.map (result_of_task ctx) tasks |> List.map Option.get
+let if_asserted t ~vm (assertf : unit api)
+    (f : (vm:API.ref_VM -> API.ref_task) api) =
+  match call t @@ assertf with
+  | () ->
+      Some (task t ignore @@ f ~vm)
+  | exception Api_errors.Server_error _ ->
+      None
 
-let either_of_result = function
-  | Ok ok ->
-      Either.Left ok
-  | Error err ->
-      Either.Right err
+let operation t ~host ~vm =
+  let vm_task f = Some (task t ignore f)
+  and unit_task f = Some (task t ignore f) in
+  function
+  | `snapshot ->
+      let new_name = Printf.sprintf "snapshot-%f" (Unix.gettimeofday ()) in
+      vm_task @@ Async.VM.snapshot ~new_name ~ignore_vdis:[] ~vm
+  | `clone ->
+      let new_name = Printf.sprintf "clone-%f" (Unix.gettimeofday ()) in
+      vm_task @@ Async.VM.clone ~new_name ~vm
+  | `copy ->
+      let new_name = Printf.sprintf "copy-%f" (Unix.gettimeofday ()) in
+      vm_task @@ Async.VM.copy ~new_name ~sr:Ref.null (* use existing *) ~vm
+  | `revert -> (
+    match call t @@ VM.get_snapshots ~self:vm with
+    | [] ->
+        None
+    | snapshot :: _ ->
+        unit_task @@ Async.VM.revert ~snapshot
+  )
+  | `checkpoint ->
+      let new_name = Printf.sprintf "checkpoint-%f" (Unix.gettimeofday ()) in
+      vm_task @@ Async.VM.checkpoint ~new_name ~vm
+  | `snapshot_with_quiesce ->
+      let new_name =
+        Printf.sprintf "snapshot_with_quiesce-%f" (Unix.gettimeofday ())
+      in
+      vm_task @@ Async.VM.snapshot_with_quiesce ~new_name ~vm
+  | `provision ->
+      unit_task @@ Async.VM.provision ~vm
+  | `start ->
+      unit_task @@ Async.VM.start ~start_paused:false ~force:false ~vm
+  | `start_on ->
+      if_asserted t ~vm VM.(assert_can_boot_here ~host ~self:vm)
+      @@ Async.VM.start_on ~host ~start_paused:true ~force:false
+  | `pause ->
+      unit_task @@ Async.VM.pause ~vm
+  | `unpause ->
+      unit_task @@ Async.VM.unpause ~vm
+  | `clean_shutdown ->
+      unit_task @@ Async.VM.clean_shutdown ~vm
+  | `clean_reboot ->
+      unit_task @@ Async.VM.clean_reboot ~vm
+  | `hard_shutdown ->
+      unit_task @@ Async.VM.hard_shutdown ~vm
+  | `power_state_reset ->
+      (* marked as dangerous *)
+      None
+  | `hard_reboot ->
+      unit_task @@ Async.VM.hard_reboot ~vm
+  | `suspend ->
+      unit_task @@ Async.VM.suspend ~vm
+  | `csvm ->
+      None
+  | `resume ->
+      unit_task @@ Async.VM.resume ~force:false ~start_paused:false ~vm
+  | `resume_on ->
+      if_asserted t ~vm VM.(assert_can_boot_here ~host ~self:vm)
+      @@ Async.VM.resume_on ~host ~force:false ~start_paused:true
+  | `pool_migrate ->
+      let pif = call t @@ Host.get_management_interface ~host in
+      let network = call t @@ PIF.get_network ~self:pif in
+      let dest = call t @@ Host.migrate_receive ~host ~network ~options:[] in
+      let options = [] in
+      if_asserted t ~vm
+        VM.(
+          assert_can_migrate ~live:true ~dest ~vm ~vdi_map:[] ~vif_map:[]
+            ~vgpu_map:[] ~options
+        )
+      @@ Async.VM.pool_migrate ~host ~options
+  | `migrate_send ->
+      None (* TODO: pick host *)
+  | `assert_operation_valid
+  | `get_boot_record
+  | `send_sysrq
+  | `send_trigger
+  | `query_services
+  | `call_plugin
+  | `awaiting_memory_live
+  | `changing_static_range
+  | `changing_memory_limits
+  | `create_template
+  | `changing_shadow_memory
+  | `changing_shadow_memory_live
+  | `changing_VCPUs
+  | `changing_NVRAM
+  | `data_source_op
+  | `reverting
+  | `sysprep
+  | `update_allowed_operations
+  | `destroy ->
+      None
+  | `changing_memory_live
+  | `changing_dynamic_range
+  | `changing_VCPUs_live
+  | `create_vtpm ->
+      None
+  | `make_into_template ->
+      unit_task @@ Async.VM.set_is_default_template ~value:true ~vm
+  | `import | `export ->
+      None
+  | `metadata_export ->
+      None
+  | `shutdown ->
+      unit_task @@ Async.VM.shutdown ~vm
 
-let wait_for_results_exn ctx tasks =
-  let results, errors =
-    tasks |> wait_for_results ctx |> List.partition_map either_of_result
-  in
-  let failures, others =
-    List.partition (function Failure _ -> true | _ -> false) errors
-  in
-  match (others, failures) with
-  | err :: _, _ ->
-      raise err
-      (* raise an exception other than
-         Cancelling/Cancelled if any *)
-  | _, err :: _ ->
-      raise err
-  (* if all we've got are cancelled tasks, then
-     raise that *)
-  | [], [] ->
-      results
+let x t ~host vm =
+  call t @@ VM.get_allowed_operations ~self:vm
+  |> List.filter_map (operation t ~host ~vm)

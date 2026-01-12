@@ -1,7 +1,7 @@
 (library
  (name xapi_client_util)
- (public_name xapi-client.util)
  (libraries
+   cli_progress_bar
    rpclib.core
    rpclib.xml
    sexplib
