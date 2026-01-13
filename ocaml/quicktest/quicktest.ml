@@ -19,8 +19,28 @@ let qchecks =
   |> List.map @@ fun (name, test) ->
      (name, List.map QCheck_alcotest.(to_alcotest ~long:true) test)
 
+let setup_logs () =
+  let style_renderer =
+    if !Quicktest_args.use_colour then
+      (* use default style, auto-detect color support *)
+      None
+    else
+      (* never use color *)
+      Some `None
+  in
+  Fmt_tty.setup_std_outputs ?style_renderer () ;
+  Logs_threaded.enable () ;
+  (* If quicktest fails we want to be able to debug why, so log all the
+     information that we can.
+     Alcotest will hide this for successful tests, so it won't clutter the
+     output.
+  *)
+  Logs.set_level (Some Logs.Debug) ;
+  Logs.set_reporter Logs_fmt.(reporter ~pp_header ())
+
 let () =
   Quicktest_args.parse () ;
+  setup_logs () ;
   Qt_filter.wrap (fun () ->
       let suite =
         [

@@ -9,10 +9,14 @@
     ezxenstore
     ezxenstore.watch
     fmt
+    fmt.tty
     forkexec
     http_lib
     mtime
     mtime.clock.os
+    logs
+    logs.fmt
+    logs.threaded
     pam
     qcheck-alcotest
     result
