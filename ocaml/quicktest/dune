@@ -12,11 +12,13 @@
     fmt.tty
     forkexec
     http_lib
-    mtime
-    mtime.clock.os
+    rpclib.json
     logs
     logs.fmt
+    logs.cli
     logs.threaded
+    mtime
+    mtime.clock.os
     pam
     qcheck-alcotest
     result
