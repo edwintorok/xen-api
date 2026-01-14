@@ -152,3 +152,54 @@ let with_tasks_destroy ~rpc ~session_id ~timeout ~tasks =
       tasks
   in
   Xapi_stdext_pervasives.Pervasiveext.finally wait_or_cancel destroy_all
+
+open Client
+
+let run t ?(batch_size = 32) ~on_task_complete apifns =
+  (* default batch size: 2*Dom0 vCPUs *)
+  let all_tasks = Queue.create () in
+  let results = Hashtbl.create 7 in
+  let result_of_task task =
+    try on_task_complete t task |> Result.ok
+    with e -> Result.Error (e, Printexc.get_raw_backtrace ())
+  in
+  let on_task_done task =
+    Hashtbl.replace results task (result_of_task task) ;
+    call t @@ Task.destroy ~self:task
+  in
+  let finally () =
+    all_tasks
+    |> Queue.iter @@ fun task ->
+       (* Task may have been GCed, or we raced on cancel, so ignore exceptions. *)
+       D.log_and_ignore_exn @@ fun () ->
+       if List.mem `cancel (call t @@ Task.get_allowed_operations ~self:task)
+       then
+         call t @@ Task.cancel ~task
+  in
+  Fun.protect ~finally @@ fun () ->
+  let next =
+    apifns
+    |> List.to_seq
+    |> Seq.map (fun f ->
+        let task = call t f in
+        Queue.push task all_tasks ; task
+    )
+    |> Seq.to_dispenser
+  in
+
+  let callback _ task =
+    on_task_done task ;
+    match next () with None -> [] | Some task -> [task]
+  in
+  (* start batch_size tasks *)
+  let tasks = next |> Seq.of_dispenser |> Seq.take batch_size |> List.of_seq in
+  call t @@ wait_for_all_with_callback ~tasks ~callback ;
+
+  all_tasks
+  |> Queue.to_seq
+  |> Seq.map @@ fun task ->
+     match Hashtbl.find_opt results task with
+     | Some r ->
+         r
+     | None ->
+         result_of_task task

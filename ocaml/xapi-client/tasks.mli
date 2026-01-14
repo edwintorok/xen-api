@@ -52,3 +52,20 @@ val with_tasks_destroy :
 (** [with_tasks_destroy ~rpc ~session_id ~timeout ~tasks] is like [wait_for_all] except after [timeout] has elapsed
     it will cancel pending tasks and return false.
     Finally it will destroy all tasks *)
+
+open Client.Client
+
+val batched_run:
+     client
+  -> ?batch_size:int
+  -> on_task_complete:(client -> API.ref_task -> 'a)
+  -> API.ref_task api list
+  -> ('a, exn * Printexc.raw_backtrace) result list
+(** [batched_run client ?batch_size ~on_task_complete apifns] runs all
+    [apifns] using the given [client] rpc. It runs at most [batch_size] tasks at a
+    time, and calls [on_task_complete] when a task finishes.
+    It cancels and destroys all tasks before returning.
+    If [on_task_complete] raises in exception then this'll stop creating more
+    tasks as soon as there is a failure and it also cancels any pending tasks.
+    @returns the task results mapped through [on_task_complete].
+*)
