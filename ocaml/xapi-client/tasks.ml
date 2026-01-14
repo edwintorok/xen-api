@@ -155,7 +155,7 @@ let with_tasks_destroy ~rpc ~session_id ~timeout ~tasks =
 
 open Client
 
-let run t ?(batch_size = 32) ~on_task_complete apifns =
+let batched_run t ?(batch_size = 32) ~on_task_complete apifns =
   (* default batch size: 2*Dom0 vCPUs *)
   let all_tasks = Queue.create () in
   let results = Hashtbl.create 7 in
@@ -197,9 +197,10 @@ let run t ?(batch_size = 32) ~on_task_complete apifns =
 
   all_tasks
   |> Queue.to_seq
-  |> Seq.map @@ fun task ->
+  |> Seq.map (fun task ->
      match Hashtbl.find_opt results task with
      | Some r ->
          r
      | None ->
-         result_of_task task
+         result_of_task task)
+  |> List.of_seq
