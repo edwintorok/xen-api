@@ -131,41 +131,49 @@ let bytes_to_pages bytes = Int64.div bytes pagesize
 
 let vm_ref _ = `VM
 
-let check_tasks t tasks =
+let on_task_complete of_rpc t self =
+  if call t @@ Task.get_status ~self <> `success then
+    let err = call t @@ Task.get_error_info ~self in
+    Alcotest.failf "Task failed : %s" (String.concat "," err)
+  else
+    call t @@ Task.get_result ~self |> Xmlrpc.of_string |> of_rpc
+
+let check_tasks tasks =
   tasks
-  |> List.iter @@ fun self ->
-     if call t @@ Task.get_status ~self <> `success then
-       let err = call t @@ Task.get_error_info ~self in
-       Alcotest.failf "Task failed : %s" (String.concat "," err)
+  |> List.map @@ function
+     | Ok x ->
+         x
+     | Error (exn, bt) ->
+         Printexc.raise_with_backtrace exn bt
 
 (* TODO: use run_or_cancel which raises *)
 let clone_vms t ~vm n =
   let tasks =
     List.init n @@ fun i ->
     let new_name = Printf.sprintf "failuretest-%d" i in
-    call t @@ Async.VM.clone ~vm ~new_name
+    Async.VM.clone ~vm ~new_name
   in
-  call t @@ Tasks.wait_for_all ~tasks ;
-  check_tasks t tasks ;
-  tasks
-  |> List.map @@ fun self ->
-     call t @@ Task.get_result ~self |> Xmlrpc.of_string |> Ref.t_of_rpc vm_ref
+  Tasks.batched_run t
+    ~on_task_complete:(on_task_complete @@ Ref.t_of_rpc vm_ref)
+    tasks
+  |> check_tasks
 
+let ignore_list (_: _ list) = ()
 let start_vms t ~host vms =
   let tasks =
     vms
     |> List.map @@ fun vm ->
-       call t @@ Async.VM.start_on ~host ~vm ~start_paused:true ~force:false
+       Async.VM.start_on ~host ~vm ~start_paused:true ~force:false
   in
-  call t @@ Tasks.wait_for_all ~tasks ;
-  check_tasks t tasks
+  Tasks.batched_run t ~on_task_complete:(on_task_complete Rpc.unit_of_rpc) tasks
+  |> check_tasks
+  |> ignore_list
 
 let shutdown_vms t vms =
-  let tasks =
-    vms |> List.map @@ fun vm -> call t @@ Async.VM.hard_shutdown ~vm
-  in
-  call t @@ Tasks.wait_for_all ~tasks ;
-  check_tasks t tasks
+  let tasks = vms |> List.map @@ fun vm -> Async.VM.hard_shutdown ~vm in
+  Tasks.batched_run t ~on_task_complete:(on_task_complete Rpc.unit_of_rpc) tasks
+  |> check_tasks
+  |> ignore_list
 
 let fill_mem_pow2 t ~host ~vm =
   let free_mem = call t @@ Host.compute_free_memory ~host in
@@ -228,7 +236,9 @@ let boot1 rpc session_id template (module V : Variable) () =
   V.set t ~vm value ;
   let total = call t @@ Host.compute_free_memory ~host in
   let value = call t @@ VM.maximise_memory ~self:vm ~approximate:false ~total in
-  Log.info (fun m -> m "Booting a VM with %Ld bytes memory to fill %Ld bytes" value total);
+  Log.info (fun m ->
+      m "Booting a VM with %Ld bytes memory to fill %Ld bytes" value total
+  ) ;
   call t @@ VM.set_memory ~self:vm ~value ;
   call t @@ VM.assert_can_boot_here ~self:vm ~host ;
   call t @@ VM.start_on ~vm ~host ~force:false ~start_paused:true ;
@@ -429,8 +439,8 @@ let variables = [(module VCPU : Variable); (module Pagetables : Variable)]
 let tests () =
   let open Qt_filter in
   [
-(*    ("Fill mem 1VM", `Slow, boot1)*)
-  ("VM memory overhead", `Slow, calibrate)
+    (*    ("Fill mem 1VM", `Slow, boot1)*)
+    ("VM memory overhead", `Slow, calibrate)
   ; ("Fill mem 1VM (repeat)", `Slow, boot1)
   ]
   |> conn
