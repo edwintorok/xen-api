@@ -219,6 +219,21 @@ let try_to_trigger_failure (type a) t ~host ~vm
   let vms = clone_vms t ~vm max_vms in
   start_vms t ~host vms ; fill_mem_pow2 t ~host ~vm ; shutdown_vms t vms
 
+let boot1 rpc session_id template (module V : Variable) () =
+  let t = {rpc= RPC.wrap rpc; session_id} in
+  let host = call t @@ Host.get_by_uuid ~uuid:Qt.localhost_uuid in
+  Qt.VM.with_new rpc session_id ~template @@ fun vm ->
+  let value = V.values t ~host ~vm |> List.of_seq |> List.rev |> List.hd in
+  (* set to largest: most chance to find a bug *)
+  V.set t ~vm value ;
+  let total = call t @@ Host.compute_free_memory ~host in
+  let value = call t @@ VM.maximise_memory ~self:vm ~approximate:false ~total in
+  Log.info (fun m -> m "Booting a VM with %Ld bytes memory to fill %Ld bytes" value total);
+  call t @@ VM.set_memory ~self:vm ~value ;
+  call t @@ VM.assert_can_boot_here ~self:vm ~host ;
+  call t @@ VM.start_on ~vm ~host ~force:false ~start_paused:true ;
+  call t @@ VM.hard_shutdown ~vm
+
 let calibrate rpc session_id template (module V : Variable) () =
   let t = {rpc= RPC.wrap rpc; session_id} in
   let host = call t @@ Host.get_by_uuid ~uuid:Qt.localhost_uuid in
@@ -413,7 +428,11 @@ let variables = [(module VCPU : Variable); (module Pagetables : Variable)]
 
 let tests () =
   let open Qt_filter in
-  [("VM memory overhead", `Slow, calibrate)]
+  [
+(*    ("Fill mem 1VM", `Slow, boot1)*)
+  ("VM memory overhead", `Slow, calibrate)
+  ; ("Fill mem 1VM (repeat)", `Slow, boot1)
+  ]
   |> conn
   |> vm_template Qt.VM.Template.other
   |> List.concat_map (fun tc -> List.map (specialise tc) variables)
