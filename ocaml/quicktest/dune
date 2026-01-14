@@ -13,6 +13,7 @@
     forkexec
     http_lib
     rpclib.json
+    rpclib.xml
     logs
     logs.fmt
     logs.cli

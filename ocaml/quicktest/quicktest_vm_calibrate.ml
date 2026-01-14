@@ -129,6 +129,95 @@ let pagesize = Int64.shift_left (Xenctrl.pages_to_kib 1L) 10
 
 let bytes_to_pages bytes = Int64.div bytes pagesize
 
+let vm_ref _ = `VM
+
+let check_tasks t tasks =
+  tasks
+  |> List.iter @@ fun self ->
+     if call t @@ Task.get_status ~self <> `success then
+       let err = call t @@ Task.get_error_info ~self in
+       Alcotest.failf "Task failed : %s" (String.concat "," err)
+
+(* TODO: use run_or_cancel which raises *)
+let clone_vms t ~vm n =
+  let tasks =
+    List.init n @@ fun i ->
+    let new_name = Printf.sprintf "failuretest-%d" i in
+    call t @@ Async.VM.clone ~vm ~new_name
+  in
+  call t @@ Tasks.wait_for_all ~tasks ;
+  check_tasks t tasks ;
+  tasks
+  |> List.map @@ fun self ->
+     call t @@ Task.get_result ~self |> Xmlrpc.of_string |> Ref.t_of_rpc vm_ref
+
+let start_vms t ~host vms =
+  let tasks =
+    vms
+    |> List.map @@ fun vm ->
+       call t @@ Async.VM.start_on ~host ~vm ~start_paused:true ~force:false
+  in
+  call t @@ Tasks.wait_for_all ~tasks ;
+  check_tasks t tasks
+
+let shutdown_vms t vms =
+  let tasks =
+    vms |> List.map @@ fun vm -> call t @@ Async.VM.hard_shutdown ~vm
+  in
+  call t @@ Tasks.wait_for_all ~tasks ;
+  check_tasks t tasks
+
+let fill_mem_pow2 t ~host ~vm =
+  let free_mem = call t @@ Host.compute_free_memory ~host in
+  let sizes =
+    Seq.unfold
+      (fun total ->
+        let half = Int64.div total 2L in
+        let next =
+          if half < memory_min then
+            total
+          else
+            half
+        in
+        if next <= 0L then
+          None
+        else begin
+          let value =
+            call t @@ VM.maximise_memory ~self:vm ~approximate:false ~total:next
+          in
+          let overhead = call t @@ VM.compute_memory_overhead ~vm in
+          Log.debug (fun m ->
+              m "Trying to fill %Ld bytes, VM mem: %Ld, computed overhead = %Ld"
+                next value overhead
+          ) ;
+          call t @@ VM.set_memory ~self:vm ~value ;
+          Some (value, Int64.sub total (Int64.add value overhead))
+        end
+      )
+      free_mem
+    |> List.of_seq
+  in
+  let vms = clone_vms t ~vm (List.length sizes) in
+  let () =
+    List.combine vms sizes
+    |> List.iter @@ fun (self, value) -> call t @@ VM.set_memory ~self ~value
+  in
+  Log.info (fun m -> m "Starting %d VMs" (List.length vms)) ;
+  start_vms t ~host vms ;
+  shutdown_vms t vms
+
+let try_to_trigger_failure (type a) t ~host ~vm
+    (module V : Variable with type t = a) (x : a) vms =
+  V.set t ~vm x ;
+  let overhead = call t @@ VM.compute_memory_overhead ~vm
+  and vm_mem = call t @@ VM.get_memory_dynamic_min ~self:vm in
+  let vm_total_mem = Int64.add overhead vm_mem in
+  let free_mem = call t @@ Host.compute_free_memory ~host in
+  let max_vms = Int64.div free_mem vm_total_mem |> Int64.to_int in
+  let max_vms = min vms max_vms in
+  let vms = clone_vms t ~vm max_vms in
+  start_vms t ~host vms ; fill_mem_pow2 t ~host ~vm ; shutdown_vms t vms
+
 let calibrate rpc session_id template (module V : Variable) () =
   let t = {rpc= RPC.wrap rpc; session_id} in
   let host = call t @@ Host.get_by_uuid ~uuid:Qt.localhost_uuid in
@@ -224,7 +313,7 @@ let calibrate rpc session_id template (module V : Variable) () =
       and min_vms =
         List.fold_left
           (fun rmin (_, _, _, vms) -> Int64.min rmin vms)
-          Int64.max_int deltas
+          vms0 deltas
       in
       let op, max_coeff_int =
         if Float.round max_coeff >= 1. then
@@ -236,11 +325,14 @@ let calibrate rpc session_id template (module V : Variable) () =
           m "VM memory_overhead_pages = ... + %s * %g =~ ... + %s %s %Ld" V.name
             max_coeff V.name op max_coeff_int
       ) ;
-      if min_vms < Int64.max_int then
+      if min_vms < Int64.max_int then begin
         Log.warn (fun m ->
             m "With %Ld VMs it might be possible to trigger OOM\n        error"
               min_vms
-        )
+        ) ;
+        let x, _, _ = overhead_pages |> List.rev |> List.hd in
+        try_to_trigger_failure t ~host ~vm (module V) x (Int64.to_int min_vms)
+      end
 (*;
       max_coeff*)
 
