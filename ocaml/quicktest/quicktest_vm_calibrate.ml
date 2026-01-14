@@ -214,7 +214,8 @@ let try_to_trigger_failure (type a) t ~host ~vm
   let vm_total_mem = Int64.add overhead vm_mem in
   let free_mem = call t @@ Host.compute_free_memory ~host in
   let max_vms = Int64.div free_mem vm_total_mem |> Int64.to_int in
-  let max_vms = min vms max_vms in
+  (* not too many .. *)
+  let max_vms = min (min vms max_vms) 500 in
   let vms = clone_vms t ~vm max_vms in
   start_vms t ~host vms ; fill_mem_pow2 t ~host ~vm ; shutdown_vms t vms
 
