@@ -136,7 +136,10 @@ let on_task_complete of_rpc t self =
     let err = call t @@ Task.get_error_info ~self in
     Alcotest.failf "Task failed : %s" (String.concat "," err)
   else
-    call t @@ Task.get_result ~self |> Xmlrpc.of_string |> of_rpc
+    call t @@ Task.get_result ~self |> (function
+      | "" -> Rpc.Null
+      | s -> Xmlrpc.of_string s)
+      |> of_rpc
 
 let check_tasks tasks =
   tasks
@@ -224,6 +227,7 @@ let try_to_trigger_failure (type a) t ~host ~vm
   let max_vms = Int64.div free_mem vm_total_mem |> Int64.to_int in
   (* not too many .. *)
   let max_vms = min (min vms max_vms) 500 in
+  Log.info (fun m -> m "Creating %d VMs" max_vms);
   let vms = clone_vms t ~vm max_vms in
   start_vms t ~host vms ; fill_mem_pow2 t ~host ~vm ; shutdown_vms t vms
 
@@ -245,7 +249,7 @@ let boot1 rpc session_id template (module V : Variable) () =
   call t @@ VM.hard_shutdown ~vm
 
 let calibrate rpc session_id template (module V : Variable) () =
-  let t = {rpc= RPC.wrap rpc; session_id} in
+  let t = {rpc= (*RPC.wrap*) rpc; session_id} in
   let host = call t @@ Host.get_by_uuid ~uuid:Qt.localhost_uuid in
   Qt.VM.with_new rpc session_id ~template @@ fun vm ->
   (* start with a small VM, [module V] can override it *)
