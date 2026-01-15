@@ -168,13 +168,13 @@ let start_vms t ~host vms =
     |> List.map @@ fun vm ->
        Async.VM.start_on ~host ~vm ~start_paused:true ~force:false
   in
-  Tasks.batched_run t ~on_task_complete:(on_task_complete Rpc.unit_of_rpc) tasks
+  Tasks.batched_run t ~on_task_complete:(on_task_complete ignore) tasks
   |> check_tasks
   |> ignore_list
 
 let shutdown_vms t vms =
   let tasks = vms |> List.map @@ fun vm -> Async.VM.hard_shutdown ~vm in
-  Tasks.batched_run t ~on_task_complete:(on_task_complete Rpc.unit_of_rpc) tasks
+  Tasks.batched_run t ~on_task_complete:(on_task_complete ignore) tasks
   |> check_tasks
   |> ignore_list
 
