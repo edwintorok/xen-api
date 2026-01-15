@@ -136,10 +136,9 @@ let on_task_complete of_rpc t self =
     let err = call t @@ Task.get_error_info ~self in
     Alcotest.failf "Task failed : %s" (String.concat "," err)
   else
-    call t @@ Task.get_result ~self |> (function
-      | "" -> Rpc.Null
-      | s -> Xmlrpc.of_string s)
-      |> of_rpc
+    call t @@ Task.get_result ~self
+    |> ( function "" -> Rpc.Null | s -> Xmlrpc.of_string s )
+    |> of_rpc
 
 let check_tasks tasks =
   tasks
@@ -149,11 +148,13 @@ let check_tasks tasks =
      | Error (exn, bt) ->
          Printexc.raise_with_backtrace exn bt
 
+let prefix = "failuretest"
+
 (* TODO: use run_or_cancel which raises *)
 let clone_vms t ~vm n =
   let tasks =
     List.init n @@ fun i ->
-    let new_name = Printf.sprintf "failuretest-%d" i in
+    let new_name = Printf.sprintf "%s-%d" prefix i in
     Async.VM.clone ~vm ~new_name
   in
   Tasks.batched_run t
@@ -161,7 +162,8 @@ let clone_vms t ~vm n =
     tasks
   |> check_tasks
 
-let ignore_list (_: _ list) = ()
+let ignore_list (_ : _ list) = ()
+
 let start_vms t ~host vms =
   let tasks =
     vms
@@ -172,11 +174,15 @@ let start_vms t ~host vms =
   |> check_tasks
   |> ignore_list
 
-let shutdown_vms t vms =
-  let tasks = vms |> List.map @@ fun vm -> Async.VM.hard_shutdown ~vm in
-  Tasks.batched_run t ~on_task_complete:(on_task_complete ignore) tasks
-  |> check_tasks
-  |> ignore_list
+let shutdown_vms t = function
+  | [] ->
+      ()
+  | vms ->
+      Log.info (fun m -> m "Shutting down %d vms" (List.length vms)) ;
+      let tasks = vms |> List.map @@ fun vm -> Async.VM.hard_shutdown ~vm in
+      Tasks.batched_run t ~on_task_complete:(on_task_complete ignore) tasks
+      |> check_tasks
+      |> ignore_list
 
 let fill_mem_pow2 t ~host ~vm =
   let free_mem = call t @@ Host.compute_free_memory ~host in
@@ -227,7 +233,7 @@ let try_to_trigger_failure (type a) t ~host ~vm
   let max_vms = Int64.div free_mem vm_total_mem |> Int64.to_int in
   (* not too many .. *)
   let max_vms = min (min vms max_vms) 500 in
-  Log.info (fun m -> m "Creating %d VMs" max_vms);
+  Log.info (fun m -> m "Creating %d VMs" max_vms) ;
   let vms = clone_vms t ~vm max_vms in
   start_vms t ~host vms ; fill_mem_pow2 t ~host ~vm ; shutdown_vms t vms
 
@@ -248,8 +254,28 @@ let boot1 rpc session_id template (module V : Variable) () =
   call t @@ VM.start_on ~vm ~host ~force:false ~start_paused:true ;
   call t @@ VM.hard_shutdown ~vm
 
+let cleanup rpc session_id _ (module _ : Variable) () =
+  let t = {rpc; (*RPC.wrap*) session_id} in
+  let vms = call t @@ VM.get_all_records in
+  let vms =
+    vms |> List.filter (fun (_, vm) ->
+     String.starts_with ~prefix vm.API.vM_name_label) in
+  let not_halted =
+    vms
+    |> List.filter_map @@ fun (self, vm) ->
+       if vm.API.vM_power_state <> `Halted then
+         Some self
+       else
+         None
+  in
+  shutdown_vms t not_halted ;
+  vms
+  |> List.iter @@ fun (self, _) ->
+     (* TODO: vm-uninstall instead? but it is slow, and we have no disks *)
+    call t @@ VM.destroy ~self
+
 let calibrate rpc session_id template (module V : Variable) () =
-  let t = {rpc= (*RPC.wrap*) rpc; session_id} in
+  let t = {rpc; (*RPC.wrap*) session_id} in
   let host = call t @@ Host.get_by_uuid ~uuid:Qt.localhost_uuid in
   Qt.VM.with_new rpc session_id ~template @@ fun vm ->
   (* start with a small VM, [module V] can override it *)
@@ -443,8 +469,8 @@ let variables = [(module VCPU : Variable); (module Pagetables : Variable)]
 let tests () =
   let open Qt_filter in
   [
-    (*    ("Fill mem 1VM", `Slow, boot1)*)
-    ("VM memory overhead", `Slow, calibrate)
+    ("Cleanup", `Slow, cleanup) (*    ("Fill mem 1VM", `Slow, boot1)*)
+  ; ("VM memory overhead", `Slow, calibrate)
   ; ("Fill mem 1VM (repeat)", `Slow, boot1)
   ]
   |> conn
