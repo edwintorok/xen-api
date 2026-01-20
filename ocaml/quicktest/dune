@@ -17,6 +17,9 @@
     logs
     logs.fmt
     logs.threaded
+    cli_progress_bar
+    quicktest_trace
+    quicktest_trace_api
     quicktest_trace_rpc
     pam
     qcheck-alcotest

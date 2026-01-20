@@ -19,7 +19,7 @@ let qchecks =
   |> List.map @@ fun (name, test) ->
      (name, List.map QCheck_alcotest.(to_alcotest ~long:true) test)
 
-let setup_logs () =
+let setup_tty () =
   let style_renderer =
     if !Quicktest_args.use_colour then
       (* use default style, auto-detect color support *)
@@ -29,10 +29,14 @@ let setup_logs () =
       Some `None
   in
   Fmt_tty.setup_std_outputs ?style_renderer ()
-
 let () =
   Quicktest_args.parse () ;
-  setup_logs () ;
+  setup_tty () ;
+  let open Quicktest_trace in
+  let disk = DiskBackend.create_backend ~filename:"trace" () in
+  TeeBackend.with_setup (module ConsoleBackend.Backend) disk () @@ fun () ->
+  TeeBackend.setup_tick () ;
+  Sys.catch_break true ;
   Qt_filter.wrap (fun () ->
       let suite =
         [
@@ -48,6 +52,7 @@ let () =
         ; ("Quicktest_async_calls", Quicktest_async_calls.tests ())
         ; ("Quicktest_vm_import_export", Quicktest_vm_import_export.tests ())
         ; ("Quicktest_vm_lifecycle", Quicktest_vm_lifecycle.tests ())
+        ; ("Quicktest_vm_calibrate", Quicktest_vm_calibrate.tests ())
         ; ("Quicktest_vm_snapshot", Quicktest_vm_snapshot.tests ())
         ; ( "Quicktest_vdi_ops_data_integrity"
           , Quicktest_vdi_ops_data_integrity.tests ()
