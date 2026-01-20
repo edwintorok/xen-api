@@ -61,7 +61,7 @@ let ( -* ) = Int64.sub
 let mib = 1024L
 
 (** Same as xen commandline *)
-let low_mem_emergency_pool = 1L ** mib
+let low_mem_emergency_pool = 64L ** mib
 
 (** Return the extra amount we always add onto maxmem *)
 let xen_max_offset_kib domain_type =

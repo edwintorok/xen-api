@@ -203,7 +203,7 @@ module Memory_model (D : MEMORY_MODEL_DATA) = struct
     static_max_mib +++ xen_max_offset_mib +++ D.shim_mib static_max_mib
 
   let shadow_mib static_max_mib vcpu_count multiplier =
-    let vcpu_pages = 256L *** Int64.of_int vcpu_count in
+    let vcpu_pages = 265L *** Int64.of_int vcpu_count in
     let p2m_map_pages = static_max_mib in
     let shadow_resident_pages = static_max_mib in
     let total_mib =
