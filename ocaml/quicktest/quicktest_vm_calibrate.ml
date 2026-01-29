@@ -67,7 +67,9 @@ let try_to_trigger_failure (type a) t ~host ~vm
     if max_vms >= vms then begin
       Trace.with_ "Creating VMs" ~attrs:[("count", `Int max_vms)] @@ fun _ ->
       let vms = ensure_vm_clones t ~vm max_vms (V.name ^ "-trigger") in
-      start_vms t ~host vms ; fill_mem_pow2 t ~host ~vm ; shutdown_vms t vms
+      vms |> List.map (fun vm -> (host, vm)) |> start_vms t ;
+      fill_mem_pow2 t ~host ~vm ;
+      shutdown_vms t vms
     end
     (* can't create enough VMs to trigger the failure *)
   end

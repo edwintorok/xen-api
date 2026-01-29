@@ -155,31 +155,29 @@ let ensure_vm_clones t ~vm n purpose =
   in
   List.concat [existing_vms |> List.map fst; new_vms]
 
+let div_round_up a b = Int64.(div (add a @@ pred b) b)
+
 let ignore_list (_ : _ list) = ()
 
 let pagesize () = Int64.shift_left (Xenctrl.pages_to_kib 1L) 10
 
-let lifecycle_attrs t ~host items =
-  Trace.with_ __FUNCTION__ @@ fun scope ->
-  let host_free_pages = stable_localhost_free_pages scope t ~host in
-  let host_free_memory_bytes = call t @@ Host.compute_free_memory ~host in
-  [
-    ("host_free_pages", `Int (Int64.to_int host_free_pages))
-  ; ( "host_free_bytes"
-    , `Int (Int64.mul host_free_pages (pagesize ()) |> Int64.to_int)
-    )
-  ; ("host_computed_free_bytes", `Int (Int64.to_int host_free_memory_bytes))
-  ; ("n", `Int (List.length items))
-  ]
+let lifecycle_attrs _t items = [("n", `Int (List.length items))]
 
-let start_vms_parallel t ~host vms =
-  Trace.with_ __FUNCTION__ ~attrs:(lifecycle_attrs t ~host vms) @@ fun _ ->
+let start_vms_parallel t host_vms =
+  Trace.with_ __FUNCTION__ ~attrs:(lifecycle_attrs t host_vms) @@ fun _ ->
   let tasks =
-    vms
-    |> List.map @@ fun vm ->
+    host_vms
+    |> List.map @@ fun (host, vm) ->
        Api.VM.Async.start_on ~host ~vm ~start_paused:true ~force:false
   in
   Api.batched_run_or_cancel t "Start VM(s)/parallel" tasks
+  |> check_tasks
+  |> ignore_list
+
+let hard_reboot_vms t vms =
+  Trace.with_ __FUNCTION__ ~attrs:(lifecycle_attrs t vms) @@ fun _ ->
+  let tasks = vms |> List.map @@ fun (_, vm) -> Api.VM.Async.hard_reboot ~vm in
+  Api.batched_run_or_cancel t "Hard reboot VMs/parallel" tasks
   |> check_tasks
   |> ignore_list
 
@@ -192,28 +190,63 @@ let start_vm t ~host ~vm =
   |> check_tasks
   |> fun (_ : _ list) -> ()
 
-let start_vms_seq t ~host vms =
-  Trace.with_ __FUNCTION__ ~attrs:(lifecycle_attrs t ~host vms) @@ fun _ ->
-  vms
-  |> List.iter @@ fun vm ->
+let start_vms_seq t host_vms =
+  Trace.with_ __FUNCTION__ ~attrs:(lifecycle_attrs t host_vms) @@ fun _ ->
+  host_vms
+  |> List.iter @@ fun (host, vm) ->
      if call t @@ VM.get_power_state ~self:vm = `Halted then
        start_vm t ~host ~vm
 
-let start_vms t ~host vms =
+let start_vms t host_vms =
   Trace.with_ __FUNCTION__ @@ fun scope ->
-  try start_vms_parallel t ~host vms
+  try start_vms_parallel t host_vms
   with Api_errors.Server_error _ as exn ->
     let bt = Printexc.get_raw_backtrace () in
     Scope.add_event scope (fun () ->
         Opentelemetry.Event.make "Parallel start failed"
     ) ;
     (* Try to start the remainig VMs sequentially *)
-    start_vms_seq t ~host vms ;
+    start_vms_seq t host_vms ;
     Scope.add_event scope (fun () ->
         Opentelemetry.Event.make "Sequential start succeeded"
     ) ;
     (* raise the parallel failure *)
     Printexc.raise_with_backtrace exn bt
+
+let workload_host' t ~host ~workload_vm =
+  let vm = workload_vm in
+  Trace.with_ __FUNCTION__ @@ fun scope ->
+  let host_cpus = call t @@ Host.get_host_CPUs ~self:host |> List.length in
+  let vcpus =
+    (* can't use more vCPUs than the host has, and we support a maximum of 32
+    for untrusted VMs *)
+    min 32 host_cpus |> Int64.of_int
+  in
+  Api.VM.call_set t VM.set_VCPUs_max ~self:vm ~value:vcpus ;
+  Api.VM.call_set t VM.set_VCPUs_at_startup ~self:vm ~value:vcpus ;
+  let memory_min = Api.VM.call_get t VM.get_memory_static_min ~self:vm in
+  Api.VM.call_set t VM.set_memory ~self:vm ~value:memory_min ;
+  (* ensure that all host CPUs are busy with at least 1 vCPU.
+     For simplicity we rounding up, so the last VM may actually overload the host *)
+  let n = div_round_up (Int64.of_int host_cpus) vcpus |> Int64.to_int in
+  Scope.add_attrs scope (fun () ->
+      [
+        ("vcpus", `Int (Int64.to_int vcpus))
+      ; ("memory_bytes", `Int (Int64.to_int memory_min))
+      ; ("n", `Int n)
+      ]
+  ) ;
+  ensure_vm_clones t ~vm n (Printf.sprintf "workload-%s" @@ Ref.string_of host)
+  |> List.map @@ fun vm -> (host, vm)
+
+let workload t ~host ~workload_vm =
+  workload_host' t ~host ~workload_vm |> start_vms t
+
+let workload_pool t ~workload_vm =
+  let hosts = call t @@ Host.get_all in
+  hosts
+  |> List.concat_map (fun host -> workload_host' t ~host ~workload_vm)
+  |> start_vms t
 
 let shutdown_vms t = function
   | [] ->
@@ -254,7 +287,8 @@ let fill_mem_pow2 t ~host ~vm =
           in
           if value < memory_min then
             None
-          else
+          else begin
+            Api.VM.call_set t VM.set_memory ~self:vm ~value ;
             let overhead =
               Api.VM.with_call t "compute_memory_overhead" vm
               @@ VM.compute_memory_overhead ~vm
@@ -269,8 +303,8 @@ let fill_mem_pow2 t ~host ~vm =
                     ]
                   "try to fill host memory"
             ) ;
-            Api.VM.call_set t VM.set_memory ~self:vm ~value ;
             Some (value, Int64.sub total (Int64.add value overhead))
+          end
         end
       )
       free_mem
@@ -282,13 +316,74 @@ let fill_mem_pow2 t ~host ~vm =
     |> List.iter @@ fun (self, value) ->
        Api.VM.call_set t VM.set_memory ~self ~value
   in
-  start_vms t ~host vms ;
+  vms |> List.map (fun vm -> (host, vm)) |> start_vms t ;
 
   Scope.add_event scope (fun () ->
       Opentelemetry.Event.make "Parallel start\n  succeeded"
   ) ;
 
   Trace.with_ ~scope "Shutdown VMs on success" @@ fun _ -> shutdown_vms t vms
+
+let maximise_memory t ~vm ~total =
+  let value =
+    Api.VM.with_call t "maximise_memory" vm
+    @@ VM.maximise_memory ~self:vm ~approximate:false ~total
+  in
+  (* XS8+ bug workaround: migration double counts overhead *)
+  Api.VM.call_set t VM.set_memory ~self:vm ~value ;
+  let overhead =
+    Api.VM.with_call t "compute_memory_overhead" vm
+    @@ VM.compute_memory_overhead ~vm
+  in
+  let total = Int64.sub total overhead in
+  let value =
+    Api.VM.with_call t "maximise_memory" vm
+    @@ VM.maximise_memory ~self:vm ~approximate:false ~total
+  in
+  value
+
+let fill_mem_n t ~host ~vm ~n =
+  assert (n > 0) ;
+  let free_mem = call t @@ Host.compute_free_memory ~host in
+  let value =
+    (*  rounded down, will fill remainder below in last_value *)
+    let total = Int64.div free_mem (Int64.of_int n) in
+    maximise_memory t ~vm ~total
+  in
+
+  let last_value =
+    Api.VM.call_set t VM.set_memory ~self:vm ~value ;
+    let overhead =
+      Api.VM.with_call t "compute_memory_overhead" vm
+      @@ VM.compute_memory_overhead ~vm
+    in
+    let overhead =
+      Int64.mul 2L overhead
+      (* XS8+ bug: double counts overhead *)
+    in
+    (* division may not be exact, fill remainder *)
+    let total =
+      Int64.(sub free_mem @@ mul (add value overhead) @@ Int64.of_int @@ (n - 1))
+    in
+    maximise_memory t ~vm ~total
+  in
+  let sizes =
+    List.init n @@ fun i ->
+    if i = n - 1 then
+      last_value
+    else
+      value
+  in
+  let vms =
+    ensure_vm_clones t ~vm (List.length sizes) (Printf.sprintf "fillmem-%d" n)
+  in
+  let () =
+    List.combine vms sizes
+    |> List.iter @@ fun (self, value) ->
+       Api.VM.call_set t VM.set_memory ~self ~value
+  in
+  let host_vms = vms |> List.map (fun vm -> (host, vm)) in
+  start_vms t host_vms ; host_vms
 
 let cleanup rpc session_id () =
   Trace.with_ __FUNCTION__ @@ fun _ ->

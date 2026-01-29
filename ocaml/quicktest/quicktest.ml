@@ -56,6 +56,10 @@ let () =
           , Quicktest_vm_calibrate.tests_cleanup ()
           )
         ; ("Quicktest_vm_calibrate", Quicktest_vm_calibrate.tests ())
+        ; ( "Quicktest_vm_calibrate_cleanup"
+          , Quicktest_vm_calibrate.tests_cleanup ()
+          )
+        ; ("Quicktest_vm_memory", Quicktest_vm_memory.tests ())
         ; ("Quicktest_vm_snapshot", Quicktest_vm_snapshot.tests ())
         ; ( "Quicktest_vdi_ops_data_integrity"
           , Quicktest_vdi_ops_data_integrity.tests ()

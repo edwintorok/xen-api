@@ -65,11 +65,17 @@ val start_vm :
 (** [start_vm client ~host ~vm] starts a single [vm] on [host], tracking progress. *)
 
 val start_vms :
-  Client.Client.client -> host:API.ref_host -> [`VM] API.Ref.t list -> unit
-(** [start_vms client ~host vms] starts [vms] on [host], tracking progress.
+  Client.Client.client -> (API.ref_host * [`VM] API.Ref.t) list -> unit
+(** [start_vms client host_vms] starts [vm]s on [host], where [host_vms] is
+   a list of [host], [vm] pairs; and track progress.
   It attempts to perform a parallel start first, and if that fails,
   it attempts to start any remaining VMs sequentially.
   If the parallel start fails this always raises an exception at the end.
+*)
+
+val hard_reboot_vms :
+  Client.Client.client -> (API.ref_host * [`VM] API.Ref.t) list -> unit
+(** [hard_reboot_vms client host_vms] hard reboots all [vms].
 *)
 
 val shutdown_vms :
@@ -82,6 +88,29 @@ val fill_mem_pow2 :
   power of 2 increments, trying to ensure that the computed VM sizes sum up to exactly
   the amount of available free memory on the host, including VM memory overhead.
   It may not completely fill available memory due to rounding.
+*)
+
+val workload : Client.Client.client -> host:API.ref_host -> workload_vm:API.ref_VM -> unit
+(** [workload client ~host ~workload_vm] fills all CPUs in [host] with [workload_vm].
+  The VMs will use a small amount of memory, but together they will use all
+  CPUs on a host. (due to configuration limits we can't always create a single
+  VM to fill the entire host)
+*)
+
+val workload_pool: Client.Client.client -> workload_vm: API.ref_VM -> unit
+(** [workload_pool client ~workload_vm] is like {!val:workload}, but starts the VMs on all hosts in the pool *)
+
+val fill_mem_n :
+     Client.Client.client
+  -> host:[`host] API.Ref.t
+  -> vm:[`VM] API.Ref.t
+  -> n:int
+  -> (API.ref_host * API.ref_VM) list
+(** [fill_mem_n client ~host ~vm ~n] fills the available memory on [host] with
+  [n] VMs of approximatively equal sizes, trying to ensure that the computed VM sizes sum up to exactly
+  the amount of available free memory on the host, including VM memory overhead.
+  It may not completely fill available memory due to rounding.
+  The VMs are started prior to returning from this function
 *)
 
 val cleanup : (Rpc.call -> Rpc.response) -> API.ref_session -> unit -> unit
