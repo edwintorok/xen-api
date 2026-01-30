@@ -175,4 +175,16 @@ let () =
 
   ignore (Thread.create memory_changes () : Thread.t) ;
   let@ xc = Xenctrl.with_intf in
+
+  let domains = Xenctrl.domain_getinfolist xc 0 in
+  domains |> List.iter (fun d ->
+    Logs.app (fun m ->
+      m "domid %d, nr_online_vcpus: %d, cpu_time: %Ld" d.Xenctrl.domid d.Xenctrl.nr_online_vcpus d.Xenctrl.cpu_time)
+  );
+  Thread.delay 1.0;
+  domains |> List.iter (fun d ->
+    Logs.app (fun m ->
+      m "domid %d, nr_online_vcpus: %d, cpu_time: %Ld" d.Xenctrl.domid d.Xenctrl.nr_online_vcpus d.Xenctrl.cpu_time)
+  );
+
   domain_changes xc

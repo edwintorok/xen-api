@@ -4,7 +4,7 @@ open Quicktest_trace
 open Quicktest_trace_api
 open Quicktest_trace_rpc
 
-let all_possible_tests = [8; 3; 1] |> List.rev
+let all_possible_tests = [16; 1; 3; 8]
 
 let check_tasks tasks =
   tasks |> List.map @@ function Ok x -> x | Error exn -> raise exn
@@ -30,15 +30,50 @@ let one t ~host ~vm ~workload_vm n =
 
       let () =
         Trace.with_ ~scope "localhost migrate1" @@ fun _ ->
-        Api.VM.with_call t "localhost migrate" migration_vm
-        @@ Client.Client.VM.pool_migrate ~vm:migration_vm
-             ~options:[("force", "true")]
-             ~host:migration_host
+        let task t =
+          Api.VM.task t "localhost migrate" ignore migration_vm
+          @@ Async.VM.pool_migrate ~vm:migration_vm
+               ~options:[("force", "true")]
+               ~host:migration_host
+        in
+        let (_ : _ list) =
+          Api.batched_run_or_cancel t "localhost migrate" [task]
+        in
+        ()
       in
-      Api.VM.with_call t "pause" migration_vm
-      @@ Client.Client.VM.pause ~vm:migration_vm ;
+
       (* start it up again *)
-      start_vms t [host_vm_shutdown]
+      start_vms t [host_vm_shutdown] ;
+
+     (* if n >= 16 then begin
+        (* only do the suspend/resume test on the last, smallest one for now,
+           to avoid writing TiB of data.
+         *)
+          let task t =
+            Api.VM.task t "suspend" ignore migration_vm
+            @@ Async.VM.suspend ~vm:migration_vm
+          in
+          let (_ : _ list) = Api.batched_run_or_cancel t "suspend" [task] in
+
+          let task t =
+            Api.VM.task t "resume" ignore migration_vm
+            @@ Async.VM.resume_on ~host ~vm:migration_vm ~start_paused:false
+                 ~force:false
+          in
+          let (_ : _ list) = Api.batched_run_or_cancel t "resume" [task] in
+
+          let task t =
+            Api.VM.task t "checkpoint" ignore migration_vm
+            @@ Async.VM.checkpoint ~vm:migration_vm ~new_name:"checkpoint-test"
+          in
+          let (_ : _ list) = Api.batched_run_or_cancel t "checkpoint" [task] in
+          ()
+      end;
+      TODO: use systemrescuecd here, and wait until the Suspend feature appears
+      in allowed_operations
+      *)
+      Api.VM.with_call t "pause" migration_vm
+      @@ Client.Client.VM.pause ~vm:migration_vm
   end ;
 
   let () =

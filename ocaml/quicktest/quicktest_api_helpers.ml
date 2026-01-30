@@ -222,13 +222,20 @@ let workload_host' t ~host ~workload_vm =
     for untrusted VMs *)
     min 32 host_cpus |> Int64.of_int
   in
+  let free_mem = call t @@ Host.compute_free_memory ~host in
   Api.VM.call_set t VM.set_VCPUs_max ~self:vm ~value:vcpus ;
   Api.VM.call_set t VM.set_VCPUs_at_startup ~self:vm ~value:vcpus ;
-  let memory_min = Api.VM.call_get t VM.get_memory_static_min ~self:vm in
-  Api.VM.call_set t VM.set_memory ~self:vm ~value:memory_min ;
   (* ensure that all host CPUs are busy with at least 1 vCPU.
      For simplicity we rounding up, so the last VM may actually overload the host *)
   let n = div_round_up (Int64.of_int host_cpus) vcpus |> Int64.to_int in
+  let memory_min = Api.VM.call_get t VM.get_memory_static_min ~self:vm in
+  let value =
+    (* Try to use at least 10% of host free memory with our N workloads in
+       total, or N*memory_min, whichever is higher. *)
+    max memory_min (Int64.div (Int64.div free_mem 10L) (Int64.of_int n))
+  in
+  Api.VM.call_set t VM.set_memory ~self:vm ~value ;
+
   Scope.add_attrs scope (fun () ->
       [
         ("vcpus", `Int (Int64.to_int vcpus))
@@ -239,14 +246,25 @@ let workload_host' t ~host ~workload_vm =
   ensure_vm_clones t ~vm n (Printf.sprintf "workload-%s" @@ Ref.string_of host)
   |> List.map @@ fun vm -> (host, vm)
 
+let run_vms t host_vms =
+  start_vms t host_vms ;
+  let tasks =
+    List.map
+      (fun (_, vm) t ->
+        Api.VM.task t "unpause" ignore vm @@ Async.VM.unpause ~vm
+      )
+      host_vms
+  in
+  Api.batched_run_or_cancel t "unpause" tasks |> check_tasks |> ignore_list
+
 let workload t ~host ~workload_vm =
-  workload_host' t ~host ~workload_vm |> start_vms t
+  workload_host' t ~host ~workload_vm |> run_vms t
 
 let workload_pool t ~workload_vm =
   let hosts = call t @@ Host.get_all in
   hosts
   |> List.concat_map (fun host -> workload_host' t ~host ~workload_vm)
-  |> start_vms t
+  |> run_vms t
 
 let shutdown_vms t = function
   | [] ->
