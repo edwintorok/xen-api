@@ -52,15 +52,15 @@ let () =
         ; ("Quicktest_async_calls", Quicktest_async_calls.tests ())
         ; ("Quicktest_vm_import_export", Quicktest_vm_import_export.tests ())
         ; ("Quicktest_vm_lifecycle", Quicktest_vm_lifecycle.tests ())
-        ; ( "Quicktest_vm_calibrate_cleanup"
+        ; ( "Quicktest_vm_calibrate_cleanup0"
           , Quicktest_vm_calibrate.tests_cleanup ()
           )
         ; ("Quicktest_vm_calibrate", Quicktest_vm_calibrate.tests ())
-        ; ( "Quicktest_vm_calibrate_cleanup"
+        ; ( "Quicktest_vm_calibrate_cleanup1"
           , Quicktest_vm_calibrate.tests_cleanup ()
           )
         ; ("Quicktest_vm_memory", Quicktest_vm_memory.tests ())
-        ; ( "Quicktest_vm_calibrate_cleanup"
+        ; ( "Quicktest_vm_calibrate_cleanup2"
           , Quicktest_vm_calibrate.tests_cleanup ()
           )
         ; ("Quicktest_vm_snapshot", Quicktest_vm_snapshot.tests ())

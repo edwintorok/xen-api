@@ -235,6 +235,7 @@ module SR = struct
   let sr_filter f srs () = List.filter f (srs ())
 
   let iso_srs () =
+    with_xapi_query @@ fun () ->
     Lazy.force all_srs
     |> List.filter (fun sr_info ->
         Client.Client.SR.get_content_type ~rpc:!A.rpc ~session_id:!session_id
