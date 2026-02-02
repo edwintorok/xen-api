@@ -202,6 +202,7 @@ let start_vms t host_vms =
   try start_vms_parallel t host_vms
   with Api_errors.Server_error _ as exn ->
     let bt = Printexc.get_raw_backtrace () in
+    Backtrace.is_important exn;
     Scope.add_event scope (fun () ->
         Opentelemetry.Event.make "Parallel start failed"
     ) ;

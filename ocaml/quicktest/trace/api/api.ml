@@ -123,6 +123,7 @@ module Task = struct
                   task.finally (Error (Printexc.to_string exn, no_bt)) ;
                   exn
                 with exn ->
+                  Backtrace.is_important exn ;
                   let bt = Printexc.get_raw_backtrace () in
                   task.finally (Error (Printexc.to_string exn, no_bt)) ;
                   Printexc.raise_with_backtrace exn bt
@@ -161,6 +162,14 @@ module Object (O : OBJECT) = struct
     try call t @@ f
     with Api_errors.Server_error _ as e ->
       let bt = Printexc.get_raw_backtrace () in
+      Backtrace.is_important e ;
+      Scope.add_attrs scope (fun () ->
+          [
+            ( "exception.stacktrace"
+            , `String (e |> Backtrace.get |> Backtrace.to_string_hum)
+            )
+          ]
+      ) ;
       log t scope ~self ;
       (* call backend tick callbacks, if any. These would sample metrics. *)
       SpanProcessor.force_flush () ;

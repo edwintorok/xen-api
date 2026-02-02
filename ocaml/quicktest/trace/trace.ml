@@ -68,7 +68,18 @@ let with_' ?(force_new_trace_id = false) ?trace_state ?service_name ?attrs ?kind
     MyScope.with_ambient_scope scope @@ fun () ->
     if MyScope.is_recording scope then SpanProcessor.on_start scope ;
     MyScope.add_attrs scope (fun () -> sampling.attrs) ;
-    f scope
+    try f scope
+    with e ->
+      let bt = Printexc.get_raw_backtrace () in
+      Backtrace.is_important e ;
+      MyScope.add_attrs scope (fun () ->
+          [
+            ( "exception.stacktrace"
+            , `String (e |> Backtrace.get |> Backtrace.to_string_hum)
+            )
+          ]
+      ) ;
+      Printexc.raise_with_backtrace e bt
   in
 
   let thunk, finally =
@@ -104,6 +115,7 @@ let with_ ?force_new_trace_id ?trace_state ?service_name ?attrs ?kind ?trace_id
     finally ok ; r
   with exn ->
     let bt = Printexc.get_raw_backtrace () in
+    Backtrace.is_important exn;
     finally (Error (Printexc.to_string exn, bt)) ;
     Printexc.raise_with_backtrace exn bt
 
