@@ -235,6 +235,12 @@ let get_uuid ~xc domid =
            raw_uuid
         )
 
+let dump_mem_stats xc =
+  let host_info = Xenctrl.physinfo xc in
+  let free_pages = host_info.Xenctrl.free_pages in
+  debug "Host free memory pages: %nd" free_pages ;
+  free_pages
+
 let wait_xen_free_mem ~xc ?(maximum_wait_time_seconds = 64) required_memory_kib
     : bool =
   let open Memory in
@@ -524,7 +530,11 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
   in
   debug "Domain_config: [%s]"
     (rpc_of arch_domainconfig domain_config |> Jsonrpc.to_string) ;
+  let host_free_pages0 = dump_mem_stats () in
   let domid = Xenctrl.domain_create xc config in
+  let host_free_pages1 = dump_mem_stats () in
+  debug "Creating domain %d: host free memory changed by %Ld" domid
+    Int64.(sub host_free_pages1 host_free_pages0) ;
   let name =
     if vm_info.name <> "" then
       vm_info.name
