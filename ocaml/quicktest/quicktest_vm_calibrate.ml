@@ -517,6 +517,26 @@ let tests () =
   List.concat
     [
       [
+       ("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;("Fill mem pow2", `Slow, fill_mem_test)
+      ;
         ("Host memory leak", `Slow, host_mem_leak)
       ; ("Fill mem pow2", `Slow, fill_mem_test)
       ]
