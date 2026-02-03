@@ -12,7 +12,7 @@ let check_tasks tasks =
 let one t ~host ~vm ~workload_vm n =
   Trace.with_ __FUNCTION__ @@ fun scope ->
   workload t ~host ~workload_vm ;
-  let vms = fill_mem_n t ~host ~vm ~n in
+  let vms = fill_mem_n t ~workaround_migration:true ~host ~vm ~n in
 
   let migration_host, migration_vm = vms |> List.hd in
 
@@ -45,7 +45,7 @@ let one t ~host ~vm ~workload_vm n =
       (* start it up again *)
       start_vms t [host_vm_shutdown] ;
 
-     (* if n >= 16 then begin
+      (* if n >= 16 then begin
         (* only do the suspend/resume test on the last, smallest one for now,
            to avoid writing TiB of data.
          *)

@@ -100,11 +100,11 @@ let test rpc session_id sr_info vm_template iso_info () =
   let isos =
     Client.Client.VDI.get_all_records_where ~rpc ~session_id ~expr
     |> List.filter (fun (_, iso) ->
-           String.starts_with ~prefix iso.API.vDI_name_label
-       )
+        String.starts_with ~prefix iso.API.vDI_name_label
+    )
     |> List.sort (fun (_, a) (_, b) ->
-           -String.compare a.API.vDI_name_label b.API.vDI_name_label
-       )
+        -String.compare a.API.vDI_name_label b.API.vDI_name_label
+    )
   in
   match isos with
   | [] ->

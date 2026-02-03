@@ -113,7 +113,8 @@ val workload_pool : Client.Client.client -> workload_vm:API.ref_VM -> unit
 (** [workload_pool client ~workload_vm] is like {!val:workload}, but starts the VMs on all hosts in the pool *)
 
 val fill_mem_n :
-     ?total:int64
+     ?workaround_migration:bool
+  -> ?total:int64
   -> Client.Client.client
   -> host:[`host] API.Ref.t
   -> vm:[`VM] API.Ref.t

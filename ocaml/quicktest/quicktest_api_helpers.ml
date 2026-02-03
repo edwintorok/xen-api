@@ -367,7 +367,8 @@ let maximise_memory t ~vm ~total =
   in
   value
 
-let fill_mem_n ?total t ~host ~vm ~n =
+let fill_mem_n ?(workaround_migration = false) ?total t ~host ~vm ~n =
+  Trace.with_ __FUNCTION__ @@ fun scope ->
   assert (n > 0) ;
   let host_free_mem = call t @@ Host.compute_free_memory ~host in
   let total = Option.value total ~default:host_free_mem in
@@ -384,8 +385,11 @@ let fill_mem_n ?total t ~host ~vm ~n =
       @@ VM.compute_memory_overhead ~vm
     in
     let overhead =
-      Int64.mul 2L overhead
-      (* XS8+ bug: double counts overhead *)
+      if workaround_migration then
+        Int64.mul 2L overhead
+      else
+        overhead
+      (* XS8+ bug: double counts overhead for migration *)
     in
     (* division may not be exact, fill remainder *)
     let total =
@@ -403,13 +407,49 @@ let fill_mem_n ?total t ~host ~vm ~n =
   let vms =
     ensure_vm_clones t ~vm (List.length sizes) (Printf.sprintf "fillmem-%d" n)
   in
-  let () =
+  let full_sizes =
     List.combine vms sizes
-    |> List.iter @@ fun (self, value) ->
-       Api.VM.call_set t VM.set_memory ~self ~value
+    |> List.map @@ fun (self, value) ->
+       Api.VM.call_set t VM.set_memory ~self ~value ;
+       let overhead =
+         Api.VM.with_call t "compute_memory_overhead" vm
+         @@ VM.compute_memory_overhead ~vm:self
+       in
+       Int64.(add value overhead)
   in
+  let sum = List.fold_left Int64.add 0L sizes in
+  let sum_full_sizes = List.fold_left Int64.add 0L full_sizes in
+  Scope.add_event scope (fun () ->
+      Opentelemetry.Event.make "fill_mem_n_sizes"
+        ~attrs:
+          [
+            ("host_free_memory_bytes", `Int (Int64.to_int host_free_mem))
+          ; ("total", `Int (Int64.to_int total))
+          ; ("sum", `Int (Int64.to_int sum))
+          ; ("n", `Int n)
+          ; ("vm_memory_bytes", `Int (Int64.to_int value))
+          ; ("last_vm_memory_bytes", `Int (Int64.to_int last_value))
+          ; ("sum", `Int (Int64.to_int sum))
+          ; ("sum_full_sizes", `Int (Int64.to_int sum_full_sizes))
+          ; ( "host_free_remaining_bytes"
+            , `Int Int64.(sub host_free_mem sum_full_sizes |> to_int)
+            )
+          ]
+  ) ;
+
   let host_vms = vms |> List.map (fun vm -> (host, vm)) in
-  start_vms t host_vms ; host_vms
+  start_vms t host_vms ;
+  let host_free_mem = call t @@ Host.compute_free_memory ~host in
+  let actual_free_mem = Int64.mul (pagesize ()) @@ localhost_free_pages scope in
+  Scope.add_event scope (fun () ->
+      Opentelemetry.Event.make "afterfill_mem"
+        ~attrs:
+          [
+            ("host_free_mem", `Int (Int64.to_int host_free_mem))
+          ; ("actual_free_mem", `Int (Int64.to_int actual_free_mem))
+          ]
+  ) ;
+  host_vms
 
 let cleanup rpc session_id () =
   Trace.with_ __FUNCTION__ @@ fun _ ->

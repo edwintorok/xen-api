@@ -165,17 +165,17 @@ module VM = struct
     in
     iso
     |> Option.iter (fun iso ->
-           let (_ : string) =
-             cli_cmd
-               [
-                 "vm-cd-add"
-               ; "uuid=" ^ uuid
-               ; "cd-name=" ^ iso.API.vDI_name_label
-               ; "device=0"
-               ]
-           in
-           ()
-       ) ;
+        let (_ : string) =
+          cli_cmd
+            [
+              "vm-cd-add"
+            ; "uuid=" ^ uuid
+            ; "cd-name=" ^ iso.API.vDI_name_label
+            ; "device=0"
+            ]
+        in
+        ()
+    ) ;
     Xapi_stdext_pervasives.Pervasiveext.finally
       (fun () -> f vm)
       (fun () -> uninstall rpc session_id vm)

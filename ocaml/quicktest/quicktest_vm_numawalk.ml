@@ -24,7 +24,7 @@ let meminfo why xc scope =
               ; key "claimed" meminfo.claimed
               ; key "size" meminfo.size
               ; key "free-claimed" Int64.(sub meminfo.free meminfo.claimed)
-              ; "reason", `String why
+              ; ("reason", `String why)
               ]
         )
         |> List.of_seq
@@ -49,19 +49,60 @@ let vm_set_numa_node xc t ~vm node =
   Api.VM.call_set t VM.set_VCPUs_params ~self:vm
     ~value:[("mask", String.concat "," cpus)]
 
-let numawalk xc t ~host ~vm ~vms node =
-  Trace.with_ "numawalk" ~attrs:[("node", `Int node)] @@ fun scope ->
-  let mem = meminfo "begin" xc scope in
+let numawalk_hard xc t ~host ~vm ~vms node =
+  Trace.with_ "numawalk_hard" ~attrs:[("node", `Int node)] @@ fun scope ->
+  let mem = meminfo "begin_one" xc scope in
+  let vm_node = List.nth vms node in
+  let mem_node = mem.(node) in
+  let host_free = call t @@ Host.compute_free_memory ~host in
+  let max_vm_memory =
+    Api.VM.call_get t ~self:vm_node
+    @@ Api.VM.maximise_memory ~total:host_free ~approximate:false
+  in
+  (* if we only have 1 NUMA node avoid using more than XAPI thinks we have free
+     *)
+  let value =
+    Int64.min max_vm_memory (Int64.sub mem_node.free mem_node.claimed)
+  in
+  Api.VM.call_set t VM.set_memory ~self:vm_node ~value ;
+  vm_set_numa_node xc t ~vm:vm_node node ;
+  let () =
+    Trace.with_ "start_1" ~scope @@ fun _ -> start_vm t ~host ~vm:vm_node
+  in
+  Xenctrl.with_intf (fun xc -> Xenctrl.send_debug_keys xc "u");
 
+  (* Try to start a lot of VMs, if we have allocations that specifically only
+     use node 0, then we should be able to trigger an OOM *)
+  let free = call t @@ Host.compute_free_memory ~host in
+  let static_min = Api.VM.call_get t VM.get_memory_static_min ~self:vm in
+  let n = min (Int64.div free static_min) 64L |> Int64.to_int in
+
+  let filled_vms =
+    Trace.with_ "fill_remaining" ~scope @@ fun scope ->
+    let (_ : _ array) = meminfo "before_fill_remaining" xc scope in
+    let vms = fill_mem_n t ~host ~vm ~n in
+    let (_ : _ array) = meminfo "after_fill_remaining" xc scope in
+    let free = call t @@ Host.compute_free_memory ~host in
+    Scope.add_event scope (fun () ->
+        Opentelemetry.Event.make "host_memory_free"
+          ~attrs:[("free_bytes", `Int (Int64.to_int free))]
+    ) ;
+    vms
+  in
+  Xenctrl.with_intf (fun xc -> Xenctrl.send_debug_keys xc "u");
+  shutdown_vms t (vm_node :: List.map snd filled_vms)
+
+(*
   (* start a big VM on each of the other NUMA nodes, such that the available
-     memory on each NUMA node (other than node) is < static_min (but not 0). *)
+     memory on each NUMA node (other than node) is < static_min (but not 0).
+     Because hard affinity doesn't actually guarantee all overhead goes onto
+     that node too, we do need to fill all nodes first, and then shut down one
+     VM, to ensure a more even spread.
+     *)
   let block =
     mem
     |> Array.to_seqi
     |> Seq.filter_map (fun (i, info) ->
-        if i = node then
-          None
-        else
           (* TODO: also check distance for validity *)
           let open Xenctrlext.HostNuma in
           let self = List.nth vms i in
@@ -83,14 +124,21 @@ let numawalk xc t ~host ~vm ~vms node =
     |> List.of_seq
   in
   let () = Trace.with_ "start_vms_block" ~scope @@ fun _ -> start_vms t block in
+  let node_vm = List.nth vms node in
+  shutdown_vms t [node_vm];
 
   let static_min = Api.VM.call_get t VM.get_memory_static_min ~self:vm in
   let filled_vms =
     Trace.with_ "starts_vms_fill_one" ~scope @@ fun _scope ->
     let mem = (meminfo "begin_fill_one" xc scope).(node) in
+    (* TODO: not more than the total says... *)
     let total = Int64.sub mem.free mem.claimed in
     let n = min (Int64.div total static_min) 32L |> Int64.to_int in
     let filled_vms = fill_mem_n t ~total ~host ~vm ~n in
+(*    let vm = List.nth vms node in
+    Api.VM.call_set t VM.set_memory ~self:vm ~value:total;
+    let filled_vms = [host, vm] in
+    start_vm t ~host ~vm;*)
     let (_ : _ array) = meminfo "after_fill_one" xc scope in
     filled_vms
   in
@@ -108,9 +156,15 @@ let numawalk xc t ~host ~vm ~vms node =
     let (_ : _ array) = meminfo "before_fill_remaining" xc scope in
     let vms = fill_mem_n t ~host ~vm ~n in
     let (_ : _ array) = meminfo "after_fill_remaining" xc scope in
+    let free = call t @@ Host.compute_free_memory ~host in
+    Scope.add_event scope (fun () ->
+        Opentelemetry.Event.make "host_memory_free"
+          ~attrs:[("free_bytes", `Int (Int64.to_int free))]
+    ) ;
     vms
   in
   shutdown_vms t (filled_vms @ filled_vms2 |> List.map snd)
+  *)
 
 let one t ~host ~vm =
   Trace.with_ __FUNCTION__ @@ fun _ ->
@@ -118,7 +172,7 @@ let one t ~host ~vm =
   let nodes = Xenctrlext.get_nr_nodes xc in
   let vms = ensure_vm_clones t ~vm nodes "numawalk_block" in
   for i = 0 to nodes - 1 do
-    numawalk xc t ~host ~vm ~vms i
+    numawalk_hard xc t ~host ~vm ~vms i
   done
 
 let test rpc session_id template () =

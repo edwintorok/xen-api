@@ -115,7 +115,7 @@ let with_ ?force_new_trace_id ?trace_state ?service_name ?attrs ?kind ?trace_id
     finally ok ; r
   with exn ->
     let bt = Printexc.get_raw_backtrace () in
-    Backtrace.is_important exn;
+    Backtrace.is_important exn ;
     finally (Error (Printexc.to_string exn, bt)) ;
     Printexc.raise_with_backtrace exn bt
 
