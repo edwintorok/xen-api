@@ -245,9 +245,9 @@ let dump_mem_stats xc =
     meminfo
     |> Array.iter @@ fun info ->
        let open Xenctrlext.HostNuma in
-       debug "NUMA memory: free=%Ld, claimed=%Ld, free+claimed=%Ld, total=%Ld"
+       debug "NUMA memory: free=%Ld, claimed=%Ld, free-claimed=%Ld, total=%Ld"
          info.free info.claimed
-         Int64.(add info.free info.claimed)
+         Int64.(sub info.free info.claimed)
          info.size
   in
   free_pages

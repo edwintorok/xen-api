@@ -52,6 +52,10 @@ let () =
         ; ("Quicktest_async_calls", Quicktest_async_calls.tests ())
         ; ("Quicktest_vm_import_export", Quicktest_vm_import_export.tests ())
         ; ("Quicktest_vm_lifecycle", Quicktest_vm_lifecycle.tests ())
+        ; ( "Quicktest_vm_calibrate_cleanup00"
+          , Quicktest_vm_calibrate.tests_cleanup ()
+          )
+        ; ("Quicktest_vm_numawalk", Quicktest_vm_numawalk.tests ())
         ; ( "Quicktest_vm_calibrate_cleanup0"
           , Quicktest_vm_calibrate.tests_cleanup ()
           )

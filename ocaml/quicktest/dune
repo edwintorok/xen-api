@@ -43,6 +43,7 @@
     xapi-stdext-threads
     xapi-stdext-unix
     xenctrl
+    xenctrl_ext
     xml-light2
   )
   (preprocess (per_module ((pps ppx_deriving_rpc) Quicktest_vm_lifecycle)))
