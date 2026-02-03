@@ -32,47 +32,74 @@ let meminfo xc scope =
   ) ;
   mem
 
-let numawalk xc t ~host ~vms i =
-  let vm0 = List.nth vms 0 and vm1 = List.nth vms 1 and vm2 = List.nth vms 2 in
-  Trace.with_ "numawalk" ~attrs:[("node", `Int i)] @@ fun scope ->
-  let mem = (meminfo xc scope).(i) in
-  let available = Int64.sub mem.free mem.claimed in
-  (* start one that'd use up a full NUMA node, although we can't predict which,
-     TODO: could use hard affinity
-   *)
-  let value =
-    Api.VM.call_get t ~self:vm2
-    @@ Api.VM.maximise_memory ~total:available ~approximate:false
+let vm_set_numa_node xc t ~vm node =
+  let topo = Xenctrlext.cputopoinfo xc in
+  let cpus =
+    topo
+    |> Array.to_seqi
+    |> Seq.filter_map (fun (i, t) ->
+        if t.Xenctrlext.node = node then
+          Some (string_of_int i)
+        else
+          None
+    )
+    |> List.of_seq
   in
-  Api.VM.call_set t VM.set_memory ~self:vm0 ~value ;
-  let value = Api.VM.call_get t VM.get_memory_static_min ~self:vm1 in
-  Api.VM.call_set t VM.set_memory ~self:vm1 ~value ;
+  Api.VM.call_set t VM.set_VCPUs_params ~self:vm
+    ~value:[("mask", String.concat "," cpus)]
 
-  start_vm t ~host ~vm:vm0 ;
+let numawalk xc t ~host ~vm ~vms node =
+  Trace.with_ "numawalk" ~attrs:[("node", `Int node)] @@ fun scope ->
+  let mem = meminfo xc scope in
 
-  let (_ : _ array) = meminfo xc scope in
-  (* now start another small *)
-  start_vm t ~host ~vm:vm1 ;
-  let (_ : _ array) = meminfo xc scope in
-
-  let available = Int64.mul (pagesize ()) (localhost_free_pages scope) in
-  let value =
-    Api.VM.call_get t ~self:vm2
-    @@ Api.VM.maximise_memory ~total:available ~approximate:false
+  (* start a big VM on each of the other NUMA nodes, such that the available
+     memory on each NUMA node (other than node) is < static_min (but not 0). *)
+  let block =
+    mem
+    |> Array.to_seqi
+    |> Seq.filter_map (fun (i, info) ->
+        if i = node then
+          None
+        else
+          let open Xenctrlext.HostNuma in
+          let self = List.nth vms i in
+          let value =
+            Api.VM.call_get t ~self
+            @@ Api.VM.maximise_memory
+                 ~total:Int64.(sub info.free info.claimed)
+                 ~approximate:false
+          and static_min_half =
+            Int64.div (Api.VM.call_get t VM.get_memory_static_min ~self) 2L
+          in
+          Api.VM.call_set t VM.set_memory ~self
+            ~value:Int64.(sub value static_min_half) ;
+          vm_set_numa_node xc t ~vm:self i ;
+          Some (host, self)
+    )
+    |> List.of_seq
   in
-  Api.VM.call_set t VM.set_memory ~self:vm1 ~value ;
-  start_vm t ~host ~vm:vm2 ;
+  let () = Trace.with_ "start_vms_block" ~scope @@ fun _ -> start_vms t block in
+  let mem = (meminfo xc scope).(node) in
+  let total = Int64.sub mem.free mem.claimed in
+  let filled = fill_mem_pow2' t ~total ~host ~vm in
+  let self = List.nth vms node in
+  let value = Api.VM.call_get t VM.get_memory_static_min ~self in
+  Api.VM.call_set t VM.set_memory ~self ~value ;
+  let () =
+    Trace.with_ "start_when_node_full" ~scope @@ fun scope ->
+    let (_ : _ array) = meminfo xc scope in
+    start_vm t ~host ~vm:self
+  in
   let (_ : _ array) = meminfo xc scope in
-  () ;
-  shutdown_vms t [vm0; vm1; vm2]
+  shutdown_vms t (vms @ filled)
 
 let one t ~host ~vm =
   Trace.with_ __FUNCTION__ @@ fun _ ->
   let xc = Xenctrlext.get_handle () in
   let nodes = Xenctrlext.get_nr_nodes xc in
-  let vms = ensure_vm_clones t ~vm 3 "numawalk" in
+  let vms = ensure_vm_clones t ~vm nodes "numawalk_block" in
   for i = 0 to nodes - 1 do
-    numawalk xc t ~host ~vms i
+    numawalk xc t ~host ~vm ~vms i
   done
 
 let test rpc session_id template () =

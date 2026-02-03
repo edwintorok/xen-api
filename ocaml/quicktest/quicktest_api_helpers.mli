@@ -82,22 +82,34 @@ val shutdown_vms :
   Client.Client.client -> Quicktest_trace_api__Api.VM.dbref list -> unit
 (** [shutdown_vms client vms] hard shutdowns [vms], tracking progress. *)
 
-val fill_mem_pow2 :
-  Client.Client.client -> host:[`host] API.Ref.t -> vm:[`VM] API.Ref.t -> unit
-(** [fill_mem_pow2 client ~host ~vm] fills the available memory on [host] in
+val fill_mem_pow2' :
+     ?total:int64
+  -> Client.Client.client
+  -> host:[`host] API.Ref.t
+  -> vm:[`VM] API.Ref.t
+  -> API.ref_VM list
+
+(** [fill_mem_pow2 ?total client ~host ~vm] fills the available memory on [host] in
   power of 2 increments, trying to ensure that the computed VM sizes sum up to exactly
   the amount of available free memory on the host, including VM memory overhead.
   It may not completely fill available memory due to rounding.
 *)
+val fill_mem_pow2 :
+     ?total:int64
+  -> Client.Client.client
+  -> host:[`host] API.Ref.t
+  -> vm:[`VM] API.Ref.t
+  -> unit
 
-val workload : Client.Client.client -> host:API.ref_host -> workload_vm:API.ref_VM -> unit
+val workload :
+  Client.Client.client -> host:API.ref_host -> workload_vm:API.ref_VM -> unit
 (** [workload client ~host ~workload_vm] fills all CPUs in [host] with [workload_vm].
   The VMs will use a small amount of memory, but together they will use all
   CPUs on a host. (due to configuration limits we can't always create a single
   VM to fill the entire host)
 *)
 
-val workload_pool: Client.Client.client -> workload_vm: API.ref_VM -> unit
+val workload_pool : Client.Client.client -> workload_vm:API.ref_VM -> unit
 (** [workload_pool client ~workload_vm] is like {!val:workload}, but starts the VMs on all hosts in the pool *)
 
 val fill_mem_n :

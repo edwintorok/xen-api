@@ -202,7 +202,7 @@ let start_vms t host_vms =
   try start_vms_parallel t host_vms
   with Api_errors.Server_error _ as exn ->
     let bt = Printexc.get_raw_backtrace () in
-    Backtrace.is_important exn;
+    Backtrace.is_important exn ;
     Scope.add_event scope (fun () ->
         Opentelemetry.Event.make "Parallel start failed"
     ) ;
@@ -276,14 +276,16 @@ let shutdown_vms t = function
       |> check_tasks
       |> ignore_list
 
-let fill_mem_pow2 t ~host ~vm =
+let fill_mem_pow2' ?total t ~host ~vm =
   let memory_min = call t @@ VM.get_memory_static_min ~self:vm in
-  let free_mem = call t @@ Host.compute_free_memory ~host in
+  let host_free_mem = call t @@ Host.compute_free_memory ~host in
+  let total = Option.value total ~default:host_free_mem in
   Trace.with_ __FUNCTION__
     ~attrs:
       [
         ("vm_memory_min", `Int (Int64.to_int memory_min))
-      ; ("host_free_bytes", `Int (Int64.to_int free_mem))
+      ; ("host_free_bytes", `Int (Int64.to_int host_free_mem))
+      ; ("total", `Int (Int64.to_int total))
       ]
   @@ fun scope ->
   let sizes =
@@ -326,7 +328,7 @@ let fill_mem_pow2 t ~host ~vm =
           end
         end
       )
-      free_mem
+      total
     |> List.of_seq
   in
   let vms = ensure_vm_clones t ~vm (List.length sizes) "fillmem" in
@@ -340,7 +342,11 @@ let fill_mem_pow2 t ~host ~vm =
   Scope.add_event scope (fun () ->
       Opentelemetry.Event.make "Parallel start\n  succeeded"
   ) ;
+  vms
 
+let fill_mem_pow2 ?total t ~host ~vm =
+  Trace.with_ __FUNCTION__ @@ fun scope ->
+  let vms = fill_mem_pow2' ?total t ~host ~vm in
   Trace.with_ ~scope "Shutdown VMs on success" @@ fun _ -> shutdown_vms t vms
 
 let maximise_memory t ~vm ~total =
