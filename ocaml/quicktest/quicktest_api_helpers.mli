@@ -89,17 +89,17 @@ val fill_mem_pow2' :
   -> vm:[`VM] API.Ref.t
   -> API.ref_VM list
 
-(** [fill_mem_pow2 ?total client ~host ~vm] fills the available memory on [host] in
-  power of 2 increments, trying to ensure that the computed VM sizes sum up to exactly
-  the amount of available free memory on the host, including VM memory overhead.
-  It may not completely fill available memory due to rounding.
-*)
 val fill_mem_pow2 :
      ?total:int64
   -> Client.Client.client
   -> host:[`host] API.Ref.t
   -> vm:[`VM] API.Ref.t
   -> unit
+(** [fill_mem_pow2 ?total client ~host ~vm] fills the available memory on [host] in
+  power of 2 increments, trying to ensure that the computed VM sizes sum up to exactly
+  the amount of available free memory on the host, including VM memory overhead.
+  It may not completely fill available memory due to rounding.
+*)
 
 val workload :
   Client.Client.client -> host:API.ref_host -> workload_vm:API.ref_VM -> unit
@@ -113,7 +113,8 @@ val workload_pool : Client.Client.client -> workload_vm:API.ref_VM -> unit
 (** [workload_pool client ~workload_vm] is like {!val:workload}, but starts the VMs on all hosts in the pool *)
 
 val fill_mem_n :
-     Client.Client.client
+     ?total:int64
+  -> Client.Client.client
   -> host:[`host] API.Ref.t
   -> vm:[`VM] API.Ref.t
   -> n:int

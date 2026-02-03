@@ -7,7 +7,7 @@ open Quicktest_trace_rpc
 let check_tasks tasks =
   tasks |> List.map @@ function Ok x -> x | Error exn -> raise exn
 
-let meminfo xc scope =
+let meminfo why xc scope =
   let mem = Xenctrlext.HostNuma.numa_get_meminfo xc in
   Scope.add_event scope (fun () ->
       let open Xenctrlext.HostNuma in
@@ -24,6 +24,7 @@ let meminfo xc scope =
               ; key "claimed" meminfo.claimed
               ; key "size" meminfo.size
               ; key "free-claimed" Int64.(sub meminfo.free meminfo.claimed)
+              ; "reason", `String why
               ]
         )
         |> List.of_seq
@@ -50,7 +51,7 @@ let vm_set_numa_node xc t ~vm node =
 
 let numawalk xc t ~host ~vm ~vms node =
   Trace.with_ "numawalk" ~attrs:[("node", `Int node)] @@ fun scope ->
-  let mem = meminfo xc scope in
+  let mem = meminfo "begin" xc scope in
 
   (* start a big VM on each of the other NUMA nodes, such that the available
      memory on each NUMA node (other than node) is < static_min (but not 0). *)
@@ -61,6 +62,7 @@ let numawalk xc t ~host ~vm ~vms node =
         if i = node then
           None
         else
+          (* TODO: also check distance for validity *)
           let open Xenctrlext.HostNuma in
           let self = List.nth vms i in
           let value =
@@ -68,30 +70,47 @@ let numawalk xc t ~host ~vm ~vms node =
             @@ Api.VM.maximise_memory
                  ~total:Int64.(sub info.free info.claimed)
                  ~approximate:false
-          and static_min_half =
-            Int64.div (Api.VM.call_get t VM.get_memory_static_min ~self) 2L
-          in
-          Api.VM.call_set t VM.set_memory ~self
-            ~value:Int64.(sub value static_min_half) ;
-          vm_set_numa_node xc t ~vm:self i ;
-          Some (host, self)
+          and static_min = Api.VM.call_get t VM.get_memory_static_min ~self in
+          let value = Int64.sub value Int64.(div static_min 2L) in
+          if value < static_min then
+            None
+          else begin
+            Api.VM.call_set t VM.set_memory ~self ~value ;
+            vm_set_numa_node xc t ~vm:self i ;
+            Some (host, self)
+          end
     )
     |> List.of_seq
   in
   let () = Trace.with_ "start_vms_block" ~scope @@ fun _ -> start_vms t block in
-  let mem = (meminfo xc scope).(node) in
-  let total = Int64.sub mem.free mem.claimed in
-  let filled = fill_mem_pow2' t ~total ~host ~vm in
-  let self = List.nth vms node in
-  let value = Api.VM.call_get t VM.get_memory_static_min ~self in
-  Api.VM.call_set t VM.set_memory ~self ~value ;
-  let () =
-    Trace.with_ "start_when_node_full" ~scope @@ fun scope ->
-    let (_ : _ array) = meminfo xc scope in
-    start_vm t ~host ~vm:self
+
+  let static_min = Api.VM.call_get t VM.get_memory_static_min ~self:vm in
+  let filled_vms =
+    Trace.with_ "starts_vms_fill_one" ~scope @@ fun _scope ->
+    let mem = (meminfo "begin_fill_one" xc scope).(node) in
+    let total = Int64.sub mem.free mem.claimed in
+    let n = min (Int64.div total static_min) 32L |> Int64.to_int in
+    let filled_vms = fill_mem_n t ~total ~host ~vm ~n in
+    let (_ : _ array) = meminfo "after_fill_one" xc scope in
+    filled_vms
   in
-  let (_ : _ array) = meminfo xc scope in
-  shutdown_vms t (vms @ filled)
+
+  (* we've started the VMs where we wanted, now free up memory on other nodes *)
+  shutdown_vms t (List.map snd block) ;
+
+  (* Try to start a lot of VMs, if we have allocations that specifically only
+     use node 0, then we should be able to trigger an OOM *)
+  let free = call t @@ Host.compute_free_memory ~host in
+  let n = min (Int64.div free static_min) 64L |> Int64.to_int in
+
+  let filled_vms2 =
+    Trace.with_ "fill_remaining" ~scope @@ fun scope ->
+    let (_ : _ array) = meminfo "before_fill_remaining" xc scope in
+    let vms = fill_mem_n t ~host ~vm ~n in
+    let (_ : _ array) = meminfo "after_fill_remaining" xc scope in
+    vms
+  in
+  shutdown_vms t (filled_vms @ filled_vms2 |> List.map snd)
 
 let one t ~host ~vm =
   Trace.with_ __FUNCTION__ @@ fun _ ->

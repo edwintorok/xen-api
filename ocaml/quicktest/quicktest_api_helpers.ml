@@ -367,12 +367,13 @@ let maximise_memory t ~vm ~total =
   in
   value
 
-let fill_mem_n t ~host ~vm ~n =
+let fill_mem_n ?total t ~host ~vm ~n =
   assert (n > 0) ;
-  let free_mem = call t @@ Host.compute_free_memory ~host in
+  let host_free_mem = call t @@ Host.compute_free_memory ~host in
+  let total = Option.value total ~default:host_free_mem in
   let value =
     (*  rounded down, will fill remainder below in last_value *)
-    let total = Int64.div free_mem (Int64.of_int n) in
+    let total = Int64.div total (Int64.of_int n) in
     maximise_memory t ~vm ~total
   in
 
@@ -388,7 +389,7 @@ let fill_mem_n t ~host ~vm ~n =
     in
     (* division may not be exact, fill remainder *)
     let total =
-      Int64.(sub free_mem @@ mul (add value overhead) @@ Int64.of_int @@ (n - 1))
+      Int64.(sub total @@ mul (add value overhead) @@ Int64.of_int @@ (n - 1))
     in
     maximise_memory t ~vm ~total
   in
