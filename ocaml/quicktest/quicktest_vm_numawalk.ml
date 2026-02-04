@@ -54,9 +54,96 @@ let div_round_up a b = Int64.(div (add a @@ pred b) b)
 
 let mib = Int64.shift_left 1L 20
 
+let available meminfo =
+  let open Xenctrlext.HostNuma in
+  Int64.sub meminfo.free meminfo.claimed
+
 let numawalk_hard xc t ~fit ~host ~vm ~vms node =
   Trace.with_ "numawalk_hard" ~attrs:[("node", `Int node)] @@ fun scope ->
   let mem = meminfo "begin_one" xc scope in
+
+  (* make the chosen node have the most free memory, if possible *)
+  let chosen_node_available = available mem.(node) in
+
+  let extra = Int64.mul 4L mib in
+  let static_min = Api.VM.call_get t VM.get_memory_static_min ~self:vm in
+  (* have this much more on the chosen node at least *)
+  let other_vms =
+    mem
+    |> Array.to_seqi
+    |> Seq.filter_map (fun (i, info) ->
+        if i = node then
+          None
+        else
+          let self = List.nth vms i in
+          let avail = available info in
+          let max_vm_memory =
+            Api.VM.call_get t ~self
+            @@ Api.VM.maximise_memory ~total:avail ~approximate:false
+          in
+          let delta = Int64.(sub (add avail extra) chosen_node_available) in
+          let delta = div_round_up delta mib |> Int64.mul mib in
+          if delta <= 0L then
+            None
+          else
+            let value = min (max static_min delta) max_vm_memory in
+            Api.VM.call_set t VM.set_memory ~self ~value ;
+            vm_set_numa_node (( = ) i) xc t ~vm:self ;
+            Some (host, self)
+    )
+    |> List.of_seq
+  in
+  let () =
+    Trace.with_ "ensure_chosen_node_free" ~scope @@ fun _ ->
+    start_vms t other_vms
+  in
+  let mem = meminfo "after_chosen_node_free/before_start_one" xc scope in
+  let vm_node = List.nth vms node in
+  let host_free = call t @@ Host.compute_free_memory ~host in
+  let max_vm_memory =
+    Api.VM.call_get t ~self:vm_node
+    @@ Api.VM.maximise_memory ~total:host_free ~approximate:false
+  in
+  let value = available mem.(node) in
+  let value =
+    if fit then
+      Api.VM.call_get t ~self:vm_node
+      @@ Api.VM.maximise_memory ~total:value ~approximate:false
+    else
+      (* workaround XAPI rounding bug, fill_mem later will fail *)
+      Int64.div value mib |> Int64.mul mib
+  in
+  (* if we only have 1 NUMA node avoid using more than XAPI thinks we have free
+     *)
+  let value = Int64.min max_vm_memory value in
+  let () =
+    Trace.with_ "start_one" ~scope @@ fun scope ->
+    Api.VM.call_set t VM.set_memory ~self:vm_node ~value ;
+    start_vm t ~host ~vm:vm_node ;
+    let (_ : _ array) = meminfo "after_start_one" xc scope in
+    ()
+  in
+
+  (* Try to start a lot of VMs, if we have allocations that specifically only
+     use node 0, then we should be able to trigger an OOM *)
+  let free = call t @@ Host.compute_free_memory ~host in
+  let n = min (Int64.div free static_min) 64L |> Int64.to_int in
+
+  let filled_vms =
+    Trace.with_ "fill_remaining" ~scope @@ fun scope ->
+    let (_ : _ array) = meminfo "before_fill_remaining" xc scope in
+    let vms = fill_mem_n t ~host ~vm ~n in
+    let (_ : _ array) = meminfo "after_fill_remaining" xc scope in
+    let free = call t @@ Host.compute_free_memory ~host in
+    Scope.add_event scope (fun () ->
+        Opentelemetry.Event.make "host_memory_free"
+          ~attrs:[("free_bytes", `Int (Int64.to_int free))]
+    ) ;
+    vms
+  in
+  shutdown_vms t (vm_node :: List.map snd filled_vms)
+(*
+
   let vm_node = List.nth vms node in
   let mem_node = mem.(node) in
   let host_free = call t @@ Host.compute_free_memory ~host in
@@ -70,8 +157,7 @@ let numawalk_hard xc t ~fit ~host ~vm ~vms node =
       Api.VM.call_get t ~self:vm_node
       @@ Api.VM.maximise_memory ~total:value ~approximate:false
     else
-      (* need to round to workaround XAPI rounding bug in compute_overhead *)
-      div_round_up value mib |> Int64.mul mib
+      value
   in
   (* if we only have 1 NUMA node avoid using more than XAPI thinks we have free
      *)
@@ -80,6 +166,12 @@ let numawalk_hard xc t ~fit ~host ~vm ~vms node =
   let overhead =
     Api.VM.with_call t "compute_memory_overhead" vm_node
     @@ VM.compute_memory_overhead ~vm:vm_node
+  in
+  let overhead =
+    if fit then overhead
+    else
+      (* need to round to workaround XAPI rounding bug in compute_overhead *)
+      div_round_up overhead mib |> Int64.mul mib
   in
 
   let other_vms =
@@ -212,6 +304,7 @@ let numawalk_hard xc t ~fit ~host ~vm ~vms node =
   in
   shutdown_vms t (filled_vms @ filled_vms2 |> List.map snd)
   *)
+*)
 
 let one t ~host ~vm =
   Trace.with_ __FUNCTION__ @@ fun _ ->
@@ -219,7 +312,8 @@ let one t ~host ~vm =
   let nodes = Xenctrlext.get_nr_nodes xc in
   let vms = ensure_vm_clones t ~vm nodes "numawalk_block" in
   for i = 0 to nodes - 1 do
-    numawalk_hard xc t ~host ~vm ~vms i
+    numawalk_hard xc t ~fit:false ~host ~vm ~vms i ;
+    numawalk_hard xc t ~fit:true ~host ~vm ~vms i
   done
 
 let test rpc session_id template () =
