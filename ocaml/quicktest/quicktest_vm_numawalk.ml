@@ -31,15 +31,16 @@ let meminfo why xc scope =
       in
       Opentelemetry.Event.make "numa_meminfo" ~attrs
   ) ;
+  Xenctrl.with_intf (fun xc -> Xenctrl.send_debug_keys xc "u") ;
   mem
 
-let vm_set_numa_node xc t ~vm node =
+let vm_set_numa_node f xc t ~vm =
   let topo = Xenctrlext.cputopoinfo xc in
   let cpus =
     topo
     |> Array.to_seqi
     |> Seq.filter_map (fun (i, t) ->
-        if t.Xenctrlext.node = node then
+        if f t.Xenctrlext.node then
           Some (string_of_int i)
         else
           None
@@ -49,7 +50,11 @@ let vm_set_numa_node xc t ~vm node =
   Api.VM.call_set t VM.set_VCPUs_params ~self:vm
     ~value:[("mask", String.concat "," cpus)]
 
-let numawalk_hard xc t ~host ~vm ~vms node =
+let div_round_up a b = Int64.(div (add a @@ pred b) b)
+
+let mib = Int64.shift_left 1L 20
+
+let numawalk_hard xc t ~fit ~host ~vm ~vms node =
   Trace.with_ "numawalk_hard" ~attrs:[("node", `Int node)] @@ fun scope ->
   let mem = meminfo "begin_one" xc scope in
   let vm_node = List.nth vms node in
@@ -59,17 +64,59 @@ let numawalk_hard xc t ~host ~vm ~vms node =
     Api.VM.call_get t ~self:vm_node
     @@ Api.VM.maximise_memory ~total:host_free ~approximate:false
   in
+  let value = Int64.sub mem_node.free mem_node.claimed in
+  let value =
+    if fit then
+      Api.VM.call_get t ~self:vm_node
+      @@ Api.VM.maximise_memory ~total:value ~approximate:false
+    else
+      (* need to round to workaround XAPI rounding bug in compute_overhead *)
+      div_round_up value mib |> Int64.mul mib
+  in
   (* if we only have 1 NUMA node avoid using more than XAPI thinks we have free
      *)
-  let value =
-    Int64.min max_vm_memory (Int64.sub mem_node.free mem_node.claimed)
-  in
+  let value = Int64.min max_vm_memory value in
   Api.VM.call_set t VM.set_memory ~self:vm_node ~value ;
-  vm_set_numa_node xc t ~vm:vm_node node ;
-  let () =
-    Trace.with_ "start_1" ~scope @@ fun _ -> start_vm t ~host ~vm:vm_node
+  let overhead =
+    Api.VM.with_call t "compute_memory_overhead" vm_node
+    @@ VM.compute_memory_overhead ~vm:vm_node
   in
-  Xenctrl.with_intf (fun xc -> Xenctrl.send_debug_keys xc "u");
+
+  let other_vms =
+    Option.to_list
+      (vms
+      |> List.find_opt (( <> ) vm_node)
+      |> Option.map @@ fun self ->
+         let value = Int64.(sub host_free (add value overhead)) in
+         let value =
+           Api.VM.call_get t ~self
+           @@ Api.VM.maximise_memory ~total:value ~approximate:false
+         in
+         Api.VM.call_set t VM.set_memory ~self ~value ;
+         vm_set_numa_node (( <> ) node) xc t ~vm:self ;
+         (host, self)
+      )
+  in
+
+  (* start other first, otherwise Xen would protect node 0, and we won't be
+     able to make it run out *)
+  let () =
+    Trace.with_ "start_other" ~scope @@ fun _ ->
+    start_vms t other_vms ;
+    let (_ : _ array) = meminfo "after_start_other" xc scope in
+    ()
+  in
+
+  fill_mem_pow2 t ~host ~vm
+
+  let () =
+    Trace.with_ "start_1" ~scope @@ fun _ ->
+    start_vm t ~host ~vm:vm_node ;
+    let (_ : _ array) = meminfo "after_start_1" xc scope in
+    ()
+  in
+
+  shutdown_vms t (List.map snd other_vms) ;
 
   (* Try to start a lot of VMs, if we have allocations that specifically only
      use node 0, then we should be able to trigger an OOM *)
@@ -89,7 +136,7 @@ let numawalk_hard xc t ~host ~vm ~vms node =
     ) ;
     vms
   in
-  Xenctrl.with_intf (fun xc -> Xenctrl.send_debug_keys xc "u");
+  Xenctrl.with_intf (fun xc -> Xenctrl.send_debug_keys xc "u") ;
   shutdown_vms t (vm_node :: List.map snd filled_vms)
 
 (*
