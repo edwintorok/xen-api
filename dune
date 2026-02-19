@@ -22,20 +22,7 @@
   (deps
     %{bin:lintcstubs_arity}
     (:mlfiles
-      (glob_files ocaml/auth/*.ml)
-      (glob_files ocaml/forkexecd/lib/*.ml)
-      (glob_files ocaml/libs/log/*.ml)
-      (glob_files ocaml/libs/vhd/vhd_format_lwt/*.ml)
-      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/*.ml)
-      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-unix/*.ml)
-      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/*.ml)
-      (glob_files ocaml/libs/xenctrl-ext/*.ml)
-      (glob_files ocaml/vhd-tool/src/channels.ml)
-      (glob_files ocaml/xenopsd/cstubs/*.ml)
-      ocaml/xenopsd/lib/sockopt.ml
-      ocaml/xenopsd/xc/tuntap.ml
-      (glob_files ocaml/xxhash/lib/*.ml)
-      (glob_files unixpwd/src/*.ml)
+      (glob_files_rec *.ml)
     ))
   (action
    (with-stdout-to primitives.h
@@ -81,18 +68,15 @@
 (rule
   (targets xapi.sarif lintcstubs.stdout)
   (deps
-    (:headers (glob_files ocaml/auth/*.h) (glob_files unixpwd/c/*.h) primitives.h)
+    (:headers
+     (glob_files_rec ocaml/[^s]+/**/*.h)
+     (glob_files_rec unixpwd/**/*.h)
+     primitives.h
+    )
     (:primitives_model primitives.model.c)
     (:cstubs
-     (glob_files ocaml/auth/*.c)
-     (glob_files ocaml/forkexecd/lib/*.c)
-     (glob_files ocaml/libs/log/*.c)
-     (glob_files ocaml/libs/vhd_format_lwt/*.c)
-     (glob_files ocaml/libs/xapi-stdext/lib/*/*.c)
-     (glob_files ocaml/libs/xenctrl-ext/*.c)
-     (glob_files ocaml/vhd-tool/src/*.c)
-     (glob_files ocaml/xenopsd/c_stubs/*.c)
-     (glob_files unixpwd/c/unix*.c)))
+     (glob_files_rec ocaml/[^s]+/**/*.c)
+     (glob_files_rec unixpwd/**/*.c)))
 
   ; enable only errors from our analyses
   ; so that the paths in the .sarif will be correct a chdir is needed
