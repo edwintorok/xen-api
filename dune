@@ -35,16 +35,16 @@
     %{bin:lintcstubs_genmain}
     (:cmtfiles
       (glob_files ocaml/auth/.pam.objs/byte/*.cmt)
-      (glob_files ocaml/forkexecd/lib/.forkexec.objs/*.cmt)
+      (glob_files ocaml/forkexecd/lib/.forkexec.objs/byte/*.cmt)
       (glob_files ocaml/libs/log/.log.objs/byte/*.cmt)
       (glob_files ocaml/libs/vhd/vhd_format_lwt/.vhd_format_lwt.objs/byte/*.cmt)
-      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/.xapi-stdext-threads.objs/byte/*.cmt)
-      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-unix/.xapi-stdext-unix.objs/byte/*.cmt)
-      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/.xapi-stdext-zerocheck.objs/byte/*.cmt)
+      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/.xapi_stdext_threads.objs/byte/*.cmt)
+      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-unix/.xapi_stdext_unix.objs/byte/*.cmt)
+      (glob_files ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/.xapi_stdext_zerocheck.objs/byte/*.cmt)
       (glob_files ocaml/libs/xenctrl-ext/.xenctrl_ext.objs/byte/*.cmt)
-      (glob_files ocaml/vhd-tool/src/.channel_stubs.objs/byte/*.cmt)
+      (glob_files ocaml/vhd-tool/src/.vhd_lib.objs/byte/*.cmt)
       (glob_files ocaml/xenopsd/xc/.xenopsd_xc.objs/byte/*.cmt)
-      (glob_files ocaml/xenopsd/lib/.xenopsd.objs/byte/*.cmt)
+      (glob_files ocaml/xenopsd/lib/.xapi_xenopsd.objs/byte/*.cmt)
       (glob_files ocaml/xxhash/stubs/.xxhash_bindings.objs/byte/*.cmt)
       (glob_files ocaml/xxhash/lib/.xxhash.objs/byte/*.cmt)
       (glob_files unixpwd/src/.unixpwd.objs/byte/*.cmt)
@@ -53,7 +53,6 @@
   (action
     (with-stdout-to primitives.model.c
      (progn
-      (run %{bin:lintcstubs_genwrap} %{cmtfiles})
       (run %{bin:lintcstubs_genmain} %{cmtfiles})
      )
    )
