@@ -66,6 +66,7 @@ static void delay_destroy(delay *d)
 
 static void delay_signal(delay *d)
 {
+    assert(d);
 	// there are quite some chances lock is not held
 	if (pthread_mutex_trylock(&d->mtx) == 0) {
 		d->signaled = true;
@@ -90,6 +91,7 @@ int delay_wait(delay *d, const struct timespec *deadline)
 {
 	int err;
 
+	assert(d);
 	caml_release_runtime_system();
 	pthread_mutex_lock(&d->mtx);
 	do {

@@ -53,6 +53,7 @@
   (action
     (with-stdout-to primitives.model.c
      (progn
+      (run %{bin:lintcstubs_genwrap} %{cmtfiles})
       (run %{bin:lintcstubs_genmain} %{cmtfiles})
      )
    )
@@ -74,8 +75,7 @@
     )
     (:primitives_model primitives.model.c)
     (:cstubs
-     (glob_files_rec ocaml/[^s]+/**/*.c)
-     (glob_files_rec unixpwd/**/*.c)))
+     (glob_files_rec *.c)))
 
   ; enable only errors from our analyses
   ; so that the paths in the .sarif will be correct a chdir is needed
@@ -86,12 +86,12 @@
       (run ln -s %{read-lines:ctypesdir} ctypes)
       (with-stdout-to lintcstubs.stdout
         (run %{bin:lintcstubs} -o xapi.sarif --disable warn.info
-            --disable warn.unsound --disable warn.imprecise
-            --disable warn.deadcode
-            --disable warn.behavior
-            --set ana.activated "[\"ocamlcstubs\",\"escape\"]"
+             --conf lintcstubs.json
             --sarif -I %{ocaml_where}
             -I ocaml/auth -I ctypes -I unixpwd/c
+            -I /usr/include/libxml2
+            -I ocaml/sdk-gen/c/autogen/include
+            -I ocaml/sdk-gen/c/autogen-out/include
             %{primitives_model}
             %{cstubs}
            ))))
